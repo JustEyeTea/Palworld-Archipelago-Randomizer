@@ -94,12 +94,21 @@ jobs:
         with:
           arch: x64
       - name: Build
-        shell: cmd
+        shell: bash
         run: |
-          cmake -S palworld-archipelago/cppmod -B build -G Ninja -DCMAKE_BUILD_TYPE=Game__Shipping__Win64 ^
-            -DCMAKE_TOOLCHAIN_FILE=%VCPKG_INSTALLATION_ROOT%/scripts/buildsystems/vcpkg.cmake ^
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DAP_DEPS=%GITHUB_WORKSPACE%/palworld-archipelago/cppmod/deps || exit /b 1
-          cmake --build build --target APConnector || exit /b 1
+          set -o pipefail
+          cmake -S palworld-archipelago/cppmod -B build -G Ninja -DCMAKE_BUILD_TYPE=Game__Shipping__Win64 \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DAP_DEPS="$GITHUB_WORKSPACE/palworld-archipelago/cppmod/deps" \
+            2>&1 | tee build.log
+          cmake --build build --target APConnector 2>&1 | tee -a build.log
+      # Job logs need admin rights to read, but annotations are public: publish the build's errors as one.
+      - name: Report build errors
+        if: failure()
+        shell: bash
+        run: |
+          errs=$( (grep -E 'error|Error|FAILED|CMake Error' build.log || tail -60 build.log) | grep -v 'error_code\|Werror' | head -60)
+          echo "::error title=C++ build failed::$(printf '%s' "$errs" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
       - name: Package
         shell: bash
         run: |
