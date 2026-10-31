@@ -1,0 +1,49 @@
+# Tests the APWorld on every push and pull request against the Archipelago version it targets: Archipelago's own
+# test suites and test generations (beatable seeds for short and long goals). The mod's C++ part needs Windows
+# and Unreal headers and will get its own job.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apworld:
+    name: APWorld on Archipelago ${{ matrix.archipelago }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        archipelago: ["0.6.8"]  # the APWorld's minimum_ap_version (the current release)
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: palworld-archipelago
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Archipelago ${{ matrix.archipelago }}
+        run: |
+          git clone --depth 1 --branch "${{ matrix.archipelago }}" https://github.com/ArchipelagoMW/Archipelago.git archipelago
+          python -m venv archipelago/.venv
+          archipelago/.venv/bin/pip install -q -r archipelago/requirements.txt -r archipelago/WebHostLib/requirements.txt pytest pytest-subtests
+      - name: Archipelago's test suites
+        run: AP_DIR="$GITHUB_WORKSPACE/archipelago" palworld-archipelago/tools/ap_tests.sh
+      - name: Test generations
+        env:
+          AP_DIR: ${{ github.workspace }}/archipelago
+        run: |
+          cd palworld-archipelago
+          tools/test_generate.sh 3
+          EXTRA_OPTIONS='tower_count: 8' tools/test_generate.sh 2
+          EXTRA_OPTIONS=$'area_locks: false\n  progressive_spheres: false\n  level_checks: every_10' tools/test_generate.sh 2
