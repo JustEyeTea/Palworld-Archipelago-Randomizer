@@ -97,6 +97,10 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          # Git Bash's /usr/bin/link.exe (the Unix link tool) shadows MSVC's linker: Rust build scripts in UE4SS's
+          # patternsleuth then fail to link. Put the MSVC tools first.
+          export PATH="$(cygpath -u "$VCToolsInstallDir")bin/Hostx64/x64:$PATH"
+          which link.exe cl.exe
           cmake -S palworld-archipelago/cppmod -B build -G Ninja -DCMAKE_BUILD_TYPE=Game__Shipping__Win64 \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DAP_DEPS="$GITHUB_WORKSPACE/palworld-archipelago/cppmod/deps" \
