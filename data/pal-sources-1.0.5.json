@@ -2193,7 +2193,7 @@
   ],
   "010": [
    {
-    "area": "Island -337k,342k",
+    "area": "Outer Isles I",
     "level": 1,
     "type": "wild"
    },
@@ -2203,12 +2203,12 @@
     "type": "wild"
    },
    {
-    "area": "Island -34k,571k",
+    "area": "Outer Isles III",
     "level": 40,
     "type": "wild"
    },
    {
-    "area": "Island -501k,-38k",
+    "area": "Outer Isles II",
     "level": 32,
     "type": "wild"
    },
@@ -2258,7 +2258,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -2805,7 +2805,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -568k,123k",
+    "area": "Outer Isles I",
     "level": 10,
     "type": "wild"
    },
@@ -2968,7 +2968,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -568k,123k",
+    "area": "Outer Isles I",
     "level": 10,
     "type": "wild"
    },
@@ -3135,13 +3135,8 @@
     "type": "wild"
    },
    {
-    "area": "Island -434k,178k",
+    "area": "Outer Isles I",
     "level": 20,
-    "type": "wild"
-   },
-   {
-    "area": "Island -568k,123k",
-    "level": 22,
     "type": "wild"
    },
    {
@@ -3760,7 +3755,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -3770,7 +3765,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -4575,7 +4570,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -4951,7 +4946,7 @@
   ],
   "032B": [
    {
-    "area": "Island -434k,178k",
+    "area": "Outer Isles I",
     "level": 20,
     "type": "wild"
    },
@@ -5671,7 +5666,7 @@
   ],
   "039B": [
    {
-    "area": "Island -71k,-251k",
+    "area": "Outer Isles III",
     "level": 55,
     "type": "wild"
    },
@@ -5754,7 +5749,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 178k,219k",
+    "area": "Outer Isles III",
     "level": 50,
     "type": "wild"
    },
@@ -5828,7 +5823,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -5838,7 +5833,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -5958,7 +5953,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -568k,123k",
+    "area": "Outer Isles I",
     "level": 10,
     "type": "wild"
    },
@@ -6104,7 +6099,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -214k,-257k",
+    "area": "Outer Isles II",
     "level": 30,
     "type": "wild"
    },
@@ -6130,7 +6125,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -6183,7 +6178,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -6193,7 +6188,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -6203,7 +6198,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": false,
@@ -6492,7 +6487,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -6537,7 +6532,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 30,
     "type": "wild"
    },
@@ -6810,7 +6805,7 @@
   ],
   "055B": [
    {
-    "area": "Island -285k,-144k",
+    "area": "Outer Isles II",
     "level": 36,
     "type": "wild"
    },
@@ -6821,7 +6816,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -6831,7 +6826,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -7074,7 +7069,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 31,
     "type": "wild"
    },
@@ -7558,7 +7553,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -434k,178k",
+    "area": "Outer Isles I",
     "level": 20,
     "type": "wild"
    },
@@ -7640,7 +7635,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -7650,7 +7645,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -7783,7 +7778,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -434k,178k",
+    "area": "Outer Isles I",
     "level": 20,
     "type": "wild"
    },
@@ -7866,7 +7861,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 34,
     "type": "wild"
    },
@@ -8111,7 +8106,7 @@
   ],
   "072B": [
    {
-    "area": "Island -71k,-251k",
+    "area": "Outer Isles III",
     "level": 55,
     "type": "wild"
    },
@@ -8145,7 +8140,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 31,
     "type": "wild"
    },
@@ -8178,7 +8173,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -8188,7 +8183,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -8223,7 +8218,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -8233,7 +8228,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -8243,7 +8238,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": false,
@@ -8492,7 +8487,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 31,
     "type": "wild"
    },
@@ -8629,7 +8624,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 32,
     "type": "wild"
    },
@@ -8779,7 +8774,7 @@
   ],
   "078": [
    {
-    "area": "Island -239k,-115k",
+    "area": "Outer Isles II",
     "level": 30,
     "type": "wild"
    },
@@ -8805,7 +8800,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -9038,7 +9033,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -434k,178k",
+    "area": "Outer Isles I",
     "level": 24,
     "type": "wild"
    },
@@ -9074,7 +9069,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -434k,178k",
+    "area": "Outer Isles I",
     "level": 25,
     "type": "wild"
    },
@@ -9121,7 +9116,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 163k,455k",
+    "area": "Outer Isles III",
     "level": 45,
     "type": "wild"
    },
@@ -9132,7 +9127,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -9245,7 +9240,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 34,
     "type": "wild"
    },
@@ -9292,8 +9287,8 @@
     "type": "wild"
    },
    {
-    "area": "Island -285k,-144k",
-    "level": 39,
+    "area": "Outer Isles II",
+    "level": 30,
     "type": "wild"
    },
    {
@@ -9307,23 +9302,13 @@
     "type": "wild"
    },
    {
-    "area": "Island -239k,-115k",
-    "level": 30,
-    "type": "wild"
-   },
-   {
     "area": "King Whale",
     "level": 30,
     "type": "wild"
    },
    {
-    "area": "Island 163k,455k",
+    "area": "Outer Isles III",
     "level": 50,
-    "type": "wild"
-   },
-   {
-    "area": "Island 215k,306k",
-    "level": 34,
     "type": "wild"
    },
    {
@@ -9333,7 +9318,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -9393,7 +9378,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -568k,123k",
+    "area": "Outer Isles I",
     "level": 10,
     "type": "wild"
    },
@@ -9496,12 +9481,12 @@
   ],
   "088": [
    {
-    "area": "Island -337k,342k",
+    "area": "Outer Isles I",
     "level": 1,
     "type": "wild"
    },
    {
-    "area": "Island -501k,-38k",
+    "area": "Outer Isles II",
     "level": 32,
     "type": "wild"
    },
@@ -9610,13 +9595,13 @@
     "type": "wild"
    },
    {
-    "area": "Island -285k,-144k",
+    "area": "Outer Isles II",
     "level": 36,
     "type": "wild"
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -9626,7 +9611,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -9636,7 +9621,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": false,
@@ -9647,7 +9632,7 @@
   ],
   "091B": [
    {
-    "area": "Island -173k,-141k",
+    "area": "Outer Isles II",
     "level": 37,
     "type": "wild"
    },
@@ -9690,7 +9675,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -9776,7 +9761,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -9792,12 +9777,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -285k,-144k",
-    "level": 38,
-    "type": "wild"
-   },
-   {
-    "area": "Island -239k,-115k",
+    "area": "Outer Isles II",
     "level": 35,
     "type": "wild"
    },
@@ -9807,13 +9787,8 @@
     "type": "wild"
    },
    {
-    "area": "Island -173k,-141k",
-    "level": 35,
-    "type": "wild"
-   },
-   {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -9823,7 +9798,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": false,
@@ -9903,7 +9878,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -285k,-144k",
+    "area": "Outer Isles II",
     "level": 48,
     "type": "wild"
    },
@@ -9988,7 +9963,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 35,
     "type": "wild"
    },
@@ -10042,7 +10017,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -214k,-257k",
+    "area": "Outer Isles II",
     "level": 30,
     "type": "wild"
    },
@@ -10068,7 +10043,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": false,
@@ -10162,7 +10137,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 31,
     "type": "wild"
    },
@@ -10174,7 +10149,7 @@
   ],
   "099B": [
    {
-    "area": "Island 163k,455k",
+    "area": "Outer Isles III",
     "level": 48,
     "type": "wild"
    },
@@ -10198,8 +10173,8 @@
     "type": "wild"
    },
    {
-    "area": "Island -453k,351k",
-    "level": 32,
+    "area": "Outer Isles II",
+    "level": 31,
     "type": "wild"
    },
    {
@@ -10208,12 +10183,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
-    "level": 31,
-    "type": "wild"
-   },
-   {
-    "area": "Island -453k,351k",
+    "area": "Outer Isles II",
     "level": 40,
     "type": "alpha"
    }
@@ -10230,7 +10200,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 33,
     "type": "wild"
    },
@@ -10460,7 +10430,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -285k,-144k",
+    "area": "Outer Isles II",
     "level": 34,
     "type": "wild"
    },
@@ -10476,7 +10446,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -10492,7 +10462,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -1017k,-367k",
+    "area": "Outer Isles IV",
     "level": 65,
     "type": "wild"
    },
@@ -10502,7 +10472,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -1017k,-367k",
+    "area": "Outer Isles IV",
     "level": 70,
     "type": "alpha"
    }
@@ -10528,12 +10498,12 @@
     "type": "wild"
    },
    {
-    "area": "Island -34k,571k",
+    "area": "Outer Isles III",
     "level": 40,
     "type": "wild"
    },
    {
-    "area": "Island -501k,-38k",
+    "area": "Outer Isles II",
     "level": 32,
     "type": "wild"
    },
@@ -10570,17 +10540,12 @@
     "type": "wild"
    },
    {
-    "area": "Island -453k,351k",
-    "level": 35,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
+    "area": "Outer Isles II",
     "level": 34,
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Snow",
     "level": 34,
     "type": "wild"
    },
@@ -10727,7 +10692,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -10737,7 +10702,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -10779,7 +10744,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -10806,7 +10771,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -34k,571k",
+    "area": "Outer Isles III",
     "level": 40,
     "type": "wild"
    },
@@ -10843,7 +10808,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -173k,-141k",
+    "area": "Outer Isles II",
     "level": 35,
     "type": "wild"
    },
@@ -10914,7 +10879,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -10930,12 +10895,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -285k,-144k",
-    "level": 46,
-    "type": "wild"
-   },
-   {
-    "area": "Island -239k,-115k",
+    "area": "Outer Isles II",
     "level": 38,
     "type": "wild"
    },
@@ -10950,13 +10910,8 @@
     "type": "wild"
    },
    {
-    "area": "Island -173k,-141k",
-    "level": 40,
-    "type": "wild"
-   },
-   {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -10966,7 +10921,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": false,
@@ -11061,7 +11016,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -173k,-141k",
+    "area": "Outer Isles II",
     "level": 35,
     "type": "wild"
    }
@@ -11212,7 +11167,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -11263,7 +11218,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -11299,7 +11254,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -11324,7 +11279,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 39,
     "type": "wild"
    }
@@ -11418,7 +11373,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 31,
     "type": "wild"
    },
@@ -11624,7 +11579,7 @@
   ],
   "128B": [
    {
-    "area": "Island 80k,517k",
+    "area": "Outer Isles III",
     "level": 40,
     "type": "wild"
    },
@@ -11649,7 +11604,7 @@
    },
    {
     "areas": [
-     "Island -239k,-115k",
+     "Outer Isles II",
      "Volcano (Electric)"
     ],
     "boss": true,
@@ -11738,7 +11693,7 @@
    },
    {
     "areas": [
-     "Island -501k,-38k"
+     "Outer Isles II"
     ],
     "boss": false,
     "dungeon": "Yakushima001",
@@ -11762,12 +11717,12 @@
   ],
   "131": [
    {
-    "area": "Island 80k,517k",
+    "area": "Outer Isles III",
     "level": 42,
     "type": "wild"
    },
    {
-    "area": "Island 80k,517k",
+    "area": "Outer Isles III",
     "level": 50,
     "type": "alpha"
    }
@@ -11904,7 +11859,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -173k,-141k",
+    "area": "Outer Isles II",
     "level": 45,
     "type": "wild"
    },
@@ -11921,7 +11876,7 @@
   ],
   "136": [
    {
-    "area": "Island 163k,455k",
+    "area": "Outer Isles III",
     "level": 45,
     "type": "wild"
    }
@@ -11933,7 +11888,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 80k,517k",
+    "area": "Outer Isles III",
     "level": 46,
     "type": "wild"
    },
@@ -11966,7 +11921,7 @@
     "type": "alpha"
    },
    {
-    "area": "Island -168k,578k",
+    "area": "Outer Isles III",
     "level": 55,
     "type": "alpha"
    },
@@ -11983,7 +11938,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -557k,-623k",
+    "area": "Outer Isles IV",
     "level": 70,
     "type": "alpha"
    },
@@ -11997,7 +11952,7 @@
   ],
   "139": [
    {
-    "area": "Island -404k,-432k",
+    "area": "Outer Isles IV",
     "level": 68,
     "type": "wild"
    },
@@ -12014,7 +11969,7 @@
   ],
   "140": [
    {
-    "area": "Island -404k,-432k",
+    "area": "Outer Isles IV",
     "level": 65,
     "type": "wild"
    },
@@ -12034,7 +11989,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 37,
     "type": "wild"
    }
@@ -12048,12 +12003,12 @@
   ],
   "141B": [
    {
-    "area": "Island -404k,-432k",
+    "area": "Outer Isles IV",
     "level": 65,
     "type": "wild"
    },
    {
-    "area": "Island -404k,-432k",
+    "area": "Outer Isles IV",
     "level": 70,
     "type": "alpha"
    },
@@ -12082,7 +12037,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 215k,306k",
+    "area": "Outer Isles II",
     "level": 48,
     "type": "wild"
    },
@@ -12178,8 +12133,8 @@
     "type": "wild"
    },
    {
-    "area": "Island -285k,-144k",
-    "level": 35,
+    "area": "Outer Isles II",
+    "level": 30,
     "type": "wild"
    },
    {
@@ -12200,16 +12155,6 @@
    {
     "area": "World Tree",
     "level": 70,
-    "type": "wild"
-   },
-   {
-    "area": "Island -239k,-115k",
-    "level": 30,
-    "type": "wild"
-   },
-   {
-    "area": "Island 215k,306k",
-    "level": 30,
     "type": "wild"
    }
   ],
@@ -12278,7 +12223,7 @@
   ],
   "148B": [
    {
-    "area": "Island -168k,578k",
+    "area": "Outer Isles III",
     "level": 50,
     "type": "wild"
    },
@@ -12336,7 +12281,7 @@
   ],
   "149B": [
    {
-    "area": "Island -557k,-623k",
+    "area": "Outer Isles IV",
     "level": 62,
     "type": "wild"
    },
@@ -12381,7 +12326,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 178k,219k",
+    "area": "Outer Isles III",
     "level": 50,
     "type": "wild"
    },
@@ -12567,7 +12512,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -173k,-141k",
+    "area": "Outer Isles II",
     "level": 55,
     "type": "alpha"
    }
@@ -12579,19 +12524,19 @@
     "type": "wild"
    },
    {
-    "area": "Island 163k,455k",
+    "area": "Outer Isles III",
     "level": 55,
     "type": "wild"
    },
    {
-    "area": "Island -239k,-115k",
+    "area": "Outer Isles II",
     "level": 55,
     "type": "alpha"
    }
   ],
   "159B": [
    {
-    "area": "Island -1017k,-367k",
+    "area": "Outer Isles IV",
     "level": 65,
     "type": "wild"
    },
@@ -12982,22 +12927,12 @@
     "type": "wild"
    },
    {
-    "area": "Island -453k,351k",
+    "area": "Outer Isles II",
     "level": 55,
     "type": "wild"
    },
    {
-    "area": "Island 178k,219k",
-    "level": 55,
-    "type": "wild"
-   },
-   {
-    "area": "Island -168k,578k",
-    "level": 55,
-    "type": "wild"
-   },
-   {
-    "area": "Island -71k,-251k",
+    "area": "Outer Isles III",
     "level": 55,
     "type": "wild"
    },
@@ -13012,12 +12947,12 @@
     "type": "wild"
    },
    {
-    "area": "Island -1017k,-367k",
+    "area": "Outer Isles IV",
     "level": 55,
     "type": "wild"
    },
    {
-    "area": "Island -568k,123k",
+    "area": "Outer Isles I",
     "level": 55,
     "type": "wild"
    },
@@ -13032,22 +12967,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -214k,-257k",
-    "level": 55,
-    "type": "wild"
-   },
-   {
     "area": "Windswept (start)",
-    "level": 55,
-    "type": "wild"
-   },
-   {
-    "area": "Island 80k,517k",
-    "level": 55,
-    "type": "wild"
-   },
-   {
-    "area": "Island -557k,-623k",
     "level": 55,
     "type": "wild"
    },
@@ -13058,11 +12978,6 @@
    },
    {
     "area": "Snow",
-    "level": 55,
-    "type": "wild"
-   },
-   {
-    "area": "Island -404k,-432k",
     "level": 55,
     "type": "wild"
    }
@@ -13145,7 +13060,7 @@
     "type": "wild"
    },
    {
-    "area": "Island -434k,178k",
+    "area": "Outer Isles I",
     "level": 30,
     "type": "alpha"
    },
@@ -13256,7 +13171,7 @@
     "type": "wild"
    },
    {
-    "area": "Island 163k,455k",
+    "area": "Outer Isles III",
     "level": 50,
     "type": "wild"
    },
@@ -13354,7 +13269,7 @@
   ],
   "200B": [
    {
-    "area": "Island 163k,455k",
+    "area": "Outer Isles III",
     "level": 65,
     "type": "alpha"
    },
@@ -13368,7 +13283,7 @@
   ],
   "201": [
    {
-    "area": "Island 178k,219k",
+    "area": "Outer Isles III",
     "level": 60,
     "type": "alpha"
    }

@@ -57,14 +57,20 @@ main = max(size, key=size.get)
 centre = lambda c: (sum(pts[i][0] for i in range(len(pts)) if comp[i] == c) / size[c],
                     sum(pts[i][1] for i in range(len(pts)) if comp[i] == c) / size[c])
 
+# Small islands with no tower are grouped by their median Pal level into four passes (decided 31 Oct 2026); most sit
+# well above the level of the nearest main area, so joining each to its neighbour would put high Pals behind early passes.
+ISLE_CUTS = [(30, 'Outer Isles I'), (42, 'Outer Isles II'), (60, 'Outer Isles III'), (99, 'Outer Isles IV')]
+def OUTER_ISLES(c):
+    v = sorted(pts[i][2] for i in range(len(pts)) if comp[i] == c)
+    m = v[len(v) // 2]
+    return next(name for cut, name in ISLE_CUTS if m <= cut)
 def base(i):
     """Region before level splits: the start zone, a tower region within the landmass, or an island."""
     x, y, l = pts[i]; c = comp[i]
     if c == main and l <= START: return 'Windswept (start)'
     mine = [t for t in towers if tower_comp[t] == c]
     if mine: return min(mine, key=lambda t: (t[1] - x) ** 2 + (t[2] - y) ** 2)[0]
-    cx, cy = centre(c)
-    return f'Island {cx / 1e3:.0f}k,{cy / 1e3:.0f}k'
+    return OUTER_ISLES(c)
 region_of = [base(i) for i in range(len(pts))]
 by = collections.defaultdict(list)
 for i, k in enumerate(region_of): by[k].append(pts[i][2])
@@ -74,14 +80,14 @@ for k, v in by.items():
     if v[int(.9 * (len(v) - 1))] - v[int(.1 * (len(v) - 1))] > MIXED: mixed.add(k)
 def band(l): return next((i for i, c in enumerate(CUTS) if l <= c), len(CUTS))
 def label(b): lo = ([1] + [c + 1 for c in CUTS])[b]; hi = (CUTS + [80])[b]; return f'{lo}-{hi}'
-area_of = [f'{k} {label(band(pts[i][2]))}' if k in mixed else k for i, k in enumerate(region_of)]
+area_of = [f'{k} {label(band(pts[i][2]))}' if k in mixed and not k.startswith('Outer') else k for i, k in enumerate(region_of)]
 # Fold scraps (a few spawners split off a mainland region by level) into the nearest other area.
 MINSIZE = 10
 counts = collections.Counter(area_of)
-for k in [k for k, n in counts.items() if n < MINSIZE and not k.startswith('Island')]:
+for k in [k for k, n in counts.items() if n < MINSIZE and not k.startswith('Outer')]:
     idx = [i for i, a in enumerate(area_of) if a == k]
     for i in idx:
-        others = [j for j in range(len(pts)) if area_of[j] != k and not area_of[j].startswith('Island')]
+        others = [j for j in range(len(pts)) if area_of[j] != k and not area_of[j].startswith('Outer')]
         j = min(others, key=lambda j: (pts[j][0] - pts[i][0]) ** 2 + (pts[j][1] - pts[i][1]) ** 2)
         area_of[i] = area_of[j]
 def area(x, y, l):

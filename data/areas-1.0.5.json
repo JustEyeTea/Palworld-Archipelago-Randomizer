@@ -91,165 +91,6 @@
    "levels": 23.0,
    "spawners": 795
   },
-  "Island -1017k,-367k": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 66.5,
-   "spawners": 37
-  },
-  "Island -168k,578k": {
-   "alphas": [
-    55
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 52.0,
-   "spawners": 14
-  },
-  "Island -173k,-141k": {
-   "alphas": [
-    55
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 39.333333333333336,
-   "spawners": 10
-  },
-  "Island -214k,-257k": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 35.0,
-   "spawners": 10
-  },
-  "Island -239k,-115k": {
-   "alphas": [
-    39,
-    39,
-    55
-   ],
-   "effigies": 6,
-   "fast_travel": 1,
-   "levels": 34.5,
-   "spawners": 20
-  },
-  "Island -285k,-144k": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 0,
-   "levels": 39.5,
-   "spawners": 4
-  },
-  "Island -337k,342k": {
-   "alphas": [
-    55
-   ],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 5.5,
-   "spawners": 6
-  },
-  "Island -34k,571k": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 45.0,
-   "spawners": 7
-  },
-  "Island -404k,-432k": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 67.375,
-   "spawners": 36
-  },
-  "Island -434k,178k": {
-   "alphas": [
-    30
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 22.916666666666668,
-   "spawners": 12
-  },
-  "Island -453k,351k": {
-   "alphas": [
-    40
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 35.75,
-   "spawners": 14
-  },
-  "Island -501k,-38k": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 35.0,
-   "spawners": 7
-  },
-  "Island -557k,-623k": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 63.0,
-   "spawners": 9
-  },
-  "Island -568k,123k": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 16.7,
-   "spawners": 8
-  },
-  "Island -71k,-251k": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 57.5,
-   "spawners": 27
-  },
-  "Island 163k,455k": {
-   "alphas": [
-    65
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 51.083333333333336,
-   "spawners": 11
-  },
-  "Island 178k,219k": {
-   "alphas": [
-    60
-   ],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 55.0,
-   "spawners": 8
-  },
-  "Island 215k,306k": {
-   "alphas": [],
-   "effigies": 2,
-   "fast_travel": 0,
-   "levels": 35.60526315789474,
-   "spawners": 1
-  },
-  "Island 80k,517k": {
-   "alphas": [
-    50
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 44.666666666666664,
-   "spawners": 17
-  },
   "King Whale": {
    "alphas": [
     20,
@@ -270,6 +111,52 @@
    "fast_travel": 13,
    "levels": 33.75,
    "spawners": 479
+  },
+  "Outer Isles I": {
+   "alphas": [
+    30,
+    55
+   ],
+   "effigies": 0,
+   "fast_travel": 2,
+   "levels": 22.916666666666668,
+   "spawners": 26
+  },
+  "Outer Isles II": {
+   "alphas": [
+    39,
+    39,
+    40,
+    55,
+    55
+   ],
+   "effigies": 10,
+   "fast_travel": 4,
+   "levels": 35.0,
+   "spawners": 66
+  },
+  "Outer Isles III": {
+   "alphas": [
+    50,
+    55,
+    60,
+    65
+   ],
+   "effigies": 4,
+   "fast_travel": 5,
+   "levels": 52.0,
+   "spawners": 84
+  },
+  "Outer Isles IV": {
+   "alphas": [
+    70,
+    70,
+    70
+   ],
+   "effigies": 3,
+   "fast_travel": 3,
+   "levels": 66.5,
+   "spawners": 82
   },
   "Sakurajima": {
    "alphas": [
@@ -427,9 +314,9 @@
    "Feybreak": 61
   },
   "010": {
-   "Island -337k,342k": 1,
-   "Island -34k,571k": 40,
-   "Island -501k,-38k": 32,
+   "Outer Isles I": 1,
+   "Outer Isles II": 32,
+   "Outer Isles III": 40,
    "Windswept (start)": 5
   },
   "011": {
@@ -449,7 +336,7 @@
   },
   "015B": {
    "Forest": 20,
-   "Island -568k,123k": 10,
+   "Outer Isles I": 10,
    "Volcano (Electric)": 20
   },
   "016": {
@@ -459,16 +346,15 @@
    "Windswept (start)": 4
   },
   "017": {
-   "Island -568k,123k": 10,
    "King Whale": 35,
+   "Outer Isles I": 10,
    "Snow": 35,
    "Windswept (start)": 2
   },
   "017B": {},
   "018": {
-   "Island -434k,178k": 20,
-   "Island -568k,123k": 22,
    "King Whale": 39,
+   "Outer Isles I": 20,
    "Snow": 39
   },
   "018B": {},
@@ -540,7 +426,7 @@
    "World Tree": 80
   },
   "032B": {
-   "Island -434k,178k": 20,
+   "Outer Isles I": 20,
    "World Tree": 80
   },
   "033": {
@@ -591,7 +477,7 @@
    "Volcano (Electric)": 9
   },
   "039B": {
-   "Island -71k,-251k": 55
+   "Outer Isles III": 55
   },
   "040": {
    "Windswept (start)": 9
@@ -601,7 +487,7 @@
    "World Tree": 80
   },
   "041B": {
-   "Island 178k,219k": 50,
+   "Outer Isles III": 50,
    "World Tree": 80
   },
   "042": {
@@ -626,11 +512,11 @@
   },
   "045": {
    "Feybreak": 50,
-   "Island -568k,123k": 10
+   "Outer Isles I": 10
   },
   "046": {
    "Feybreak": 50,
-   "Island -214k,-257k": 30
+   "Outer Isles II": 30
   },
   "047": {
    "Sky Islands": 64,
@@ -662,8 +548,8 @@
   "053": {
    "Desert": 25,
    "Forest": 20,
-   "Island 215k,306k": 30,
    "King Whale": 25,
+   "Outer Isles II": 30,
    "Sakurajima": 46,
    "Snow": 25
   },
@@ -681,7 +567,7 @@
    "Windswept (start)": 14
   },
   "055B": {
-   "Island -285k,-144k": 36,
+   "Outer Isles II": 36,
    "Volcano (Electric)": 34
   },
   "056": {
@@ -701,8 +587,8 @@
    "Desert": 28,
    "Feybreak": 56,
    "Forest": 14,
-   "Island 215k,306k": 31,
    "King Whale": 20,
+   "Outer Isles II": 31,
    "Sakurajima": 54,
    "Snow": 28,
    "Volcano (Electric)": 14,
@@ -730,7 +616,7 @@
   },
   "063": {
    "Forest": 25,
-   "Island -434k,178k": 20,
+   "Outer Isles I": 20,
    "World Tree": 80
   },
   "063B": {
@@ -757,7 +643,7 @@
    "Feybreak": 63
   },
   "066": {
-   "Island -434k,178k": 20,
+   "Outer Isles I": 20,
    "Sakurajima": 55
   },
   "067": {
@@ -770,8 +656,8 @@
   },
   "069": {
    "Desert": 30,
-   "Island 215k,306k": 34,
    "King Whale": 30,
+   "Outer Isles II": 34,
    "Snow": 30
   },
   "070": {
@@ -790,12 +676,12 @@
    "Snow": 33
   },
   "072B": {
-   "Island -71k,-251k": 55
+   "Outer Isles III": 55
   },
   "073": {
    "Desert": 28,
-   "Island 215k,306k": 31,
    "King Whale": 28,
+   "Outer Isles II": 31,
    "Snow": 28,
    "Volcano (Electric)": 21
   },
@@ -822,7 +708,7 @@
   "075B": {
    "Desert": 31,
    "Feybreak": 52,
-   "Island 215k,306k": 31,
+   "Outer Isles II": 31,
    "Snow": 31
   },
   "076": {
@@ -830,7 +716,7 @@
   },
   "076B": {
    "Desert": 32,
-   "Island 215k,306k": 32,
+   "Outer Isles II": 32,
    "Snow": 32
   },
   "077": {
@@ -840,7 +726,7 @@
   "078": {
    "Desert": 32,
    "Forest": 32,
-   "Island -239k,-115k": 30,
+   "Outer Isles II": 30,
    "Volcano (Electric)": 23
   },
   "078B": {
@@ -868,7 +754,7 @@
   },
   "081": {
    "Forest": 24,
-   "Island -434k,178k": 24,
+   "Outer Isles I": 24,
    "Volcano (Electric)": 24,
    "World Tree": 80
   },
@@ -876,13 +762,13 @@
    "World Tree": 75
   },
   "082": {
-   "Island -434k,178k": 25,
    "King Whale": 36,
+   "Outer Isles I": 25,
    "Snow": 46,
    "Volcano (Electric)": 25
   },
   "083": {
-   "Island 163k,455k": 45,
+   "Outer Isles III": 45,
    "World Tree": 80
   },
   "083B": {
@@ -895,16 +781,14 @@
   },
   "084B": {
    "Desert": 34,
-   "Island 215k,306k": 34,
+   "Outer Isles II": 34,
    "Snow": 34
   },
   "085": {
    "Desert": 30,
-   "Island -239k,-115k": 30,
-   "Island -285k,-144k": 39,
-   "Island 163k,455k": 50,
-   "Island 215k,306k": 34,
    "King Whale": 30,
+   "Outer Isles II": 30,
+   "Outer Isles III": 50,
    "Sakurajima": 39,
    "Snow": 30,
    "Volcano (Electric)": 25
@@ -915,7 +799,7 @@
    "Sakurajima": 47
   },
   "086": {
-   "Island -568k,123k": 10,
+   "Outer Isles I": 10,
    "Snow": 32
   },
   "087": {
@@ -933,8 +817,8 @@
    "World Tree": 80
   },
   "088": {
-   "Island -337k,342k": 1,
-   "Island -501k,-38k": 32
+   "Outer Isles I": 1,
+   "Outer Isles II": 32
   },
   "088B": {},
   "089": {
@@ -950,11 +834,11 @@
    "Sky Islands": 67
   },
   "091": {
-   "Island -285k,-144k": 36,
+   "Outer Isles II": 36,
    "Volcano (Electric)": 30
   },
   "091B": {
-   "Island -173k,-141k": 37
+   "Outer Isles II": 37
   },
   "092": {
    "Desert": 32,
@@ -969,9 +853,7 @@
    "World Tree": 80
   },
   "093B": {
-   "Island -173k,-141k": 35,
-   "Island -239k,-115k": 35,
-   "Island -285k,-144k": 38,
+   "Outer Isles II": 35,
    "Volcano (Electric)": 34,
    "World Tree": 80
   },
@@ -988,8 +870,8 @@
    "Desert": 48,
    "Feybreak": 63,
    "Forest": 48,
-   "Island -285k,-144k": 48,
    "King Whale": 48,
+   "Outer Isles II": 48,
    "Sakurajima": 48,
    "Volcano (Electric)": 48,
    "World Tree": 80
@@ -1004,8 +886,8 @@
   "096": {
    "Desert": 30,
    "Forest": 30,
-   "Island 215k,306k": 35,
    "King Whale": 30,
+   "Outer Isles II": 35,
    "Snow": 35,
    "World Tree": 80
   },
@@ -1014,7 +896,7 @@
   },
   "097": {
    "Feybreak": 50,
-   "Island -214k,-257k": 30,
+   "Outer Isles II": 30,
    "Volcano (Electric)": 50
   },
   "097B": {},
@@ -1031,21 +913,20 @@
   },
   "099": {
    "Desert": 31,
-   "Island 215k,306k": 31,
+   "Outer Isles II": 31,
    "Snow": 31
   },
   "099B": {
-   "Island 163k,455k": 48
+   "Outer Isles III": 48
   },
   "100": {
    "Desert": 31,
-   "Island -453k,351k": 32,
-   "Island 215k,306k": 31,
+   "Outer Isles II": 31,
    "Snow": 31
   },
   "100B": {
    "Desert": 33,
-   "Island 215k,306k": 33,
+   "Outer Isles II": 33,
    "Snow": 33
   },
   "101": {
@@ -1074,26 +955,25 @@
   },
   "104": {
    "Feybreak": 65,
-   "Island -285k,-144k": 34,
+   "Outer Isles II": 34,
    "Volcano (Electric)": 32,
    "World Tree": 80
   },
   "105": {
-   "Island -1017k,-367k": 65,
+   "Outer Isles IV": 65,
    "Volcano (Electric)": 32,
    "World Tree": 80
   },
   "105B": {},
   "106": {
    "Desert": 34,
-   "Island -34k,571k": 40,
-   "Island -501k,-38k": 32
+   "Outer Isles II": 32,
+   "Outer Isles III": 40
   },
   "107": {
    "Desert": 33,
-   "Island -453k,351k": 35,
-   "Island 215k,306k": 34,
    "King Whale": 33,
+   "Outer Isles II": 34,
    "Snow": 34
   },
   "108": {
@@ -1120,15 +1000,15 @@
   },
   "110": {
    "Desert": 34,
-   "Island -34k,571k": 40,
+   "Outer Isles III": 40,
    "Windswept (start)": 33,
    "World Tree": 80
   },
   "111": {
    "Desert": 34,
    "Forest": 34,
-   "Island -173k,-141k": 35,
-   "King Whale": 34
+   "King Whale": 34,
+   "Outer Isles II": 35
   },
   "111B": {
    "Feybreak": 61
@@ -1140,9 +1020,7 @@
   },
   "112B": {
    "Feybreak": 65,
-   "Island -173k,-141k": 40,
-   "Island -239k,-115k": 38,
-   "Island -285k,-144k": 46,
+   "Outer Isles II": 38,
    "Volcano (Electric)": 35,
    "World Tree": 80
   },
@@ -1158,7 +1036,7 @@
    "Sky Islands": 65
   },
   "115": {
-   "Island -173k,-141k": 35,
+   "Outer Isles II": 35,
    "World Tree": 75
   },
   "116": {
@@ -1187,7 +1065,7 @@
   },
   "120": {
    "Desert": 39,
-   "Island 215k,306k": 39,
+   "Outer Isles II": 39,
    "Snow": 39,
    "World Tree": 80
   },
@@ -1207,7 +1085,7 @@
   },
   "123": {
    "Desert": 31,
-   "Island 215k,306k": 31,
+   "Outer Isles II": 31,
    "Sakurajima": 47,
    "Snow": 31
   },
@@ -1238,7 +1116,7 @@
    "Sky Islands": 65
   },
   "128B": {
-   "Island 80k,517k": 40
+   "Outer Isles III": 40
   },
   "129": {
    "Volcano (Electric)": 46
@@ -1255,7 +1133,7 @@
    "World Tree": 74
   },
   "131": {
-   "Island 80k,517k": 42
+   "Outer Isles III": 42
   },
   "131B": {
    "Sky Islands": 68
@@ -1281,15 +1159,15 @@
   },
   "135": {
    "Feybreak": 64,
-   "Island -173k,-141k": 45,
    "King Whale": 46,
+   "Outer Isles II": 45,
    "Sakurajima": 46
   },
   "136": {
-   "Island 163k,455k": 45
+   "Outer Isles III": 45
   },
   "137": {
-   "Island 80k,517k": 46,
+   "Outer Isles III": 46,
    "World Tree": 80
   },
   "137B": {},
@@ -1301,13 +1179,13 @@
    "World Tree": 75
   },
   "139": {
-   "Island -404k,-432k": 68,
+   "Outer Isles IV": 68,
    "World Tree": 80
   },
   "140": {
    "Desert": 37,
-   "Island -404k,-432k": 65,
-   "Island 215k,306k": 37,
+   "Outer Isles II": 37,
+   "Outer Isles IV": 65,
    "Snow": 37,
    "World Tree": 80
   },
@@ -1315,11 +1193,11 @@
    "Sakurajima": 48
   },
   "141B": {
-   "Island -404k,-432k": 65
+   "Outer Isles IV": 65
   },
   "142": {
    "Desert": 48,
-   "Island 215k,306k": 48,
+   "Outer Isles II": 48,
    "Snow": 48,
    "World Tree": 80
   },
@@ -1333,10 +1211,8 @@
    "Desert": 25,
    "Feybreak": 50,
    "Forest": 10,
-   "Island -239k,-115k": 30,
-   "Island -285k,-144k": 35,
-   "Island 215k,306k": 30,
    "King Whale": 18,
+   "Outer Isles II": 30,
    "Sakurajima": 35,
    "Sky Islands": 65,
    "Snow": 25,
@@ -1353,19 +1229,19 @@
    "Feybreak": 65
   },
   "148B": {
-   "Island -168k,578k": 50
+   "Outer Isles III": 50
   },
   "149": {
    "Feybreak": 50
   },
   "149B": {
-   "Island -557k,-623k": 62
+   "Outer Isles IV": 62
   },
   "150": {
    "Feybreak": 51
   },
   "151": {
-   "Island 178k,219k": 50,
+   "Outer Isles III": 50,
    "World Tree": 80
   },
   "151B": {
@@ -1396,11 +1272,11 @@
    "World Tree": 80
   },
   "159": {
-   "Island 163k,455k": 55,
+   "Outer Isles III": 55,
    "World Tree": 71
   },
   "159B": {
-   "Island -1017k,-367k": 65,
+   "Outer Isles IV": 65,
    "World Tree": 71
   },
   "160": {
@@ -1464,16 +1340,10 @@
   "176": {
    "Desert": 55,
    "Feybreak": 55,
-   "Island -1017k,-367k": 55,
-   "Island -168k,578k": 55,
-   "Island -214k,-257k": 55,
-   "Island -404k,-432k": 55,
-   "Island -453k,351k": 55,
-   "Island -557k,-623k": 55,
-   "Island -568k,123k": 55,
-   "Island -71k,-251k": 55,
-   "Island 178k,219k": 55,
-   "Island 80k,517k": 55,
+   "Outer Isles I": 55,
+   "Outer Isles II": 55,
+   "Outer Isles III": 55,
+   "Outer Isles IV": 55,
    "Sakurajima": 55,
    "Sky Islands": 55,
    "Snow": 55,
@@ -1524,7 +1394,7 @@
    "World Tree": 76
   },
   "189": {
-   "Island 163k,455k": 50,
+   "Outer Isles III": 50,
    "World Tree": 80
   },
   "190": {

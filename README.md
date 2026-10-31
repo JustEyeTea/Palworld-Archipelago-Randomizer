@@ -8,8 +8,11 @@ purchase sends to the multiworld, with captures, bosses, fast-travel points and 
 passes gating progression. It runs as a UE4SS mod inside the player's own game: a Lua core plus a C++ part that
 connects to the Archipelago server. Targets Palworld 1.0.5 and Archipelago 0.6.8.
 
-`spike/` holds the feasibility probes (a server-side probe and the client tech-shop probe) and game tables read
-from Palworld 1.0.5.102999.
+`spike/` holds the feasibility probes (a server-side probe and the client tech-shop probe). `tools/` reads Palworld's
+own data through the probe and turns it into the facts the randomizer needs; `data/` holds those facts (areas, where
+each Pal can be obtained). Raw dumps of Pocketpair's game tables are not distributed here: they are Pocketpair's, not
+covered by this repository's licence, and are regenerated from your own copy of the game with the probe's
+`dumptable` and `dumpactors` commands.
 
 Most of its code, tools and documentation are written by Claude, an AI model made by Anthropic, at JustEyeTee's
 direction.
