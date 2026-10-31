@@ -12,6 +12,7 @@
 //   AP_Status() -> string                disconnected | connecting | connected | refused
 #include <Windows.h>
 
+#include <cstdio>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -116,11 +117,11 @@ namespace
             return 1;
         });
         lua.register_function("AP_Check", [](const LuaMadeSimple::Lua& l) -> int {
-            bridge().check(ids(arg(l)));
+            bridge().send_checks(ids(arg(l)));
             return 0;
         });
         lua.register_function("AP_Scout", [](const LuaMadeSimple::Lua& l) -> int {
-            bridge().scout(ids(arg(l)));
+            bridge().send_scouts(ids(arg(l)));
             return 0;
         });
         lua.register_function("AP_Say", [](const LuaMadeSimple::Lua& l) -> int {

@@ -29,9 +29,9 @@ int main(int argc, char** argv)
     std::printf("== slot_data options.tower_count = %s\n", b.slot_data("options.tower_count").c_str());
     std::printf("== slot_data game_version = %s\n", b.slot_data("game_version").c_str());
     const long long loc = std::stoll(argv[3]);
-    b.scout({loc});
+    b.send_scouts({loc});
     drain(b, 1500);
-    b.check({loc});
+    b.send_checks({loc});
     b.say("bridge test says hello");
     drain(b, 2000);
     b.disconnect();

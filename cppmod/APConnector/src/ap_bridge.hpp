@@ -1,5 +1,6 @@
 // The Archipelago connection, independent of UE4SS and Lua: apclientpp on its own thread, with a small text API the
-// Lua mod calls through the UE4SS C++ mod (dllmain.cpp). Tested on Linux by test/bridge_test.cpp against a live server.
+// Lua mod calls through the UE4SS C++ mod (dllmain.cpp). Method names avoid Unreal macros (check, verify, ensure),
+// which UE4SS's headers define in dllmain.cpp. Tested on Linux by test/bridge_test.cpp against a live server.
 #pragma once
 
 #include <atomic>
@@ -32,8 +33,8 @@ class ApBridge
     //   bounce   <tags> <json>                             Death Link and other bounces, raw
     auto take_events() -> std::string;
 
-    void check(const std::vector<int64_t>& locations);
-    void scout(const std::vector<int64_t>& locations);
+    void send_checks(const std::vector<int64_t>& locations);
+    void send_scouts(const std::vector<int64_t>& locations);
     void say(const std::string& text);
     void goal();
     void bounce(const std::string& json_data, const std::string& tags_csv);

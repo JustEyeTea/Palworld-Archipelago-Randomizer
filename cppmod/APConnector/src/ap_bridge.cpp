@@ -153,13 +153,13 @@ auto ApBridge::take_events() -> std::string
     return out;
 }
 
-void ApBridge::check(const std::vector<int64_t>& locations)
+void ApBridge::send_checks(const std::vector<int64_t>& locations)
 {
     std::lock_guard lock(m_mutex);
     if (m_client) m_client->LocationChecks({locations.begin(), locations.end()});
 }
 
-void ApBridge::scout(const std::vector<int64_t>& locations)
+void ApBridge::send_scouts(const std::vector<int64_t>& locations)
 {
     std::lock_guard lock(m_mutex);
     if (m_client) m_client->LocationScouts({locations.begin(), locations.end()}, 0);
