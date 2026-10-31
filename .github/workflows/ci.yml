@@ -1,6 +1,5 @@
-# Tests the APWorld on every push and pull request against the Archipelago version it targets: Archipelago's own
-# test suites and test generations (beatable seeds for short and long goals). The mod's C++ part needs Windows
-# and Unreal headers and will get its own job.
+# On every push and pull request: the APWorld against the Archipelago version it targets (Archipelago's own test
+# suites and test generations), and the mod's C++ part built on Windows, packaged with the Lua mod as an artifact.
 name: CI
 
 on:
@@ -47,3 +46,70 @@ jobs:
           tools/test_generate.sh 3
           EXTRA_OPTIONS='tower_count: 8' tools/test_generate.sh 2
           EXTRA_OPTIONS=$'area_locks: false\n  progressive_spheres: false\n  level_checks: every_10' tools/test_generate.sh 2
+
+  # The mod's C++ part (APConnector), built on Windows against the UE4SS the game runs: Okaetsu's Palworld build,
+  # release 2281fa31. UE4SS's Unreal headers live in a private repository that only Epic-linked GitHub accounts can
+  # read; UEPSEUDO_TOKEN is used only to clone it here and is never written to the build output.
+  cppmod:
+    name: C++ mod (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      UE4SS_COMMIT: 2281fa311e417b1dfddedbcd49972d764fddb244   # Okaetsu/RE-UE4SS release 2281fa31
+      APCLIENTPP_COMMIT: 6b28cc1781006deae0e28c61752d11a83819585a
+      WSWRAP_COMMIT: aeba7ac428028723fb26ce92488f260660f786b1
+      SOECLIENT_COMMIT: 9bba4e1ce9fc10500813e9570329daf1dffdf606  # its vendored asio, websocketpp and json
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: palworld-archipelago
+      - name: Fetch UE4SS source
+        shell: bash
+        env:
+          UEPSEUDO_TOKEN: ${{ secrets.UEPSEUDO_TOKEN }}
+        run: |
+          if [ -z "$UEPSEUDO_TOKEN" ]; then echo "::error::UEPSEUDO_TOKEN secret is missing"; exit 1; fi
+          # Submodules use SSH URLs; route them through HTTPS with the token (global config of this runner only).
+          git config --global url."https://x-access-token:${UEPSEUDO_TOKEN}@github.com/".insteadOf "git@github.com:"
+          dir=palworld-archipelago/cppmod/RE-UE4SS
+          git init -q "$dir" && cd "$dir"
+          git remote add origin https://github.com/Okaetsu/RE-UE4SS.git
+          git fetch -q --depth 1 origin "$UE4SS_COMMIT" && git checkout -q FETCH_HEAD
+          git submodule update -q --init --recursive --depth 1
+          git config --global --unset url."https://x-access-token:${UEPSEUDO_TOKEN}@github.com/".insteadOf
+      - name: Fetch apclientpp and its header-only dependencies
+        shell: bash
+        run: |
+          deps=palworld-archipelago/cppmod/deps; mkdir -p "$deps"
+          fetch() { git init -q "$deps/$1" && git -C "$deps/$1" remote add origin "https://github.com/$2.git" &&
+                    git -C "$deps/$1" fetch -q --depth 1 origin "$3" && git -C "$deps/$1" checkout -q FETCH_HEAD; }
+          fetch apclientpp black-sliver/apclientpp "$APCLIENTPP_COMMIT"
+          fetch wswrap black-sliver/wswrap "$WSWRAP_COMMIT"
+          fetch ap-soeclient black-sliver/ap-soeclient "$SOECLIENT_COMMIT"
+      - name: OpenSSL and zlib (static, dynamic CRT)
+        shell: bash
+        run: |
+          "$VCPKG_INSTALLATION_ROOT/vcpkg" install openssl:x64-windows-static-md zlib:x64-windows-static-md
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Build
+        shell: cmd
+        run: |
+          cmake -S palworld-archipelago/cppmod -B build -G Ninja -DCMAKE_BUILD_TYPE=Game__Shipping__Win64 ^
+            -DCMAKE_TOOLCHAIN_FILE=%VCPKG_INSTALLATION_ROOT%/scripts/buildsystems/vcpkg.cmake ^
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DAP_DEPS=%GITHUB_WORKSPACE%/palworld-archipelago/cppmod/deps || exit /b 1
+          cmake --build build --target APConnector || exit /b 1
+      - name: Package
+        shell: bash
+        run: |
+          out=package/ue4ss/Mods
+          mkdir -p "$out/APConnector/dlls"
+          cp "$(find build -name APConnector.dll | head -1)" "$out/APConnector/dlls/main.dll"
+          curl -sSfL -o "$out/APConnector/cacert.pem" https://curl.se/ca/cacert.pem   # Mozilla's CA bundle (MPL 2.0)
+          cp -r palworld-archipelago/mod/PalworldArchipelago "$out/"
+          ls -R package
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PalworldArchipelago-mod-${{ github.sha }}
+          path: package

@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+cppmod/RE-UE4SS/
+cppmod/deps/
+build/
