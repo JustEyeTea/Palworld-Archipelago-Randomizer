@@ -11,7 +11,7 @@
 local INBOX = "ue4ss/Mods/APProbe/inbox.txt"
 
 local function log(msg) print("[APProbe] " .. msg .. "\n") end
-log("v6 loaded")
+log("v7 loaded")
 local each, arrayNames  -- defined below; used by hooks and helpers
 
 local function str(v)
@@ -285,6 +285,23 @@ function commands.dumpactors(class, ...)
     end
     f:close()
     log("dumpactors: " .. class .. " -> " .. n .. " actors")
+end
+-- dumpalltables: every loaded DataTable, all columns (from its row struct), into out/all/<table>.tsv.
+function commands.dumpalltables()
+    local tables = FindAllOf("DataTable") or {}
+    local done, failed = 0, 0
+    os.execute('mkdir "ue4ss\\Mods\\APProbe\\out\\all" 2>nul')
+    for _, dt in ipairs(tables) do
+        local ok, err = pcall(function()
+            local path = dt:GetFullName():match("^%S+%s+(.+)$")
+            local cols = {}
+            dt.RowStruct:ForEachProperty(function(prop) cols[#cols + 1] = prop:GetFName():ToString() end)
+            commands.dumptable(path, table.unpack(cols))
+            done = done + 1
+        end)
+        if not ok then failed = failed + 1; log("dumpalltables: " .. tostring(err)) end
+    end
+    log("dumpalltables: " .. done .. " tables dumped, " .. failed .. " failed, of " .. #tables)
 end
 function commands.dump()
     for _, f in ipairs({ "DumpAllObjects", "GenerateLuaTypes", "GenerateUHTCompatibleHeaders", "DumpUSMAP" }) do
