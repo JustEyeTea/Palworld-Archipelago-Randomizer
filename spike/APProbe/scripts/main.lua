@@ -11,7 +11,7 @@
 local INBOX = "ue4ss/Mods/APProbe/inbox.txt"
 
 local function log(msg) print("[APProbe] " .. msg .. "\n") end
-log("v5 loaded")
+log("v6 loaded")
 local each, arrayNames  -- defined below; used by hooks and helpers
 
 local function str(v)
@@ -239,6 +239,52 @@ function commands.props(class, ...)
         local ok, v = pcall(function() return o[f] end)
         log("props " .. class .. "." .. f .. " = " .. tostring(ok and v or ("error " .. tostring(v))))
     end
+end
+-- dumpactors <class> [field...]: every live actor of that class -> out/actors_<class>.tsv with its position, its
+-- bounding box (centre and half-size) and the listed fields as text.
+function commands.dumpactors(class, ...)
+    local fields = { ... }
+    local list = FindAllOf(class) or {}
+    local function txt(v)
+        if v == nil then return "" end
+        local t = type(v)
+        if t == "number" or t == "boolean" or t == "string" then return tostring(v) end
+        local ok, s = pcall(function() return v:ToString() end)
+        if ok and s then return s end
+        ok, s = pcall(function() return v:get():ToString() end)
+        if ok and s then return s end
+        ok, s = pcall(function() return string.format("%.0f,%.0f,%.0f", v.X, v.Y, v.Z) end)
+        if ok then return s end
+        ok, s = pcall(function() return v.Key:ToString() end)   -- data table row name structs
+        if ok and s then return s end
+        return tostring(v)
+    end
+    local f = io.open("ue4ss/Mods/APProbe/out/actors_" .. class .. ".tsv", "w")
+    if not f then log("dumpactors: cannot write"); return end
+    f:write("name\tx\ty\tz\tbx\tby\tbz\tex\tey\tez\t" .. table.concat(fields, "\t") .. "\n")
+    local n = 0
+    for _, a in ipairs(list) do
+        if a:IsValid() then
+            local loc = { X = 0, Y = 0, Z = 0 }
+            pcall(function() loc = a:K2_GetActorLocation() end)
+            local out = {}
+            pcall(function() a:GetActorBounds(false, out, out) end)
+            local origin, extent = out.Origin, out.BoxExtent
+            local row = { a:GetFullName():match("([^%.:]+)$") or "?",
+                string.format("%.0f", loc.X), string.format("%.0f", loc.Y), string.format("%.0f", loc.Z),
+                origin and string.format("%.0f", origin.X) or "", origin and string.format("%.0f", origin.Y) or "",
+                origin and string.format("%.0f", origin.Z) or "", extent and string.format("%.0f", extent.X) or "",
+                extent and string.format("%.0f", extent.Y) or "", extent and string.format("%.0f", extent.Z) or "" }
+            for _, fl in ipairs(fields) do
+                local ok, v = pcall(function() return a[fl] end)
+                row[#row + 1] = ok and (txt(v):gsub("[\t\r\n]", " ")) or "ERR"
+            end
+            f:write(table.concat(row, "\t") .. "\n")
+            n = n + 1
+        end
+    end
+    f:close()
+    log("dumpactors: " .. class .. " -> " .. n .. " actors")
 end
 function commands.dump()
     for _, f in ipairs({ "DumpAllObjects", "GenerateLuaTypes", "GenerateUHTCompatibleHeaders", "DumpUSMAP" }) do
