@@ -2,7 +2,7 @@
 low-level spawners form the starting area; the rest of a landmass joins its nearest tower (the World Tree's four towers
 are one region); a landmass with no tower is an island area; a region whose levels spread too far is split by level.
 Prints each area's level range and what it holds, and draws the areas.
-    <AP venv python> tools/area_model.py <tables dir> <out.png>   (also writes <out>.json; data/areas-1.0.5.json is that file)
+    <AP venv python> tools/area_model.py <tables dir> <out.png>   (also writes <out>.json and <out>-sources.json: data/areas-1.0.5.json and data/pal-sources-1.0.5.json)
 """
 import csv, re, sys, collections, pathlib
 from PIL import Image, ImageDraw, ImageFont
@@ -125,9 +125,13 @@ img.save(sys.argv[2])
 import json
 mon = {r['row'].lower(): r for r in rd('DT_PalMonsterParameter.tsv')}
 def entry(cid):
-    r = mon.get(cid.lower()) or mon.get(re.sub(r'^(boss_|gym_|raid_)', '', cid, flags=re.I).lower())
-    if not r or r['IsPal'] != 'True' or int(r['ZukanIndex']) <= 0: return None
-    return f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}"
+    """Paldeck entry of a character id; an alpha or raid row (BOSS_, GYM_, RAID_ ...) has no number of its own, so the
+    base row it is named after is used."""
+    for key in (cid.lower(), re.sub(r'^(boss_|gym_|raid_|predator_|quest_)', '', cid, flags=re.I).lower()):
+        r = mon.get(key)
+        if r and r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0:
+            return f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}"
+    return None
 where = collections.defaultdict(dict)               # entry -> area -> lowest level
 for i, sp in enumerate(pt_spawner):
     for cid, lo, hi in contents[sp]:
@@ -139,7 +143,66 @@ only = collections.Counter(next(iter(a)) for a in where.values() if len(a) == 1)
 print(f"\nPaldeck entries: {len(dex)}; spawn in the wild: {len(where)}; in exactly one area: {sum(only.values())}; never in the wild: {len(set(dex) - set(where))}")
 print('entries found only in one area:', dict(only.most_common()))
 print('never in the wild:', sorted(set(dex) - set(where)))
+# Every other way to get each entry: alphas, dungeons (by the areas their entrances sit in), breeding, raids,
+# tower bosses and fishing. The logic needs these for the 28 entries that never spawn in the open world.
+DUNGEON_MARKERS = {'Grass001': ('Grass1',), 'Grass002': ('Grass1',), 'Forest001': ('Forest',), 'Forest002': ('Forest',),
+                   'Dessert001': ('Desert',), 'Volcano001': ('Volcano',), 'Snow001': ('Snow',), 'Sakura001': ('Sakura',),
+                   'Viking001': ('Viking', 'Viking_B', 'Viking_C'), 'Skyland001': ('Skyland',),
+                   'Yakushima001': ('Yakushima',), 'Island001': ('',), 'Island002': ('',), 'Island003': ('',)}
+marker_areas = collections.defaultdict(set)
+for r in rd('actors_PalDungeonPointMarker.tsv'):
+    kind = re.sub(r'_C_UAID.*', '', r['name']).replace('BP_DungeonPortalMarkerV2', 'BP_DungeonPortalMarker')
+    kind = kind.replace('BP_DungeonPortalMarker', '').lstrip('_')
+    marker_areas[kind].add(nearest_area(float(r['x']), float(r['y'])))
+sources = collections.defaultdict(list)
+for e, areas in where.items():
+    for a, lo in areas.items(): sources[e].append({'type': 'wild', 'area': a, 'level': lo})
+for r in rd('DT_BossSpawnerLoactionData.tsv'):
+    e = entry(r['CharacterID'])
+    if e:
+        x, y, _ = xyz(r['Location'])
+        sources[e].append({'type': 'alpha', 'area': nearest_area(x, y), 'level': int(r['Level'])})
+for r in rd('DT_PalSpawnerPlacement.tsv'):           # alpha and prison placements not in the location table
+    if r['PlacementType'] in ('FieldBoss', 'ImprisonmentBoss'):
+        x, y, _ = xyz(r['Location'])
+        for cid, lo, hi in contents.get(r['SpawnerName'], []):
+            e = entry(cid)
+            if e: sources[e].append({'type': 'alpha', 'area': nearest_area(x, y), 'level': lo})
+for r in rd('DT_DungeonEnemySpawnDataTable.tsv'):
+    kinds = DUNGEON_MARKERS.get(r['SpawnAreaId'])
+    if not kinds: continue
+    areas = sorted(set().union(*(marker_areas[k] for k in kinds)))
+    for cid, lo, hi in contents.get(r['SpawnerName'], []):
+        e = entry(cid)
+        if e: sources[e].append({'type': 'dungeon', 'dungeon': r['SpawnAreaId'], 'boss': r['RankType'] == 'Boss',
+                                 'areas': areas, 'level': lo})
+for r in rd('DT_PalFishingSpotPalSpawnerDataTable.tsv'):
+    e = entry(re.search(r'"(.*)"', r['PalName']).group(1))
+    if e: sources[e].append({'type': 'fishing', 'level': int(r['LevelMin'])})
+tribe_entry = {}
+for r in rd('DT_PalMonsterParameter.tsv'):
+    e = entry(r['row'])
+    if e and r['row'].lower() == r['Tribe'].lower(): tribe_entry[r['Tribe']] = e
+for r in rd('DT_PalCombiUnique.tsv'):
+    e = entry(r['ChildCharacterID'])
+    a, b = tribe_entry.get(r['ParentTribeA']), tribe_entry.get(r['ParentTribeB'])
+    if e and a and b and {a, b} != {e}: sources[e].append({'type': 'breed_unique', 'parents': [a, b]})
+for r in rd('DT_PalMonsterParameter.tsv'):
+    e = entry(r['row'])
+    if not e: continue
+    if r['IsRaidBoss'] == 'True': sources[e].append({'type': 'raid', 'row': r['row']})
+    if r['IsTowerBoss'] == 'True': sources[e].append({'type': 'tower', 'row': r['row']})
+breeding = {}
+for r in rd('DT_PalMonsterParameter.tsv'):
+    if r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0 and r['row'] == r['Tribe']:
+        breeding[entry(r['row'])] = {'rank': int(r['CombiRank']), 'normal': r['IgnoreCombi'] != 'True'}
+dedup = lambda xs: [dict(t) for t in dict.fromkeys(tuple(sorted((k, tuple(v) if isinstance(v, list) else v)
+                                                                 for k, v in x.items())) for x in xs)]
+none = [e for e in dex if not sources.get(e)]
+print(f"entries with no source at all: {none}")
 out = {'areas': {k: {'levels': sorted(v['lv'])[len(v['lv']) // 2], 'spawners': len(v['lv']), 'fast_travel': v['ft'],
                      'effigies': v['eff'], 'alphas': sorted(v['alpha'])} for k, v in stats.items()},
        'paldeck': {e: where.get(e, {}) for e in dex}}
 json.dump(out, open(pathlib.Path(sys.argv[2]).with_suffix('.json'), 'w'), indent=1, sort_keys=True)
+json.dump({'sources': {e: dedup(sources.get(e, [])) for e in dex}, 'breeding': breeding},
+          open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-sources.json'), 'w'), indent=1, sort_keys=True)
