@@ -20,9 +20,9 @@ static void drain(ApBridge& b, int ms)
 
 int main(int argc, char** argv)
 {
-    if (argc < 4) { std::fprintf(stderr, "usage: bridge_test <server> <slot> <location id>\n"); return 2; }
+    if (argc < 4) { std::fprintf(stderr, "usage: bridge_test <server> <slot> <location id> [password]\n"); return 2; }
     ApBridge b("Palworld", "bridge-test-0001");
-    b.connect(argv[1], argv[2], "");
+    b.connect(argv[1], argv[2], argc > 4 ? argv[4] : "");
     for (int i = 0; i < 100 && b.status() != "connected" && b.status() != "refused"; ++i) drain(b, 100);
     std::printf("== status %s, slot %d\n", b.status().c_str(), b.player_slot());
     if (b.status() != "connected") return 1;
