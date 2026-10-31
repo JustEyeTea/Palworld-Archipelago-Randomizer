@@ -100,10 +100,24 @@ def nearest_area(x, y):
     return area(x, y, 0)
 stats = collections.defaultdict(lambda: {'lv': [], 'ft': 0, 'eff': 0, 'alpha': []})
 for i, (x, y, l) in enumerate(pts): stats[area_of[i]]['lv'].append(l)
-for r in rd('actors_PalLevelObjectUnlockableFastTravelPoint.tsv'): stats[nearest_area(float(r['x']), float(r['y']))]['ft'] += 1
+FAST_TRAVEL = {}
+for r in rd('actors_PalLevelObjectUnlockableFastTravelPoint.tsv'):
+    a = nearest_area(float(r['x']), float(r['y'])); stats[a]['ft'] += 1; FAST_TRAVEL[r['FastTravelPointID']] = a
+TOWERS = {}
+for r in rd('actors_PalBossTower.tsv'):
+    TOWERS.setdefault(BOSS[int(r['BossType'])], nearest_area(float(r['x']), float(r['y'])))
 for r in rd('actors_PalLevelObjectRelic.tsv'): stats[nearest_area(float(r['x']), float(r['y']))]['eff'] += 1
+PAL_ALPHAS = []                                # the 90 Pal alphas the map shows (other rows are empty human-boss slots)
+mon_rows = {r['row'].lower(): r for r in rd('DT_PalMonsterParameter.tsv')}
+def is_pal(cid):
+    for key in (cid.lower(), re.sub(r'^(boss_|gym_|raid_|predator_|quest_)', '', cid, flags=re.I).lower()):
+        r = mon_rows.get(key)
+        if r and r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0: return True
+    return False
 for r in rd('DT_BossSpawnerLoactionData.tsv'):
-    x, y, _ = xyz(r['Location']); stats[nearest_area(x, y)]['alpha'].append(int(r['Level']))
+    if not is_pal(r['CharacterID']): continue
+    x, y, _ = xyz(r['Location']); a = nearest_area(x, y)
+    stats[a]['alpha'].append(int(r['Level'])); PAL_ALPHAS.append({'row': int(r['row']), 'character': r['CharacterID'], 'level': int(r['Level']), 'area': a})
 rows = sorted(stats.items(), key=lambda kv: sorted(kv[1]['lv'])[len(kv[1]['lv']) // 2])
 print(f"{'area':28s} spawners  levels p10/med/p90  fast-travel  effigies  alphas")
 for k, s in rows:
@@ -208,7 +222,8 @@ none = [e for e in dex if not sources.get(e)]
 print(f"entries with no source at all: {none}")
 out = {'areas': {k: {'levels': sorted(v['lv'])[len(v['lv']) // 2], 'spawners': len(v['lv']), 'fast_travel': v['ft'],
                      'effigies': v['eff'], 'alphas': sorted(v['alpha'])} for k, v in stats.items()},
-       'paldeck': {e: where.get(e, {}) for e in dex}}
+       'paldeck': {e: where.get(e, {}) for e in dex},
+       'fast_travel': FAST_TRAVEL, 'alphas': PAL_ALPHAS, 'towers': TOWERS}
 json.dump(out, open(pathlib.Path(sys.argv[2]).with_suffix('.json'), 'w'), indent=1, sort_keys=True)
 json.dump({'sources': {e: dedup(sources.get(e, [])) for e in dex}, 'breeding': breeding},
           open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-sources.json'), 'w'), indent=1, sort_keys=True)

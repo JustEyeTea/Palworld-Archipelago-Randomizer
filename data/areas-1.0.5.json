@@ -1,17 +1,549 @@
 {
+ "alphas": [
+  {
+   "area": "Feybreak",
+   "character": "BOSS_Horus_Water",
+   "level": 66,
+   "row": 0
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_GrimGirl",
+   "level": 65,
+   "row": 1
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_HerculesBeetle_Ground",
+   "level": 64,
+   "row": 2
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_GoldenHorse",
+   "level": 63,
+   "row": 3
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_MysteryMask",
+   "level": 60,
+   "row": 4
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_WhiteTiger_Ground",
+   "level": 62,
+   "row": 5
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_NightBlueHorse",
+   "level": 63,
+   "row": 6
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_RaijinDaughter_Water",
+   "level": 60,
+   "row": 7
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_AmaterasuWolf_Dark",
+   "level": 65,
+   "row": 8
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_BlueThunderHorse",
+   "level": 66,
+   "row": 9
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_WhiteDeer",
+   "level": 65,
+   "row": 10
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_BadCatgirl",
+   "level": 60,
+   "row": 11
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_WhiteShieldDragon",
+   "level": 62,
+   "row": 12
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_FengyunDeeper_Electric",
+   "level": 60,
+   "row": 13
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_Werewolf_Ice",
+   "level": 66,
+   "row": 14
+  },
+  {
+   "area": "World Tree",
+   "character": "BOSS_GrassGolem",
+   "level": 75,
+   "row": 15
+  },
+  {
+   "area": "World Tree",
+   "character": "BOSS_WhiteDeer_Dark",
+   "level": 79,
+   "row": 16
+  },
+  {
+   "area": "World Tree",
+   "character": "BOSS_IceNarwhal_Fire",
+   "level": 74,
+   "row": 17
+  },
+  {
+   "area": "World Tree",
+   "character": "BOSS_MushroomLady",
+   "level": 78,
+   "row": 18
+  },
+  {
+   "area": "World Tree",
+   "character": "BOSS_VolcanoDragon_Ice",
+   "level": 78,
+   "row": 19
+  },
+  {
+   "area": "World Tree",
+   "character": "BOSS_KabukiMan",
+   "level": 78,
+   "row": 20
+  },
+  {
+   "area": "World Tree",
+   "character": "BOSS_DomeArmorDragon",
+   "level": 79,
+   "row": 21
+  },
+  {
+   "area": "Desert",
+   "character": "BOSS_FlowerDinosaur_Electric",
+   "level": 47,
+   "row": 22
+  },
+  {
+   "area": "Desert",
+   "character": "BOSS_Suzaku",
+   "level": 45,
+   "row": 23
+  },
+  {
+   "area": "Desert",
+   "character": "BOSS_DarkScorpion",
+   "level": 44,
+   "row": 24
+  },
+  {
+   "area": "Desert",
+   "character": "BOSS_CubeTurtle",
+   "level": 55,
+   "row": 25
+  },
+  {
+   "area": "Desert",
+   "character": "BOSS_SaintCentaur",
+   "level": 60,
+   "row": 26
+  },
+  {
+   "area": "Outer Isles IV",
+   "character": "BOSS_VolcanoDragon",
+   "level": 70,
+   "row": 27
+  },
+  {
+   "area": "Outer Isles III",
+   "character": "BOSS_RockBeast",
+   "level": 50,
+   "row": 28
+  },
+  {
+   "area": "Outer Isles II",
+   "character": "BOSS_CactusDoll",
+   "level": 40,
+   "row": 29
+  },
+  {
+   "area": "Outer Isles IV",
+   "character": "BOSS_ScorpionMan_Electric",
+   "level": 70,
+   "row": 30
+  },
+  {
+   "area": "Outer Isles IV",
+   "character": "BOSS_GrassGolem_Dark",
+   "level": 70,
+   "row": 31
+  },
+  {
+   "area": "Outer Isles III",
+   "character": "BOSS_GrassGolem",
+   "level": 55,
+   "row": 32
+  },
+  {
+   "area": "Sakurajima",
+   "character": "BOSS_KingAlpaca_Ice",
+   "level": 46,
+   "row": 33
+  },
+  {
+   "area": "Snow",
+   "character": "BOSS_IceNarwhal",
+   "level": 55,
+   "row": 34
+  },
+  {
+   "area": "Snow",
+   "character": "BOSS_IceHorse",
+   "level": 60,
+   "row": 35
+  },
+  {
+   "area": "Sakurajima",
+   "character": "BOSS_LilyQueen",
+   "level": 58,
+   "row": 36
+  },
+  {
+   "area": "Sakurajima",
+   "character": "BOSS_DarkScorpion_Ground",
+   "level": 55,
+   "row": 37
+  },
+  {
+   "area": "Sakurajima",
+   "character": "BOSS_LilyQueen_Dark",
+   "level": 58,
+   "row": 38
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_FoxExorcist",
+   "level": 68,
+   "row": 39
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_GhostDragon",
+   "level": 69,
+   "row": 40
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_JetDragon",
+   "level": 70,
+   "row": 41
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_ThunderFluffyBird",
+   "level": 67,
+   "row": 42
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_ElecLizard",
+   "level": 66,
+   "row": 43
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_LotusDragon",
+   "level": 69,
+   "row": 44
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_ElecSnail",
+   "level": 65,
+   "row": 45
+  },
+  {
+   "area": "King Whale",
+   "character": "BOSS_Anubis",
+   "level": 55,
+   "row": 46
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_GrassMammoth",
+   "level": 38,
+   "row": 47
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_WeaselDragon",
+   "level": 11,
+   "row": 48
+  },
+  {
+   "area": "Volcano (Electric)",
+   "character": "BOSS_FengyunDeeper",
+   "level": 25,
+   "row": 49
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_Kirin",
+   "level": 31,
+   "row": 50
+  },
+  {
+   "area": "King Whale",
+   "character": "BOSS_ThunderBird",
+   "level": 37,
+   "row": 51
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_BlueDragon",
+   "level": 40,
+   "row": 52
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_NaughtyCat",
+   "level": 17,
+   "row": 53
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_KingAlpaca",
+   "level": 23,
+   "row": 54
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_SakuraSaurus",
+   "level": 23,
+   "row": 55
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_Umihebi",
+   "level": 55,
+   "row": 56
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_FairyDragon",
+   "level": 30,
+   "row": 57
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "Boss_LazyCatFish",
+   "level": 14,
+   "row": 58
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_HawkBird",
+   "level": 18,
+   "row": 59
+  },
+  {
+   "area": "King Whale",
+   "character": "BOSS_PurpleSpider",
+   "level": 35,
+   "row": 60
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_PlantSlime",
+   "level": 11,
+   "row": 61
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_MopKing",
+   "level": 11,
+   "row": 62
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_GrassPanda_Electric",
+   "level": 31,
+   "row": 63
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_Yeti_Grass",
+   "level": 38,
+   "row": 64
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_QueenBee",
+   "level": 39,
+   "row": 65
+  },
+  {
+   "area": "Outer Isles II",
+   "character": "BOSS_WingGolem",
+   "level": 55,
+   "row": 66
+  },
+  {
+   "area": "Volcano (Electric)",
+   "character": "BOSS_VolcanicMonster",
+   "level": 50,
+   "row": 67
+  },
+  {
+   "area": "Volcano (Electric)",
+   "character": "BOSS_KingBahamut",
+   "level": 52,
+   "row": 68
+  },
+  {
+   "area": "Outer Isles II",
+   "character": "BOSS_BlackMetalDragon",
+   "level": 55,
+   "row": 69
+  },
+  {
+   "area": "Outer Isles I",
+   "character": "BOSS_ElecPanda",
+   "level": 30,
+   "row": 70
+  },
+  {
+   "area": "Outer Isles III",
+   "character": "BOSS_IceHorse_Dark",
+   "level": 65,
+   "row": 71
+  },
+  {
+   "area": "Outer Isles III",
+   "character": "BOSS_PoseidonOrca",
+   "level": 60,
+   "row": 105
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_GrassRabbitMan",
+   "level": 35,
+   "row": 106
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_CaptainPenguin",
+   "level": 15,
+   "row": 107
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_BerryGoat_Dark",
+   "level": 23,
+   "row": 108
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_GhostRabbit",
+   "level": 60,
+   "row": 109
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_BlackPuppy",
+   "level": 60,
+   "row": 110
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_FoxMage",
+   "level": 28,
+   "row": 111
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "Boss_IceFox",
+   "level": 15,
+   "row": 112
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_Mutant",
+   "level": 35,
+   "row": 113
+  },
+  {
+   "area": "Desert",
+   "character": "BOSS_WhiteMoth",
+   "level": 40,
+   "row": 114
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_VioletFairy",
+   "level": 27,
+   "row": 115
+  },
+  {
+   "area": "Sky Islands",
+   "character": "BOSS_MoonChild",
+   "level": 66,
+   "row": 116
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_Ronin",
+   "level": 25,
+   "row": 117
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_CubeTurtle_Neutral",
+   "level": 60,
+   "row": 118
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_Manticore",
+   "level": 30,
+   "row": 119
+  },
+  {
+   "area": "Forest",
+   "character": "BOSS_FlameBuffalo",
+   "level": 15,
+   "row": 120
+  },
+  {
+   "area": "Feybreak",
+   "character": "BOSS_BlueberryFairy",
+   "level": 63,
+   "row": 121
+  },
+  {
+   "area": "Windswept (start)",
+   "character": "BOSS_Kitsunebi_Ice",
+   "level": 15,
+   "row": 122
+  }
+ ],
  "areas": {
   "Desert": {
    "alphas": [
-    26,
-    26,
-    26,
-    26,
-    36,
-    36,
-    37,
-    37,
-    40,
-    40,
     40,
     44,
     45,
@@ -26,21 +558,6 @@
   },
   "Feybreak": {
    "alphas": [
-    56,
-    56,
-    57,
-    57,
-    57,
-    57,
-    57,
-    57,
-    57,
-    57,
-    58,
-    58,
-    59,
-    59,
-    60,
     60,
     60,
     60,
@@ -69,16 +586,9 @@
   "Forest": {
    "alphas": [
     15,
-    16,
-    16,
-    21,
-    21,
-    23,
-    23,
     25,
     27,
     28,
-    30,
     30,
     35,
     35,
@@ -93,18 +603,8 @@
   },
   "King Whale": {
    "alphas": [
-    20,
-    20,
-    23,
-    23,
-    28,
-    28,
-    30,
-    30,
     35,
     37,
-    42,
-    42,
     55
    ],
    "effigies": 29,
@@ -114,8 +614,7 @@
   },
   "Outer Isles I": {
    "alphas": [
-    30,
-    55
+    30
    ],
    "effigies": 0,
    "fast_travel": 2,
@@ -124,8 +623,6 @@
   },
   "Outer Isles II": {
    "alphas": [
-    39,
-    39,
     40,
     55,
     55
@@ -161,10 +658,6 @@
   "Sakurajima": {
    "alphas": [
     46,
-    52,
-    52,
-    53,
-    53,
     55,
     58,
     58
@@ -192,12 +685,6 @@
   },
   "Snow": {
    "alphas": [
-    43,
-    43,
-    45,
-    45,
-    49,
-    49,
     55,
     60
    ],
@@ -209,10 +696,6 @@
   "Volcano (Electric)": {
    "alphas": [
     25,
-    38,
-    38,
-    41,
-    41,
     50,
     52
    ],
@@ -223,25 +706,15 @@
   },
   "Windswept (start)": {
    "alphas": [
-    10,
-    10,
     11,
     11,
     11,
-    12,
-    12,
     14,
-    15,
-    15,
-    15,
-    15,
     15,
     15,
     15,
     17,
     18,
-    19,
-    19,
     23,
     23,
     23,
@@ -271,6 +744,182 @@
    "levels": 76.57142857142857,
    "spawners": 418
   }
+ },
+ "fast_travel": {
+  "BOSS_KingWhale": "King Whale",
+  "Boss_Forest": "Forest",
+  "FTPoint1": "Volcano (Electric)",
+  "FTPoint100": "King Whale",
+  "FTPoint101": "Desert",
+  "FTPoint102": "Desert",
+  "FTPoint103": "Desert",
+  "FTPoint104": "Desert",
+  "FTPoint105": "Desert",
+  "FTPoint106": "Desert",
+  "FTPoint107": "Desert",
+  "FTPoint108": "Desert",
+  "FTPoint109": "Volcano (Electric)",
+  "FTPoint11": "Desert",
+  "FTPoint110": "Volcano (Electric)",
+  "FTPoint111": "Volcano (Electric)",
+  "FTPoint112": "Volcano (Electric)",
+  "FTPoint113": "Snow",
+  "FTPoint114": "Snow",
+  "FTPoint115": "King Whale",
+  "FTPoint116": "Sakurajima",
+  "FTPoint117": "Feybreak",
+  "FTPoint118": "Feybreak",
+  "FTPoint119": "Feybreak",
+  "FTPoint12": "Desert",
+  "FTPoint120": "Feybreak",
+  "FTPoint121": "Feybreak",
+  "FTPoint122": "Feybreak",
+  "FTPoint123": "Feybreak",
+  "FTPoint124": "Feybreak",
+  "FTPoint125": "Feybreak",
+  "FTPoint126": "Feybreak",
+  "FTPoint127": "Feybreak",
+  "FTPoint128": "Feybreak",
+  "FTPoint129": "Feybreak",
+  "FTPoint13": "Desert",
+  "FTPoint14": "King Whale",
+  "FTPoint15": "King Whale",
+  "FTPoint16": "King Whale",
+  "FTPoint17": "Snow",
+  "FTPoint18": "Snow",
+  "FTPoint20": "Snow",
+  "FTPoint21": "Windswept (start)",
+  "FTPoint22": "Windswept (start)",
+  "FTPoint23": "Windswept (start)",
+  "FTPoint24": "Windswept (start)",
+  "FTPoint25": "Forest",
+  "FTPoint26": "Volcano (Electric)",
+  "FTPoint27": "Windswept (start)",
+  "FTPoint28": "Windswept (start)",
+  "FTPoint29": "Forest",
+  "FTPoint3": "Volcano (Electric)",
+  "FTPoint30": "King Whale",
+  "FTPoint31": "Forest",
+  "FTPoint32": "Forest",
+  "FTPoint33": "Forest",
+  "FTPoint34": "Forest",
+  "FTPoint35": "Forest",
+  "FTPoint36": "King Whale",
+  "FTPoint37": "King Whale",
+  "FTPoint38": "Desert",
+  "FTPoint39": "Forest",
+  "FTPoint4": "Volcano (Electric)",
+  "FTPoint40": "Forest",
+  "FTPoint41": "Forest",
+  "FTPoint42": "Forest",
+  "FTPoint43": "King Whale",
+  "FTPoint44": "Windswept (start)",
+  "FTPoint45": "Windswept (start)",
+  "FTPoint48": "Sakurajima",
+  "FTPoint49": "Windswept (start)",
+  "FTPoint5": "Volcano (Electric)",
+  "FTPoint50": "Windswept (start)",
+  "FTPoint51": "Windswept (start)",
+  "FTPoint52": "Windswept (start)",
+  "FTPoint53": "Windswept (start)",
+  "FTPoint54": "Windswept (start)",
+  "FTPoint55": "Windswept (start)",
+  "FTPoint56": "Windswept (start)",
+  "FTPoint57": "Windswept (start)",
+  "FTPoint58": "Windswept (start)",
+  "FTPoint59": "Windswept (start)",
+  "FTPoint6": "Volcano (Electric)",
+  "FTPoint60": "Windswept (start)",
+  "FTPoint61": "Windswept (start)",
+  "FTPoint62": "Forest",
+  "FTPoint63": "Desert",
+  "FTPoint64": "Sakurajima",
+  "FTPoint65": "Sakurajima",
+  "FTPoint67": "Sakurajima",
+  "FTPoint68": "Sakurajima",
+  "FTPoint69": "Sakurajima",
+  "FTPoint7": "Volcano (Electric)",
+  "FTPoint70": "Sakurajima",
+  "FTPoint71": "Feybreak",
+  "FTPoint72": "Feybreak",
+  "FTPoint73": "Feybreak",
+  "FTPoint74": "Feybreak",
+  "FTPoint75": "Feybreak",
+  "FTPoint76": "Feybreak",
+  "FTPoint78": "Feybreak",
+  "FTPoint79": "Feybreak",
+  "FTPoint8": "Outer Isles II",
+  "FTPoint80": "Feybreak",
+  "FTPoint81": "Feybreak",
+  "FTPoint83": "Feybreak",
+  "FTPoint84": "Outer Isles I",
+  "FTPoint85": "Outer Isles III",
+  "FTPoint86": "Outer Isles III",
+  "FTPoint87": "Outer Isles I",
+  "FTPoint88": "Outer Isles II",
+  "FTPoint89": "Windswept (start)",
+  "FTPoint9": "Desert",
+  "FTPoint90": "Outer Isles II",
+  "FTPoint91": "Windswept (start)",
+  "FTPoint92": "King Whale",
+  "FTPoint93": "Forest",
+  "FTPoint94": "King Whale",
+  "FTPoint95": "Forest",
+  "FTPoint96": "Windswept (start)",
+  "FTPoint97": "Desert",
+  "FTPoint98": "Forest",
+  "FTPoint99": "Forest",
+  "FootOfWorldTree": "Sakurajima",
+  "New_SmallIsland01": "Outer Isles III",
+  "New_SmallIsland02": "Outer Isles III",
+  "New_SmallIsland03": "Outer Isles II",
+  "New_SmallIsland04": "Outer Isles IV",
+  "New_SmallIsland05": "Outer Isles IV",
+  "New_SmallIsland06": "Outer Isles IV",
+  "New_SmallIsland07": "Outer Isles III",
+  "SkyIsland_A": "Sky Islands",
+  "SkyIsland_B": "Sky Islands",
+  "SkyIsland_BOSS": "Sky Islands",
+  "SkyIsland_C": "Sky Islands",
+  "SkyIsland_D": "Sky Islands",
+  "SkyIsland_E": "Sky Islands",
+  "WatchTower_1": "Windswept (start)",
+  "WatchTower_10": "Windswept (start)",
+  "WatchTower_11": "Windswept (start)",
+  "WatchTower_12": "Sakurajima",
+  "WatchTower_13": "Volcano (Electric)",
+  "WatchTower_15": "Volcano (Electric)",
+  "WatchTower_17": "Feybreak",
+  "WatchTower_18": "Feybreak",
+  "WatchTower_19": "Feybreak",
+  "WatchTower_2": "Windswept (start)",
+  "WatchTower_20": "Feybreak",
+  "WatchTower_21": "Feybreak",
+  "WatchTower_22": "Sky Islands",
+  "WatchTower_3": "Forest",
+  "WatchTower_4": "Desert",
+  "WatchTower_5": "Desert",
+  "WatchTower_6": "Forest",
+  "WatchTower_7": "King Whale",
+  "WatchTower_8": "Snow",
+  "WatchTower_9": "Forest",
+  "WatchTower_WorldTree_1": "World Tree",
+  "WatchTower_WorldTree_2": "World Tree",
+  "WorldTree_A": "World Tree",
+  "WorldTree_B": "World Tree",
+  "WorldTree_C_1": "World Tree",
+  "WorldTree_C_2": "World Tree",
+  "WorldTree_D": "World Tree",
+  "WorldTree_E": "World Tree",
+  "WorldTree_I": "World Tree",
+  "WorldTree_L": "World Tree",
+  "WorldTree_LastBoss": "World Tree",
+  "WorldTree_M": "World Tree",
+  "WorldTree_MiddleBoss_1": "World Tree",
+  "WorldTree_MiddleBoss_2": "World Tree",
+  "WorldTree_MiddleBoss_3": "World Tree",
+  "WorldTree_N": "World Tree",
+  "WorldTree_lab": "World Tree"
  },
  "paldeck": {
   "001": {
@@ -1420,5 +2069,17 @@
   "202": {},
   "203": {},
   "204": {}
+ },
+ "towers": {
+  "Desert": "Desert",
+  "Feybreak": "Feybreak",
+  "Forest": "Forest",
+  "King Whale": "King Whale",
+  "Sakurajima": "Sakurajima",
+  "Sky Islands": "Sky Islands",
+  "Snow": "Snow",
+  "Volcano (Electric)": "Volcano (Electric)",
+  "Windswept (Grass)": "Windswept (start)",
+  "World Tree": "World Tree"
  }
 }
