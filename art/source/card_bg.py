@@ -25,10 +25,10 @@ hue = COLS[i0] * (1 - f[..., None]) + COLS[i1] * f[..., None]
 K = 9.0  # soft-min so corners blend instead of showing diagonal seams
 d = -K * np.log(np.exp(-x / K) + np.exp(-(N - x) / K) + np.exp(-y / K) + np.exp(-(N - y) / K))
 d = np.clip(d + K * np.log(2), 0, None)
-glow = np.exp(-d / 22.0)                       # wide soft glow
-rim = np.clip(1 - (d - 2.0) / 3.0, 0, 1)        # crisp 3-4 px edge line
-w = np.clip(glow * 0.85 + rim * 0.6, 0, 1)[..., None]
-img = CENTRE * (1 - w) + np.minimum(hue * (1 + 0.25 * rim[..., None]), 255) * w
+glow = np.exp(-d / 34.0)                       # wide soft glow (wider band)
+rim = np.clip(1 - (d - 4.0) / 4.0, 0, 1)        # crisp ~6 px edge line
+w = np.clip(glow * 1.15 + rim * 0.7, 0, 1)[..., None]   # stronger colour at the border
+img = CENTRE * (1 - w) + np.minimum(hue * (1.12 + 0.25 * rim[..., None]), 255) * w
 
 # faint vignette so the centre stays darkest
 r = np.hypot(x - c, y - c) / (c * 1.414)

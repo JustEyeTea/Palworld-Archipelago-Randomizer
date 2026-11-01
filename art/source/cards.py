@@ -58,10 +58,10 @@ PAD_C = (128, 184)
 PAD_S = 0.60
 pad_pts = [(PAD_C[0] + (x - cx0) * PAD_S, PAD_C[1] + (y - cy0) * PAD_S) for x, y in raw]
 TOE_SPECS = [  # cx, cy, rx, ry, rotation
-    (30, 112, 21, 28, -50),
-    (72, 46, 22, 29, -18),
-    (184, 46, 22, 29, 18),
-    (226, 112, 21, 28, 50),
+    (39, 101, 21, 28, -50),
+    (90, 44, 22, 29, -18),
+    (166, 44, 22, 29, 18),
+    (217, 101, 21, 28, 50),
 ]
 toes = [blob(cx, cy, rx, ry, rot, 10, 0.05, 11 + i) for i, (cx, cy, rx, ry, rot) in enumerate(TOE_SPECS)]
 
