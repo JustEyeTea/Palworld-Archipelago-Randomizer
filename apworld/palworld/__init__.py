@@ -12,6 +12,7 @@ from .data import (AREAS, BREEDING_TECH, CATCHABLE, DIRECT, FILLER, ITEM_NAME_TO
 from .game_data import PALDECK, START_AREA, TOWERS
 from .options import PalworldOptions, option_groups
 
+LOCATION_LEVEL = {loc.name: TECH_BY_ID[loc.key][2] for loc in LOCATIONS if loc.kind == "shop"}
 FREE_LEVEL = 15              # levels anyone reaches in the starting zone
 LEVEL_SLACK = 8              # an area lets you level about this far past its typical Pal level
 SPHERE_STEP = 10             # each sphere tier catches Pals about this many levels higher
@@ -140,12 +141,16 @@ class PalworldWorld(World):
                 pool.append(self.create_item(PROGRESSIVE_SPHERE))
             else:
                 pool.append(self.create_item(tech_item(tech[0])))
+        # The first sphere is placed on one of the first things you can do (a level-2 shop slot, or reaching level 2
+        # or 3): nothing can be caught without it, and vanilla has it at level 2.
+        first = PROGRESSIVE_SPHERE if self.options.progressive_spheres else tech_item(SPHERE_TECHS[0][0])
+        early = [loc for loc in self.multiworld.get_unfilled_locations(self.player)
+                 if loc.name in ("Level 2", "Level 3")
+                 or (loc.name.startswith("Shop: ") and LOCATION_LEVEL.get(loc.name) == STARTER_LEVEL + 1)]
+        self.random.choice(early).place_locked_item(pool.pop(next(i for i, it in enumerate(pool) if it.name == first)))
         slots = sum(1 for loc in self.multiworld.get_unfilled_locations(self.player))
         filler = [self.create_item(self.get_filler_item_name()) for _ in range(slots - len(pool))]
         self.multiworld.itempool += pool + filler
-        # The first sphere has to come early, in your own world: nothing can be caught without it.
-        first = PROGRESSIVE_SPHERE if self.options.progressive_spheres else tech_item(SPHERE_TECHS[0][0])
-        self.multiworld.local_early_items[self.player][first] = 1
 
     def get_filler_item_name(self) -> str:
         return self.random.choice(FILLER)
