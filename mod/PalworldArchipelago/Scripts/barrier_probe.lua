@@ -2,7 +2,7 @@
 --   Ctrl+F7   report: where you stand (and whether you are inside a raised barrier's trigger box), the barriers /
 --             locks / barrier info loaded nearby, your unlocked lock ids
 --   Ctrl+F8   raise a barrier 40 m ahead with a 30 x 30 m trigger box, locked
---   Ctrl+F11  raise a barrier 100 m ahead at 4x scale (does the wind ring grow with it?), locked
+--   Ctrl+F6   raise a barrier 100 m ahead at 4x scale (does the wind ring grow with it?), locked
 --   Ctrl+F9   unlock the raised barriers (what an Area Pass would do)
 --   Ctrl+F10  remove them
 -- Everything it tries is logged as "[probe]" lines in UE4SS.log.
@@ -101,7 +101,17 @@ local function raise(dist, scale, extent)
     try("wall effect", function() return a.Niagara:GetFullName() end)
     try("teleport point", function() return vec(a.TeleportPoint2:K2_GetComponentLocation()) end)
     for _, info in ipairs(FindAllOf("PalLevelGimmick_AreaBarrier_Info") or {}) do
-        try("add to barrier info", function() info.AreaBarrierLockIdMap:Add(VOLUME_ID, { LockIds = { LOCK_ID } }); return "added" end)
+        try("add to barrier info", function() info.AreaBarrierLockIdMap:Add(VOLUME_ID, { LockIds = {} }); return "added" end)
+        -- Probe 2 showed the nested lock list does not come through a table, so it is filled in place.
+        try("give it a lock", function()
+            local v = info.AreaBarrierLockIdMap:Find(VOLUME_ID)
+            local entry = (type(v) == "userdata" and v.get) and v:get() or v
+            local arr = entry.LockIds
+            arr[1] = LOCK_ID
+            local n = 0
+            arr:ForEach(function() n = n + 1 end)
+            return n .. " lock(s)"
+        end)
         try("mark volume active", function() info:AddActiveVolumeId(VOLUME_ID); return info:IsVolumeActive(VOLUME_ID) end)
     end
     try("show wall (UpdateView locked)", function() return a:UpdateView({ bLocked = true }) end)
@@ -142,7 +152,7 @@ local function bind(key, fn, name)
 end
 bind(Key.F7, report, "report")
 bind(Key.F8, function() raise(4000, 1, 1500) end, "raise (big trigger box)")
-bind(Key.F11, function() raise(10000, 4, nil) end, "raise (4x scale)")
+bind(Key.F6, function() raise(10000, 4, nil) end, "raise (4x scale)")
 bind(Key.F9, unlock, "unlock")
 bind(Key.F10, remove, "remove")
-log("keys: Ctrl+F7 report, Ctrl+F8 raise (big box), Ctrl+F11 raise (4x), Ctrl+F9 unlock, Ctrl+F10 remove")
+log("keys: Ctrl+F7 report, Ctrl+F8 raise (big box), Ctrl+F6 raise (4x), Ctrl+F9 unlock, Ctrl+F10 remove")
