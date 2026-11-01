@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.1.3"
+local VERSION = "0.1.4"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -463,12 +463,30 @@ local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockabl
             if not tech or not shopCard(tech) then return nil end
             local r = slotUnlockable(self:get(), tech)
             if r ~= nil then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
+            if tech == hoveredTech then once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r)) end
             return r
         end, ...)
         if not ok then once("unlockableErr", "research check error: " .. tostring(v)); return nil end
         return v
     end)
 log(oku and "hooked research checks" or ("could not hook research checks: " .. tostring(erru)))
+
+-- The click also asks whether the tech is already researched, and stops if it is. For an unbought slot whose tech you
+-- own, that one question is answered "not yet" while the pointer is on its card; everywhere else (crafting, building)
+-- the game's answer stands.
+local okr, errr = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology", function() end,
+    function(self, ...)
+        local ok, v = pcall(function(...)
+            local tech = techArg(...)
+            if not tech or tech ~= hoveredTech or not shopCard(tech) then return nil end
+            if bought(tech) or not ap.techs[tech] then return nil end
+            once("ask2" .. tech, "click check on " .. tech .. ": already researched -> answered not yet")
+            return false
+        end, ...)
+        if not ok then once("researchedErr", "researched check error: " .. tostring(v)); return nil end
+        return v
+    end)
+log(okr and "hooked researched checks" or ("could not hook researched checks: " .. tostring(errr)))
 
 ------------------------------------------------------------------------------------------------------------------------
 local tick = 0

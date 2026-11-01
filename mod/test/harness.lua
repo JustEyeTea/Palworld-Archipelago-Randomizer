@@ -186,6 +186,14 @@ local function canBuy(tech) return unlockable(param(td), false, param(FNameOf(te
 expect(canBuy("Special_PalSphere_Grade_01") == true, "a slot whose tech you own can still be bought")
 expect(canBuy("RepairBench") == nil, "a slot whose tech you lack: the game decides")
 expect(canBuy("Workbench") == nil, "level-1 techs: the game decides")
+local researched = postHooks["/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology"]
+local function isResearched(tech) return researched(param(td), true, param(FNameOf(tech))) end
+expect(isResearched("Special_PalSphere_Grade_01") == nil, "owned slot, pointer elsewhere: the game's answer (crafting unaffected)")
+info["Setup by Technology Name"](info, FNameOf("Special_PalSphere_Grade_01"))
+expect(isResearched("Special_PalSphere_Grade_01") == false, "owned slot under the pointer: 'not researched yet', so it can be clicked")
+expect(isResearched("Product_Cooking_Grade_01") == nil, "another owned tech meanwhile: the game's answer")
+hooks["/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00.WBP_MainMenu_Technology_00_C:OnUnhoveredAnyTechnology_Internal"]()
+expect(isResearched("Special_PalSphere_Grade_01") == nil, "pointer gone: the game's answer again")
 td.TechnologyPoint = 0
 expect(canBuy("Special_PalSphere_Grade_01") == false, "not without the points")
 td.TechnologyPoint = 12
