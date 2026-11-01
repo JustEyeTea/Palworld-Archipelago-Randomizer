@@ -3,7 +3,9 @@
 --             locks / barrier info loaded nearby, your unlocked lock ids
 --   Ctrl+F8   raise a barrier 40 m ahead with a 30 x 30 m trigger box, locked
 --   Ctrl+F6   raise a barrier 100 m ahead at 4x scale (does the wind ring grow with it?), locked
---   Ctrl+F9   unlock the raised barriers (what an Area Pass would do)
+--   Ctrl+F5   raise an energy wall 20 m ahead, across your path: the game's own blocking volume (BP_PalBlockingVolume,
+--             as beside the World Tree gate), stretched to 30 m wide, 10 m high, 1 m thick
+--   Ctrl+F9   unlock the raised barriers and walls (what an Area Pass would do)
 --   Ctrl+F10  remove them
 -- Everything it tries is logged as "[probe]" lines in UE4SS.log.
 if not RegisterKeyBind or not Key or not ModifierKey then return end
@@ -20,6 +22,8 @@ local VOLUME_ID = { A = 0x41500000, B = 1, C = 0, D = 1 }   -- made-up ids, unli
 local LOCK_ID = { A = 0x41500000, B = 2, C = 0, D = 1 }
 local function hex(g) return string.format("%08X%08X%08X%08X", g.A & 0xFFFFFFFF, g.B & 0xFFFFFFFF, g.C & 0xFFFFFFFF, g.D & 0xFFFFFFFF) end
 local spawned = {}
+local walls = {}
+local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 
 local function pawn()
     local pc = FindFirstOf("PalPlayerController")
@@ -119,8 +123,61 @@ local function raise(dist, scale, extent)
     log("walk into it: a '[probe] touched' line means the game noticed")
 end
 
+local function components(a, class)
+    local cls = StaticFindObject(class)
+    local out = {}
+    pcall(function()
+        local list = a:K2_GetComponentsByClass(cls)
+        if type(list) == "table" then out = list else list:ForEach(function(_, c) out[#out + 1] = c:get() end) end
+    end)
+    return out
+end
+
+local function raiseWall()
+    local p = pawn()
+    if not p then log("no player"); return end
+    try("load wall class", LoadAsset, (WALL:gsub("_C$", "")))
+    local cls = StaticFindObject(WALL)
+    if not cls or not cls:IsValid() then log("wall class not found"); return end
+    local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
+    local loc, fwd = p:K2_GetActorLocation(), p:GetActorForwardVector()
+    -- The cube's X axis runs along the wall: turn it across the player's path.
+    local yaw = math.atan(fwd.Y, fwd.X) + math.pi / 2
+    local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
+                Translation = { X = loc.X + fwd.X * 2000, Y = loc.Y + fwd.Y * 2000, Z = loc.Z + 300 },
+                Scale3D = { X = 30, Y = 1, Z = 10 } }
+    local a = try("spawn wall", function() return gs:BeginDeferredActorSpawnFromClass(p, cls, t, 1, nil) end)
+    if not a or not a:IsValid() then return end
+    try("finish spawn", function() return gs:FinishSpawningActor(a, t) end)
+    walls[#walls + 1] = a
+    log("wall: " .. describe(a))
+    for _, c in ipairs(components(a, "/Script/Engine.PrimitiveComponent")) do
+        try("  component " .. (c:GetFullName():match("([^.:]+)$") or "?"), function()
+            return "visible " .. tostring(c:IsVisible()) .. ", hidden in game " .. tostring(c.bHiddenInGame)
+                .. ", collision " .. tostring(c:GetCollisionEnabled())
+        end)
+    end
+    log("look ahead: is there a visible wall? Walk into it: does it stop you? If you see nothing, press Ctrl+F5 again to show it")
+end
+
+local function showWalls()
+    for _, a in ipairs(walls) do
+        if a:IsValid() then
+            try("show wall actor", function() return a:SetActorHiddenInGame(false) end)
+            for _, c in ipairs(components(a, "/Script/Engine.StaticMeshComponent")) do
+                try("  show mesh", function() c:SetHiddenInGame(false, true); c:SetVisibility(true, true); return c:IsVisible() end)
+            end
+        end
+    end
+end
+
 local function unlock()
-    if #spawned == 0 then log("nothing raised: Ctrl+F8 first"); return end
+    for _, a in ipairs(walls) do
+        if a:IsValid() then
+            try("open wall (no collision, hidden)", function() a:SetActorEnableCollision(false); a:SetActorHiddenInGame(true) end)
+        end
+    end
+    if #spawned == 0 then log("no tornado barrier raised"); return end
     for _, a in ipairs(spawned) do
         if a:IsValid() then
             try("lock state changed (game's own path)", function() return a:HandleLockStateChanged(FName(hex(LOCK_ID)), true) end)
@@ -133,7 +190,8 @@ end
 
 local function remove()
     for _, a in ipairs(spawned) do if a:IsValid() then try("remove", function() return a:K2_DestroyActor() end) end end
-    spawned = {}
+    for _, a in ipairs(walls) do if a:IsValid() then try("remove wall", function() return a:K2_DestroyActor() end) end end
+    spawned, walls = {}, {}
 end
 
 local okh = pcall(RegisterHook, "/Script/Pal.PalLevelGimmick_AreaBarrier:HandleBoxBeginOverlap", function(self)
@@ -153,6 +211,7 @@ end
 bind(Key.F7, report, "report")
 bind(Key.F8, function() raise(4000, 1, 1500) end, "raise (big trigger box)")
 bind(Key.F6, function() raise(10000, 4, nil) end, "raise (4x scale)")
+bind(Key.F5, function() if #walls > 0 then showWalls() else raiseWall() end end, "energy wall")
 bind(Key.F9, unlock, "unlock")
 bind(Key.F10, remove, "remove")
-log("keys: Ctrl+F7 report, Ctrl+F8 raise (big box), Ctrl+F6 raise (4x), Ctrl+F9 unlock, Ctrl+F10 remove")
+log("keys: Ctrl+F5 energy wall, Ctrl+F7 report, Ctrl+F8 raise (big box), Ctrl+F6 raise (4x), Ctrl+F9 unlock, Ctrl+F10 remove")
