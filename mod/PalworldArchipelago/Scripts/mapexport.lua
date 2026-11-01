@@ -31,13 +31,10 @@ local function export(dir)
     local r1, r2, r3 = krl:BeginDrawCanvasToRenderTarget(ctx, rt, canvasOut, sizeOut, contextOut)
     log("begin draw returned " .. describe(r1) .. " " .. describe(r2) .. " " .. describe(r3)
         .. "; tables " .. describe(canvasOut) .. " " .. describe(sizeOut) .. " " .. describe(contextOut))
+    -- Seen in game: the canvas (and the size) come back in the first table, the draw context in the second.
     local canvas = nil
-    for _, c in ipairs({ r1, canvasOut.Canvas, canvasOut[1], canvasOut.value, canvasOut }) do
-        if c and type(c) == "userdata" and c.IsValid and c:IsValid() then canvas = c; break end
-        if type(c) == "userdata" and c.get then
-            local ok, v = pcall(function() return c:get() end)
-            if ok and v and v.IsValid and v:IsValid() then canvas = v; break end
-        end
+    for _, c in ipairs({ canvasOut.Canvas, r1 }) do
+        if type(c) == "userdata" and select(2, pcall(function() return c:IsValid() end)) == true then canvas = c; break end
     end
     if not canvas then log("no canvas came back; this way of exporting does not work"); return end
     local ok, err = pcall(function()
@@ -45,7 +42,7 @@ local function export(dir)
             { R = 1, G = 1, B = 1, A = 1 }, 0, 0, { X = 0.5, Y = 0.5 })
     end)
     log("draw: " .. (ok and "ok" or tostring(err)))
-    local context = (type(r3) ~= "nil" and r3) or contextOut
+    local context = sizeOut.RenderTarget and sizeOut or contextOut
     ok, err = pcall(function() krl:EndDrawCanvasToRenderTarget(ctx, context) end)
     log("end draw: " .. (ok and "ok" or tostring(err)))
     ok, err = pcall(function() krl:ExportRenderTarget(ctx, rt, dir, "WorldMap.png") end)
