@@ -31,6 +31,8 @@ end
 -- The player.
 local unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Product_Cooking_Grade_01") })
 local td = { TechnologyPoint = 10, bossTechnologyPoint = 0, UnlockedTechnologyNameArray = unlocked, reps = 0 }
+td.valid = true
+function td:IsValid() return self.valid end
 function td:OnRep_UnlockedTechnologyNameArray() self.reps = self.reps + 1 end
 function td:OnRep_TechnologyPoint() end
 function td:OnRep_BossTechnologyPoint() end
@@ -105,6 +107,10 @@ AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = t
 AP_Goal = function() goals = goals + 1 end
 local function push(...) events[#events + 1] = table.concat({ ... }, "\t") end
 local function run(ticks) for _ = 1, ticks do loop() end end
+local printed = {}
+local realPrint = print
+print = function(s) printed[#printed + 1] = tostring(s); realPrint(s) end
+local function logged(pattern) for _, l in ipairs(printed) do if l:find(pattern) then return true end end end
 
 local itemId = {}
 for id, it in pairs(D.items) do itemId[it.name] = id end
@@ -150,6 +156,28 @@ expect(cards[3].shown.name == "Your Wood Bundle" and cards[3].shown.icon == "fil
        "your own filler: " .. tostring(cards[3].shown.name))
 expect(#kept >= 3, "textures kept alive: " .. #kept)
 
+print("tooltips")
+local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"
+local setupHook = hooks[INFO .. ":Setup by Technology Name"]
+local info = { IsValid = function() return true end, opacity = nil, shownFor = {},
+               WBP_InventoryEquipment_ItemInfo_Caution = { SetVisibility = function(self, v) self.vis = v end } }
+function info:SetRenderOpacity(o) self.opacity = o end
+local function param(v) return { get = function() return v end } end
+-- The game's own setup, followed by the hook (UE4SS runs it after the function).
+info["Setup by Technology Name"] = function(self, name)
+    self.shownFor[#self.shownFor + 1] = name:ToString()
+    setupHook(param(self), param(name))
+end
+info["Setup by Technology Name"](info, FNameOf("PalBox"))
+expect(info.shownFor[2] == "Product_Cooking_Grade_01" and info.opacity == 1.0,
+       "a slot holding your tech shows that tech's tooltip: " .. table.concat(info.shownFor, ", "))
+expect(info.WBP_InventoryEquipment_ItemInfo_Caution.vis == 1, "its prerequisite note is hidden")
+info.shownFor = {}
+info["Setup by Technology Name"](info, FNameOf("RepairBench"))
+expect(#info.shownFor == 1 and info.opacity == 0.0, "another player's item has no tooltip")
+info["Setup by Technology Name"](info, FNameOf("Workbench"))
+expect(info.opacity == 1.0, "level-1 tooltips untouched")
+
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
 push("status", "connected", "Tester")
@@ -172,6 +200,14 @@ req.v = FNameOf("RepairBench"); research(nil, req)
 expect(td.TechnologyPoint == before, "a bought slot is not charged twice")
 req.v = FNameOf("Workbench"); research(nil, req)
 expect(req.v:ToString() == "Workbench", "level-1 research left alone")
+
+print("still loading into the world")
+td.valid = false
+local forEach = unlocked.ForEach
+unlocked.ForEach = function() error("Tried calling a member function but the UObject instance is nullptr") end
+run(14)
+td.valid, unlocked.ForEach = true, forEach
+expect(not logged("update error"), "no errors while the player's tech data is not there yet")
 
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
 expect(f and f:read("*a"):match("given=3"), "save file records items applied")

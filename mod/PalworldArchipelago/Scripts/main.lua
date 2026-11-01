@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.1.1"
+local VERSION = "0.1.2"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -112,6 +112,7 @@ end
 -- alone. Runs only once the connection is ready, so playing offline never relocks anything.
 local function syncTechs(ps)
     local td = ps:GetTechnologyData()
+    if not td or not td:IsValid() then return end   -- still loading into the world
     local arr = td.UnlockedTechnologyNameArray
     local keep, have, changed = {}, {}, false
     for _, n in ipairs(arrayNames(arr)) do
@@ -337,6 +338,8 @@ local lazyHooks = {
         local info = self:get()
         if retarget == tech then
             retarget = nil
+            -- Its prerequisite / tower note does not apply here: the item unlocks the tech outright.
+            pcall(function() info.WBP_InventoryEquipment_ItemInfo_Caution:SetVisibility(1) end)   -- Collapsed
             pcall(function() info:SetRenderOpacity(1.0) end)
             return
         end
