@@ -176,4 +176,6 @@ class PalworldWorld(World):
     def fill_slot_data(self) -> Dict[str, Any]:
         return {"options": self.options.as_dict("tower_count", "area_locks", "progressive_spheres", "capture_checks",
                                                 "alpha_checks", "fast_travel_checks", "level_checks", "death_link"),
-                "game_version": "1.0.5.102999"}
+                "game_version": "1.0.5.102999",
+                "slot": self.player,
+                "seed": self.multiworld.seed_name}   # the mod keeps its per-seed state (items already given) under this

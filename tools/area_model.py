@@ -214,7 +214,7 @@ for r in rd('DT_PalMonsterParameter.tsv'):
     if r['IsTowerBoss'] == 'True': sources[e].append({'type': 'tower', 'row': r['row']})
 breeding = {}
 for r in rd('DT_PalMonsterParameter.tsv'):
-    if r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0 and r['row'] == r['Tribe']:
+    if r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0 and r['row'].lower() == r['Tribe'].lower():
         breeding[entry(r['row'])] = {'rank': int(r['CombiRank']), 'normal': r['IgnoreCombi'] != 'True'}
 dedup = lambda xs: [dict(t) for t in dict.fromkeys(tuple(sorted((k, tuple(v) if isinstance(v, list) else v)
                                                                  for k, v in x.items())) for x in xs)]

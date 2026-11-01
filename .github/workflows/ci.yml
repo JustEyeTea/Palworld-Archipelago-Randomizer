@@ -36,6 +36,13 @@ jobs:
           git clone --depth 1 --branch "${{ matrix.archipelago }}" https://github.com/ArchipelagoMW/Archipelago.git archipelago
           python -m venv archipelago/.venv
           archipelago/.venv/bin/pip install -q -r archipelago/requirements.txt -r archipelago/WebHostLib/requirements.txt pytest pytest-subtests
+      - name: Mod data matches the APWorld, and the mod's Lua logic
+        run: |
+          cd palworld-archipelago
+          python3 tools/gen_lua_data.py
+          git diff --exit-code mod/PalworldArchipelago/Scripts/ap_data.lua || { echo "::error::ap_data.lua is stale: run tools/gen_lua_data.py"; exit 1; }
+          sudo apt-get install -y -qq lua5.4 > /dev/null
+          tools/lua_harness.sh
       - name: Archipelago's test suites
         run: AP_DIR="$GITHUB_WORKSPACE/archipelago" palworld-archipelago/tools/ap_tests.sh
       - name: Test generations

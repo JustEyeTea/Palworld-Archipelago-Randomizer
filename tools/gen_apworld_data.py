@@ -20,7 +20,7 @@ def texts(table):
     out = {}
     for r in rd(table):
         m = re.search(r'"((?:[^"\\]|\\.)*)"\)\s*$', r['TextData'])
-        out[r['row']] = m.group(1) if m else ''
+        out[r['row']] = re.sub(r'\\(.)', r'\1', m.group(1)) if m else ''   # the dump keeps the text's escapes
     return out
 
 
@@ -69,11 +69,13 @@ for r in rd('DT_TechnologyRecipeUnlock.tsv'):
 
 # Paldeck: entry -> (name, sources). Sources keep only what the logic reads.
 mon = rd('DT_PalMonsterParameter.tsv')
-entry_name = {}
+entry_name, tribes = {}, {}
 for r in mon:
-    if r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0 and r['row'] == r['Tribe']:
+    # The base row of each entry is named after its tribe, though not always in the same case (BluePlatypus).
+    if r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0 and r['row'].lower() == r['Tribe'].lower():
         e = f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}"
-        entry_name.setdefault(e, PAL_NAMES.get('PAL_NAME_' + r['row'], r['row']))
+        entry_name.setdefault(e, PAL_NAMES.get('PAL_NAME_' + r['row'], PAL_NAMES.get('PAL_NAME_' + r['Tribe'], r['row'])))
+        tribes.setdefault(e, r['Tribe'])
 paldeck = {}
 for e, srcs in SOURCES_JSON['sources'].items():
     kept = []
@@ -85,8 +87,10 @@ for e, srcs in SOURCES_JSON['sources'].items():
         elif t == 'fishing': kept.append(('fishing', None, s['level']))
     paldeck[e] = (entry_name.get(e, e), tuple(sorted(set(kept), key=str)))
 
-alphas, counts = [], {}
+alphas, alpha_keys, counts = [], [], {}
+spawners = {r['row']: r for r in rd('DT_BossSpawnerLoactionData.tsv')}
 for a in AREAS_JSON['alphas']:
+    alpha_keys.append((spawners[str(a['row'])]['SpawnerID'], spawners[str(a['row'])]['CharacterID']))
     cid = re.sub(r'^BOSS_', '', a['character'], flags=re.I)
     e = next((k for k, r in [(f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}", r) for r in mon
                               if r['row'].lower() == cid.lower()]), None)
@@ -123,6 +127,12 @@ body = [
     '',
     '# (location name, Paldeck entry, level, area)',
     'ALPHAS = ' + pprint.pformat(alphas, width=118),
+    '',
+    '# Paldeck entry -> its tribe, the key the game\'s capture records use',
+    'TRIBES = ' + pprint.pformat(tribes, width=118),
+    '',
+    '# alpha location name -> (spawner id, character id), the keys its defeat may be recorded under',
+    'ALPHA_KEYS = ' + pprint.pformat({a[0]: k for a, k in zip(alphas, alpha_keys)}, width=118, sort_dicts=False),
     '',
     '# (location name, fast-travel point id, area)',
     'FAST_TRAVEL = ' + pprint.pformat(fast_travel, width=118),
