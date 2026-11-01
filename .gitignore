@@ -3,3 +3,4 @@ __pycache__/
 cppmod/RE-UE4SS/
 cppmod/deps/
 build/
+luac.out
