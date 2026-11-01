@@ -19,5 +19,9 @@ direction.
 
 ## Licence
 
-CC0 1.0 Universal (see LICENSE). The Archipelago logo used for the shop icons comes from
-[Archipelago](https://github.com/ArchipelagoMW/Archipelago) under the MIT licence.
+CC0 1.0 Universal (see LICENSE). The artwork in `art/` (the logo and the shop card icons) is CC0 too and was made
+by Claude (Opus 5.5) at JustEyeTee's direction. The wordmark's letters are outlines of the Lilita One typeface by Juan
+Montoreano, under the SIL Open Font License 1.1 (`art/FONT-LICENSE-LilitaOne-OFL.txt`).
+
+Palworld Archipelago is an unofficial fan project. It is not affiliated with or endorsed by Pocketpair, Inc. or the
+Archipelago project. Palworld is a trademark of Pocketpair, Inc.

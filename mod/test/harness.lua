@@ -84,7 +84,7 @@ FindAllOf = function(class)
 end
 FindFirstOf = function(class) if class == "PalGameInstance" then return gameInstance end return nil end
 local renderLib = { IsValid = function() return true end,
-                    ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_]+)%.png$")) end }
+                    ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end }
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
     if path:find("KismetRenderingLibrary") then return renderLib end
@@ -130,6 +130,7 @@ push("item", "3", tostring(itemId["Tech Points +2"]), "4", "2", "0", "Tech Point
 push("scout", tostring(D.shop.RepairBench.loc), "77", "2", "1", "Map Width", "Friend", "ChecksFinder")
 push("scout", tostring(D.shop.PalBox.loc), tostring(itemId["Tech: Campfire"]), "1", "1", "Tech: Campfire", "Tester", "Palworld")
 push("scout", tostring(D.shop.Product_Cooking_Grade_01.loc), tostring(itemId["Wood Bundle"]), "1", "0", "Wood Bundle", "Tester", "Palworld")
+push("scout", tostring(D.shop.Special_PalSphere_Grade_01.loc), tostring(itemId["Area Pass: Outer Isles III"]), "1", "1", "Area Pass: Outer Isles III", "Tester", "Palworld")
 push("checked", tostring(D.shop.Wooden_houseset.loc))
 run(14)
 local have = {}
@@ -156,6 +157,10 @@ expect(cards[2].shown.name == "Campfire" and tostring(cards[2].shown.icon):find(
 expect(cards[3].shown.name == "Your Wood Bundle" and cards[3].shown.icon == "filler",
        "your own filler: " .. tostring(cards[3].shown.name))
 expect(#kept >= 3, "textures kept alive: " .. #kept)
+local passCard = Card("Special_PalSphere_Grade_01")
+cards[#cards + 1] = passCard
+run(1)
+expect(passCard.shown.icon == "area-pass", "your Area Pass shows the ticket icon: " .. tostring(passCard.shown.icon))
 
 print("tooltips")
 local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"

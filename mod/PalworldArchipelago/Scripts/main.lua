@@ -290,7 +290,9 @@ local function relabel(card)
     safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
     safe(function() card.BP_PalTextBlock_Category:SetText(FText(sent and "Sent" or "Archipelago")) end)
     local r = ap.scouted[D.shop[tech].loc]
-    local tex = mine and techIcon(mine) or icon(r and iconKind(r.flags) or "filler", card)
+    local it = r and r.own and D.items[r.id]
+    local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
+    local tex = mine and techIcon(mine) or icon(kind, card)
     if tex then safe(function() card.Image_Icon:SetBrushFromTexture(tex, false) end) end
 end
 
