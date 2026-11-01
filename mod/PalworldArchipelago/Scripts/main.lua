@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.1.5"
+local VERSION = "0.1.6-probe"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -623,3 +623,7 @@ LoopAsync(300, function()
     end)
     return false
 end)
+
+-- Area-lock probe (test builds only; see barrier_probe.lua).
+local okp, errp = pcall(require, "barrier_probe")
+if not okp then log("barrier probe not loaded: " .. tostring(errp)) end
