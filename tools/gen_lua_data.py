@@ -60,9 +60,15 @@ def group(pairs):
     return out
 
 
-shop = {l.key: {'loc': l.id, 'name': data.TECH_BY_ID[l.key][1], 'level': data.TECH_BY_ID[l.key][2],
-                'cost': data.TECH_BY_ID[l.key][3], 'ancient': data.TECH_BY_ID[l.key][4]}
-        for l in data.LOCATIONS if l.kind == 'shop'}
+shop = {}
+for l in data.LOCATIONS:
+    if l.kind == 'shop':
+        t = data.TECH_BY_ID[l.key]
+        shop[l.key] = {'loc': l.id, 'name': t[1], 'level': t[2], 'cost': t[3], 'ancient': t[4]}
+        # The game's own gates on researching it (the slot keeps them): prerequisite tech, tower boss, lab research.
+        for k, v in (('prereq', t[5]), ('tower', TOWER_BOSS.get(t[6])), ('research', t[7])):
+            if v:
+                shop[l.key][k] = v
 items = {}
 for it in data.ITEMS:
     if it.kind == 'tech':
@@ -82,7 +88,7 @@ parts = [
     f'M.starters = {lua({t[0]: True for t in game.TECHS if t[2] <= data.STARTER_LEVEL})}\n',
     '-- Progressive Sphere unlocks these in order.\n',
     f'M.spheres = {lua([t[0] for t in data.SPHERE_TECHS])}\n',
-    '-- tech id -> its shop slot (location id) and vanilla level and cost\n',
+    '-- tech id -> its shop slot (location id), vanilla level and cost, and its gates (prereq, tower, research)\n',
     table('shop', shop),
     '-- item id -> what receiving it does\n',
     table('items', items),

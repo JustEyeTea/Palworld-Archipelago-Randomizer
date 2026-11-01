@@ -45,7 +45,8 @@ local record = {
     NormalBossDefeatFlag = FastArray({ { "yamijima_IceLand_pink_D_BOSS", true }, { "mystery_boss", true } }),
     FastTravelPointUnlockFlag = FastArray({ { "6E03F8464BAD9E458B843AA30BE1CC8F", true } }),
 }
-local pawn = { GetCharacterParameterComponent = function() return { GetLevel = function() return 4 end } end }
+local playerLevel = 4
+local pawn = { GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
 local ps = {
     IsValid = function() return true end,
     GetTechnologyData = function() return td end,
@@ -59,7 +60,7 @@ local announced = {}
 local util = { IsValid = function() return true end, SendSystemAnnounce = function(_, _, text) announced[#announced + 1] = text end }
 
 -- UE4SS.
-local hooks, loop = {}, nil
+local hooks, postHooks, loop = {}, {}, nil
 local function Card(tech)
     local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
     local function text(field) return { SetText = function(_, t) c.shown[field] = t.text end } end
@@ -90,7 +91,7 @@ StaticFindObject = function(path)
     if path:find("^/Game/") then return Texture(path) end
     return nil
 end
-RegisterHook = function(path, fn) hooks[path] = fn end
+RegisterHook = function(path, fn, post) hooks[path], postHooks[path] = fn, post end
 LoopAsync = function(_, fn) loop = fn end
 ExecuteInGameThread = function(fn) fn() end
 ExecuteWithDelay = function(_, fn) fn() end
@@ -178,6 +179,28 @@ expect(#info.shownFor == 1 and info.opacity == 0.0, "another player's item has n
 info["Setup by Technology Name"](info, FNameOf("Workbench"))
 expect(info.opacity == 1.0, "level-1 tooltips untouched")
 
+print("which slots can be bought")
+local unlockable = postHooks["/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology"]
+local function canBuy(tech) return unlockable(param(td), param(FNameOf(tech))) end
+expect(canBuy("Special_PalSphere_Grade_01") == true, "a slot whose tech you own can still be bought")
+expect(canBuy("RepairBench") == nil, "a slot whose tech you lack: the game decides")
+expect(canBuy("Workbench") == nil, "level-1 techs: the game decides")
+td.TechnologyPoint = 0
+expect(canBuy("Special_PalSphere_Grade_01") == false, "not without the points")
+td.TechnologyPoint = 12
+-- A slot with a prerequisite, owned through its item, while the prerequisite is not.
+expect(canBuy("AutoMealPouch_Tier2") == nil, "Average Feed Bag (needs Small Feed Bag) not owned: the game decides")
+playerLevel = 20
+push("item", "4", tostring(itemId["Tech: Average Feed Bag"]), "1", "1", "1", "Tech: Average Feed Bag", "Tester")
+run(7)
+expect(canBuy("AutoMealPouch_Tier2") == false, "owned, but not without its prerequisite Small Feed Bag")
+push("item", "5", tostring(itemId["Tech: Small Feed Bag"]), "1", "1", "1", "Tech: Small Feed Bag", "Tester")
+run(7)
+expect(canBuy("AutoMealPouch_Tier2") == true, "and buyable once Small Feed Bag arrives")
+playerLevel = 4
+run(7)
+expect(canBuy("AutoMealPouch_Tier2") == false, "not below the slot's level")
+
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
 push("status", "connected", "Tester")
@@ -198,6 +221,12 @@ expect(td.TechnologyPoint == 12 - D.shop.RepairBench.cost, "points charged: " ..
 local before = td.TechnologyPoint
 req.v = FNameOf("RepairBench"); research(nil, req)
 expect(td.TechnologyPoint == before, "a bought slot is not charged twice")
+expect(canBuy("RepairBench") == false, "a bought slot cannot be bought again")
+req.v = FNameOf("PalBox"); research(nil, req)
+run(1)
+expect(cards[1].shown.clickable == false and cards[1].shown.category == "Sent", "bought card (another player's item) switched off")
+expect(cards[2].shown.clickable == true and cards[2].shown.name == "Sent: Campfire",
+       "bought card showing your tech stays interactive for its tooltip: " .. tostring(cards[2].shown.name))
 req.v = FNameOf("Workbench"); research(nil, req)
 expect(req.v:ToString() == "Workbench", "level-1 research left alone")
 
@@ -210,7 +239,7 @@ td.valid, unlocked.ForEach = true, forEach
 expect(not logged("update error"), "no errors while the player's tech data is not there yet")
 
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
-expect(f and f:read("*a"):match("given=3"), "save file records items applied")
+expect(f and f:read("*a"):match("given=5"), "save file records items applied")
 
 print(failures == 0 and "all passed" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

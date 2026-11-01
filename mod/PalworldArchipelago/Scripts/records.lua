@@ -75,9 +75,9 @@ local function scanFastTravel(now, unlockedNow)
     log("fast-travel points loaded: " .. n)
 end
 
--- Everything done so far: { locations = {ids}, towers = number of goal towers beaten }.
+-- Everything done so far: { locations = {ids}, towers = number of goal towers beaten, beaten = {boss type = true} }.
 function R.progress(ps, D, now)
-    local out, towers = {}, 0
+    local out, towers, beaten = {}, 0, {}
     local function add(loc) if loc then out[#out + 1] = loc end end
     local function addAll(list) for _, loc in ipairs(list or {}) do add(loc) end end
 
@@ -89,7 +89,9 @@ function R.progress(ps, D, now)
     each(rec.PaldeckUnlockFlag, function(k, v) if v then add(D.captures[k:lower()]) end end)
     each(rec.TowerBossDefeatFlag, function(k, v)
         if not v then return end
-        local loc = D.towers[k:match("([^:]+)$")]
+        local boss = k:match("([^:]+)$")
+        beaten[boss] = true
+        local loc = D.towers[boss]
         if loc then towers = towers + 1; add(loc) else warnOnce("tower" .. k, "tower record key not mapped: " .. k) end
     end)
     each(rec.NormalBossDefeatFlag, function(k, v)
@@ -114,7 +116,7 @@ function R.progress(ps, D, now)
     each(rec.FastTravelPointUnlockFlag, function(k, v)
         if v and not ftKeys[k:upper()] then warnOnce("ft" .. k, "fast-travel record key not mapped yet: " .. k) end
     end)
-    return { locations = out, towers = towers, level = lv }
+    return { locations = out, towers = towers, beaten = beaten, level = lv }
 end
 
 return R

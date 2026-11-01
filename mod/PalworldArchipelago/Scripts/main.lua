@@ -67,6 +67,8 @@ local ap = {
     items = {},           -- index -> item id, every item received
     techs = {},           -- tech id -> true: unlocked by an item
     passes = {},          -- area -> true
+    level = 0,            -- the player's level, as last read
+    beaten = {},          -- tower boss type -> true
     given = -1,           -- highest item index whose one-off effect has been applied
     goalSent = false,
 }
@@ -114,8 +116,10 @@ local function syncTechs(ps)
     local td = ps:GetTechnologyData()
     if not td or not td:IsValid() then return end   -- still loading into the world
     local arr = td.UnlockedTechnologyNameArray
+    local okNames, names = pcall(arrayNames, arr)
+    if not okNames then return end                    -- not readable this moment (seen as the menu first opens)
     local keep, have, changed = {}, {}, false
-    for _, n in ipairs(arrayNames(arr)) do
+    for _, n in ipairs(names) do
         have[n] = true
         if D.shop[n] and not ap.techs[n] then
             changed = true
@@ -196,6 +200,7 @@ end
 local function pollRecords(ps)
     local found = R.progress(ps, D, os.time())
     sendChecks(found.locations)
+    ap.level, ap.beaten = found.level, found.beaten
     if not ap.goalSent and found.towers >= (tonumber(AP_SlotData("options.tower_count")) or 99) then
         ap.goalSent = true
         AP_Goal()
@@ -274,19 +279,16 @@ local function bought(tech) return ap.checked[D.shop[tech].loc] == true end
 local function relabel(card)
     local tech = card.BindedTechnologyName:ToString()
     if not shopCard(tech) then return end
-    local sent = bought(tech)
-    local name = rewardText(tech)
-    if sent then
-        name = "Sent: " .. name
-        safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(false) end)
-    else
-        safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(true) end)
-    end
+    local sent, mine = bought(tech), ownTech(tech)
+    local name = (sent and "Sent: " or "") .. rewardText(tech)
+    -- A bought card does nothing when clicked (the game is told it cannot be researched). One showing your own tech
+    -- stays interactive so its tooltip still works; the others are switched off outright.
+    safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(not sent or mine ~= nil) end)
     local text = FText(name)
     safe(function() card.RichText_TechnologyName_Lock:SetText(text) end)
     safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
     safe(function() card.BP_PalTextBlock_Category:SetText(FText(sent and "Sent" or "Archipelago")) end)
-    local r, mine = ap.scouted[D.shop[tech].loc], ownTech(tech)
+    local r = ap.scouted[D.shop[tech].loc]
     local tex = mine and techIcon(mine) or icon(r and iconKind(r.flags) or "filler", card)
     if tex then safe(function() card.Image_Icon:SetBrushFromTexture(tex, false) end) end
 end
@@ -425,8 +427,36 @@ local okh, errh = pcall(RegisterHook, "/Script/Pal.PalNetworkPlayerComponent:Req
     end)
 log(okh and "hooked research requests" or ("could not hook research requests: " .. tostring(errh)))
 
+-- Whether a slot can be bought, asked by the game before it opens the confirm box. A bought slot never can. A slot
+-- whose tech you already own (from its item) is judged here, as the game refuses anything already unlocked: your
+-- level, points, and the slot's own prerequisite / tower / lab research. Otherwise the game's answer stands (nil).
+local function slotUnlockable(td, tech)
+    local s = D.shop[tech]
+    if bought(tech) then return false end
+    if not ap.techs[tech] then return nil end
+    if ap.level < s.level then return false end
+    if (td[s.ancient and R.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
+    if s.prereq and not (ap.techs[s.prereq] or D.starters[s.prereq]) then return false end
+    if s.tower and not ap.beaten[s.tower] then return false end
+    if s.research then
+        local ok, yes = pcall(function() return td:IsLabResearchRequirementSatisfied(FName(s.research)) end)
+        if not (ok and yes) then return false end
+    end
+    return true
+end
+local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,
+    function(self, name)
+        local tech = name:get():ToString()
+        if not shopCard(tech) then return nil end
+        local v = slotUnlockable(self:get(), tech)
+        if v ~= nil then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(v) .. ")") end
+        return v
+    end)
+log(oku and "hooked research checks" or ("could not hook research checks: " .. tostring(erru)))
+
 ------------------------------------------------------------------------------------------------------------------------
 local tick = 0
+local preloaded = false
 
 -- Archipelago events (see cppmod/APConnector/src/ap_bridge.hpp for the line format).
 local function split(line)
@@ -511,6 +541,19 @@ local function update()
         local n = 0
         for _ in pairs(ap.items) do n = n + 1 end
         log("ready: " .. n .. " item(s) received, slot " .. tostring(ap.me))
+    end
+    -- Load the menus' classes up front, so their hooks are in place before the Technology menu first opens (hooked
+    -- mid-draw, a bought card could flip to researched and stick on the game's white unlock flash).
+    if ap.ready and not preloaded then
+        preloaded = true
+        ExecuteInGameThread(function()
+            for _, h in ipairs(lazyHooks) do
+                if not h.done then
+                    local ok, err = pcall(LoadAsset, (h.class:gsub("_C$", "")))
+                    if not ok then once("preload" .. h.class, "could not preload " .. h.class .. ": " .. tostring(err)) end
+                end
+            end
+        end)
     end
     refreshCards()
     if tick % 7 == 0 and ap.ready then
