@@ -63,14 +63,18 @@ local util = { IsValid = function() return true end, SendSystemAnnounce = functi
 local hooks, postHooks, loop = {}, {}, nil
 local function Card(tech)
     local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
-    local function text(field) return { SetText = function(_, t) c.shown[field] = t.text end } end
+    local function text(field)
+        return { SetText = function(_, t) c.shown[field] = t.text end,
+                 GetText = function() return { ToString = function() return c.shown[field] or "" end } end }
+    end
     c.RichText_TechnologyName_Lock, c.RichText_TechnologyName_Unlock = text("name"), text("name")
     c.BP_PalTextBlock_Category = text("category")
     c.Image_Icon = { SetBrushFromTexture = function(_, t) c.shown.icon = t.path end }
     c.WBP_PalInvisibleButton = { SetIsInteractionEnabled = function(_, on) c.shown.clickable = on end }
     return c
 end
-local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade_01") }
+local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade_01"), Card("Workbench") }
+cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
 local function Texture(path) return { IsValid = function() return true end, path = path } end
 local kept = {}
 local gameInstance = { ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
@@ -152,6 +156,9 @@ expect(#announced > 0, "notices shown in game: " .. tostring(announced[1]))
 print("shop cards")
 expect(cards[1].shown.name == "Friend's Map Width (ChecksFinder)" and cards[1].shown.icon == "progression",
        "another player's item: " .. tostring(cards[1].shown.name) .. ", icon " .. tostring(cards[1].shown.icon))
+expect(cards[2].shown.category == "Estructuras", "your own tech carries the game's own category: " .. tostring(cards[2].shown.category))
+expect(cards[3].shown.category == "Archipelago" and cards[1].shown.category == "Archipelago", "other unbought slots say Archipelago")
+expect(cards[4].shown.category == "Estructuras" and cards[4].shown.name == nil, "level-1 cards untouched")
 expect(cards[2].shown.name == "Campfire" and tostring(cards[2].shown.icon):find("CampFire"),
        "your own tech shows as itself: " .. tostring(cards[2].shown.name) .. ", icon " .. tostring(cards[2].shown.icon))
 expect(cards[3].shown.name == "Your Wood Bundle" and cards[3].shown.icon == "filler",
@@ -239,7 +246,8 @@ expect(canBuy("RepairBench") == false, "a bought slot cannot be bought again")
 req.v = FNameOf("PalBox"); research(nil, req)
 run(1)
 expect(cards[1].shown.clickable == false and cards[1].shown.category == "Sent", "bought card (another player's item) switched off")
-expect(cards[2].shown.clickable == true and cards[2].shown.name == "Sent: Campfire",
+expect(cards[2].shown.category == "Estructuras", "bought, your tech still shows its own category")
+expect(cards[2].shown.clickable == true and cards[2].shown.name == "Campfire",
        "bought card showing your tech stays interactive for its tooltip: " .. tostring(cards[2].shown.name))
 req.v = FNameOf("Workbench"); research(nil, req)
 expect(req.v:ToString() == "Workbench", "level-1 research left alone")
@@ -251,6 +259,12 @@ unlocked.ForEach = function() error("Tried calling a member function but the UOb
 run(14)
 td.valid, unlocked.ForEach = true, forEach
 expect(not logged("update error"), "no errors while the player's tech data is not there yet")
+
+req.v = FNameOf("Special_PalSphere_Grade_01"); research(nil, req)
+run(1)
+expect(passCard.shown.category == "Received" and passCard.shown.name == "Your Area Pass: Outer Isles III",
+       "bought, your other items say Received: " .. tostring(passCard.shown.category) .. " / " .. tostring(passCard.shown.name))
+expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent: prefix")
 
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
 expect(f and f:read("*a"):match("given=5"), "save file records items applied")

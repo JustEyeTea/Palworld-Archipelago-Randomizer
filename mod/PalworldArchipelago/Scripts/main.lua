@@ -6,13 +6,14 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.1.4"
+local VERSION = "0.1.5"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
 local D = require("ap_data")
-local ICONS = require("tech_icons")
+local TECHS = require("tech_icons")
+local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local R = require("records")
 
 local reported = {}
@@ -277,20 +278,33 @@ end
 local function shopCard(tech) return ap.shown and D.shop[tech] ~= nil end
 local function bought(tech) return ap.checked[D.shop[tech].loc] == true end
 
+-- The game's own card categories, read off the level-1 cards (never relabelled) so they follow the game's language.
+local categories = { structure = "Structures", item = "Items" }
+local function readCategory(card, tech)
+    local text = safe(function() return card.BP_PalTextBlock_Category:GetText():ToString() end)
+    if type(text) == "string" and text ~= "" then categories[STRUCTURES[tech] and "structure" or "item"] = text end
+end
+
+-- Card header: one of your techs looks like ordinary research (its own category, before and after buying); your
+-- other items say "Received" once bought, other players' items "Sent".
 local function relabel(card)
     local tech = card.BindedTechnologyName:ToString()
+    if D.starters[tech] then readCategory(card, tech) end
     if not shopCard(tech) then return end
     local sent, mine = bought(tech), ownTech(tech)
-    local name = (sent and "Sent: " or "") .. rewardText(tech)
+    local r = ap.scouted[D.shop[tech].loc]
+    local own = r and r.own
+    local category = mine and categories[STRUCTURES[mine] and "structure" or "item"]
+        or (sent and (own and "Received" or "Sent") or "Archipelago")
+    local name = ((sent and not own) and "Sent: " or "") .. rewardText(tech)
     -- A bought card does nothing when clicked (the game is told it cannot be researched). One showing your own tech
     -- stays interactive so its tooltip still works; the others are switched off outright.
     safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(not sent or mine ~= nil) end)
     local text = FText(name)
     safe(function() card.RichText_TechnologyName_Lock:SetText(text) end)
     safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
-    safe(function() card.BP_PalTextBlock_Category:SetText(FText(sent and "Sent" or "Archipelago")) end)
-    local r = ap.scouted[D.shop[tech].loc]
-    local it = r and r.own and D.items[r.id]
+    safe(function() card.BP_PalTextBlock_Category:SetText(FText(category)) end)
+    local it = own and D.items[r.id]
     local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
     local tex = mine and techIcon(mine) or icon(kind, card)
     if tex then safe(function() card.Image_Icon:SetBrushFromTexture(tex, false) end) end
