@@ -1,8 +1,10 @@
 -- Area-lock probe (test builds only): can the mod raise the game's own barrier wall and take it down again?
---   Ctrl+F7   report: where you stand, the barriers / locks / barrier info loaded nearby, your unlocked lock ids
---   Ctrl+F8   raise a barrier 15 m ahead of you, locked
---   Ctrl+F9   unlock it (what an Area Pass would do)
---   Ctrl+F10  remove it
+--   Ctrl+F7   report: where you stand (and whether you are inside a raised barrier's trigger box), the barriers /
+--             locks / barrier info loaded nearby, your unlocked lock ids
+--   Ctrl+F8   raise a barrier 40 m ahead with a 30 x 30 m trigger box, locked
+--   Ctrl+F11  raise a barrier 100 m ahead at 4x scale (does the wind ring grow with it?), locked
+--   Ctrl+F9   unlock the raised barriers (what an Area Pass would do)
+--   Ctrl+F10  remove them
 -- Everything it tries is logged as "[probe]" lines in UE4SS.log.
 if not RegisterKeyBind or not Key or not ModifierKey then return end
 
@@ -17,7 +19,7 @@ local BARRIER = "/Game/Pal/Blueprint/MapObject/Object/LevelObject/LevelGimmickAr
 local VOLUME_ID = { A = 0x41500000, B = 1, C = 0, D = 1 }   -- made-up ids, unlike any the game uses
 local LOCK_ID = { A = 0x41500000, B = 2, C = 0, D = 1 }
 local function hex(g) return string.format("%08X%08X%08X%08X", g.A & 0xFFFFFFFF, g.B & 0xFFFFFFFF, g.C & 0xFFFFFFFF, g.D & 0xFFFFFFFF) end
-local spawned = nil
+local spawned = {}
 
 local function pawn()
     local pc = FindFirstOf("PalPlayerController")
@@ -35,6 +37,11 @@ end
 local function report()
     local p = pawn()
     if p then log("you are at " .. vec(p:K2_GetActorLocation())) end
+    for i, a in ipairs(spawned) do
+        if a:IsValid() and p then
+            try("raised barrier " .. i .. ": you inside its trigger box", function() return a.OverlapTriggerBox:IsOverlappingActor(p) end)
+        end
+    end
     for _, cls in ipairs({ "PalLevelGimmick_AreaBarrier", "PalLevelGimmick_AreaBarrier_Lock", "PalLevelGimmick_AreaBarrier_Info" }) do
         local all = FindAllOf(cls) or {}
         log(cls .. ": " .. #all .. " loaded")
@@ -57,37 +64,45 @@ local function report()
     local ps = FindFirstOf("PalPlayerState")
     if ps then
         try("your unlocked lock ids", function()
-            local out = {}
-            ps:GetUnlockedAreaBarrierLockIds():ForEach(function(_, n) out[#out + 1] = n:get():ToString() end)
+            local ids, out = ps:GetUnlockedAreaBarrierLockIds(), {}
+            if type(ids) == "table" then
+                for _, n in ipairs(ids) do out[#out + 1] = tostring(type(n) == "userdata" and n:ToString() or n) end
+            else
+                ids:ForEach(function(_, n) out[#out + 1] = n:get():ToString() end)
+            end
             return #out .. " [" .. table.concat(out, ",") .. "]"
         end)
     end
 end
 
-local function raise()
+local function raise(dist, scale, extent)
     local p = pawn()
     if not p then log("no player"); return end
-    if spawned and spawned:IsValid() then log("already raised: Ctrl+F10 removes it"); return end
     try("load barrier class", LoadAsset, (BARRIER:gsub("_C$", "")))
     local cls = StaticFindObject(BARRIER)
     if not cls or not cls:IsValid() then log("barrier class not found"); return end
     local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
     local loc, fwd = p:K2_GetActorLocation(), p:GetActorForwardVector()
     local t = { Rotation = { X = 0, Y = 0, Z = 0, W = 1 },
-                Translation = { X = loc.X + fwd.X * 1500, Y = loc.Y + fwd.Y * 1500, Z = loc.Z },
-                Scale3D = { X = 1, Y = 1, Z = 1 } }
+                Translation = { X = loc.X + fwd.X * dist, Y = loc.Y + fwd.Y * dist, Z = loc.Z },
+                Scale3D = { X = scale, Y = scale, Z = scale } }
     local a = try("begin spawn", function() return gs:BeginDeferredActorSpawnFromClass(p, cls, t, 1, nil) end)
     if not a or not a:IsValid() then return end
     try("set volume id", function() a.LevelObjectInstanceId = VOLUME_ID; return hex(a.LevelObjectInstanceId) end)
     try("finish spawn", function() return gs:FinishSpawningActor(a, t) end)
-    spawned = a
-    log("raised: " .. describe(a))
+    spawned[#spawned + 1] = a
+    log("raised: " .. describe(a) .. ", scale " .. scale)
+    if extent then
+        try("grow trigger box", function() a.OverlapTriggerBox:SetBoxExtent({ X = extent, Y = extent, Z = 1000 }, true) end)
+        try("grow limit box", function() a.PalLimitVolumeBox:SetBoxExtent({ X = extent, Y = extent, Z = 1000 }, true) end)
+    end
     try("trigger box extent", function() return vec(a.OverlapTriggerBox:GetScaledBoxExtent()) end)
     try("limit box extent", function() return vec(a.PalLimitVolumeBox:GetScaledBoxExtent()) end)
     try("wall effect", function() return a.Niagara:GetFullName() end)
     try("teleport point", function() return vec(a.TeleportPoint2:K2_GetComponentLocation()) end)
     for _, info in ipairs(FindAllOf("PalLevelGimmick_AreaBarrier_Info") or {}) do
         try("add to barrier info", function() info.AreaBarrierLockIdMap:Add(VOLUME_ID, { LockIds = { LOCK_ID } }); return "added" end)
+        try("mark volume active", function() info:AddActiveVolumeId(VOLUME_ID); return info:IsVolumeActive(VOLUME_ID) end)
     end
     try("show wall (UpdateView locked)", function() return a:UpdateView({ bLocked = true }) end)
     try("reset wall effect", function() return a:ResetNiagara() end)
@@ -95,17 +110,20 @@ local function raise()
 end
 
 local function unlock()
-    local a = spawned
-    if not a or not a:IsValid() then log("nothing raised: Ctrl+F8 first"); return end
-    try("lock state changed (game's own path)", function() return a:HandleLockStateChanged(FName(hex(LOCK_ID)), true) end)
-    try("UpdateView unlocked", function() return a:UpdateView({ bLocked = false }) end)
-    try("fade the wall out", function() return a:StartNiagaraFadeOut() end)
+    if #spawned == 0 then log("nothing raised: Ctrl+F8 first"); return end
+    for _, a in ipairs(spawned) do
+        if a:IsValid() then
+            try("lock state changed (game's own path)", function() return a:HandleLockStateChanged(FName(hex(LOCK_ID)), true) end)
+            try("UpdateView unlocked", function() return a:UpdateView({ bLocked = false }) end)
+            try("fade the wall out", function() return a:StartNiagaraFadeOut() end)
+        end
+    end
     log("walk through it now")
 end
 
 local function remove()
-    if spawned and spawned:IsValid() then try("remove", function() return spawned:K2_DestroyActor() end) end
-    spawned = nil
+    for _, a in ipairs(spawned) do if a:IsValid() then try("remove", function() return a:K2_DestroyActor() end) end end
+    spawned = {}
 end
 
 local okh = pcall(RegisterHook, "/Script/Pal.PalLevelGimmick_AreaBarrier:HandleBoxBeginOverlap", function(self)
@@ -123,7 +141,8 @@ local function bind(key, fn, name)
     end)
 end
 bind(Key.F7, report, "report")
-bind(Key.F8, raise, "raise")
+bind(Key.F8, function() raise(4000, 1, 1500) end, "raise (big trigger box)")
+bind(Key.F11, function() raise(10000, 4, nil) end, "raise (4x scale)")
 bind(Key.F9, unlock, "unlock")
 bind(Key.F10, remove, "remove")
-log("keys: Ctrl+F7 report, Ctrl+F8 raise, Ctrl+F9 unlock, Ctrl+F10 remove")
+log("keys: Ctrl+F7 report, Ctrl+F8 raise (big box), Ctrl+F11 raise (4x), Ctrl+F9 unlock, Ctrl+F10 remove")
