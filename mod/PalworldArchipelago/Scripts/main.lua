@@ -6,12 +6,13 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.1.0"
+local VERSION = "0.1.1"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
 local D = require("ap_data")
+local ICONS = require("tech_icons")
 local R = require("records")
 
 local reported = {}
@@ -204,6 +205,17 @@ end
 ------------------------------------------------------------------------------------------------------------------------
 -- The shop: cards relabelled every 300 ms (kit 9's shape: timer relabel plus two post-hooks, never widget work inside
 -- Blueprint hooks, which crashed kits 5 and 6).
+-- Textures the cards use are kept alive in the game instance's ReferencedObjects for the whole session: otherwise
+-- nothing references them once the menu rebuilds its cards, the engine frees them, and the cards go blank grey.
+local function keep(obj)
+    local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
+    local ok, err = pcall(function()
+        local arr = gi.ReferencedObjects
+        arr[arr:GetArrayNum() + 1] = obj
+    end)
+    if not ok then once("keep", "could not keep a texture alive: " .. tostring(err)) end
+end
+
 local textures = {}
 local function icon(kind, ctx)
     local t = textures[kind]
@@ -212,7 +224,23 @@ local function icon(kind, ctx)
     if not lib or not lib:IsValid() then once("nolib", "KismetRenderingLibrary not found"); return nil end
     local path = modDir .. "\\icons\\" .. kind .. ".png"
     t = lib:ImportFileAsTexture2D(ctx, path)
-    if t and t:IsValid() then textures[kind] = t else once("icon" .. kind, "could not load icon " .. path) end
+    if t and t:IsValid() then textures[kind] = t; keep(t) else once("icon" .. kind, "could not load icon " .. path) end
+    return t
+end
+
+-- A technology's own icon (an asset in the game), for slots that hold one of your techs.
+local techTextures = {}
+local function techIcon(tech)
+    local t = techTextures[tech]
+    if t and t:IsValid() then return t end
+    local path = ICONS[tech]
+    if not path then return nil end
+    t = StaticFindObject(path)
+    if not t or not t:IsValid() then
+        pcall(LoadAsset, path)
+        t = StaticFindObject(path)
+    end
+    if t and t:IsValid() then techTextures[tech] = t; keep(t) else once("techicon" .. tech, "could not load " .. path) end
     return t
 end
 
@@ -222,11 +250,20 @@ local function iconKind(flags)
     return "filler"
 end
 
+-- The tech a slot holds when it holds one of your own techs (such cards show that tech as itself).
+local function ownTech(tech)
+    local r = ap.scouted[D.shop[tech].loc]
+    local it = r and r.own and D.items[r.id]
+    return it and it.kind == "tech" and it.tech or nil
+end
+
 -- What a slot sends, as the card names it.
 local function rewardText(tech)
     local r = ap.scouted[D.shop[tech].loc]
     if not r then return "Archipelago item" end
-    if r.own then return "Your " .. (r.item:gsub("^Tech: ", "")) end
+    local mine = ownTech(tech)
+    if mine then return D.shop[mine].name end
+    if r.own then return "Your " .. r.item end
     return r.player .. "'s " .. r.item .. " (" .. r.game .. ")"
 end
 
@@ -248,8 +285,8 @@ local function relabel(card)
     safe(function() card.RichText_TechnologyName_Lock:SetText(text) end)
     safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
     safe(function() card.BP_PalTextBlock_Category:SetText(FText(sent and "Sent" or "Archipelago")) end)
-    local r = ap.scouted[D.shop[tech].loc]
-    local tex = icon(r and iconKind(r.flags) or "filler", card)
+    local r, mine = ap.scouted[D.shop[tech].loc], ownTech(tech)
+    local tex = mine and techIcon(mine) or icon(r and iconKind(r.flags) or "filler", card)
     if tex then safe(function() card.Image_Icon:SetBrushFromTexture(tex, false) end) end
 end
 
@@ -273,7 +310,9 @@ end
 local CONTENT = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content.WBP_MainMenu_Technology_Content_C"
 local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"
 local DIALOG = "/Game/Pal/Blueprint/UI/Dialog/WBP_PalDialog.WBP_PalDialog_C"
-local hoveredTech = nil
+local TREE = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00.WBP_MainMenu_Technology_00_C"
+local hoveredTech = nil   -- the card under the pointer: a confirm box opened while it is set came from that card
+local retarget = nil      -- the tech a tooltip is being set up again for (see the tooltip hook)
 
 local function confirmText(tech)
     local s = D.shop[tech]
@@ -290,17 +329,37 @@ local lazyHooks = {
         pcall(function() out:set(bought(tech)) end)
         return bought(tech)
     end },
-    -- No tooltips on slot cards (the card already says what it sends). Made transparent rather than collapsed: the
-    -- game makes the tooltip visible again after setting it up.
+    -- Tooltips: a slot holding one of your techs shows that tech's own tooltip (set up again for it, a moment later,
+    -- outside this hook); other slot cards have none (the card already says what it sends). Hidden by transparency
+    -- rather than collapsing: the game makes the tooltip visible again after setting it up.
     { class = INFO, fn = INFO .. ":Setup by Technology Name", cb = function(self, techName)
         local tech = techName:get():ToString()
+        local info = self:get()
+        if retarget == tech then
+            retarget = nil
+            pcall(function() info:SetRenderOpacity(1.0) end)
+            return
+        end
         hoveredTech = tech
-        pcall(function() self:get():SetRenderOpacity(shopCard(tech) and 0.0 or 1.0) end)
+        local mine = shopCard(tech) and ownTech(tech)
+        pcall(function() info:SetRenderOpacity((shopCard(tech) or mine) and 0.0 or 1.0) end)
+        if not mine then return end
+        ExecuteInGameThread(function()
+            if not info:IsValid() or hoveredTech ~= tech then return end
+            retarget = mine
+            local ok, err = pcall(function() info["Setup by Technology Name"](info, FName(mine), false, techIcon(mine)) end)
+            if not ok then retarget = nil; once("retarget", "could not show the tooltip of " .. mine .. ": " .. tostring(err)) end
+        end)
+    end },
+    -- Leaving a card forgets it, so a later dialog (Return to Title...) is not mistaken for a purchase.
+    { class = TREE, fn = TREE .. ":OnUnhoveredAnyTechnology_Internal", cb = function()
+        hoveredTech = nil
     end },
     -- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
     -- re-applied a few times over the first half second (only while it still differs).
-    { class = DIALOG, fn = DIALOG .. ":SetupUI", cb = function(self)
+    { class = DIALOG, fn = DIALOG .. ":SetupUI", cb = function(self, dialogType, message)
         local tech = hoveredTech
+        once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
         if not shopCard(tech) or bought(tech) then return end
         local dialog, text = self:get(), confirmText(tech)
         for _, delay in ipairs({ 0, 50, 150, 300, 500 }) do
@@ -422,7 +481,7 @@ local function onEvent(line)
         receive(f)
     elseif kind == "scout" then
         local loc, player = tonumber(f[2]), tonumber(f[4])
-        ap.scouted[loc] = { item = f[6], player = f[7], game = f[8], flags = tonumber(f[5]) or 0,
+        ap.scouted[loc] = { id = tonumber(f[3]), item = f[6], player = f[7], game = f[8], flags = tonumber(f[5]) or 0,
                             own = player == ap.me }
     elseif kind == "checked" then
         ap.checked[tonumber(f[2])] = true

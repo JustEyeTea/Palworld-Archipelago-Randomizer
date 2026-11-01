@@ -58,13 +58,36 @@ local util = { IsValid = function() return true end, SendSystemAnnounce = functi
 
 -- UE4SS.
 local hooks, loop = {}, nil
+local function Card(tech)
+    local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
+    local function text(field) return { SetText = function(_, t) c.shown[field] = t.text end } end
+    c.RichText_TechnologyName_Lock, c.RichText_TechnologyName_Unlock = text("name"), text("name")
+    c.BP_PalTextBlock_Category = text("category")
+    c.Image_Icon = { SetBrushFromTexture = function(_, t) c.shown.icon = t.path end }
+    c.WBP_PalInvisibleButton = { SetIsInteractionEnabled = function(_, on) c.shown.clickable = on end }
+    return c
+end
+local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade_01") }
+local function Texture(path) return { IsValid = function() return true end, path = path } end
+local kept = {}
+local gameInstance = { ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
+                                                         { __newindex = function(_, i, v) kept[i] = v end }) }
+LoadAsset = function() end
 FindAllOf = function(class)
+    if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     if class == "PalPlayerState" then return { ps } end
     if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
     return nil
 end
-FindFirstOf = function() return nil end
-StaticFindObject = function(path) if path:find("PalUtility") then return util end return nil end
+FindFirstOf = function(class) if class == "PalGameInstance" then return gameInstance end return nil end
+local renderLib = { IsValid = function() return true end,
+                    ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_]+)%.png$")) end }
+StaticFindObject = function(path)
+    if path:find("PalUtility") then return util end
+    if path:find("KismetRenderingLibrary") then return renderLib end
+    if path:find("^/Game/") then return Texture(path) end
+    return nil
+end
 RegisterHook = function(path, fn) hooks[path] = fn end
 LoopAsync = function(_, fn) loop = fn end
 ExecuteInGameThread = function(fn) fn() end
@@ -98,6 +121,8 @@ push("item", "1", tostring(itemId["Tech: Campfire"]), "2", "1", "1", "Tech: Camp
 push("item", "2", tostring(itemId["Wood Bundle"]), "3", "2", "0", "Wood Bundle", "Friend")
 push("item", "3", tostring(itemId["Tech Points +2"]), "4", "2", "0", "Tech Points +2", "Friend")
 push("scout", tostring(D.shop.RepairBench.loc), "77", "2", "1", "Map Width", "Friend", "ChecksFinder")
+push("scout", tostring(D.shop.PalBox.loc), tostring(itemId["Tech: Campfire"]), "1", "1", "Tech: Campfire", "Tester", "Palworld")
+push("scout", tostring(D.shop.Product_Cooking_Grade_01.loc), tostring(itemId["Wood Bundle"]), "1", "0", "Wood Bundle", "Tester", "Palworld")
 push("checked", tostring(D.shop.Wooden_houseset.loc))
 run(14)
 local have = {}
@@ -115,6 +140,15 @@ expect(goals == 1, "goal sent once")
 expect(checks[D.alpha_spawners.yamijima_iceland_pink_d_boss[1]], "alpha checked by spawner id")
 expect(checks[D.fast_travel.FTPoint101], "fast travel mapped from its instance id")
 expect(#announced > 0, "notices shown in game: " .. tostring(announced[1]))
+
+print("shop cards")
+expect(cards[1].shown.name == "Friend's Map Width (ChecksFinder)" and cards[1].shown.icon == "progression",
+       "another player's item: " .. tostring(cards[1].shown.name) .. ", icon " .. tostring(cards[1].shown.icon))
+expect(cards[2].shown.name == "Campfire" and tostring(cards[2].shown.icon):find("CampFire"),
+       "your own tech shows as itself: " .. tostring(cards[2].shown.name) .. ", icon " .. tostring(cards[2].shown.icon))
+expect(cards[3].shown.name == "Your Wood Bundle" and cards[3].shown.icon == "filler",
+       "your own filler: " .. tostring(cards[3].shown.name))
+expect(#kept >= 3, "textures kept alive: " .. #kept)
 
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
