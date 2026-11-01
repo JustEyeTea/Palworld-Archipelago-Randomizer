@@ -1163,6 +1163,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1173,6 +1174,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1183,6 +1185,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1195,6 +1198,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1207,6 +1211,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1219,6 +1224,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1231,6 +1237,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1243,6 +1250,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1255,6 +1263,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1265,6 +1274,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1280,8 +1290,14 @@
     "type": "wild"
    },
    {
+    "area": "Isle of Silence",
+    "level": 1,
+    "type": "wild"
+   },
+   {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1292,6 +1308,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1302,6 +1319,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1314,6 +1332,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1326,6 +1345,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1338,6 +1358,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1350,6 +1371,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1362,6 +1384,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1374,6 +1397,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1384,6 +1408,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1401,6 +1426,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1411,6 +1437,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1421,6 +1448,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1433,6 +1461,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1445,6 +1474,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1457,6 +1487,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1469,6 +1500,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1481,6 +1513,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1493,6 +1526,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1503,6 +1537,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1518,8 +1553,14 @@
     "type": "wild"
    },
    {
+    "area": "Isle of Silence",
+    "level": 4,
+    "type": "wild"
+   },
+   {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1530,6 +1571,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1540,6 +1582,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1552,6 +1595,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1564,6 +1608,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1576,6 +1621,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1588,6 +1634,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1600,6 +1647,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1612,6 +1660,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1622,6 +1671,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1639,6 +1689,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1649,6 +1700,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1659,6 +1711,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1671,6 +1724,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1683,6 +1737,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1695,6 +1750,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1707,6 +1763,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1719,6 +1776,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1731,6 +1789,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1741,6 +1800,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1776,6 +1836,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1786,6 +1847,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1796,6 +1858,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1808,6 +1871,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1820,6 +1884,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1832,6 +1897,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1844,6 +1910,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1856,6 +1923,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1868,6 +1936,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1878,6 +1947,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1888,6 +1958,11 @@
   ],
   "007": [
    {
+    "area": "Isle of Silence",
+    "level": 2,
+    "type": "wild"
+   },
+   {
     "area": "Windswept (start)",
     "level": 2,
     "type": "wild"
@@ -1895,6 +1970,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1905,6 +1981,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -1915,6 +1992,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1927,6 +2005,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1939,6 +2018,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1951,6 +2031,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1963,6 +2044,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1975,6 +2057,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -1987,6 +2070,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -1997,6 +2081,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2006,11 +2091,6 @@
    }
   ],
   "007B": [
-   {
-    "area": "Snow",
-    "level": 26,
-    "type": "wild"
-   },
    {
     "area": "Desert",
     "level": 26,
@@ -2031,6 +2111,11 @@
   ],
   "008": [
    {
+    "area": "Isle of Silence",
+    "level": 1,
+    "type": "wild"
+   },
+   {
     "area": "Windswept (start)",
     "level": 1,
     "type": "wild"
@@ -2038,6 +2123,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2048,6 +2134,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2058,6 +2145,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2070,6 +2158,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2082,6 +2171,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2094,6 +2184,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2106,6 +2197,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2118,6 +2210,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2130,6 +2223,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2140,6 +2234,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2155,7 +2250,7 @@
     "type": "wild"
    },
    {
-    "area": "King Whale",
+    "area": "Isle of Silence",
     "level": 47,
     "type": "wild"
    },
@@ -2166,7 +2261,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -2176,7 +2271,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -2203,6 +2298,11 @@
    {
     "area": "Outer Isles I",
     "level": 1,
+    "type": "wild"
+   },
+   {
+    "area": "Isle of Silence",
+    "level": 10,
     "type": "wild"
    },
    {
@@ -2325,8 +2425,14 @@
     "type": "wild"
    },
    {
+    "area": "Isle of Silence",
+    "level": 2,
+    "type": "wild"
+   },
+   {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2337,6 +2443,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2347,6 +2454,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2359,6 +2467,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2371,6 +2480,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2383,6 +2493,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2395,6 +2506,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2407,6 +2519,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2419,6 +2532,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2429,6 +2543,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2451,6 +2566,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2461,6 +2577,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2471,6 +2588,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2483,6 +2601,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2495,6 +2614,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2507,6 +2627,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2519,6 +2640,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2531,6 +2653,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2543,6 +2666,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2553,6 +2677,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2577,6 +2702,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2587,6 +2713,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2597,6 +2724,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2609,6 +2737,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2621,6 +2750,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2633,6 +2763,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2645,6 +2776,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2657,6 +2789,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2669,6 +2802,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2679,6 +2813,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2696,6 +2831,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2706,6 +2842,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2716,6 +2853,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2728,6 +2866,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2740,6 +2879,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2752,6 +2892,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2764,6 +2905,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2776,6 +2918,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2788,6 +2931,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2798,6 +2942,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2854,6 +2999,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2864,6 +3010,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -2874,6 +3021,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2886,6 +3034,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2898,6 +3047,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2910,6 +3060,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2922,6 +3073,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2934,6 +3086,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -2946,6 +3099,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2956,6 +3110,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -2967,6 +3122,11 @@
   "017": [
    {
     "area": "Windswept (start)",
+    "level": 2,
+    "type": "wild"
+   },
+   {
+    "area": "Isle of Silence",
     "level": 2,
     "type": "wild"
    },
@@ -2993,6 +3153,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3003,6 +3164,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3033,6 +3195,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3045,6 +3208,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3057,6 +3221,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3069,6 +3234,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3081,6 +3247,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3093,6 +3260,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3105,6 +3273,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3115,6 +3284,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3191,6 +3361,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3201,6 +3372,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3211,6 +3383,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3223,6 +3396,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3235,6 +3409,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3247,6 +3422,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3259,6 +3435,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3271,6 +3448,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3283,6 +3461,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3293,6 +3472,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3315,6 +3495,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3325,6 +3506,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3335,6 +3517,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3347,6 +3530,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3359,6 +3543,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3371,6 +3556,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3383,6 +3569,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3395,6 +3582,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3407,6 +3595,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3417,6 +3606,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3439,7 +3629,7 @@
   ],
   "021B": [
    {
-    "area": "Sakurajima",
+    "area": "Snow",
     "level": 46,
     "type": "alpha"
    },
@@ -3460,6 +3650,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3470,6 +3661,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3480,6 +3672,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3490,6 +3683,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3502,6 +3696,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3514,6 +3709,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3526,6 +3722,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3538,6 +3735,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3550,6 +3748,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3562,6 +3761,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3572,6 +3772,11 @@
   ],
   "023": [
    {
+    "area": "Isle of Silence",
+    "level": 4,
+    "type": "wild"
+   },
+   {
     "area": "Windswept (start)",
     "level": 4,
     "type": "wild"
@@ -3579,6 +3784,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3589,6 +3795,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3599,6 +3806,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3611,6 +3819,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3623,6 +3832,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3635,6 +3845,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3647,6 +3858,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3659,6 +3871,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3671,6 +3884,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3681,6 +3895,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3705,13 +3920,19 @@
   ],
   "024": [
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 4,
+    "type": "wild"
+   },
+   {
+    "area": "Windswept (start)",
+    "level": 5,
     "type": "wild"
    },
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3722,6 +3943,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3732,6 +3954,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3742,7 +3965,7 @@
   ],
   "025": [
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 4,
     "type": "wild"
    },
@@ -3759,6 +3982,11 @@
    {
     "area": "Desert",
     "level": 10,
+    "type": "wild"
+   },
+   {
+    "area": "Windswept (start)",
+    "level": 4,
     "type": "wild"
    },
    {
@@ -3794,6 +4022,11 @@
     "type": "wild"
    },
    {
+    "area": "Isle of Silence",
+    "level": 4,
+    "type": "wild"
+   },
+   {
     "area": "Desert",
     "level": 10,
     "type": "wild"
@@ -3801,6 +4034,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3811,6 +4045,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3821,6 +4056,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3833,6 +4069,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3845,6 +4082,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3857,6 +4095,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3869,6 +4108,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3881,6 +4121,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3893,6 +4134,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3903,6 +4145,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3915,6 +4158,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3925,6 +4169,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -3935,6 +4180,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3945,6 +4191,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -3955,6 +4202,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3967,6 +4215,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3979,6 +4228,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -3991,6 +4241,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4003,6 +4254,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4015,6 +4267,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4027,6 +4280,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4039,6 +4293,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4051,6 +4306,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4063,6 +4319,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4073,6 +4330,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4119,6 +4377,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4129,6 +4388,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4139,6 +4399,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4151,6 +4412,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4163,6 +4425,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4175,6 +4438,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4187,6 +4451,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4199,6 +4464,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4211,6 +4477,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4221,6 +4488,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4238,6 +4506,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4248,6 +4517,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4258,6 +4528,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4270,6 +4541,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4282,6 +4554,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4294,6 +4567,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4306,6 +4580,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4318,6 +4593,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4330,6 +4606,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4340,6 +4617,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4360,7 +4638,7 @@
     "type": "wild"
    },
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 15,
     "type": "alpha"
    },
@@ -4404,6 +4682,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4414,6 +4693,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4424,6 +4704,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4434,6 +4715,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4446,6 +4728,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4458,6 +4741,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4470,6 +4754,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4482,6 +4767,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4494,6 +4780,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4506,6 +4793,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4518,6 +4806,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4530,6 +4819,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4542,6 +4832,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4552,6 +4843,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4561,11 +4853,6 @@
    }
   ],
   "030B": [
-   {
-    "area": "Snow",
-    "level": 24,
-    "type": "wild"
-   },
    {
     "area": "Desert",
     "level": 24,
@@ -4607,6 +4894,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4617,6 +4905,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4627,6 +4916,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4637,6 +4927,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4674,6 +4965,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4686,6 +4978,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4698,6 +4991,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4710,6 +5004,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4722,6 +5017,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4734,6 +5030,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4746,6 +5043,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4758,6 +5056,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4770,6 +5069,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4782,6 +5082,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4792,6 +5093,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4842,6 +5144,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4852,6 +5155,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -4862,6 +5166,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4874,6 +5179,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4886,6 +5192,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4898,6 +5205,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4910,6 +5218,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4922,6 +5231,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -4934,6 +5244,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4944,6 +5255,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -4978,6 +5290,11 @@
     "type": "wild"
    },
    {
+    "area": "Isle of Silence",
+    "level": 11,
+    "type": "wild"
+   },
+   {
     "area": "Forest",
     "level": 10,
     "type": "wild"
@@ -4990,6 +5307,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5000,6 +5318,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5010,6 +5329,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5022,6 +5342,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5034,6 +5355,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5046,6 +5368,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5058,6 +5381,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5070,6 +5394,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5082,6 +5407,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5092,6 +5418,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5112,6 +5439,11 @@
     "type": "wild"
    },
    {
+    "area": "Isle of Silence",
+    "level": 20,
+    "type": "wild"
+   },
+   {
     "area": "King Whale",
     "level": 23,
     "type": "wild"
@@ -5119,6 +5451,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5129,6 +5462,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5139,6 +5473,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5151,6 +5486,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5163,6 +5499,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5175,6 +5512,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5187,6 +5525,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5199,6 +5538,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -5211,6 +5551,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5221,6 +5562,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5290,6 +5632,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5300,6 +5643,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5332,6 +5676,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5342,6 +5687,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5413,6 +5759,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5423,6 +5770,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5522,6 +5870,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5532,6 +5881,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5560,6 +5910,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5570,6 +5921,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5608,11 +5960,6 @@
     "type": "wild"
    },
    {
-    "area": "Sakurajima",
-    "level": 37,
-    "type": "wild"
-   },
-   {
     "parents": [
      "038",
      "035"
@@ -5634,6 +5981,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5644,6 +5992,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5654,6 +6003,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5664,6 +6014,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5695,6 +6046,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5705,6 +6057,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5715,6 +6068,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5725,6 +6079,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5778,6 +6133,11 @@
   ],
   "043": [
    {
+    "area": "Isle of Silence",
+    "level": 10,
+    "type": "wild"
+   },
+   {
     "area": "Windswept (start)",
     "level": 9,
     "type": "wild"
@@ -5785,6 +6145,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5795,6 +6156,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5805,6 +6167,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5815,6 +6178,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5862,6 +6226,11 @@
     "type": "wild"
    },
    {
+    "area": "Isle of Silence",
+    "level": 1,
+    "type": "wild"
+   },
+   {
     "area": "Volcano (Electric)",
     "level": 18,
     "type": "wild"
@@ -5874,6 +6243,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5884,6 +6254,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5894,6 +6265,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5904,6 +6276,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -5968,6 +6341,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5978,6 +6352,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -5988,6 +6363,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6000,6 +6376,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6012,6 +6389,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6024,6 +6402,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6036,6 +6415,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6048,6 +6428,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6082,6 +6463,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6092,6 +6474,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6114,6 +6497,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6124,6 +6508,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6143,6 +6528,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6153,6 +6539,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6231,7 +6618,7 @@
   ],
   "049": [
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 11,
     "type": "wild"
    },
@@ -6243,6 +6630,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6253,6 +6641,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6307,6 +6696,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6317,6 +6707,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6383,6 +6774,11 @@
   ],
   "051": [
    {
+    "area": "Isle of Silence",
+    "level": 12,
+    "type": "wild"
+   },
+   {
     "area": "Windswept (start)",
     "level": 12,
     "type": "wild"
@@ -6398,7 +6794,7 @@
     "type": "wild"
    },
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 18,
     "type": "alpha"
    },
@@ -6430,6 +6826,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6460,6 +6857,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6472,6 +6870,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6484,6 +6883,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -6505,6 +6905,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6514,11 +6915,6 @@
    }
   ],
   "053": [
-   {
-    "area": "Snow",
-    "level": 25,
-    "type": "wild"
-   },
    {
     "area": "Desert",
     "level": 25,
@@ -6547,6 +6943,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6557,6 +6954,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6594,6 +6992,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6604,6 +7003,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6654,6 +7054,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6664,6 +7065,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -6674,6 +7076,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6684,6 +7087,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -6708,7 +7112,7 @@
   ],
   "055": [
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 14,
     "type": "wild"
    },
@@ -6852,7 +7256,7 @@
   ],
   "056": [
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 15,
     "type": "wild"
    },
@@ -6874,6 +7278,11 @@
    {
     "area": "Desert",
     "level": 34,
+    "type": "wild"
+   },
+   {
+    "area": "Windswept (start)",
+    "level": 25,
     "type": "wild"
    },
    {
@@ -7004,11 +7413,6 @@
     "type": "wild"
    },
    {
-    "area": "Sakurajima",
-    "level": 45,
-    "type": "wild"
-   },
-   {
     "area": "Feybreak",
     "level": 66,
     "type": "alpha"
@@ -7037,7 +7441,7 @@
   ],
   "057": [
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 15,
     "type": "wild"
    },
@@ -7049,11 +7453,6 @@
    {
     "area": "Volcano (Electric)",
     "level": 14,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
-    "level": 28,
     "type": "wild"
    },
    {
@@ -7084,6 +7483,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -7094,6 +7494,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -7131,6 +7532,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -7141,6 +7543,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -7191,6 +7594,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -7201,6 +7605,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -7211,6 +7616,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -7221,6 +7627,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -7854,11 +8261,6 @@
   ],
   "069": [
    {
-    "area": "Snow",
-    "level": 30,
-    "type": "wild"
-   },
-   {
     "area": "Desert",
     "level": 30,
     "type": "wild"
@@ -7915,6 +8317,11 @@
    {
     "area": "Desert",
     "level": 32,
+    "type": "wild"
+   },
+   {
+    "area": "Isle of Silence",
+    "level": 46,
     "type": "wild"
    },
    {
@@ -8130,11 +8537,6 @@
    {
     "area": "Volcano (Electric)",
     "level": 21,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
-    "level": 28,
     "type": "wild"
    },
    {
@@ -8385,7 +8787,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -8395,7 +8797,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -8418,11 +8820,6 @@
     "type": "wild"
    },
    {
-    "area": "Snow",
-    "level": 24,
-    "type": "wild"
-   },
-   {
     "area": "Desert",
     "level": 24,
     "type": "wild"
@@ -8440,6 +8837,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -8450,6 +8848,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -8460,6 +8859,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -8470,6 +8870,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -8486,11 +8887,6 @@
    },
    {
     "area": "Desert",
-    "level": 31,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
     "level": 31,
     "type": "wild"
    },
@@ -8623,11 +9019,6 @@
   "076B": [
    {
     "area": "Desert",
-    "level": 32,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
     "level": 32,
     "type": "wild"
    },
@@ -8825,7 +9216,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -8835,7 +9226,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": false,
@@ -8947,7 +9338,7 @@
   "079B": [
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -8957,7 +9348,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": false,
@@ -9018,7 +9409,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -9182,6 +9573,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -9192,6 +9584,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -9204,6 +9597,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -9216,6 +9610,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "King Whale",
      "Volcano (Electric)",
      "Windswept (start)"
@@ -9228,6 +9623,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -9239,11 +9635,6 @@
   "084B": [
    {
     "area": "Desert",
-    "level": 34,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
     "level": 34,
     "type": "wild"
    },
@@ -9291,16 +9682,11 @@
    },
    {
     "area": "Sakurajima",
-    "level": 39,
+    "level": 47,
     "type": "wild"
    },
    {
     "area": "Outer Isles II",
-    "level": 30,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
     "level": 30,
     "type": "wild"
    },
@@ -9310,8 +9696,18 @@
     "type": "wild"
    },
    {
+    "area": "Snow",
+    "level": 30,
+    "type": "wild"
+   },
+   {
     "area": "King Whale",
     "level": 30,
+    "type": "wild"
+   },
+   {
+    "area": "Isle of Silence",
+    "level": 48,
     "type": "wild"
    },
    {
@@ -9347,13 +9743,13 @@
     "type": "wild"
    },
    {
-    "area": "King Whale",
+    "area": "Isle of Silence",
     "level": 48,
     "type": "wild"
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -9363,7 +9759,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": false,
@@ -9452,11 +9848,6 @@
    {
     "area": "Snow",
     "level": 36,
-    "type": "wild"
-   },
-   {
-    "area": "Sakurajima",
-    "level": 37,
     "type": "wild"
    },
    {
@@ -9924,11 +10315,6 @@
     "type": "wild"
    },
    {
-    "area": "Sakurajima",
-    "level": 35,
-    "type": "wild"
-   },
-   {
     "area": "Desert",
     "level": 30,
     "type": "wild"
@@ -9963,11 +10349,6 @@
    {
     "area": "Forest",
     "level": 30,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
-    "level": 35,
     "type": "wild"
    },
    {
@@ -10031,7 +10412,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10041,7 +10422,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10111,11 +10492,6 @@
     "type": "wild"
    },
    {
-    "area": "Sakurajima",
-    "level": 36,
-    "type": "wild"
-   },
-   {
     "area": "World Tree",
     "level": 75,
     "type": "wild"
@@ -10136,11 +10512,6 @@
   "099": [
    {
     "area": "Desert",
-    "level": 31,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
     "level": 31,
     "type": "wild"
    },
@@ -10186,11 +10557,6 @@
     "type": "wild"
    },
    {
-    "area": "Snow",
-    "level": 31,
-    "type": "wild"
-   },
-   {
     "area": "Outer Isles II",
     "level": 40,
     "type": "alpha"
@@ -10199,11 +10565,6 @@
   "100B": [
    {
     "area": "Desert",
-    "level": 33,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
     "level": 33,
     "type": "wild"
    },
@@ -10229,11 +10590,6 @@
    {
     "area": "King Whale",
     "level": 32,
-    "type": "wild"
-   },
-   {
-    "area": "Sakurajima",
-    "level": 36,
     "type": "wild"
    },
    {
@@ -10405,7 +10761,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10415,7 +10771,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10517,7 +10873,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10527,7 +10883,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10553,13 +10909,9 @@
     "type": "wild"
    },
    {
-    "area": "Snow",
-    "level": 34,
-    "type": "wild"
-   },
-   {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -10579,6 +10931,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -10674,13 +11027,14 @@
     "type": "wild"
    },
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 14,
     "type": "alpha"
    },
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -10691,6 +11045,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": true,
@@ -10721,6 +11076,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -10731,6 +11087,7 @@
    {
     "areas": [
      "Forest",
+     "Isle of Silence",
      "Windswept (start)"
     ],
     "boss": false,
@@ -10769,6 +11126,11 @@
   ],
   "110": [
    {
+    "area": "Isle of Silence",
+    "level": 33,
+    "type": "wild"
+   },
+   {
     "area": "Windswept (start)",
     "level": 33,
     "type": "wild"
@@ -10790,7 +11152,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10800,7 +11162,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -10881,7 +11243,7 @@
     "type": "wild"
    },
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 30,
     "type": "alpha"
    },
@@ -11092,11 +11454,6 @@
     "type": "wild"
    },
    {
-    "area": "Sakurajima",
-    "level": 45,
-    "type": "wild"
-   },
-   {
     "areas": [
      "King Whale",
      "Snow"
@@ -11128,7 +11485,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": false,
@@ -11139,7 +11496,7 @@
   ],
   "118": [
    {
-    "area": "King Whale",
+    "area": "Isle of Silence",
     "level": 47,
     "type": "wild"
    },
@@ -11155,7 +11512,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11165,7 +11522,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11190,7 +11547,7 @@
     "type": "wild"
    },
    {
-    "area": "King Whale",
+    "area": "Isle of Silence",
     "level": 47,
     "type": "wild"
    },
@@ -11206,7 +11563,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11216,7 +11573,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11279,11 +11636,6 @@
    {
     "area": "World Tree",
     "level": 80,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
-    "level": 39,
     "type": "wild"
    },
    {
@@ -11376,18 +11728,13 @@
     "type": "wild"
    },
    {
-    "area": "Snow",
-    "level": 31,
-    "type": "wild"
-   },
-   {
     "area": "Outer Isles II",
     "level": 31,
     "type": "wild"
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11397,7 +11744,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11414,11 +11761,6 @@
    },
    {
     "area": "Snow",
-    "level": 45,
-    "type": "wild"
-   },
-   {
-    "area": "Sakurajima",
     "level": 45,
     "type": "wild"
    },
@@ -11461,7 +11803,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11485,7 +11827,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11495,7 +11837,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11512,7 +11854,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11522,7 +11864,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11532,7 +11874,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": false,
@@ -11549,7 +11891,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11559,7 +11901,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11862,7 +12204,7 @@
     "type": "wild"
    },
    {
-    "area": "King Whale",
+    "area": "Isle of Silence",
     "level": 46,
     "type": "wild"
    },
@@ -11873,7 +12215,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -11992,11 +12334,6 @@
     "type": "wild"
    },
    {
-    "area": "Snow",
-    "level": 37,
-    "type": "wild"
-   },
-   {
     "area": "Outer Isles II",
     "level": 37,
     "type": "wild"
@@ -12037,11 +12374,6 @@
    {
     "area": "World Tree",
     "level": 80,
-    "type": "wild"
-   },
-   {
-    "area": "Snow",
-    "level": 48,
     "type": "wild"
    },
    {
@@ -12121,13 +12453,13 @@
     "type": "wild"
    },
    {
-    "area": "Windswept (start)",
+    "area": "Isle of Silence",
     "level": 12,
     "type": "wild"
    },
    {
     "area": "Sakurajima",
-    "level": 35,
+    "level": 46,
     "type": "wild"
    },
    {
@@ -12146,11 +12478,6 @@
     "type": "wild"
    },
    {
-    "area": "Snow",
-    "level": 25,
-    "type": "wild"
-   },
-   {
     "area": "Desert",
     "level": 25,
     "type": "wild"
@@ -12163,6 +12490,16 @@
    {
     "area": "World Tree",
     "level": 70,
+    "type": "wild"
+   },
+   {
+    "area": "Snow",
+    "level": 32,
+    "type": "wild"
+   },
+   {
+    "area": "Windswept (start)",
+    "level": 20,
     "type": "wild"
    }
   ],
@@ -12454,7 +12791,7 @@
    },
    {
     "areas": [
-     "King Whale",
+     "Isle of Silence",
      "Sakurajima"
     ],
     "boss": true,
@@ -12950,7 +13287,7 @@
     "type": "wild"
    },
    {
-    "area": "Desert",
+    "area": "Windswept (start)",
     "level": 55,
     "type": "wild"
    },
@@ -12975,7 +13312,7 @@
     "type": "wild"
    },
    {
-    "area": "Windswept (start)",
+    "area": "Desert",
     "level": 55,
     "type": "wild"
    },

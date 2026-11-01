@@ -38,12 +38,7 @@ def resolve(text):
 
 
 # Friendly names for the area model's areas (the pass item is "Area Pass: <name>").
-AREA_NAMES = {'Windswept (start)': 'Starting Zone', 'Forest': 'Forest', 'King Whale': 'King Whale Coast',
-              'Volcano (Electric)': 'Volcano', 'Desert': 'Desert', 'Snow': 'Snow', 'Sakurajima': 'Sakurajima',
-              'Feybreak': 'Feybreak', 'Sky Islands': 'Sky Islands', 'World Tree': 'World Tree',
-              'Outer Isles I': 'Outer Isles I', 'Outer Isles II': 'Outer Isles II',
-              'Outer Isles III': 'Outer Isles III', 'Outer Isles IV': 'Outer Isles IV'}
-START_AREA = 'Starting Zone'
+from area_names import AREA_NAMES, START_AREA
 area = lambda a: AREA_NAMES[a]
 AREAS = sorted(((area(k), v['levels']) for k, v in AREAS_JSON['areas'].items()), key=lambda kv: (kv[1], kv[0]))
 

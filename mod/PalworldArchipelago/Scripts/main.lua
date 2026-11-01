@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.1.6-probe4"
+local VERSION = "0.2.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -15,6 +15,7 @@ local D = require("ap_data")
 local TECHS = require("tech_icons")
 local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local R = require("records")
+local WALLS = require("walls")
 
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -507,6 +508,7 @@ log(okr and "hooked researched checks" or ("could not hook researched checks: " 
 ------------------------------------------------------------------------------------------------------------------------
 local tick = 0
 local preloaded = false
+local wallsLogged = false
 
 -- Archipelago events (see cppmod/APConnector/src/ap_bridge.hpp for the line format).
 local function split(line)
@@ -606,6 +608,17 @@ local function update()
         end)
     end
     refreshCards()
+    -- Area locks: walls on the borders of areas whose pass has not arrived (only in a seed with area locks on).
+    if ap.ready then
+        local pawn = safe(function() local ps = playerState(); return ps and ps:GetPawn() end)
+        if pawn and pawn:IsValid() then
+            local on = AP_SlotData("options.area_locks")
+            local ok, err = pcall(WALLS.update, on == "1" or on == "true", ap.passes, pawn)
+            if not ok then once("walls" .. tostring(err), "walls error: " .. tostring(err)) end
+            local up, all = WALLS.count()
+            if up > 0 and not wallsLogged then wallsLogged = true; log("area locks: raising walls (" .. all .. " border pieces)") end
+        end
+    end
     if tick % 7 == 0 and ap.ready then
         local ps = playerState()
         if ps then
@@ -623,7 +636,3 @@ LoopAsync(300, function()
     end)
     return false
 end)
-
--- Area-lock probe (test builds only; see barrier_probe.lua).
-local okp, errp = pcall(require, "barrier_probe")
-if not okp then log("barrier probe not loaded: " .. tostring(errp)) end

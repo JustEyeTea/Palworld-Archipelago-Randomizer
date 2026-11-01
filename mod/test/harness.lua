@@ -46,7 +46,7 @@ local record = {
     FastTravelPointUnlockFlag = FastArray({ { "6E03F8464BAD9E458B843AA30BE1CC8F", true } }),
 }
 local playerLevel = 4
-local pawn = { GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
+local pawn = { IsValid = function() return true end, GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
 local ps = {
     IsValid = function() return true end,
     GetTechnologyData = function() return td end,
@@ -89,8 +89,18 @@ end
 FindFirstOf = function(class) if class == "PalGameInstance" then return gameInstance end return nil end
 local renderLib = { IsValid = function() return true end,
                     ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end }
+local wallsUp = {}
+local gameplay = { IsValid = function() return true end,
+                   BeginDeferredActorSpawnFromClass = function(_, _, _, t)
+                       local a = { IsValid = function(self) return not self.gone end, t = t }
+                       function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil end
+                       return a
+                   end,
+                   FinishSpawningActor = function(_, a) wallsUp[a] = true end }
+local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
+    if path:find("GameplayStatics") then return gameplay end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("^/Game/") then return Texture(path) end
     return nil
@@ -103,7 +113,7 @@ ExecuteWithDelay = function(_, fn) fn() end
 -- APConnector.
 local D = dofile(MOD .. "/Scripts/ap_data.lua")
 local events, checks, goals = {}, {}, 0
-local slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1" }
+local slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1" }
 AP_Connect = function() end
 AP_Poll = function() local out = table.concat(events, "\n"); events = {}; return out end
 AP_SlotData = function(k) return slotData[k] or "" end
@@ -222,6 +232,26 @@ playerLevel = 4
 run(7)
 expect(canBuy("AutoMealPouch_Tier2") == false, "not below the slot's level")
 
+print("area locks")
+local WD = dofile(MOD .. "/Scripts/area_walls.lua")
+local function expected(open)
+    local n = 0
+    for _, w in ipairs(WD.walls) do
+        local a, b = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        if not (open[a] and open[b]) then n = n + 1 end
+    end
+    return n
+end
+local open = { ["Open sea"] = true, ["Starting Zone"] = true }
+run(40)
+expect(wallCount() == expected(open) and wallCount() > 100, "walls raised on every locked border: " .. wallCount())
+push("item", "6", tostring(itemId["Area Pass: Isle of Silence"]), "1", "1", "1", "Area Pass: Isle of Silence", "Tester")
+run(40)
+open["Isle of Silence"] = true
+expect(wallCount() == expected(open), "an Area Pass takes its area's walls down: " .. wallCount())
+local sample = next(wallsUp)
+expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
+
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
 push("status", "connected", "Tester")
@@ -267,7 +297,7 @@ expect(passCard.shown.category == "Received" and passCard.shown.name == "Your Ar
 expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent: prefix")
 
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
-expect(f and f:read("*a"):match("given=5"), "save file records items applied")
+expect(f and f:read("*a"):match("given=6"), "save file records items applied")
 
 print(failures == 0 and "all passed" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

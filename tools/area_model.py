@@ -2,7 +2,8 @@
 low-level spawners form the starting area; the rest of a landmass joins its nearest tower (the World Tree's four towers
 are one region); a landmass with no tower is an island area; a region whose levels spread too far is split by level.
 Prints each area's level range and what it holds, and draws the areas.
-    <AP venv python> tools/area_model.py <tables dir> <out.png>   (also writes <out>.json and <out>-sources.json: data/areas-1.0.5.json and data/pal-sources-1.0.5.json)
+    <AP venv python> tools/area_model.py <tables dir> <out.png>   (also writes <out>.json and <out>-sources.json: data/areas-1.0.5.json and data/pal-sources-1.0.5.json,
+    and <out>-points.json: each spawn point's area, private, for tools/area_walls.py)
 """
 import csv, re, sys, collections, pathlib
 from PIL import Image, ImageDraw, ImageFont
@@ -90,6 +91,32 @@ for k in [k for k, n in counts.items() if n < MINSIZE and not k.startswith('Oute
         others = [j for j in range(len(pts)) if area_of[j] != k and not area_of[j].startswith('Outer')]
         j = min(others, key=lambda j: (pts[j][0] - pts[i][0]) ** 2 + (pts[j][1] - pts[i][1]) ** 2)
         area_of[i] = area_of[j]
+# An area must be one piece on the map, or its walls would shut part of it off (decided 1 Nov 2026). The start area's
+# second piece (Isle of Silence, Isle of Murmurs, Kelpsea Hill; levels 3-14) becomes an early area of its own; other stray
+# clusters of a mainland area (a few spawners) join the area around them. Island groups (Outer Isles) are many pieces by
+# design: open sea is free, so each piece is reached on its own.
+PIECE = 30e3                 # spawners closer than this (300 m) are in the same piece of an area
+SPLIT = {'Windswept (start)': 'Isle of Silence'}
+def pieces(name):
+    idx = [i for i, a in enumerate(area_of) if a == name]
+    left, out = set(idx), []
+    while left:
+        stack = [left.pop()]; piece = [stack[0]]
+        while stack:
+            j = stack.pop()
+            near = [k for k in left if (pts[k][0] - pts[j][0]) ** 2 + (pts[k][1] - pts[j][1]) ** 2 <= PIECE ** 2]
+            for k in near: left.discard(k); stack.append(k); piece.append(k)
+        out.append(piece)
+    return sorted(out, key=len, reverse=True)
+for name in sorted(set(area_of)):
+    if name.startswith('Outer'): continue
+    for piece in pieces(name)[1:]:
+        if len(piece) >= 100 and name in SPLIT:
+            for i in piece: area_of[i] = SPLIT[name]
+            continue
+        for i in piece:
+            others = [j for j in range(len(pts)) if area_of[j] != name]
+            area_of[i] = area_of[min(others, key=lambda j: (pts[j][0] - pts[i][0]) ** 2 + (pts[j][1] - pts[i][1]) ** 2)]
 def area(x, y, l):
     i = min(range(len(pts)), key=lambda i: (pts[i][0] - x) ** 2 + (pts[i][1] - y) ** 2)
     return area_of[i]
@@ -227,3 +254,6 @@ out = {'areas': {k: {'levels': sorted(v['lv'])[len(v['lv']) // 2], 'spawners': l
 json.dump(out, open(pathlib.Path(sys.argv[2]).with_suffix('.json'), 'w'), indent=1, sort_keys=True)
 json.dump({'sources': {e: dedup(sources.get(e, [])) for e in dex}, 'breeding': breeding},
           open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-sources.json'), 'w'), indent=1, sort_keys=True)
+# Every spawn point with its area, for tools/area_walls.py (raw game positions: keep it out of the repository).
+json.dump([[round(x), round(y), area_of[i]] for i, (x, y, _) in enumerate(pts)],
+          open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-points.json'), 'w'))
