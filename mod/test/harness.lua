@@ -181,7 +181,8 @@ expect(info.opacity == 1.0, "level-1 tooltips untouched")
 
 print("which slots can be bought")
 local unlockable = postHooks["/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology"]
-local function canBuy(tech) return unlockable(param(td), param(FNameOf(tech))) end
+-- As UE4SS calls it: the game's own result (a plain boolean) first, then the parameter.
+local function canBuy(tech) return unlockable(param(td), false, param(FNameOf(tech))) end
 expect(canBuy("Special_PalSphere_Grade_01") == true, "a slot whose tech you own can still be bought")
 expect(canBuy("RepairBench") == nil, "a slot whose tech you lack: the game decides")
 expect(canBuy("Workbench") == nil, "level-1 techs: the game decides")

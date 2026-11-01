@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.1.2"
+local VERSION = "0.1.3"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -198,7 +198,8 @@ end
 -- Everything the game's records say is done: levels, captures, alphas, fast travel, towers. The server ignores
 -- locations this seed doesn't have (options turned off), so the mod doesn't need to know which are in play.
 local function pollRecords(ps)
-    local found = R.progress(ps, D, os.time())
+    local okp, found = pcall(R.progress, ps, D, os.time())
+    if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
     sendChecks(found.locations)
     ap.level, ap.beaten = found.level, found.beaten
     if not ap.goalSent and found.towers >= (tonumber(AP_SlotData("options.tower_count")) or 99) then
@@ -444,12 +445,27 @@ local function slotUnlockable(td, tech)
     end
     return true
 end
+-- UE4SS hands the after-callback the function's result before its parameters (seen in 1.0.5: a plain boolean, then the
+-- name), so the name is found by what it is rather than where it is.
+local function techArg(...)
+    for i = 1, select("#", ...) do
+        local a = select(i, ...)
+        if type(a) == "userdata" or type(a) == "table" then
+            local ok, s = pcall(function() return a:get():ToString() end)
+            if ok and type(s) == "string" then return s end
+        end
+    end
+end
 local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,
-    function(self, name)
-        local tech = name:get():ToString()
-        if not shopCard(tech) then return nil end
-        local v = slotUnlockable(self:get(), tech)
-        if v ~= nil then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(v) .. ")") end
+    function(self, ...)
+        local ok, v = pcall(function(...)
+            local tech = techArg(...)
+            if not tech or not shopCard(tech) then return nil end
+            local r = slotUnlockable(self:get(), tech)
+            if r ~= nil then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
+            return r
+        end, ...)
+        if not ok then once("unlockableErr", "research check error: " .. tostring(v)); return nil end
         return v
     end)
 log(oku and "hooked research checks" or ("could not hook research checks: " .. tostring(erru)))
