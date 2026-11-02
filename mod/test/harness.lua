@@ -88,9 +88,9 @@ local gameInstance = { ReferencedObjects = setmetatable({ GetArrayNum = function
 LoadAsset = function() end
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
 local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end,
-                 K2_DrawMaterialTriangle = function(_, mat, tris)
-                     assert(mat.saturation == 0 and mat.texture, "greyscale material set up")
-                     assert(tris[1].V2_UV and tris[1].V0_Pos.X, "triangles have positions and UVs")
+                 K2_DrawTriangle = function(_, tex, tris)
+                     assert(tex and tris[1].V2_UV and tris[1].V0_Pos.X and tris[1].V1_Color.R < 1,
+                            "triangles carry the map, positions, UVs and the fade")
                      greyBoxes = greyBoxes + #tris end }
 local materialLib = { IsValid = function() return true end, CreateDynamicMaterialInstance = function()
     return { IsValid = function() return true end,
@@ -315,7 +315,7 @@ print("the world map")
 mapOpen = true
 run(3)
 expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt and mapDraws == 1 and greyBoxes > 100,
-       "the map shows locked areas greyed: " .. greyBoxes .. " greyscale triangles")
+       "the map shows locked areas greyed: " .. greyBoxes .. " faded triangles")
 local before = greyBoxes
 push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
 run(3)

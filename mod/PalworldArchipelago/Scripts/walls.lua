@@ -215,19 +215,20 @@ function W.nextLook()
     return look .. "/" .. #LOOKS .. " " .. name .. " (" .. n .. " walls)"
 end
 
--- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
--- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it through the game's own UI saturation material
--- (M_UI_ColorSaturation, Saturation 0) with the same map, so those parts lose their colour; shown in the map screen's
--- map image (the exploration fog is a separate layer above it). Redrawn when the set of locked areas changes.
+-- The world map with locked areas faded: the game's map drawn into a render target, then each locked area's outline
+-- (area_shapes.lua: smoothed, cut into triangles) drawn again from the same map, dimmed and cooled, so those parts look
+-- greyed out while their detail still shows; shown in the map screen's map image (the exploration fog is a separate
+-- layer above it). Redrawn when the set of locked areas changes. (The game's UI saturation material draws black on a
+-- canvas, so true greyscale would need a material of our own.)
 local MAP_TEXTURE = "/Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
-local SATURATION = "/Game/Pal/Material/UI/Ingame/M_UI_ColorSaturation.M_UI_ColorSaturation"
 local RT_SIZE = 4096
-local mapRT, mapKey, mapShownOn, greyMat = nil, nil, nil, nil
+local mapRT, mapKey, mapShownOn = nil, nil, nil
+local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint
 local triangles = {}          -- area index -> FCanvasUVTri list, built when first needed
 local function trianglesOf(k)
     if triangles[k] then return triangles[k] end
     local v, out = SHAPES.areas[k] or {}, {}
-    local white = { R = 1, G = 1, B = 1, A = 1 }
+    local white = FADE
     for t = 1, #v - 5, 6 do
         local tri = {}
         for j = 0, 2 do
@@ -246,18 +247,6 @@ local function drawMap(ctx, passes)
     pcall(LoadAsset, MAP_TEXTURE)                         -- LoadAsset wants the full Package.Object path
     local tex = StaticFindObject(MAP_TEXTURE)
     if not tex or not tex:IsValid() then return false end
-    if not greyMat or not greyMat:IsValid() then
-        pcall(LoadAsset, SATURATION)
-        local parent = StaticFindObject(SATURATION)
-        local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
-        if not parent or not parent:IsValid() then once("nosat", "map: the saturation material did not load: " .. SATURATION); return false end
-        if not kml or not kml:IsValid() then once("nokml", "map: KismetMaterialLibrary not found"); return false end
-        greyMat = kml:CreateDynamicMaterialInstance(ctx, parent, FName("PalworldAP_GreyMap"), 0)
-        if not greyMat or not greyMat:IsValid() then once("nomid", "map: could not make the greyscale material"); return false end
-        greyMat:SetTextureParameterValue(FName("Texture"), tex)
-        greyMat:SetScalarParameterValue(FName("Saturation"), 0)
-        W.keep(greyMat)
-    end
     if not mapRT or not mapRT:IsValid() then
         mapRT = krl:CreateRenderTarget2D(ctx, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)  -- RTF_RGBA8_SRGB
         if not mapRT or not mapRT:IsValid() then return false end
@@ -272,7 +261,7 @@ local function drawMap(ctx, passes)
     for k, name in ipairs(DATA.areas) do
         if not isOpen(name, passes) then
             local tris = trianglesOf(k - 1)
-            if #tris > 0 then canvas:K2_DrawMaterialTriangle(greyMat, tris) end
+            if #tris > 0 then canvas:K2_DrawTriangle(tex, tris) end
         end
     end
     krl:EndDrawCanvasToRenderTarget(ctx, contextOut.RenderTarget and contextOut or extra)
