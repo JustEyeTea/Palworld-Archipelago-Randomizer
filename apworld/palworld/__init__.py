@@ -6,7 +6,7 @@ from typing import Any, Dict
 from BaseClasses import CollectionState, Item, ItemClassification, Location, Region, Tutorial
 from worlds.AutoWorld import WebWorld, World
 
-from .data import (AREAS, BREEDING_TECH, CATCHABLE, DIRECT, FILLER, ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LOCATION_NAME_TO_ID,
+from .data import (AREAS, BREEDING_TECH, CATCHABLE, DECOR_TECHS, DIRECT, FILLER, ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LOCATION_NAME_TO_ID,
                    LOCATIONS, PASS_AREAS, PREREQ_TECHS, PROGRESSIVE_SPHERE, SEA, SHOP_TECHS, SPHERE_TECHS, STARTER_LEVEL,
                    TECH_BY_ID, TOWER_EVENTS, area_pass, tech_item)
 from .game_data import BORDERS, PALDECK, PIECES, START_AREA, TOWERS
@@ -102,8 +102,13 @@ class PalworldWorld(World):
                 and (not ancient or any(state.has(e, self.player) for e in TOWER_EVENTS.values())))
 
     # --- generation --------------------------------------------------------------------------------------------
+    def research(self) -> frozenset:
+        """Techs that stay normal research in this seed: no check, no item."""
+        return DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
+
     def wanted(self, loc) -> bool:
         o = self.options
+        if loc.kind == "shop": return loc.key not in self.research()
         if loc.kind == "capture": return bool(o.capture_checks)
         if loc.kind == "alpha": return bool(o.alpha_checks)
         if loc.kind == "fast_travel": return bool(o.fast_travel_checks)
@@ -151,6 +156,8 @@ class PalworldWorld(World):
         if self.options.area_locks:
             pool += [self.create_item(area_pass(a)) for a in PASS_AREAS]
         for tech in SHOP_TECHS:
+            if tech[0] in self.research():
+                continue
             if self.options.progressive_spheres and tech in SPHERE_TECHS:
                 pool.append(self.create_item(PROGRESSIVE_SPHERE))
             else:
@@ -193,8 +200,10 @@ class PalworldWorld(World):
         self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)
 
     def fill_slot_data(self) -> Dict[str, Any]:
-        return {"options": self.options.as_dict("tower_count", "area_locks", "progressive_spheres", "capture_checks",
-                                                "alpha_checks", "fast_travel_checks", "level_checks", "death_link"),
+        return {"options": self.options.as_dict("tower_count", "area_locks", "progressive_spheres", "tech_checks",
+                                                "capture_checks", "alpha_checks", "fast_travel_checks", "level_checks",
+                                                "death_link"),
+                "research_techs": ",".join(sorted(self.research())),   # techs the mod leaves as normal research
                 "game_version": "1.0.5.102999",
                 "slot": self.player,
                 "seed": self.multiworld.seed_name}   # the mod keeps its per-seed state (items already given) under this

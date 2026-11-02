@@ -12,14 +12,23 @@ class TowerCount(Range):
 
 
 class AreaLocks(DefaultOnToggle):
-    """Areas beyond the starting zone open with an Area Pass item. Logic only for now: nothing stops you walking in,
-    but the generator only expects you there once you hold the pass."""
+    """Areas beyond the starting zone open with an Area Pass item. Until its pass arrives, a locked area is walled off
+    (a red grid at its border) and shown grey on the map; the open sea is always free."""
     display_name = "Area Locks"
 
 
 class ProgressiveSpheres(DefaultOnToggle):
     """Sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on) instead of separately."""
     display_name = "Progressive Spheres"
+
+
+class TechChecks(Choice):
+    """Which technologies are checks. All: every tech from level 2 up (583). No décor: furniture, flag and foliage
+    sets, statues, signs and lights (62 techs) are normal research instead, with no check and no item (521)."""
+    display_name = "Tech Checks"
+    option_all = 0
+    option_no_decor = 1
+    default = 1
 
 
 class CaptureChecks(DefaultOnToggle):
@@ -53,6 +62,7 @@ class PalworldOptions(PerGameCommonOptions):
     tower_count: TowerCount
     area_locks: AreaLocks
     progressive_spheres: ProgressiveSpheres
+    tech_checks: TechChecks
     capture_checks: CaptureChecks
     alpha_checks: AlphaChecks
     fast_travel_checks: FastTravelChecks
@@ -63,5 +73,5 @@ class PalworldOptions(PerGameCommonOptions):
 option_groups = [
     OptionGroup("Goal", [TowerCount]),
     OptionGroup("Progression", [AreaLocks, ProgressiveSpheres]),
-    OptionGroup("Checks", [CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
+    OptionGroup("Checks", [TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
 ]

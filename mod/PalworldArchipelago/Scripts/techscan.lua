@@ -64,6 +64,7 @@ function S.scan(td, D)
     for _, n in ipairs(names) do live[n] = true end
     for id in pairs(D.shop) do vanilla[id] = true end
     for id in pairs(D.starters) do vanilla[id] = true end
+    for id in pairs(D.research or {}) do vanilla[id] = true end   -- shop techs this seed leaves as normal research
     for id in pairs(vanilla) do
         nvanilla = nvanilla + 1
         if live[id] then matched = matched + 1 end

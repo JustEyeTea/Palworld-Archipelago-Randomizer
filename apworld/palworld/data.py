@@ -15,6 +15,18 @@ BREEDING_TECH = 'BreedFarm'
 LAB_TECH = 'Lab'
 # Techs another tech, a lab research or a capture depends on: these are progression items.
 PREREQ_TECHS = {t[5] for t in TECHS if t[5]} | {BREEDING_TECH, LAB_TECH} | {t[0] for t in SPHERE_TECHS}
+# Décor: furniture, flag, faux-foliage and statue sets, signs, the tombstone and lights. With tech_checks no_decor these
+# are normal research (no check, no item). Chosen by hand from the build categories; décor-looking techs that do
+# something (work-speed boosters such as the Silo or Stump, fridges, flea markets, the pylon) are not in it. None of
+# these is another tech's prerequisite.
+DECOR_TECHS = frozenset(
+    ['Torch', 'WallTorch', 'Lamp', 'CeilingLamp', 'LargeLamp', 'LargeCeilingLamp', 'Signboard', 'WallSignboard',
+     'Headstone', 'TableCircular', 'TableDresser01_Stone', 'JetDragonStatue', 'IceHorseStatue', 'FurnitureSet_Japanese',
+     'HunterFlagSet', 'BelieverFlagSet', 'FireCultFlagSet', 'PoliceFlagSet', 'ScientistFlagSet', 'NinjaFlagSet',
+     'DarkIslandFlagSet', 'SkyIslandFlagSet']
+    + [f'FurnitureTree_{c}' for c in ('Green', 'Red', 'Yellow', 'Cherry', 'Tropical', 'Snow', 'Desert', 'Bamboo')]
+    + [f'FurnitureSet_{n}' for n in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                                      24, 25, 26, 27, 28, 29, 30, 31, 32)])
 
 
 def tech_item(tech_id: str) -> str:
@@ -100,3 +112,4 @@ LOCATION_NAME_TO_ID: Dict[str, int] = {l.name: l.id for l in LOCATIONS}
 
 assert len(ITEM_NAME_TO_ID) == len(ITEMS), "duplicate item names"
 assert len(LOCATION_NAME_TO_ID) == len(LOCATIONS), "duplicate location names"
+assert DECOR_TECHS <= {t[0] for t in SHOP_TECHS} and not DECOR_TECHS & PREREQ_TECHS, "décor techs must be plain shop techs"

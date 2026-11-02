@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.9.2"
+local VERSION = "0.10.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -57,6 +57,21 @@ end
 -- tech id <-> shop slot
 local SLOT_TECH = {}
 for tech, s in pairs(D.shop) do SLOT_TECH[s.loc] = tech end
+
+-- Techs a seed leaves as normal research (slot data research_techs, e.g. décor with tech_checks no_decor): they leave
+-- D.shop for D.research, so nothing locks, labels or sends them. Set again on every connection.
+D.research = {}
+local function setResearch(list)
+    for tech, s in pairs(D.research) do D.shop[tech], SLOT_TECH[s.loc] = s, tech end
+    D.research = {}
+    for tech in (list or ""):gmatch("[^,]+") do
+        local s = D.shop[tech]
+        if s then D.research[tech], D.shop[tech], SLOT_TECH[s.loc] = s, nil, nil end
+    end
+    local n = 0
+    for _ in pairs(D.research) do n = n + 1 end
+    if n > 0 then log(n .. " tech(s) are normal research in this seed (not checks)") end
+end
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Archipelago state. The server is the truth: on every connection it sends all items received so far and every
@@ -578,6 +593,7 @@ local function onEvent(line)
                 ap.seed, ap.slotName = seed, cfg.slot
                 loadSave()
             end
+            setResearch(AP_SlotData("research_techs"))
             local locs = {}
             for loc in pairs(SLOT_TECH) do locs[#locs + 1] = tostring(loc) end
             AP_Scout(table.concat(locs, ","))
@@ -753,8 +769,8 @@ local function sendRemovedSlots()
     techScan.sent = true
     local locs = {}
     for _, id in ipairs(techScan.report.removed) do
-        local loc = D.shop[id].loc
-        if not ap.checked[loc] then locs[#locs + 1] = loc end
+        local loc = D.shop[id] and D.shop[id].loc            -- (a tech this seed leaves as research has no check)
+        if loc and not ap.checked[loc] then locs[#locs + 1] = loc end
     end
     if #locs > 0 then
         sendChecks(locs)

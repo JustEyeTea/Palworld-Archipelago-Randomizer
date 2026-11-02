@@ -29,7 +29,7 @@ local function FastArray(pairsList)
 end
 
 -- The player.
-local unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Product_Cooking_Grade_01"), FNameOf("ModdedTech_Rocket") })
+local unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Product_Cooking_Grade_01"), FNameOf("ModdedTech_Rocket"), FNameOf("Torch") })
 local td = { TechnologyPoint = 10, bossTechnologyPoint = 0, UnlockedTechnologyNameArray = unlocked, reps = 0 }
 td.valid = true
 function td:IsValid() return self.valid end
@@ -170,6 +170,7 @@ ExecuteWithDelay = function(_, fn) fn() end
 
 -- APConnector.
 local D = dofile(MOD .. "/Scripts/ap_data.lua")
+package.loaded["ap_data"] = D            -- the mod's require gets this same table
 local events, checks, goals = {}, {}, 0
 
 -- (globals: the lookups above use them) The game's live tech table as other mods left it: one tech added, one vanilla tech moved up 12 levels, one removed.
@@ -192,7 +193,7 @@ dataTableLib = { IsValid = function() return true end,
                            for i, n in ipairs(liveTechs) do out[i] = { get = function() return FNameOf(n) end } end   -- as UE4SS does
                        end }
 local slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1",
-                   ["options.death_link"] = "1" }
+                   ["options.death_link"] = "1", research_techs = "Torch,WallTorch" }
 local connects, disconnects = {}, 0
 AP_Connect = function(server, slot, password) connects[#connects + 1] = { server, slot, password } end
 AP_Disconnect = function() disconnects = disconnects + 1 end
@@ -228,7 +229,8 @@ util.GetHUDService = function() return hud end
 gameplayStaticsSpawn = function() return Widget() end
 AP_Poll = function() local out = table.concat(events, "\n"); events = {}; return out end
 AP_SlotData = function(k) return slotData[k] or "" end
-AP_Scout = function() end
+scoutAsked = ""
+AP_Scout = function(csv) scoutAsked = csv end
 AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end end
 AP_Goal = function() goals = goals + 1 end
 local said, hintPoints, keyBinds = {}, "200,121", {}
@@ -305,6 +307,13 @@ expect(goals == 1, "goal sent once")
 expect(checks[D.alpha_spawners.yamijima_iceland_pink_d_boss[1]], "alpha checked by spawner id")
 expect(checks[D.fast_travel.FTPoint101], "fast travel mapped from its instance id")
 expect(#announced > 0, "notices shown in game: " .. tostring(announced[1]))
+
+print("techs the seed leaves as research (tech_checks no_decor)")
+expect(have.Torch, "a research tech stays researched without an item")
+expect(D.research.Torch and D.research.WallTorch and not D.shop.Torch, "research techs leave the shop")
+expect(not ("," .. scoutAsked .. ","):find("," .. D.research.Torch.loc .. ",", 1, true)
+       and ("," .. scoutAsked .. ","):find("," .. D.shop.PalBox.loc .. ",", 1, true), "their slots are not scouted; shop slots are")
+expect(logged("2 tech%(s%) are normal research in this seed"), "the log says how many")
 
 print("other mods' techs")
 expect(logged("tech table: %d+ techs; 1 added by mods, 1 vanilla changed, 1 vanilla removed"), "the live tech table compared with vanilla")
