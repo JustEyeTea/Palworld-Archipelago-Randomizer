@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.4.5"
+local VERSION = "0.5.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -225,6 +225,7 @@ local function keep(obj)
     if not ok then once("keep", "could not keep a texture alive: " .. tostring(err)) end
 end
 WALLS.keep = keep
+WALLS.dir = modDir
 
 local textures = {}
 local function icon(kind, ctx)

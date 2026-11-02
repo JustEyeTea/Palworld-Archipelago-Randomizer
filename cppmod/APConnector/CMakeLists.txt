@@ -4,13 +4,14 @@ cmake_minimum_required(VERSION 3.22)
 set(TARGET APConnector)
 project(${TARGET})
 
-add_library(${TARGET} SHARED src/dllmain.cpp src/ap_bridge.cpp)
+add_library(${TARGET} SHARED src/dllmain.cpp src/ap_bridge.cpp src/image_tools.cpp)
 target_include_directories(${TARGET} PRIVATE
     ${AP_DEPS}/apclientpp
     ${AP_DEPS}/wswrap/include
     ${AP_DEPS}/ap-soeclient/subprojects/asio/include
     ${AP_DEPS}/ap-soeclient/subprojects/websocketpp
-    ${AP_DEPS}/ap-soeclient/subprojects/json/include)
+    ${AP_DEPS}/ap-soeclient/subprojects/json/include
+    third_party/stb)
 target_compile_definitions(${TARGET} PRIVATE ASIO_STANDALONE AP_NO_SCHEMA _WIN32_WINNT=0x0A00)
 # asio and Windows.h only meet in ap_bridge.cpp; apclientpp asks for a lean Windows.h there.
 set_source_files_properties(src/ap_bridge.cpp PROPERTIES COMPILE_DEFINITIONS "WIN32_LEAN_AND_MEAN")

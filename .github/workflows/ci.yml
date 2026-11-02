@@ -43,6 +43,11 @@ jobs:
           git diff --exit-code mod/PalworldArchipelago/Scripts/ap_data.lua || { echo "::error::ap_data.lua is stale: run tools/gen_lua_data.py"; exit 1; }
           sudo apt-get install -y -qq lua5.4 > /dev/null
           tools/lua_harness.sh
+      - name: The C++ part's image helper
+        run: |
+          cd palworld-archipelago/cppmod/APConnector
+          g++ -std=c++17 -O1 -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp -o "$RUNNER_TEMP/image_test"
+          "$RUNNER_TEMP/image_test"
       - name: Archipelago's test suites
         run: AP_DIR="$GITHUB_WORKSPACE/archipelago" palworld-archipelago/tools/ap_tests.sh
       - name: Test generations

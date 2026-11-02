@@ -83,14 +83,15 @@ local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade
 cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
 local function Texture(path) return { IsValid = function() return true end, path = path } end
 local kept = {}
-local gameInstance = { ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
+local gameInstance = { IsValid = function() return true end, ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
                                                          { __newindex = function(_, i, v) kept[i] = v end }) }
 LoadAsset = function() end
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
 local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end,
+                 K2_DrawLine = function() edgeLines = (edgeLines or 0) + 1 end,
                  K2_DrawTriangle = function(_, tex, tris)
-                     assert(tex and tris[1].V2_UV and tris[1].V0_Pos.X and tris[1].V1_Color.R < 1,
-                            "triangles carry the map, positions, UVs and the fade")
+                     lastTriTex = tex
+                     assert(tex and tris[1].V2_UV and tris[1].V0_Pos.X, "triangles carry the map, positions and UVs")
                      greyBoxes = greyBoxes + #tris end }
 local materialLib = { IsValid = function() return true end, CreateDynamicMaterialInstance = function()
     return { IsValid = function() return true end,
@@ -115,8 +116,11 @@ FindFirstOf = function(class)
 end
 local renderLib = { IsValid = function() return true end,
                     ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end,
-                    CreateRenderTarget2D = function() return { IsValid = function() return true end, rt = true,
-                                                               GetAddress = function() return 555 end } end,
+                    CreateRenderTarget2D = function(_, owner) rtOwners = rtOwners or {}; rtOwners[#rtOwners + 1] = owner
+                                               return { IsValid = function() return true end, rt = true,
+                                                        GetAddress = function() return 555 end } end,
+                    ExportRenderTarget = function(_, _, _, dir, name) exports = (exports or 0) + 1
+                                             local f = io.open(dir .. "/" .. name, "w"); f:write("png"); f:close() end,
                     BeginDrawCanvasToRenderTarget = function(_, _, rt, canvasOut, contextOut)
                         canvasOut.Canvas = canvas; contextOut.RenderTarget = rt end,
                     EndDrawCanvasToRenderTarget = function() end }
@@ -156,6 +160,7 @@ AP_SlotData = function(k) return slotData[k] or "" end
 AP_Scout = function() end
 AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end end
 AP_Goal = function() goals = goals + 1 end
+AP_GreyscalePNG = function(_, out) local f = io.open(out, "w"); f:write("grey"); f:close(); return "" end
 local function push(...) events[#events + 1] = table.concat({ ... }, "\t") end
 local function run(ticks)
     for _ = 1, ticks do
@@ -314,14 +319,20 @@ expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000
 print("the world map")
 mapOpen = true
 run(3)
-expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt and mapDraws == 1 and greyBoxes > 100,
+expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt and mapDraws == 2 and greyBoxes > 100,
        "the map shows locked areas greyed: " .. greyBoxes .. " faded triangles")
 local before = greyBoxes
 push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
 run(3)
-expect(mapDraws == 2 and greyBoxes - before < before, "a pass redraws it with less grey: " .. (greyBoxes - before))
+expect(mapDraws == 3 and greyBoxes - before < before, "a pass redraws it with less grey: " .. (greyBoxes - before))
 run(3)
-expect(mapDraws == 2, "and not again while nothing changes")
+expect(mapDraws == 3, "and not again while nothing changes")
+expect(exports == 1 and lastTriTex and lastTriTex.path == "map-grey-1", "locked areas drawn from a greyscale copy made once: "
+       .. tostring(lastTriTex and lastTriTex.path))
+expect(edgeLines and edgeLines > 100, "edged with darker lines: " .. tostring(edgeLines))
+local owned = true
+for _, o in ipairs(rtOwners) do if o ~= gameInstance then owned = false end end
+expect(owned and #rtOwners >= 2, "render targets belong to the game instance, not the world")
 mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 9 end,
                                                GetFullName = function() return "Texture2D T_WorldMap" end }
 run(1)

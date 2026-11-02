@@ -10,6 +10,7 @@
 //   AP_Bounce(json, "Tag,Tag")           send a bounce (Death Link)
 //   AP_SlotData(path) -> string          a slot_data value by dotted path ("options.tower_count")
 //   AP_Status() -> string                disconnected | connecting | connected | refused
+//   AP_GreyscalePNG(in, out, gamma) -> string   writes a greyscale copy of a PNG ("" on success, else the error)
 #include <Windows.h>
 
 #include <cstdio>
@@ -23,6 +24,7 @@
 #include <Mod/CppUserModBase.hpp>
 
 #include "ap_bridge.hpp"
+#include "image_tools.hpp"
 
 using namespace RC;
 
@@ -143,6 +145,13 @@ namespace
         });
         lua.register_function("AP_Status", [](const LuaMadeSimple::Lua& l) -> int {
             l.set_string(bridge().status());
+            return 1;
+        });
+        lua.register_function("AP_GreyscalePNG", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto in = arg(l), out = arg(l), gamma = arg(l);
+            double g = 1.0;
+            try { g = std::stod(gamma); } catch (...) {}
+            l.set_string(greyscale_png(in, out, g));
             return 1;
         });
     }

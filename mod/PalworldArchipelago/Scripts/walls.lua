@@ -215,56 +215,116 @@ function W.nextLook()
     return look .. "/" .. #LOOKS .. " " .. name .. " (" .. n .. " walls)"
 end
 
--- The world map with locked areas faded: the game's map drawn into a render target, then each locked area's outline
--- (area_shapes.lua: smoothed, cut into triangles) drawn again from the same map, dimmed and cooled, so those parts look
--- greyed out while their detail still shows; shown in the map screen's map image (the exploration fog is a separate
--- layer above it). Redrawn when the set of locked areas changes. (The game's UI saturation material draws black on a
--- canvas, so true greyscale would need a material of our own.)
+-- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
+-- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from a greyscale copy of the map, edged with
+-- a darker line; shown in the map screen's map image (the exploration fog is a separate layer above it). Redrawn when
+-- the set of locked areas changes.
+-- The greyscale copy is made once on the player's machine and kept in the mod folder (it is the game's own art, so it
+-- is never shipped): the map is drawn into a render target, saved as a PNG, turned grey by the C++ part
+-- (AP_GreyscalePNG; the saved PNG is in linear light, hence the gamma) and loaded back. Without the C++ part, locked
+-- areas are a dimmed copy of the colour map instead.
+-- Render targets are owned by the game instance, never by something in the world: an object kept alive for the
+-- session that belongs to the world stops the world being freed when leaving it, and the game crashes on the way back
+-- to the title (v0.4.0 to v0.4.5).
 local MAP_TEXTURE = "/Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
+local GREY_FILE = "map-grey-1.png"
 local RT_SIZE = 4096
-local mapRT, mapKey, mapShownOn = nil, nil, nil
-local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint
-local triangles = {}          -- area index -> FCanvasUVTri list, built when first needed
-local function trianglesOf(k)
-    if triangles[k] then return triangles[k] end
+local mapRT, mapKey, mapShownOn, greyTex, greyTried = nil, nil, nil, nil, false
+local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint without a greyscale copy
+local WHITE = { R = 1, G = 1, B = 1, A = 1 }
+local EDGE = { R = 0.10, G = 0.10, B = 0.11, A = 1 }
+local EDGE_WIDTH = 4
+W.dir = "."
+local function owner()
+    local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
+    return gi and gi:IsValid() and gi or nil
+end
+local function greyscaleMap(krl, tex)
+    if greyTex and greyTex:IsValid() then return greyTex end
+    if greyTried or not AP_GreyscalePNG then return nil end
+    greyTried = true
+    local gi = owner()
+    if not gi then greyTried = false; return nil end
+    local path = W.dir .. "\\" .. GREY_FILE
+    local f = io.open(path, "rb")
+    if f then
+        f:close()
+    else
+        local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
+        local canvasOut, contextOut, extra = {}, {}, {}
+        krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
+        canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+            { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+        krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+        krl:ExportRenderTarget(gi, rt, W.dir, "map-colour.png")
+        local err = AP_GreyscalePNG(W.dir .. "\\map-colour.png", path, "0.4545")
+        os.remove(W.dir .. "\\map-colour.png")
+        if err ~= "" then log("map: no greyscale copy: " .. tostring(err)); return nil end
+        log("map: made the greyscale copy " .. path)
+    end
+    greyTex = krl:ImportFileAsTexture2D(gi, path)
+    if not greyTex or not greyTex:IsValid() then log("map: could not load " .. path); greyTex = nil; return nil end
+    W.keep(greyTex)
+    return greyTex
+end
+local triangles = {}          -- area index .. tint -> FCanvasUVTri list, built when first needed
+local function trianglesOf(k, tint)
+    local key = k .. (tint == WHITE and "w" or "f")
+    if triangles[key] then return triangles[key] end
     local v, out = SHAPES.areas[k] or {}, {}
-    local white = FADE
     for t = 1, #v - 5, 6 do
         local tri = {}
         for j = 0, 2 do
             local u, w = v[t + 2 * j], v[t + 2 * j + 1]
             tri["V" .. j .. "_Pos"] = { X = u * RT_SIZE, Y = w * RT_SIZE }
             tri["V" .. j .. "_UV"] = { X = u, Y = w }
-            tri["V" .. j .. "_Color"] = white
+            tri["V" .. j .. "_Color"] = tint
         end
         out[#out + 1] = tri
     end
-    triangles[k] = out
+    triangles[key] = out
     return out
+end
+local function drawEdges(canvas, k)
+    for _, loop in ipairs((SHAPES.outlines or {})[k] or {}) do
+        local n = #loop // 2
+        for i = 0, n - 1 do
+            local j = (i + 1) % n
+            canvas:K2_DrawLine({ X = loop[2 * i + 1] * RT_SIZE, Y = loop[2 * i + 2] * RT_SIZE },
+                { X = loop[2 * j + 1] * RT_SIZE, Y = loop[2 * j + 2] * RT_SIZE }, EDGE_WIDTH, EDGE)
+        end
+    end
 end
 local function drawMap(ctx, passes)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     pcall(LoadAsset, MAP_TEXTURE)                         -- LoadAsset wants the full Package.Object path
     local tex = StaticFindObject(MAP_TEXTURE)
     if not tex or not tex:IsValid() then return false end
+    local gi = owner()
+    if not gi then return false end
+    local okg, grey = pcall(greyscaleMap, krl, tex)
+    if not okg then log("map: greyscale copy failed: " .. tostring(grey)); grey = nil end
     if not mapRT or not mapRT:IsValid() then
-        mapRT = krl:CreateRenderTarget2D(ctx, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)  -- RTF_RGBA8_SRGB
+        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8_SRGB
         if not mapRT or not mapRT:IsValid() then return false end
         W.keep(mapRT)
     end
     local canvasOut, contextOut, extra = {}, {}, {}
-    krl:BeginDrawCanvasToRenderTarget(ctx, mapRT, canvasOut, contextOut, extra)
+    krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
     local canvas = canvasOut.Canvas
     if not canvas then return false end
     canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 }, { X = 1, Y = 1 },
-        { R = 1, G = 1, B = 1, A = 1 }, 0, 0, { X = 0.5, Y = 0.5 })
+        WHITE, 0, 0, { X = 0.5, Y = 0.5 })
     for k, name in ipairs(DATA.areas) do
         if not isOpen(name, passes) then
-            local tris = trianglesOf(k - 1)
-            if #tris > 0 then canvas:K2_DrawTriangle(tex, tris) end
+            local tris = trianglesOf(k - 1, grey and WHITE or FADE)
+            if #tris > 0 then canvas:K2_DrawTriangle(grey or tex, tris) end
         end
     end
-    krl:EndDrawCanvasToRenderTarget(ctx, contextOut.RenderTarget and contextOut or extra)
+    for k, name in ipairs(DATA.areas) do
+        if not isOpen(name, passes) then drawEdges(canvas, k - 1) end
+    end
+    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
     return true
 end
 function W.updateMap(enabled, passes, ctx)
