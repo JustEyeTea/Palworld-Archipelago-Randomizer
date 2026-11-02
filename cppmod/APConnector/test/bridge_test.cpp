@@ -36,6 +36,8 @@ int main(int argc, char** argv)
         b.send_checks({loc});
     }
     b.say("bridge test says hello");
+    std::printf("== hint points,cost = %s\n", b.hint_points().c_str());
+    b.say("!hint Area Pass: Desiccated Dunes");
     drain(b, 2000);
     b.disconnect();
     drain(b, 200);

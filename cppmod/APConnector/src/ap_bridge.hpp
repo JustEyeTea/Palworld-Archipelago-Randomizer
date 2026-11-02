@@ -29,7 +29,7 @@ class ApBridge
     //   item     <index> <item id> <location id> <player slot> <flags> <item name> <player name>
     //   scout    <location id> <item id> <player slot> <flags> <item name> <player name> <game>
     //   checked  <location id>                             checked elsewhere (co-op, !collect)
-    //   message  <text>
+    //   message  <text> <type>                             type: PrintJSON's ("Hint", "CommandResult", "" ...)
     //   bounce   <tags> <json>                             Death Link and other bounces, raw
     auto take_events() -> std::string;
 
@@ -43,6 +43,8 @@ class ApBridge
     auto slot_data(const std::string& path) -> std::string;
     auto status() -> std::string;
     auto player_slot() -> int;
+    // "points,cost": the slot's hint points and what a hint costs ("" when not connected).
+    auto hint_points() -> std::string;
 
   private:
     void run();

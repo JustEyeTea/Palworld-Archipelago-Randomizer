@@ -10,6 +10,7 @@
 //   AP_Bounce(json, "Tag,Tag")           send a bounce (Death Link)
 //   AP_SlotData(path) -> string          a slot_data value by dotted path ("options.tower_count")
 //   AP_Status() -> string                disconnected | connecting | connected | refused
+//   AP_HintPoints() -> string            "points,cost" (hint points held, cost of a hint), "" when not connected
 //   AP_GreyscalePNG(in, out, gamma) -> string   writes a greyscale copy of a PNG ("" on success, else the error)
 //   AP_ComposeMap(colour, labels, "3,7", out, gamma) -> string   starts composing the world map (locked areas grey) in
 //                                        the background: "" started, "busy", or an error
@@ -144,6 +145,10 @@ namespace
         });
         lua.register_function("AP_SlotData", [](const LuaMadeSimple::Lua& l) -> int {
             l.set_string(bridge().slot_data(arg(l)));
+            return 1;
+        });
+        lua.register_function("AP_HintPoints", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(bridge().hint_points());
             return 1;
         });
         lua.register_function("AP_Status", [](const LuaMadeSimple::Lua& l) -> int {

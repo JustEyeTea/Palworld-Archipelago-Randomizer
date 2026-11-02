@@ -134,7 +134,7 @@ void ApBridge::wire_handlers()
         for (auto l : locations) push(join({"checked", std::to_string(l)}));
     });
     c->set_print_json_handler([this, c](const APClient::PrintJSONArgs& args) {
-        push(join({"message", c->render_json(args.data, APClient::RenderFormat::TEXT)}));
+        push(join({"message", c->render_json(args.data, APClient::RenderFormat::TEXT), args.type}));
     });
     c->set_bounced_handler([this](const nlohmann::json& packet) {
         std::string tags;
@@ -207,6 +207,13 @@ auto ApBridge::status() -> std::string
 {
     std::lock_guard lock(m_mutex);
     return m_status;
+}
+
+auto ApBridge::hint_points() -> std::string
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_client || m_client->get_state() != APClient::State::SLOT_CONNECTED) return "";
+    return std::to_string(m_client->get_hint_points()) + "," + std::to_string(m_client->get_hint_cost_points());
 }
 
 auto ApBridge::player_slot() -> int

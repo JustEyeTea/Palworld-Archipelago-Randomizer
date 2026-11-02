@@ -2,3 +2,5 @@
 server=
 slot=
 password=
+# The key that buys a hint for the Area Pass of the wall you are at (a letter or a key name such as F6).
+hint_key=H

@@ -166,6 +166,11 @@ AP_SlotData = function(k) return slotData[k] or "" end
 AP_Scout = function() end
 AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end end
 AP_Goal = function() goals = goals + 1 end
+local said, hintPoints, keyBinds = {}, "200,121", {}
+AP_Say = function(text) said[#said + 1] = text end
+AP_HintPoints = function() return hintPoints end
+Key = setmetatable({}, { __index = function(_, k) return "key:" .. k end })
+RegisterKeyBind = function(key, a, b) keyBinds[key] = b or a end
 AP_GreyscalePNG = function(_, out) local f = io.open(out, "w"); f:write("grey"); f:close(); return "" end
 local composeJob, composeState, composeJobs = nil, "", {}
 AP_ComposeMap = function(colour, labels, locked, out)
@@ -348,12 +353,29 @@ end
 local before = #announced
 pawnAt = hintAt
 run(14)
-local said
-for i = before + 1, #announced do if announced[i]:find("needs Area Pass: " .. hintArea, 1, true) then said = true end end
-expect(said, "walking up to a wall names its pass: " .. tostring(hintArea))
+local offered
+for i = before + 1, #announced do
+    if announced[i]:find("needs Area Pass: " .. hintArea, 1, true) and announced[i]:find("Press H", 1, true) then offered = true end
+end
+expect(offered, "walking up to a wall names its pass and offers a hint: " .. tostring(announced[#announced]))
 local count = #announced
 run(14)
 expect(#announced == count, "and not again straight away")
+keyBinds["key:H"]()
+expect(said[#said] == "!hint Area Pass: " .. hintArea, "the hint key asks the server: " .. tostring(said[#said]))
+push("message", "[Hint]: Tester's Area Pass: " .. hintArea .. " is at Shop: Foo Stand in Tester's World. (not found)", "Hint")
+run(1)
+expect(announced[#announced]:find("is at Shop: Foo Stand", 1, true), "the server's answer shows in chat")
+run(420)
+local remembered
+for i = count + 1, #announced do
+    if announced[i]:find(hintArea .. " is sealed. Tester's Area Pass: " .. hintArea .. " is at Shop: Foo Stand", 1, true) then remembered = true end
+end
+expect(remembered, "the wall then says where the pass is")
+hintPoints = "3,121"
+local saidBefore = #said
+keyBinds["key:H"]()
+expect(#said == saidBefore, "no offer pending, nothing asked")
 expect(lastGone and lastGone.collision == false and lastGone.sankTo and lastGone.sankTo < 50000 - 290000,
        "an opened wall sinks out of sight, stops blocking on the way down, then goes: " .. tostring(lastGone and lastGone.sankTo))
 expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),

@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.6.2"
+local VERSION = "0.7.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -510,10 +510,11 @@ log(okr and "hooked researched checks" or ("could not hook researched checks: " 
 ------------------------------------------------------------------------------------------------------------------------
 local tick = 0
 local preloaded = false
+local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
+                key = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper() }
 local wallsLogged = false
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
-local hinted = {}             -- area -> tick of its last wall hint
 local SETTLE = 17
 
 -- Archipelago events (see cppmod/APConnector/src/ap_bridge.hpp for the line format).
@@ -577,13 +578,57 @@ local function onEvent(line)
     elseif kind == "checked" then
         ap.checked[tonumber(f[2])] = true
     elseif kind == "message" then
-        log("AP: " .. tostring(f[2]))
+        local text, kindOf = tostring(f[2]), f[3]
+        log("AP: " .. text)
+        if kindOf == "Hint" then
+            notify(text)
+            local pass = text:match("Area Pass: (.-) is at ")
+            if pass then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
+        elseif kindOf == "CommandResult" and hints.asked and tick - hints.asked < 50 then
+            notify(text)                               -- the server's answer to a hint the player asked for
+        end
     end
 end
 
 ------------------------------------------------------------------------------------------------------------------------
 log("connecting to " .. cfg.server .. " as " .. cfg.slot)
 AP_Connect(cfg.server, cfg.slot, cfg.password or "")
+
+-- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.
+local function wallNotice(area)
+    local pass = "Area Pass: " .. area
+    if hints.known[area] then return area .. " is sealed. " .. hints.known[area] end
+    local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
+    local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
+    if not points then return text end
+    points, cost = tonumber(points), tonumber(cost)
+    hints.offer, hints.offeredAt = area, tick
+    if points >= cost then
+        return text .. " Press " .. hints.key .. " to ask the server where it is (" .. cost .. " hint points; you have "
+            .. points .. ")."
+    end
+    return text .. " A hint costs " .. cost .. " hint points; you have " .. points .. "."
+end
+local function askHint()
+    local area = hints.offer
+    if not area or tick - hints.offeredAt > 200 then return end            -- an offer lasts a minute
+    local points, cost = (AP_HintPoints() or ""):match("^(%d+),(%d+)$")
+    if points and tonumber(points) < tonumber(cost) then
+        notify("Not enough hint points: you have " .. points .. ", a hint costs " .. cost .. ".")
+        return
+    end
+    hints.offer, hints.asked = nil, tick
+    AP_Say("!hint Area Pass: " .. area)
+    notify("Asking the Archipelago server where Area Pass: " .. area .. " is...")
+end
+if RegisterKeyBind and Key and Key[hints.key] then
+    RegisterKeyBind(Key[hints.key], function()
+        ExecuteInGameThread(function()
+            local ok, err = pcall(askHint)
+            if not ok then log("hint error: " .. tostring(err)) end
+        end)
+    end)
+end
 
 local function update()
     tick = tick + 1
@@ -632,15 +677,16 @@ local function update()
             if not ok then once("map" .. tostring(err), "map error: " .. tostring(err)) end
             local up, all = WALLS.count()
             if up > 0 and not wallsLogged then wallsLogged = true; log("area locks: raising walls (" .. all .. " border pieces)") end
-            -- Walking up to a wall: chat names the pass it needs (once per area every 2 minutes).
+            -- Walking up to a wall: chat names the pass it needs and where it is if a hint said so, or offers to buy that
+            -- hint with the hint key (once per area every 2 minutes).
             if (on == "1" or on == "true") and tick % 7 == 5 then
                 local okn, area = pcall(function()
                     local loc = pawn:K2_GetActorLocation()
                     return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
                 end)
-                if okn and area and (hinted[area] or -1e9) + 400 <= tick then
-                    hinted[area] = tick
-                    notify("The way into " .. area .. " is sealed: it needs Area Pass: " .. area .. ".")
+                if okn and area and (hints.shown[area] or -1e9) + 400 <= tick then
+                    hints.shown[area] = tick
+                    notify(wallNotice(area))
                 end
             end
             -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area.

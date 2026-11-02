@@ -16,7 +16,7 @@ printf 'name: Tester\ngame: Palworld\nPalworld:\n  tower_count: 2\n' > "$work/pl
 (cd apworld && find palworld -name __pycache__ -prune -o -type f -print | zip -q "$ap/custom_worlds/palworld.apworld" -@)
 (cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 .venv/bin/python Generate.py --player_files_path "$work/players" \
    --outputpath "$work/out" --seed 7 < /dev/null > "$work/gen.log" 2>&1)
-(cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 exec .venv/bin/python MultiServer.py --host 127.0.0.1 --port 38301 "$work"/out/*.zip \
+(cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 exec .venv/bin/python MultiServer.py --host 127.0.0.1 --port 38301 --hint_cost "${HINT_COST:-10}" "$work"/out/*.zip \
    < /dev/null > "$work/server.log" 2>&1) & server=$!
 sleep 8
 "$work/bridge_test" ws://127.0.0.1:38301 Tester $((0x50A10000 + 1000 + 5))
