@@ -24,12 +24,22 @@ local function isOpen(area, passes)
     return area == SEA or area == START or passes[area] == true
 end
 
+-- The wall class (and the walls' material) are kept loaded for the whole session through W.keep (set by the core):
+-- left alone, the game frees them on the way back to the title, and reloading them while a world loads in was the
+-- likely cause of a crash on re-entering a world.
+W.keep = function() end
 local function ready()
     if cls and cls:IsValid() and gs and gs:IsValid() then return true end
     pcall(LoadAsset, (WALL:gsub("_C$", "")))
     cls = StaticFindObject(WALL)
     gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
+    if cls and cls:IsValid() then W.keep(cls) end
     return cls ~= nil and cls:IsValid() and gs ~= nil and gs:IsValid()
+end
+
+-- A new world (another save, back from the title): its walls are gone with the old one; start over.
+function W.reset()
+    raised = {}
 end
 
 -- Test builds: the look of the walls, cycled with Ctrl+F8 through the game's own barrier materials.
@@ -78,46 +88,46 @@ end
 
 -- Opening a wall: it stops blocking at once, sinks out of sight (top first, so it reads as the barrier going down)
 -- and is then removed.
-local sinking = {}            -- wall actor -> { x, y, step }
-local sinkLoop = false
+-- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. One loop for
+-- the session, made when this module loads (UE4SS cannot start one from inside a game-thread callback); it idles while
+-- nothing sinks.
+local sinking = {}            -- list of { actor, x, y, step }
 local function sinkStep()
-    local busy = false
-    for a, s in pairs(sinking) do
-        if not a:IsValid() then
-            sinking[a] = nil
-        else
-            s[3] = s[3] + 1
-            local t = s[3] / SINK_STEPS
+    local still = {}
+    for _, s in ipairs(sinking) do
+        local a = s[1]
+        if a:IsValid() then
+            s[4] = s[4] + 1
+            local t = s[4] / SINK_STEPS
             local eased = t * t * (3 - 2 * t)            -- slow, fast, slow
-            pcall(function() a:K2_SetActorLocation({ X = s[1], Y = s[2], Z = MID_Z - HEIGHT * eased }, false, {}, true) end)
-            if s[3] >= SINK_STEPS then
-                sinking[a] = nil
+            pcall(function() a:K2_SetActorLocation({ X = s[2], Y = s[3], Z = MID_Z - HEIGHT * eased }, false, {}, true) end)
+            if s[4] == SINK_STEPS // 2 then pcall(function() a:SetActorEnableCollision(false) end) end
+            if s[4] >= SINK_STEPS then
                 pcall(function() a:K2_DestroyActor() end)
             else
-                busy = true
+                still[#still + 1] = s
             end
         end
     end
-    return busy
+    sinking = still
+end
+if LoopAsync then
+    LoopAsync(33, function()
+        if #sinking > 0 then
+            ExecuteInGameThread(function()
+                local ok, err = pcall(sinkStep)
+                if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
+            end)
+        end
+        return false
+    end)
 end
 local function lower(i)
     local a = raised[i]
     raised[i] = nil
     if not (a and a:IsValid()) then return end
-    pcall(function() a:SetActorEnableCollision(false) end)
     local w = DATA.walls[i]
-    sinking[a] = { w[1], w[2], 0 }
-    if not sinkLoop then
-        sinkLoop = true
-        LoopAsync(33, function()
-            local done = false
-            ExecuteInGameThread(function()
-                local ok, busy = pcall(sinkStep)
-                if not ok or not busy then sinkLoop = false; done = true end
-            end)
-            return done
-        end)
-    end
+    sinking[#sinking + 1] = { a, w[1], w[2], 0 }
 end
 
 -- Brings the walls in line with the passes held: raises missing pieces of locked borders, takes down pieces whose
@@ -194,11 +204,75 @@ function W.nextLook()
     local m = StaticFindObject(path .. "." .. path:match("([^/]+)$"))
     if not m or not m:IsValid() then return name .. ": not found in this game build" end
     lookMaterial = m
+    W.keep(m)
     local n = 0
     for _, a in pairs(raised) do
         if a:IsValid() then dress(a); n = n + 1 end
     end
     return look .. "/" .. #LOOKS .. " " .. name .. " (" .. n .. " walls)"
+end
+
+-- The world map with locked areas greyed out: the map texture drawn into a render target with a grey wash over every
+-- locked area's cells, shown in the map screen's map image (the exploration fog is a separate layer above it).
+-- Redrawn when the set of locked areas changes.
+local MAP_TEXTURE = "/Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
+local RT_SIZE = 4096
+local mapRT, mapKey, mapShownOn = nil, nil, nil
+local function drawMap(ctx, passes)
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    pcall(LoadAsset, "/Game/Pal/Texture/UI/Map/T_WorldMap")
+    local tex = StaticFindObject(MAP_TEXTURE)
+    if not tex or not tex:IsValid() then return false end
+    if not mapRT or not mapRT:IsValid() then
+        mapRT = krl:CreateRenderTarget2D(ctx, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)  -- RTF_RGBA8_SRGB
+        if not mapRT or not mapRT:IsValid() then return false end
+        W.keep(mapRT)
+    end
+    local canvasOut, contextOut, extra = {}, {}, {}
+    krl:BeginDrawCanvasToRenderTarget(ctx, mapRT, canvasOut, contextOut, extra)
+    local canvas = canvasOut.Canvas
+    if not canvas then return false end
+    canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 }, { X = 1, Y = 1 },
+        { R = 1, G = 1, B = 1, A = 1 }, 0, 0, { X = 0.5, Y = 0.5 })
+    local cell = RT_SIZE / MAP.size
+    local grey = { R = 0.42, G = 0.42, B = 0.45, A = 0.72 }
+    for r = 0, MAP.size - 1 do
+        local col = 0
+        for a, n in MAP.rows[r + 1]:gmatch("(%d+),(%d+)") do
+            a, n = tonumber(a), tonumber(n)
+            if not isOpen(DATA.areas[a + 1], passes) then
+                canvas:K2_DrawTexture(nil, { X = col * cell, Y = r * cell }, { X = n * cell, Y = cell },
+                    { X = 0, Y = 0 }, { X = 1, Y = 1 }, grey, 2, 0, { X = 0.5, Y = 0.5 })      -- BLEND_Translucent
+            end
+            col = col + n
+        end
+    end
+    krl:EndDrawCanvasToRenderTarget(ctx, contextOut.RenderTarget and contextOut or extra)
+    return true
+end
+function W.updateMap(enabled, passes, ctx)
+    if not enabled then return end
+    local body = FindFirstOf("WBP_Map_Body_C")
+    if not body or not body:IsValid() then return end
+    local locked = {}
+    for _, name in ipairs(DATA.areas) do
+        if not isOpen(name, passes) then locked[#locked + 1] = name end
+    end
+    local key = table.concat(locked, "|")
+    local redrawn = false
+    if key ~= mapKey then
+        local ok, done = pcall(drawMap, ctx, passes)
+        if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return end
+        if not done then return end
+        mapKey, redrawn = key, true
+        log("map: " .. #locked .. " locked area(s) greyed")
+    end
+    local id = tostring(body:GetAddress())
+    if redrawn or id ~= mapShownOn then
+        local ok, err = pcall(function() body.Image_MapBody:SetBrushResourceObject(mapRT) end)
+        if not ok then log("map overlay: could not show it: " .. tostring(err)) end
+        mapShownOn = id
+    end
 end
 
 function W.count()

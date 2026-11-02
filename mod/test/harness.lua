@@ -48,7 +48,8 @@ local record = {
 local playerLevel = 4
 local pawnAt = { X = -342035, Y = 236885, Z = -1700 }        -- the starting area (FTPoint21)
 local teleported = nil
-local pawn = { IsValid = function() return true end,
+local pawnAddress = 4096
+local pawn = { IsValid = function() return true end, GetAddress = function() return pawnAddress end,
                K2_GetActorLocation = function() return pawnAt end,
                K2_TeleportTo = function(_, loc) teleported = loc; pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z } end,
                GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
@@ -91,13 +92,26 @@ FindAllOf = function(class)
     if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
     return nil
 end
-FindFirstOf = function(class) if class == "PalGameInstance" then return gameInstance end return nil end
+local greyBoxes, mapDraws, mapOpen = 0, 0, false
+local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end }
+local mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
+                  Image_MapBody = { SetBrushResourceObject = function(self, rt) self.shown = rt end } }
+FindFirstOf = function(class)
+    if class == "PalGameInstance" then return gameInstance end
+    if class == "WBP_Map_Body_C" then return mapOpen and mapBody or nil end
+    return nil
+end
 local renderLib = { IsValid = function() return true end,
-                    ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end }
+                    ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end,
+                    CreateRenderTarget2D = function() return { IsValid = function() return true end, rt = true } end,
+                    BeginDrawCanvasToRenderTarget = function(_, _, rt, canvasOut, contextOut)
+                        canvasOut.Canvas = canvas; contextOut.RenderTarget = rt end,
+                    EndDrawCanvasToRenderTarget = function() end }
 local wallsUp = {}
 lastGone = nil
 local gameplay = { IsValid = function() return true end,
                    BeginDeferredActorSpawnFromClass = function(_, _, _, t)
+                       spawned = (spawned or 0) + 1
                        local a = { IsValid = function(self) return not self.gone end, t = t }
                        function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
                        function a:SetActorEnableCollision(on) self.collision = on end
@@ -114,7 +128,7 @@ StaticFindObject = function(path)
     return nil
 end
 RegisterHook = function(path, fn, post) hooks[path], postHooks[path] = fn, post end
-LoopAsync = function(_, fn) if loop then extraLoops[#extraLoops + 1] = fn else loop = fn end end
+LoopAsync = function(ms, fn) if ms == 300 then loop = fn else extraLoops[#extraLoops + 1] = fn end end   -- 300 ms: the core
 ExecuteInGameThread = function(fn) fn() end
 ExecuteWithDelay = function(_, fn) fn() end
 
@@ -277,11 +291,32 @@ pawnAt = { X = -312819, Y = 84516, Z = -800 }
 run(21)
 expect(teleported == nil, "with its pass, nobody is sent away")
 expect(lastGone and lastGone.collision == false and lastGone.sankTo and lastGone.sankTo < 50000 - 290000,
-       "an opened wall stops blocking at once and sinks out of sight before it goes: " .. tostring(lastGone and lastGone.sankTo))
+       "an opened wall sinks out of sight, stops blocking on the way down, then goes: " .. tostring(lastGone and lastGone.sankTo))
 expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),
        "an Area Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)
 expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
+
+print("the world map")
+mapOpen = true
+run(3)
+expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt and mapDraws == 1 and greyBoxes > 100,
+       "the map shows locked areas greyed: " .. greyBoxes .. " grey runs")
+local before = greyBoxes
+push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
+run(3)
+expect(mapDraws == 2 and greyBoxes - before < before, "a pass redraws it with less grey: " .. (greyBoxes - before))
+run(3)
+expect(mapDraws == 2, "and not again while nothing changes")
+mapOpen = false
+
+print("a new world")
+pawnAddress = 8192                                             -- back from the title, the world loaded again
+local before = spawned
+run(10)
+expect(spawned == before, "no walls while the new world settles")
+run(60)
+expect(spawned > before, "then its walls go up: " .. (spawned - before))
 
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
@@ -328,7 +363,7 @@ expect(passCard.shown.category == "Received" and passCard.shown.name == "Your Ar
 expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent: prefix")
 
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
-expect(f and f:read("*a"):match("given=6"), "save file records items applied")
+expect(f and f:read("*a"):match("given=7"), "save file records items applied")
 
 print(failures == 0 and "all passed" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)
