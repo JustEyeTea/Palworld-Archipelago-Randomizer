@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.6.1"
+local VERSION = "0.6.2"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -513,6 +513,7 @@ local preloaded = false
 local wallsLogged = false
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
+local hinted = {}             -- area -> tick of its last wall hint
 local SETTLE = 17
 
 -- Archipelago events (see cppmod/APConnector/src/ap_bridge.hpp for the line format).
@@ -631,6 +632,17 @@ local function update()
             if not ok then once("map" .. tostring(err), "map error: " .. tostring(err)) end
             local up, all = WALLS.count()
             if up > 0 and not wallsLogged then wallsLogged = true; log("area locks: raising walls (" .. all .. " border pieces)") end
+            -- Walking up to a wall: chat names the pass it needs (once per area every 2 minutes).
+            if (on == "1" or on == "true") and tick % 7 == 5 then
+                local okn, area = pcall(function()
+                    local loc = pawn:K2_GetActorLocation()
+                    return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
+                end)
+                if okn and area and (hinted[area] or -1e9) + 400 <= tick then
+                    hinted[area] = tick
+                    notify("The way into " .. area .. " is sealed: it needs Area Pass: " .. area .. ".")
+                end
+            end
             -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area.
             if (on == "1" or on == "true") and tick % 7 == 3 then
                 local okl, where = pcall(function()
@@ -667,18 +679,3 @@ LoopAsync(300, function()
     end)
     return false
 end)
-
--- Test builds: Ctrl+F8 cycles the walls' look through the game's barrier materials.
-if RegisterKeyBind and Key and ModifierKey then
-    RegisterKeyBind(Key.F8, { ModifierKey.CONTROL }, function()
-        ExecuteInGameThread(function()
-            local ok, msg = pcall(WALLS.nextLook)
-            notify("Wall look: " .. tostring(msg))
-            log("wall look: " .. tostring(msg))
-        end)
-    end)
-end
-
--- Test builds: Ctrl+F7 saves the world map image (see mapexport.lua).
-local okm, errm = pcall(function() require("mapexport")(modDir) end)
-if not okm then log("map export not available: " .. tostring(errm)) end

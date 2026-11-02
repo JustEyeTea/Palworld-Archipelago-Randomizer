@@ -331,6 +331,29 @@ teleported = nil
 pawnAt = { X = -312819, Y = 84516, Z = -800 }
 run(21)
 expect(teleported == nil, "with its pass, nobody is sent away")
+-- Walking up to a wall between the start and a locked area: chat names the pass.
+local hintAt, hintArea
+for _, w in ipairs(WD.walls) do
+    local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+    local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
+    if other and other ~= "Open sea" and other ~= "Bamboo Groves" and w[3] > 5000 then
+        local yaw = math.rad(w[4])
+        for _, side in ipairs({ 1, -1 }) do
+            local x, y = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
+            if WALLS.areaAt(x, y) == WD.start then hintAt, hintArea = { X = x, Y = y, Z = 0 }, other end
+        end
+        if hintAt then break end
+    end
+end
+local before = #announced
+pawnAt = hintAt
+run(14)
+local said
+for i = before + 1, #announced do if announced[i]:find("needs Area Pass: " .. hintArea, 1, true) then said = true end end
+expect(said, "walking up to a wall names its pass: " .. tostring(hintArea))
+local count = #announced
+run(14)
+expect(#announced == count, "and not again straight away")
 expect(lastGone and lastGone.collision == false and lastGone.sankTo and lastGone.sankTo < 50000 - 290000,
        "an opened wall sinks out of sight, stops blocking on the way down, then goes: " .. tostring(lastGone and lastGone.sankTo))
 expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),

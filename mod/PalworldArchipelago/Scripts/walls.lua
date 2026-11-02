@@ -45,36 +45,6 @@ function W.reset()
     raised = {}
 end
 
--- Test builds: the look of the walls, cycled with Ctrl+F8 through the game's own barrier materials.
-local LOOKS = {
-    { "Red grid (the game's air block)", "/Game/Pal/Material/Effect/MI_AirBlock_v2" },
-    { "World Tree air block", "/Game/Pal/Material/Effect/MI_AirBlock_v2_WorldTreeArea" },
-    { "Golden dungeon wall", "/Game/Pal/Model/Other/PalBox/old/MI_PalBox_Wall" },
-    { "Tower hex shield", "/Game/Pal/Effect/Material/M_VFX_Dome_01_TF" },
-    { "Wildlife Sanctuary dome", "/Game/Pal/Effect/Material_Instances/MI_Wildlife_Sanctuary_Dome" },
-    { "Wildlife Sanctuary dome 2", "/Game/Pal/Effect/Material_Instances/MI_Wildlife_Sanctuary_Dome01" },
-    { "Sky Island barrier", "/Game/Pal/Effect/Material_Instances/MI_AreaBarrier" },
-    { "Sci-fi shield", "/Game/Others/VL_SciFiShield/Materials/Particles/MI_Shield" },
-}
-local look = 1
-local lookMaterial = nil
-local function meshes(a)
-    local out = {}
-    pcall(function()
-        local list = a:K2_GetComponentsByClass(StaticFindObject("/Script/Engine.StaticMeshComponent"))
-        local function add(e)
-            local okg, obj = pcall(function() return e:get() end)
-            out[#out + 1] = okg and obj or e
-        end
-        if type(list) == "table" then for _, e in ipairs(list) do add(e) end else list:ForEach(function(_, e) add(e) end) end
-    end)
-    return out
-end
-local function dress(a)
-    if not lookMaterial then return end
-    for _, m in ipairs(meshes(a)) do pcall(function() m:SetMaterial(0, lookMaterial) end) end
-end
-
 local function raise(i, context)
     local w = DATA.walls[i]
     local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
@@ -85,7 +55,6 @@ local function raise(i, context)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
     raised[i] = a
-    dress(a)
     return true
 end
 
@@ -199,20 +168,28 @@ end
 W.home = MAP.home
 W.start = START
 
--- Switches every wall to the next look; returns its name (or why not).
-function W.nextLook()
-    look = look % #LOOKS + 1
-    local name, path = LOOKS[look][1], LOOKS[look][2]
-    pcall(LoadAsset, path)
-    local m = StaticFindObject(path .. "." .. path:match("([^/]+)$"))
-    if not m or not m:IsValid() then return name .. ": not found in this game build" end
-    lookMaterial = m
-    W.keep(m)
-    local n = 0
-    for _, a in pairs(raised) do
-        if a:IsValid() then dress(a); n = n + 1 end
+-- The locked area across a wall within NEAR of a spot (a player walking up to it), or nil. A wall between two locked
+-- areas names the one the player is not in.
+local NEAR = 3000             -- 30 m
+function W.lockedNear(x, y, passes)
+    local here = W.areaAt(x, y)
+    local best, bestD = nil, NEAR
+    for i, a in pairs(raised) do
+        local w = DATA.walls[i]
+        local yaw = math.rad(w[4])
+        local dx, dy = x - w[1], y - w[2]
+        local along = dx * math.cos(yaw) + dy * math.sin(yaw)
+        local across = -dx * math.sin(yaw) + dy * math.cos(yaw)
+        local over = math.max(0, math.abs(along) - w[3] / 2)
+        local d = math.sqrt(over * over + across * across)
+        if d < bestD then
+            for _, k in ipairs({ w[5], w[6] }) do
+                local name = DATA.areas[k + 1]
+                if name ~= here and not isOpen(name, passes) then best, bestD = name, d end
+            end
+        end
     end
-    return look .. "/" .. #LOOKS .. " " .. name .. " (" .. n .. " walls)"
+    return best
 end
 
 -- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
