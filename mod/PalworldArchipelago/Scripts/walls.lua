@@ -243,16 +243,17 @@ local function trianglesOf(k)
 end
 local function drawMap(ctx, passes)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    pcall(LoadAsset, "/Game/Pal/Texture/UI/Map/T_WorldMap")
+    pcall(LoadAsset, MAP_TEXTURE)                         -- LoadAsset wants the full Package.Object path
     local tex = StaticFindObject(MAP_TEXTURE)
     if not tex or not tex:IsValid() then return false end
     if not greyMat or not greyMat:IsValid() then
-        pcall(LoadAsset, "/Game/Pal/Material/UI/Ingame/M_UI_ColorSaturation")
+        pcall(LoadAsset, SATURATION)
         local parent = StaticFindObject(SATURATION)
         local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
-        if not parent or not parent:IsValid() or not kml then log("map: the saturation material is missing"); return false end
+        if not parent or not parent:IsValid() then once("nosat", "map: the saturation material did not load: " .. SATURATION); return false end
+        if not kml or not kml:IsValid() then once("nokml", "map: KismetMaterialLibrary not found"); return false end
         greyMat = kml:CreateDynamicMaterialInstance(ctx, parent, FName("PalworldAP_GreyMap"), 0)
-        if not greyMat or not greyMat:IsValid() then log("map: could not make the greyscale material"); return false end
+        if not greyMat or not greyMat:IsValid() then once("nomid", "map: could not make the greyscale material"); return false end
         greyMat:SetTextureParameterValue(FName("Texture"), tex)
         greyMat:SetScalarParameterValue(FName("Saturation"), 0)
         W.keep(greyMat)
