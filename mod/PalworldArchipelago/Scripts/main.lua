@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.9.0"
+local VERSION = "0.9.1"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -47,7 +47,7 @@ local cfg = readConfig()
 local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
-    for _, k in ipairs({ "server", "slot", "password", "hint_key" }) do
+    for _, k in ipairs({ "server", "slot", "password", "hint_key", "test_tools" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -814,3 +814,9 @@ LoopAsync(300, function()
     end)
     return false
 end)
+
+-- Test tools: only with test_tools=1 in config.txt (see test_tools.lua).
+if cfg.test_tools == "1" then
+    local okt, errt = pcall(function() require("test_tools").install() end)
+    if not okt then log("test tools not loaded: " .. tostring(errt)) end
+end
