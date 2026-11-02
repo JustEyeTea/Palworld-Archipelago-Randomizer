@@ -11,6 +11,9 @@
 //   AP_SlotData(path) -> string          a slot_data value by dotted path ("options.tower_count")
 //   AP_Status() -> string                disconnected | connecting | connected | refused
 //   AP_GreyscalePNG(in, out, gamma) -> string   writes a greyscale copy of a PNG ("" on success, else the error)
+//   AP_ComposeMap(colour, labels, "3,7", out, gamma) -> string   starts composing the world map (locked areas grey) in
+//                                        the background: "" started, "busy", or an error
+//   AP_ComposeStatus() -> string         "busy", "done" (once, when finished), "error: ..." or ""
 #include <Windows.h>
 
 #include <cstdio>
@@ -145,6 +148,17 @@ namespace
         });
         lua.register_function("AP_Status", [](const LuaMadeSimple::Lua& l) -> int {
             l.set_string(bridge().status());
+            return 1;
+        });
+        lua.register_function("AP_ComposeMap", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto colour = arg(l), labels = arg(l), locked = arg(l), out = arg(l), gamma = arg(l);
+            double g = 1.0;
+            try { g = std::stod(gamma); } catch (...) {}
+            l.set_string(compose_map_start(colour, labels, locked, out, g));
+            return 1;
+        });
+        lua.register_function("AP_ComposeStatus", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(compose_map_status());
             return 1;
         });
         lua.register_function("AP_GreyscalePNG", [](const LuaMadeSimple::Lua& l) -> int {

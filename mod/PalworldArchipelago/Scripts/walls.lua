@@ -338,6 +338,69 @@ local function drawMap(ctx, passes)
     krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
     return true
 end
+-- With the C++ compositor (AP_ComposeMap): the whole picture is made on the player's machine in the background, from
+-- the colour map (saved once, map-colour-1.png) and area_labels.png, with soft anti-aliased boundaries and an inner
+-- shadow; when it is ready it is loaded and drawn into the render target. The picture is the game's own art: it stays
+-- in the mod folder and is never shipped.
+local COLOUR_FILE = "map-colour-1.png"
+local composing, composedKey = nil, nil       -- the locked set being composed / last composed
+local function colourMap(krl, tex, gi)
+    local path = W.dir .. "\\" .. COLOUR_FILE
+    local f = io.open(path, "rb")
+    if f then f:close(); return path end
+    local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
+    local canvasOut, contextOut, extra = {}, {}, {}
+    krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
+    canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    krl:ExportRenderTarget(gi, rt, W.dir, COLOUR_FILE)
+    log("map: saved the colour map " .. path)
+    return path
+end
+local function lockedIndexes(passes)
+    local out = {}
+    for k, name in ipairs(DATA.areas) do
+        if not isOpen(name, passes) then out[#out + 1] = tostring(k - 1) end
+    end
+    return table.concat(out, ",")
+end
+-- Starts or finishes a composition; true once the render target holds the picture for this locked set.
+local function composeMap(ctx, passes, key)
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local gi = owner()
+    if not gi then return false end
+    if composing then
+        local st = AP_ComposeStatus()
+        if st == "busy" then return false end
+        local done = composing
+        composing = nil
+        if st ~= "done" then log("map: composing failed: " .. tostring(st)); composedKey = done; return false end
+        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\map-composed.png")
+        if not tex or not tex:IsValid() then log("map: could not load the composed map"); composedKey = done; return false end
+        if not mapRT or not mapRT:IsValid() then
+            mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
+            W.keep(mapRT)
+        end
+        local canvasOut, contextOut, extra = {}, {}, {}
+        krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
+        canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+            { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+        krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+        composedKey = done
+        return done == key
+    end
+    if composedKey == key then return true end
+    pcall(LoadAsset, MAP_TEXTURE)
+    local tex = StaticFindObject(MAP_TEXTURE)
+    if not tex or not tex:IsValid() then return false end
+    local colour = colourMap(krl, tex, gi)
+    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels.png", lockedIndexes(passes),
+        W.dir .. "\\map-composed.png", "0.4545")
+    if err == "" then composing = key elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
+    return false
+end
+
 function W.updateMap(enabled, passes, ctx)
     if not enabled then return end
     -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
@@ -355,7 +418,15 @@ function W.updateMap(enabled, passes, ctx)
     end
     local key = table.concat(locked, "|")
     local redrawn = false
-    if key ~= mapKey then
+    if AP_ComposeMap and AP_ComposeStatus then
+        local ok, ready = pcall(composeMap, ctx, passes, key)
+        if not ok then once("composeerr" .. tostring(ready), "map error: " .. tostring(ready)); ready = false end
+        if ready and key ~= mapKey then
+            mapKey, redrawn = key, true
+            log("map: " .. #locked .. " locked area(s) greyed")
+        end
+        if not mapKey or not mapRT then return end    -- nothing composed yet: the game's own map stays
+    elseif key ~= mapKey then
         local ok, done = pcall(drawMap, ctx, passes)
         if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return end
         if not done then return end

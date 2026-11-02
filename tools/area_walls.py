@@ -480,6 +480,29 @@ for k in range(len(NAMES)):
     shape_lines.append('        [' + str(k) + '] = { ' + ', '.join(f'{v:.4f}'.rstrip('0').rstrip('.') for v in tris) + ' },')
 shape_lines += ['    },', '    edges = {'] + outline_lines + ['    },', '}', '']
 pathlib.Path(sys.argv[2]).with_name('area_shapes.lua').write_text('\n'.join(shape_lines))
+
+# The same rounded shapes as a picture for the C++ part to compose the world map from: area_labels.png, 4096 px,
+# each pixel's value the index of its area (0: open sea and beyond the map). Our own data, shipped with the mod.
+LABEL_SIZE = 4096
+label_img = Image.new('L', (LABEL_SIZE, LABEL_SIZE), 0)
+ld = ImageDraw.Draw(label_img)
+for k in range(1, len(NAMES)):
+    loops = [chaikin(simplify_loop(l, 1.5), 2) for l in outline_loops((labels == k) & ~outside)]
+    loops = [l for l in loops if len(l) >= 3 and abs(signed_area(l)) >= 4]
+    outers = [l for l in loops if signed_area(l) > 0] or [l for l in loops if signed_area(l) < 0]
+    for l in outers:
+        ld.polygon([(c / N * LABEL_SIZE, r / N * LABEL_SIZE) for r, c in l], fill=k)
+for k in range(1, len(NAMES)):                         # holes in an area show what is under them again
+    loops = [chaikin(simplify_loop(l, 1.5), 2) for l in outline_loops((labels == k) & ~outside)]
+    loops = [l for l in loops if len(l) >= 3 and abs(signed_area(l)) >= 4]
+    outers = [l for l in loops if signed_area(l) > 0]
+    holes = [l for l in loops if signed_area(l) < 0] if outers else []
+    for h in holes:
+        r0, c0 = h[0]
+        inner = int(labels[min(N - 1, max(0, int(r0))), min(N - 1, max(0, int(c0)))])
+        ld.polygon([(c / N * LABEL_SIZE, r / N * LABEL_SIZE) for r, c in h], fill=inner if inner != k else 0)
+label_img.save(pathlib.Path(sys.argv[2]).parent.parent / 'area_labels.png', optimize=True)
+print('area labels picture written')
 print(f'area shapes: {total_tris} triangles')
 
 # The mod's area map: labels at half resolution (2 x 2 cells -> the most common), each row run-length encoded as

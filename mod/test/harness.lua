@@ -164,6 +164,22 @@ AP_Scout = function() end
 AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end end
 AP_Goal = function() goals = goals + 1 end
 AP_GreyscalePNG = function(_, out) local f = io.open(out, "w"); f:write("grey"); f:close(); return "" end
+local composeJob, composeState, composeJobs = nil, "", {}
+AP_ComposeMap = function(colour, labels, locked, out)
+    if composeState == "busy" then return "busy" end
+    composeJob = { colour = colour, labels = labels, locked = locked, out = out }
+    composeJobs[#composeJobs + 1] = composeJob
+    composeState = "busy"
+    return ""
+end
+AP_ComposeStatus = function()
+    local s = composeState
+    if s == "busy" then                                       -- the background job finishes by the next look
+        local f = io.open(composeJob.out, "w"); f:write("map"); f:close()
+        composeState = "done"
+    elseif s ~= "" then composeState = "" end
+    return s
+end
 local function push(...) events[#events + 1] = table.concat({ ... }, "\t") end
 local function run(ticks)
     for _ = 1, ticks do
@@ -321,25 +337,27 @@ expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000
 
 print("the world map")
 mapOpen = true
-run(3)
-expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt and mapDraws == 2 and greyBoxes > 100,
-       "the map shows locked areas greyed: " .. greyBoxes .. " faded triangles")
-local before = greyBoxes
+run(1)
+expect(#composeJobs == 1 and composeJobs[1].labels:find("area_labels.png") and composeJobs[1].colour:find("map%-colour%-1.png"),
+       "composing starts from the saved colour map and the area labels")
+expect(not mapBody.Image_MapBody.shown, "the game's own map stays until the picture is ready")
+run(2)
+expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt, "then the composed map is shown")
+local lockedFirst = composeJobs[1].locked
+expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
+       "locked areas passed by index: " .. lockedFirst)
 push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
 run(3)
-expect(mapDraws == 3 and greyBoxes - before < before, "a pass redraws it with less grey: " .. (greyBoxes - before))
+expect(#composeJobs == 2 and select(2, composeJobs[2].locked:gsub(",", "")) == 11, "a pass recomposes with one fewer")
 run(3)
-expect(mapDraws == 3, "and not again while nothing changes")
-expect(exports == 1 and lastTriTex and lastTriTex.path == "map-grey-1", "locked areas drawn from a greyscale copy made once: "
-       .. tostring(lastTriTex and lastTriTex.path))
-expect(edgeTris and edgeTris > 100, "edged with a darker, shaded band: " .. tostring(edgeTris))
+expect(#composeJobs == 2, "and not again while nothing changes")
 local owned = true
 for _, o in ipairs(rtOwners) do if o ~= gameInstance then owned = false end end
-expect(owned and #rtOwners >= 2, "render targets belong to the game instance, not the world")
+expect(owned and #rtOwners >= 2 and exports == 1, "render targets belong to the game instance; colour map saved once")
 mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 9 end,
                                                GetFullName = function() return "Texture2D T_WorldMap" end }
 run(1)
-expect(mapBody.Image_MapBody.Brush.ResourceObject.rt, "when the map screen puts its own picture back, the greyed one returns")
+expect(mapBody.Image_MapBody.Brush.ResourceObject.rt, "when the map screen puts its own picture back, ours returns")
 mapOpen = false
 
 print("a new world")
