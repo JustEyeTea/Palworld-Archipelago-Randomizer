@@ -92,7 +92,7 @@ local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes 
                      assert(mat.saturation == 0 and mat.texture, "greyscale material set up")
                      assert(tris[1].V2_UV and tris[1].V0_Pos.X, "triangles have positions and UVs")
                      greyBoxes = greyBoxes + #tris end }
-local materialLib = { CreateDynamicMaterialInstance = function()
+local materialLib = { IsValid = function() return true end, CreateDynamicMaterialInstance = function()
     return { IsValid = function() return true end,
              SetTextureParameterValue = function(self, name, t) if name:ToString() == "Texture" then self.texture = t end end,
              SetScalarParameterValue = function(self, name, v) if name:ToString() == "Saturation" then self.saturation = v end end } end }
