@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.2.1-map2"
+local VERSION = "0.3.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -509,6 +509,7 @@ log(okr and "hooked researched checks" or ("could not hook researched checks: " 
 local tick = 0
 local preloaded = false
 local wallsLogged = false
+local lockedTicks = 0
 
 -- Archipelago events (see cppmod/APConnector/src/ap_bridge.hpp for the line format).
 local function split(line)
@@ -617,6 +618,23 @@ local function update()
             if not ok then once("walls" .. tostring(err), "walls error: " .. tostring(err)) end
             local up, all = WALLS.count()
             if up > 0 and not wallsLogged then wallsLogged = true; log("area locks: raising walls (" .. all .. " border pieces)") end
+            -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area.
+            if (on == "1" or on == "true") and tick % 7 == 3 then
+                local okl, where = pcall(function()
+                    local loc = pawn:K2_GetActorLocation()
+                    return WALLS.lockedAround(loc.X, loc.Y, ap.passes)
+                end)
+                lockedTicks = (okl and where) and lockedTicks + 1 or 0
+                if lockedTicks >= 2 then
+                    lockedTicks = 0
+                    local h = WALLS.home
+                    local okt, errt = pcall(function()
+                        pawn:K2_TeleportTo({ X = h[1], Y = h[2], Z = h[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
+                    end)
+                    log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
+                    notify(tostring(where) .. " is locked until its Area Pass arrives. Back to " .. WALLS.start .. ".")
+                end
+            end
         end
     end
     if tick % 7 == 0 and ap.ready then

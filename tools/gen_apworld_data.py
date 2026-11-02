@@ -37,17 +37,22 @@ def resolve(text):
     return re.sub(r'<(itemName|mapObjectName) id=\|([^|]+)\|/>', sub, text, flags=re.I).strip()
 
 
-# Friendly names for the area model's areas (the pass item is "Area Pass: <name>").
-from area_names import AREA_NAMES, START_AREA
-area = lambda a: AREA_NAMES[a]
-AREAS = sorted(((area(k), v['levels']) for k, v in AREAS_JSON['areas'].items()), key=lambda kv: (kv[1], kv[0]))
+# Areas (one Area Pass each) and their pieces: a location sits in a piece, the logic's region; a piece needs its area's
+# pass to enter, from a piece it borders (tools/area_walls.py, tools/area_model.py).
+from area_groups import GROUPS, START as START_AREA
+area = lambda a: a
+PIECES = AREAS_JSON['pieces']
+AREA_OF = lambda piece: PIECES.get(piece, piece)
+AREAS = sorted(((k, v['levels']) for k, v in AREAS_JSON['areas'].items() if v['levels'] is not None),
+               key=lambda kv: (kv[1], kv[0]))
 
 # Techs: (id, name, level, cost, ancient, prerequisite tech id, tower boss needed, lab research needed).
 BOSS_TYPES = {'GrassBoss': 'Windswept (Grass)', 'ElectricBoss': 'Volcano (Electric)', 'ForestBoss': 'Forest',
               'SnowBoss': 'Snow', 'DesertBoss': 'Desert', 'SakurajimaBoss': 'Sakurajima', 'VikingBoss': 'Feybreak',
               'SorajimaBoss': 'Sky Islands'}
-TOWER_NAMES = {k: ('Starting Zone' if k == 'Windswept (Grass)' else area(k)) + ' Tower'
-               for k in AREAS_JSON['towers'] if k not in ('World Tree', 'King Whale')}
+TOWER_NAMES = {'Windswept (Grass)': 'Starting Zone Tower', 'Volcano (Electric)': 'Volcano Tower', 'Forest': 'Forest Tower',
+               'Snow': 'Snow Tower', 'Desert': 'Desert Tower', 'Sakurajima': 'Sakurajima Tower',
+               'Feybreak': 'Feybreak Tower', 'Sky Islands': 'Sky Islands Tower'}
 techs, seen = [], {}
 for r in rd('DT_TechnologyRecipeUnlock.tsv'):
     name = resolve(TECH_NAMES.get(r['Name'], r['Name']))
@@ -77,7 +82,7 @@ for e, srcs in SOURCES_JSON['sources'].items():
     for s in srcs:
         t = s['type']
         if t in ('wild', 'alpha'): kept.append((t, area(s['area']), s['level']))
-        elif t == 'dungeon': kept.extend(('dungeon', area(a), s['level']) for a in s['areas'] if a in AREA_NAMES)
+        elif t == 'dungeon': kept.extend(('dungeon', area(a), s['level']) for a in s['areas'])
         elif t == 'breed_unique': kept.append(('breed', tuple(s['parents'])))
         elif t == 'fishing': kept.append(('fishing', None, s['level']))
     paldeck[e] = (entry_name.get(e, e), tuple(sorted(set(kept), key=str)))
@@ -90,17 +95,18 @@ for a in AREAS_JSON['alphas']:
     e = next((k for k, r in [(f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}", r) for r in mon
                               if r['row'].lower() == cid.lower()]), None)
     pal = entry_name.get(e, cid)
-    key = (pal, area(a['area'])); counts[key] = counts.get(key, 0) + 1
-    alphas.append((f"Alpha: {pal} ({area(a['area'])})" + (f" {counts[key]}" if counts[key] > 1 else ''),
+    key = (pal, AREA_OF(a['area'])); counts[key] = counts.get(key, 0) + 1
+    alphas.append((f"Alpha: {pal} ({AREA_OF(a['area'])})" + (f" {counts[key]}" if counts[key] > 1 else ''),
                    e, a['level'], area(a['area'])))
 # number duplicates from 1 when a name repeats
 names = [n for n, *_ in alphas]
 alphas = [((n + ' 1') if names.count(n) > 1 and not n[-1].isdigit() else n, *rest) for n, *rest in alphas]
 
 fast_travel, per_area = [], {}
-for fid in sorted(AREAS_JSON['fast_travel'], key=lambda f: (area(AREAS_JSON['fast_travel'][f]), f)):
-    a = area(AREAS_JSON['fast_travel'][fid]); per_area[a] = per_area.get(a, 0) + 1
-    fast_travel.append((f"Fast Travel: {a} {per_area[a]}", fid, a))
+for fid in sorted(AREAS_JSON['fast_travel'], key=lambda f: (AREA_OF(AREAS_JSON['fast_travel'][f]), f)):
+    piece = AREAS_JSON['fast_travel'][fid]
+    a = AREA_OF(piece); per_area[a] = per_area.get(a, 0) + 1
+    fast_travel.append((f"Fast Travel: {a} {per_area[a]}", fid, piece))
 
 towers = sorted((TOWER_NAMES[k], area(v)) for k, v in AREAS_JSON['towers'].items() if k in TOWER_NAMES)
 
@@ -110,7 +116,16 @@ body = [
     f'GAME_VERSION = "1.0.5.102999"',
     f'START_AREA = {START_AREA!r}',
     '',
-    '# Area -> typical Pal level (median of its spawners), in rough order of difficulty.',
+    '# Areas, one Area Pass each (the first is where a game starts).',
+    'AREA_LIST = ' + pprint.pformat(list(GROUPS), width=118),
+    '',
+    '# Piece (a connected part of an area; the logic\'s regions) -> its area. "Open sea" needs no pass.',
+    'PIECES = ' + pprint.pformat(PIECES, width=118),
+    '',
+    '# Pieces that share a border (walls in game): moving between them needs the entered piece\'s area pass.',
+    'BORDERS = ' + pprint.pformat([tuple(b) for b in AREAS_JSON['borders']], width=118),
+    '',
+    '# Piece -> typical Pal level (median of its spawners), in rough order of difficulty.',
     'AREAS = ' + pprint.pformat(dict(AREAS), sort_dicts=False, width=118),
     '',
     '# (tech id, name, level, cost, ancient, prerequisite tech id, tower needed, lab research needed)',
@@ -120,7 +135,7 @@ body = [
     '# ("fishing", None, level). Entries with no sources (raids, tower bosses, special events) get no capture check.',
     'PALDECK = ' + pprint.pformat(paldeck, width=118),
     '',
-    '# (location name, Paldeck entry, level, area)',
+    '# (location name, Paldeck entry, level, piece)',
     'ALPHAS = ' + pprint.pformat(alphas, width=118),
     '',
     '# Paldeck entry -> its tribe, the key the game\'s capture records use',
@@ -129,10 +144,10 @@ body = [
     '# alpha location name -> (spawner id, character id), the keys its defeat may be recorded under',
     'ALPHA_KEYS = ' + pprint.pformat({a[0]: k for a, k in zip(alphas, alpha_keys)}, width=118, sort_dicts=False),
     '',
-    '# (location name, fast-travel point id, area)',
+    '# (location name, fast-travel point id, piece)',
     'FAST_TRAVEL = ' + pprint.pformat(fast_travel, width=118),
     '',
-    '# (tower name, area)',
+    '# (tower name, piece)',
     'TOWERS = ' + pprint.pformat(towers, width=118),
     '',
 ]

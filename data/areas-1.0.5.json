@@ -133,85 +133,85 @@
    "row": 21
   },
   {
-   "area": "Desert",
+   "area": "Verdant Stream",
    "character": "BOSS_FlowerDinosaur_Electric",
    "level": 47,
    "row": 22
   },
   {
-   "area": "Desert",
+   "area": "Desiccated Dunes",
    "character": "BOSS_Suzaku",
    "level": 45,
    "row": 23
   },
   {
-   "area": "Desert",
+   "area": "Desiccated Dunes",
    "character": "BOSS_DarkScorpion",
    "level": 44,
    "row": 24
   },
   {
-   "area": "Desert",
+   "area": "Desiccated Dunes",
    "character": "BOSS_CubeTurtle",
    "level": 55,
    "row": 25
   },
   {
-   "area": "Desert",
+   "area": "Desiccated Dunes",
    "character": "BOSS_SaintCentaur",
    "level": 60,
    "row": 26
   },
   {
-   "area": "Outer Isles IV",
+   "area": "Feybreak (2)",
    "character": "BOSS_VolcanoDragon",
    "level": 70,
    "row": 27
   },
   {
-   "area": "Outer Isles III",
+   "area": "Desiccated Dunes",
    "character": "BOSS_RockBeast",
    "level": 50,
    "row": 28
   },
   {
-   "area": "Outer Isles II",
+   "area": "Desiccated Dunes (3)",
    "character": "BOSS_CactusDoll",
    "level": 40,
    "row": 29
   },
   {
-   "area": "Outer Isles IV",
+   "area": "Feybreak (4)",
    "character": "BOSS_ScorpionMan_Electric",
    "level": 70,
    "row": 30
   },
   {
-   "area": "Outer Isles IV",
+   "area": "Feybreak (3)",
    "character": "BOSS_GrassGolem_Dark",
    "level": 70,
    "row": 31
   },
   {
-   "area": "Outer Isles III",
+   "area": "Desiccated Dunes (2)",
    "character": "BOSS_GrassGolem",
    "level": 55,
    "row": 32
   },
   {
-   "area": "Snow",
+   "area": "Astral Mountains",
    "character": "BOSS_KingAlpaca_Ice",
    "level": 46,
    "row": 33
   },
   {
-   "area": "Snow",
+   "area": "Open sea",
    "character": "BOSS_IceNarwhal",
    "level": 55,
    "row": 34
   },
   {
-   "area": "Snow",
+   "area": "Astral Mountains",
    "character": "BOSS_IceHorse",
    "level": 60,
    "row": 35
@@ -277,181 +277,181 @@
    "row": 45
   },
   {
-   "area": "King Whale",
+   "area": "Verdant Stream (2)",
    "character": "BOSS_Anubis",
    "level": 55,
    "row": 46
   },
   {
-   "area": "Windswept (start)",
+   "area": "Windswept Island",
    "character": "BOSS_GrassMammoth",
    "level": 38,
    "row": 47
   },
   {
-   "area": "Windswept (start)",
+   "area": "Windswept Island",
    "character": "BOSS_WeaselDragon",
    "level": 11,
    "row": 48
   },
   {
-   "area": "Volcano (Electric)",
+   "area": "Bamboo Groves",
    "character": "BOSS_FengyunDeeper",
    "level": 25,
    "row": 49
   },
   {
-   "area": "Windswept (start)",
+   "area": "Sea Breeze Archipelago",
    "character": "BOSS_Kirin",
    "level": 31,
    "row": 50
   },
   {
-   "area": "King Whale",
+   "area": "Verdant Stream",
    "character": "BOSS_ThunderBird",
    "level": 37,
    "row": 51
   },
   {
-   "area": "Forest",
+   "area": "Isles of Silence",
    "character": "BOSS_BlueDragon",
    "level": 40,
    "row": 52
   },
   {
-   "area": "Windswept (start)",
+   "area": "Marsh Island",
    "character": "BOSS_NaughtyCat",
    "level": 17,
    "row": 53
   },
   {
-   "area": "Windswept (start)",
+   "area": "Windswept Island",
    "character": "BOSS_KingAlpaca",
    "level": 23,
    "row": 54
   },
   {
-   "area": "Windswept (start)",
+   "area": "Sea Breeze Archipelago",
    "character": "BOSS_SakuraSaurus",
    "level": 23,
    "row": 55
   },
   {
-   "area": "Forest",
+   "area": "Marsh Island",
    "character": "BOSS_Umihebi",
    "level": 55,
    "row": 56
   },
   {
-   "area": "Forest",
+   "area": "Crescent Moon Shore",
    "character": "BOSS_FairyDragon",
    "level": 30,
    "row": 57
   },
   {
-   "area": "Isle of Silence",
+   "area": "Isles of Silence",
    "character": "Boss_LazyCatFish",
    "level": 14,
    "row": 58
   },
   {
-   "area": "Isle of Silence",
+   "area": "Isles of Silence",
    "character": "BOSS_HawkBird",
    "level": 18,
    "row": 59
   },
   {
-   "area": "King Whale",
+   "area": "Isles of Silence",
    "character": "BOSS_PurpleSpider",
    "level": 35,
    "row": 60
   },
   {
-   "area": "Windswept (start)",
+   "area": "Sea Breeze Archipelago",
    "character": "BOSS_PlantSlime",
    "level": 11,
    "row": 61
   },
   {
-   "area": "Windswept (start)",
+   "area": "Sea Breeze Archipelago",
    "character": "BOSS_MopKing",
    "level": 11,
    "row": 62
   },
   {
-   "area": "Windswept (start)",
+   "area": "Marsh Island",
    "character": "BOSS_GrassPanda_Electric",
    "level": 31,
    "row": 63
   },
   {
-   "area": "Windswept (start)",
+   "area": "Marsh Island",
    "character": "BOSS_Yeti_Grass",
    "level": 38,
    "row": 64
   },
   {
-   "area": "Forest",
+   "area": "Verdant Stream",
    "character": "BOSS_QueenBee",
    "level": 39,
    "row": 65
   },
   {
-   "area": "Outer Isles II",
+   "area": "Mount Obsidian",
    "character": "BOSS_WingGolem",
    "level": 55,
    "row": 66
   },
   {
-   "area": "Volcano (Electric)",
+   "area": "Mount Obsidian",
    "character": "BOSS_VolcanicMonster",
    "level": 50,
    "row": 67
   },
   {
-   "area": "Volcano (Electric)",
+   "area": "Mount Obsidian",
    "character": "BOSS_KingBahamut",
    "level": 52,
    "row": 68
   },
   {
-   "area": "Outer Isles II",
+   "area": "Mount Obsidian",
    "character": "BOSS_BlackMetalDragon",
    "level": 55,
    "row": 69
   },
   {
-   "area": "Outer Isles I",
+   "area": "Crescent Moon Shore (2)",
    "character": "BOSS_ElecPanda",
    "level": 30,
    "row": 70
   },
   {
-   "area": "Outer Isles III",
+   "area": "Desiccated Dunes",
    "character": "BOSS_IceHorse_Dark",
    "level": 65,
    "row": 71
   },
   {
-   "area": "Outer Isles III",
+   "area": "Astral Mountains (2)",
    "character": "BOSS_PoseidonOrca",
    "level": 60,
    "row": 105
   },
   {
-   "area": "Forest",
+   "area": "Verdant Stream",
    "character": "BOSS_GrassRabbitMan",
    "level": 35,
    "row": 106
   },
   {
-   "area": "Windswept (start)",
+   "area": "Bamboo Groves",
    "character": "BOSS_CaptainPenguin",
    "level": 15,
    "row": 107
   },
   {
-   "area": "Windswept (start)",
+   "area": "Sea Breeze Archipelago",
    "character": "BOSS_BerryGoat_Dark",
    "level": 23,
    "row": 108
@@ -469,31 +469,31 @@
    "row": 110
   },
   {
-   "area": "Forest",
+   "area": "Crescent Moon Shore",
    "character": "BOSS_FoxMage",
    "level": 28,
    "row": 111
   },
   {
-   "area": "Windswept (start)",
+   "area": "Marsh Island",
    "character": "Boss_IceFox",
    "level": 15,
    "row": 112
   },
   {
-   "area": "Forest",
+   "area": "Verdant Stream",
    "character": "BOSS_Mutant",
    "level": 35,
    "row": 113
   },
   {
-   "area": "Desert",
+   "area": "Verdant Stream",
    "character": "BOSS_WhiteMoth",
    "level": 40,
    "row": 114
   },
   {
-   "area": "Forest",
+   "area": "Crescent Moon Shore",
    "character": "BOSS_VioletFairy",
    "level": 27,
    "row": 115
@@ -505,7 +505,7 @@
    "row": 116
   },
   {
-   "area": "Forest",
+   "area": "Bamboo Groves",
    "character": "BOSS_Ronin",
    "level": 25,
    "row": 117
@@ -517,13 +517,13 @@
    "row": 118
   },
   {
-   "area": "Isle of Silence",
+   "area": "Isles of Silence",
    "character": "BOSS_Manticore",
    "level": 30,
    "row": 119
   },
   {
-   "area": "Forest",
+   "area": "Bamboo Groves",
    "character": "BOSS_FlameBuffalo",
    "level": 15,
    "row": 120
@@ -535,26 +535,102 @@
    "row": 121
   },
   {
-   "area": "Isle of Silence",
+   "area": "Isles of Silence",
    "character": "BOSS_Kitsunebi_Ice",
    "level": 15,
    "row": 122
   }
  ],
  "areas": {
-  "Desert": {
+  "Astral Mountains": {
    "alphas": [
-    40,
-    44,
-    45,
-    47,
-    55,
+    46,
     60
    ],
-   "effigies": 45,
-   "fast_travel": 17,
+   "effigies": 48,
+   "fast_travel": 12,
+   "levels": 39.333333333333336,
+   "spawners": 457
+  },
+  "Astral Mountains (2)": {
+   "alphas": [
+    60
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 55.0,
+   "spawners": 8
+  },
+  "Bamboo Groves": {
+   "alphas": [
+    15,
+    15,
+    25,
+    25
+   ],
+   "effigies": 14,
+   "fast_travel": 13,
+   "levels": 15.15,
+   "spawners": 393
+  },
+  "Crescent Moon Shore": {
+   "alphas": [
+    27,
+    28,
+    30
+   ],
+   "effigies": 18,
+   "fast_travel": 8,
+   "levels": 23.0,
+   "spawners": 390
+  },
+  "Crescent Moon Shore (2)": {
+   "alphas": [
+    30
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 22.916666666666668,
+   "spawners": 12
+  },
+  "Crescent Moon Shore (3)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Desiccated Dunes": {
+   "alphas": [
+    44,
+    45,
+    50,
+    55,
+    60,
+    65
+   ],
+   "effigies": 41,
+   "fast_travel": 16,
    "levels": 35.60526315789474,
-   "spawners": 773
+   "spawners": 745
+  },
+  "Desiccated Dunes (2)": {
+   "alphas": [
+    55
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 52.0,
+   "spawners": 14
+  },
+  "Desiccated Dunes (3)": {
+   "alphas": [
+    40
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 35.75,
+   "spawners": 14
   },
   "Feybreak": {
    "alphas": [
@@ -583,89 +659,80 @@
    "levels": 62.285714285714285,
    "spawners": 1646
   },
-  "Forest": {
+  "Feybreak (2)": {
    "alphas": [
-    15,
-    25,
-    27,
-    28,
-    30,
-    35,
-    35,
-    39,
-    40,
-    55
+    70
    ],
-   "effigies": 41,
-   "fast_travel": 20,
-   "levels": 23.0,
-   "spawners": 795
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 66.5,
+   "spawners": 37
   },
-  "Isle of Silence": {
+  "Feybreak (3)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 63.0,
+   "spawners": 9
+  },
+  "Feybreak (4)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 67.375,
+   "spawners": 36
+  },
+  "Isles of Silence": {
    "alphas": [
     14,
     15,
     18,
-    30
-   ],
-   "effigies": 7,
-   "fast_travel": 7,
-   "levels": 10.357142857142858,
-   "spawners": 451
-  },
-  "King Whale": {
-   "alphas": [
+    30,
     35,
-    37,
-    55
-   ],
-   "effigies": 26,
-   "fast_travel": 13,
-   "levels": 33.75,
-   "spawners": 473
-  },
-  "Outer Isles I": {
-   "alphas": [
-    30
-   ],
-   "effigies": 0,
-   "fast_travel": 2,
-   "levels": 22.916666666666668,
-   "spawners": 26
-  },
-  "Outer Isles II": {
-   "alphas": [
-    40,
-    55,
-    55
+    40
    ],
    "effigies": 10,
-   "fast_travel": 4,
-   "levels": 35.0,
-   "spawners": 66
+   "fast_travel": 10,
+   "levels": 14.0,
+   "spawners": 610
   },
-  "Outer Isles III": {
+  "Marsh Island": {
+   "alphas": [
+    15,
+    17,
+    31,
+    38,
+    55
+   ],
+   "effigies": 6,
+   "fast_travel": 10,
+   "levels": 11.3125,
+   "spawners": 343
+  },
+  "Mount Obsidian": {
    "alphas": [
     50,
+    52,
     55,
-    60,
-    65
+    55
    ],
-   "effigies": 4,
-   "fast_travel": 5,
-   "levels": 52.0,
-   "spawners": 84
+   "effigies": 23,
+   "fast_travel": 7,
+   "levels": 36.833333333333336,
+   "spawners": 276
   },
-  "Outer Isles IV": {
+  "Open sea": {
    "alphas": [
-    70,
-    70,
-    70
+    55
    ],
-   "effigies": 3,
-   "fast_travel": 3,
-   "levels": 66.5,
-   "spawners": 82
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": null,
+   "spawners": 0
   },
   "Sakurajima": {
    "alphas": [
@@ -673,10 +740,30 @@
     58,
     58
    ],
-   "effigies": 44,
-   "fast_travel": 9,
+   "effigies": 46,
+   "fast_travel": 8,
    "levels": 47.875,
-   "spawners": 380
+   "spawners": 385
+  },
+  "Sakurajima (2)": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 57.5,
+   "spawners": 27
+  },
+  "Sea Breeze Archipelago": {
+   "alphas": [
+    11,
+    11,
+    23,
+    23,
+    31
+   ],
+   "effigies": 1,
+   "fast_travel": 5,
+   "levels": 11.625,
+   "spawners": 324
   },
   "Sky Islands": {
    "alphas": [
@@ -694,48 +781,67 @@
    "levels": 66.125,
    "spawners": 336
   },
-  "Snow": {
+  "Verdant Stream": {
    "alphas": [
-    46,
-    55,
-    60
+    35,
+    35,
+    37,
+    39,
+    40,
+    47
    ],
-   "effigies": 32,
-   "fast_travel": 7,
-   "levels": 40.5,
-   "spawners": 266
+   "effigies": 20,
+   "fast_travel": 8,
+   "levels": 33.642857142857146,
+   "spawners": 279
   },
-  "Volcano (Electric)": {
+  "Verdant Stream (2)": {
    "alphas": [
-    25,
-    50,
-    52
+    55
    ],
-   "effigies": 39,
-   "fast_travel": 13,
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 33.75,
+   "spawners": 99
+  },
+  "Volcano Foothills": {
+   "alphas": [],
+   "effigies": 13,
+   "fast_travel": 6,
    "levels": 34.166666666666664,
-   "spawners": 519
+   "spawners": 151
   },
-  "Windswept (start)": {
+  "Volcano Foothills (2)": {
+   "alphas": [],
+   "effigies": 8,
+   "fast_travel": 3,
+   "levels": 26.071428571428573,
+   "spawners": 96
+  },
+  "Volcano Foothills (3)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 16.7,
+   "spawners": 8
+  },
+  "Windswept Island": {
    "alphas": [
     11,
-    11,
-    11,
-    15,
-    15,
-    17,
     23,
-    23,
-    23,
-    31,
-    31,
-    38,
     38
    ],
-   "effigies": 17,
-   "fast_travel": 21,
-   "levels": 11.2,
-   "spawners": 1018
+   "effigies": 12,
+   "fast_travel": 4,
+   "levels": 8.833333333333334,
+   "spawners": 217
+  },
+  "Windswept Island (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 11.3125,
+   "spawners": 3
   },
   "World Tree": {
    "alphas": [
@@ -748,37 +854,295 @@
     79
    ],
    "effigies": 47,
-   "fast_travel": 17,
+   "fast_travel": 18,
    "levels": 76.57142857142857,
    "spawners": 418
   }
  },
+ "borders": [
+  [
+   "Astral Mountains",
+   "Crescent Moon Shore"
+  ],
+  [
+   "Astral Mountains",
+   "Crescent Moon Shore (3)"
+  ],
+  [
+   "Astral Mountains",
+   "Desiccated Dunes"
+  ],
+  [
+   "Astral Mountains",
+   "Isles of Silence"
+  ],
+  [
+   "Astral Mountains",
+   "Open sea"
+  ],
+  [
+   "Astral Mountains",
+   "Sakurajima"
+  ],
+  [
+   "Astral Mountains",
+   "Verdant Stream"
+  ],
+  [
+   "Astral Mountains",
+   "Verdant Stream (2)"
+  ],
+  [
+   "Astral Mountains (2)",
+   "Desiccated Dunes"
+  ],
+  [
+   "Astral Mountains (2)",
+   "Open sea"
+  ],
+  [
+   "Bamboo Groves",
+   "Crescent Moon Shore"
+  ],
+  [
+   "Bamboo Groves",
+   "Isles of Silence"
+  ],
+  [
+   "Bamboo Groves",
+   "Marsh Island"
+  ],
+  [
+   "Bamboo Groves",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Bamboo Groves",
+   "Volcano Foothills (2)"
+  ],
+  [
+   "Bamboo Groves",
+   "Windswept Island"
+  ],
+  [
+   "Bamboo Groves",
+   "Windswept Island (2)"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Isles of Silence"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Marsh Island"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Verdant Stream"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Verdant Stream (2)"
+  ],
+  [
+   "Crescent Moon Shore (2)",
+   "Open sea"
+  ],
+  [
+   "Crescent Moon Shore (2)",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Crescent Moon Shore (2)",
+   "Windswept Island"
+  ],
+  [
+   "Crescent Moon Shore (3)",
+   "Isles of Silence"
+  ],
+  [
+   "Crescent Moon Shore (3)",
+   "Verdant Stream (2)"
+  ],
+  [
+   "Desiccated Dunes",
+   "Marsh Island"
+  ],
+  [
+   "Desiccated Dunes",
+   "Open sea"
+  ],
+  [
+   "Desiccated Dunes",
+   "Verdant Stream"
+  ],
+  [
+   "Desiccated Dunes (2)",
+   "Open sea"
+  ],
+  [
+   "Desiccated Dunes (3)",
+   "Open sea"
+  ],
+  [
+   "Feybreak",
+   "Mount Obsidian"
+  ],
+  [
+   "Feybreak",
+   "Open sea"
+  ],
+  [
+   "Feybreak",
+   "Sky Islands"
+  ],
+  [
+   "Feybreak",
+   "Volcano Foothills"
+  ],
+  [
+   "Feybreak (2)",
+   "Open sea"
+  ],
+  [
+   "Feybreak (3)",
+   "Open sea"
+  ],
+  [
+   "Feybreak (4)",
+   "Open sea"
+  ],
+  [
+   "Feybreak (5)",
+   "Open sea"
+  ],
+  [
+   "Feybreak (6)",
+   "Open sea"
+  ],
+  [
+   "Isles of Silence",
+   "Mount Obsidian"
+  ],
+  [
+   "Isles of Silence",
+   "Sakurajima"
+  ],
+  [
+   "Isles of Silence",
+   "Verdant Stream (2)"
+  ],
+  [
+   "Isles of Silence",
+   "Volcano Foothills (2)"
+  ],
+  [
+   "Marsh Island",
+   "Open sea"
+  ],
+  [
+   "Marsh Island",
+   "Verdant Stream"
+  ],
+  [
+   "Marsh Island",
+   "Windswept Island"
+  ],
+  [
+   "Mount Obsidian",
+   "Open sea"
+  ],
+  [
+   "Mount Obsidian",
+   "Sakurajima"
+  ],
+  [
+   "Mount Obsidian",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Mount Obsidian",
+   "Volcano Foothills"
+  ],
+  [
+   "Mount Obsidian",
+   "Volcano Foothills (2)"
+  ],
+  [
+   "Open sea",
+   "Sakurajima"
+  ],
+  [
+   "Open sea",
+   "Sakurajima (2)"
+  ],
+  [
+   "Open sea",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Open sea",
+   "Sky Islands"
+  ],
+  [
+   "Open sea",
+   "Volcano Foothills"
+  ],
+  [
+   "Open sea",
+   "Volcano Foothills (3)"
+  ],
+  [
+   "Open sea",
+   "Windswept Island"
+  ],
+  [
+   "Open sea",
+   "World Tree"
+  ],
+  [
+   "Sea Breeze Archipelago",
+   "Volcano Foothills"
+  ],
+  [
+   "Sea Breeze Archipelago",
+   "Volcano Foothills (2)"
+  ],
+  [
+   "Sea Breeze Archipelago",
+   "Windswept Island"
+  ],
+  [
+   "Sea Breeze Archipelago",
+   "Windswept Island (2)"
+  ]
+ ],
  "fast_travel": {
-  "BOSS_KingWhale": "King Whale",
-  "Boss_Forest": "Forest",
-  "FTPoint1": "Volcano (Electric)",
-  "FTPoint100": "King Whale",
-  "FTPoint101": "Desert",
-  "FTPoint102": "Desert",
-  "FTPoint103": "Desert",
-  "FTPoint104": "Desert",
-  "FTPoint105": "Desert",
-  "FTPoint106": "Desert",
-  "FTPoint107": "Desert",
-  "FTPoint108": "Desert",
-  "FTPoint109": "Volcano (Electric)",
-  "FTPoint11": "Desert",
-  "FTPoint110": "Volcano (Electric)",
-  "FTPoint111": "Volcano (Electric)",
-  "FTPoint112": "Volcano (Electric)",
-  "FTPoint113": "Snow",
-  "FTPoint114": "Snow",
-  "FTPoint115": "King Whale",
+  "BOSS_KingWhale": "Crescent Moon Shore (3)",
+  "Boss_Forest": "Crescent Moon Shore",
+  "FTPoint1": "Mount Obsidian",
+  "FTPoint100": "Verdant Stream",
+  "FTPoint101": "Desiccated Dunes",
+  "FTPoint102": "Desiccated Dunes",
+  "FTPoint103": "Desiccated Dunes",
+  "FTPoint104": "Desiccated Dunes",
+  "FTPoint105": "Desiccated Dunes",
+  "FTPoint106": "Desiccated Dunes",
+  "FTPoint107": "Desiccated Dunes",
+  "FTPoint108": "Desiccated Dunes",
+  "FTPoint109": "Volcano Foothills (2)",
+  "FTPoint11": "Verdant Stream",
+  "FTPoint110": "Mount Obsidian",
+  "FTPoint111": "Volcano Foothills",
+  "FTPoint112": "Volcano Foothills (2)",
+  "FTPoint113": "Astral Mountains",
+  "FTPoint114": "Astral Mountains",
+  "FTPoint115": "Astral Mountains",
   "FTPoint116": "Sakurajima",
   "FTPoint117": "Feybreak",
   "FTPoint118": "Feybreak",
   "FTPoint119": "Feybreak",
-  "FTPoint12": "Desert",
+  "FTPoint12": "Desiccated Dunes",
   "FTPoint120": "Feybreak",
   "FTPoint121": "Feybreak",
   "FTPoint122": "Feybreak",
@@ -789,64 +1153,64 @@
   "FTPoint127": "Feybreak",
   "FTPoint128": "Feybreak",
   "FTPoint129": "Feybreak",
-  "FTPoint13": "Desert",
-  "FTPoint14": "King Whale",
-  "FTPoint15": "King Whale",
-  "FTPoint16": "King Whale",
-  "FTPoint17": "Snow",
-  "FTPoint18": "Snow",
-  "FTPoint20": "Snow",
-  "FTPoint21": "Windswept (start)",
-  "FTPoint22": "Windswept (start)",
-  "FTPoint23": "Windswept (start)",
-  "FTPoint24": "Windswept (start)",
-  "FTPoint25": "Forest",
-  "FTPoint26": "Volcano (Electric)",
-  "FTPoint27": "Windswept (start)",
-  "FTPoint28": "Windswept (start)",
-  "FTPoint29": "Forest",
-  "FTPoint3": "Volcano (Electric)",
-  "FTPoint30": "King Whale",
-  "FTPoint31": "Forest",
-  "FTPoint32": "Forest",
-  "FTPoint33": "Forest",
-  "FTPoint34": "Forest",
-  "FTPoint35": "Forest",
-  "FTPoint36": "King Whale",
-  "FTPoint37": "King Whale",
-  "FTPoint38": "Desert",
-  "FTPoint39": "Forest",
-  "FTPoint4": "Volcano (Electric)",
-  "FTPoint40": "Forest",
-  "FTPoint41": "Forest",
-  "FTPoint42": "Forest",
-  "FTPoint43": "King Whale",
-  "FTPoint44": "Isle of Silence",
-  "FTPoint45": "Windswept (start)",
-  "FTPoint48": "Snow",
-  "FTPoint49": "Isle of Silence",
-  "FTPoint5": "Volcano (Electric)",
-  "FTPoint50": "Isle of Silence",
-  "FTPoint51": "Isle of Silence",
-  "FTPoint52": "Windswept (start)",
-  "FTPoint53": "Windswept (start)",
-  "FTPoint54": "Windswept (start)",
-  "FTPoint55": "Windswept (start)",
-  "FTPoint56": "Windswept (start)",
-  "FTPoint57": "Windswept (start)",
-  "FTPoint58": "Windswept (start)",
-  "FTPoint59": "Isle of Silence",
-  "FTPoint6": "Volcano (Electric)",
-  "FTPoint60": "Windswept (start)",
-  "FTPoint61": "Windswept (start)",
-  "FTPoint62": "Forest",
-  "FTPoint63": "Desert",
+  "FTPoint13": "Desiccated Dunes",
+  "FTPoint14": "Astral Mountains",
+  "FTPoint15": "Astral Mountains",
+  "FTPoint16": "Astral Mountains",
+  "FTPoint17": "Astral Mountains",
+  "FTPoint18": "Astral Mountains",
+  "FTPoint20": "Astral Mountains",
+  "FTPoint21": "Windswept Island",
+  "FTPoint22": "Bamboo Groves",
+  "FTPoint23": "Windswept Island",
+  "FTPoint24": "Bamboo Groves",
+  "FTPoint25": "Bamboo Groves",
+  "FTPoint26": "Volcano Foothills (2)",
+  "FTPoint27": "Bamboo Groves",
+  "FTPoint28": "Bamboo Groves",
+  "FTPoint29": "Bamboo Groves",
+  "FTPoint3": "Mount Obsidian",
+  "FTPoint30": "Isles of Silence",
+  "FTPoint31": "Crescent Moon Shore",
+  "FTPoint32": "Crescent Moon Shore",
+  "FTPoint33": "Crescent Moon Shore",
+  "FTPoint34": "Crescent Moon Shore",
+  "FTPoint35": "Verdant Stream",
+  "FTPoint36": "Verdant Stream",
+  "FTPoint37": "Verdant Stream",
+  "FTPoint38": "Verdant Stream",
+  "FTPoint39": "Verdant Stream",
+  "FTPoint4": "Volcano Foothills",
+  "FTPoint40": "Crescent Moon Shore",
+  "FTPoint41": "Crescent Moon Shore",
+  "FTPoint42": "Bamboo Groves",
+  "FTPoint43": "Isles of Silence",
+  "FTPoint44": "Isles of Silence",
+  "FTPoint45": "Windswept Island",
+  "FTPoint48": "Astral Mountains",
+  "FTPoint49": "Isles of Silence",
+  "FTPoint5": "Volcano Foothills",
+  "FTPoint50": "Isles of Silence",
+  "FTPoint51": "Isles of Silence",
+  "FTPoint52": "Sea Breeze Archipelago",
+  "FTPoint53": "Sea Breeze Archipelago",
+  "FTPoint54": "Sea Breeze Archipelago",
+  "FTPoint55": "Marsh Island",
+  "FTPoint56": "Marsh Island",
+  "FTPoint57": "Marsh Island",
+  "FTPoint58": "Marsh Island",
+  "FTPoint59": "Isles of Silence",
+  "FTPoint6": "Volcano Foothills",
+  "FTPoint60": "Marsh Island",
+  "FTPoint61": "Bamboo Groves",
+  "FTPoint62": "Bamboo Groves",
+  "FTPoint63": "Desiccated Dunes",
   "FTPoint64": "Sakurajima",
   "FTPoint65": "Sakurajima",
   "FTPoint67": "Sakurajima",
   "FTPoint68": "Sakurajima",
   "FTPoint69": "Sakurajima",
-  "FTPoint7": "Volcano (Electric)",
+  "FTPoint7": "Mount Obsidian",
   "FTPoint70": "Sakurajima",
   "FTPoint71": "Feybreak",
   "FTPoint72": "Feybreak",
@@ -856,61 +1220,61 @@
   "FTPoint76": "Feybreak",
   "FTPoint78": "Feybreak",
   "FTPoint79": "Feybreak",
-  "FTPoint8": "Outer Isles II",
+  "FTPoint8": "Mount Obsidian",
   "FTPoint80": "Feybreak",
   "FTPoint81": "Feybreak",
   "FTPoint83": "Feybreak",
-  "FTPoint84": "Outer Isles I",
-  "FTPoint85": "Outer Isles III",
-  "FTPoint86": "Outer Isles III",
-  "FTPoint87": "Outer Isles I",
-  "FTPoint88": "Outer Isles II",
-  "FTPoint89": "Windswept (start)",
-  "FTPoint9": "Desert",
-  "FTPoint90": "Outer Isles II",
-  "FTPoint91": "Isle of Silence",
-  "FTPoint92": "King Whale",
-  "FTPoint93": "Forest",
-  "FTPoint94": "King Whale",
-  "FTPoint95": "Forest",
-  "FTPoint96": "Windswept (start)",
-  "FTPoint97": "Desert",
-  "FTPoint98": "Forest",
-  "FTPoint99": "Forest",
-  "FootOfWorldTree": "Sakurajima",
-  "New_SmallIsland01": "Outer Isles III",
-  "New_SmallIsland02": "Outer Isles III",
-  "New_SmallIsland03": "Outer Isles II",
-  "New_SmallIsland04": "Outer Isles IV",
-  "New_SmallIsland05": "Outer Isles IV",
-  "New_SmallIsland06": "Outer Isles IV",
-  "New_SmallIsland07": "Outer Isles III",
+  "FTPoint84": "Windswept Island",
+  "FTPoint85": "Desiccated Dunes",
+  "FTPoint86": "Astral Mountains (2)",
+  "FTPoint87": "Volcano Foothills (3)",
+  "FTPoint88": "Mount Obsidian",
+  "FTPoint89": "Marsh Island",
+  "FTPoint9": "Desiccated Dunes",
+  "FTPoint90": "Volcano Foothills",
+  "FTPoint91": "Isles of Silence",
+  "FTPoint92": "Verdant Stream (2)",
+  "FTPoint93": "Bamboo Groves",
+  "FTPoint94": "Isles of Silence",
+  "FTPoint95": "Bamboo Groves",
+  "FTPoint96": "Sea Breeze Archipelago",
+  "FTPoint97": "Marsh Island",
+  "FTPoint98": "Marsh Island",
+  "FTPoint99": "Marsh Island",
+  "FootOfWorldTree": "World Tree",
+  "New_SmallIsland01": "Desiccated Dunes (2)",
+  "New_SmallIsland02": "Desiccated Dunes",
+  "New_SmallIsland03": "Desiccated Dunes (3)",
+  "New_SmallIsland04": "Feybreak (2)",
+  "New_SmallIsland05": "Feybreak (3)",
+  "New_SmallIsland06": "Feybreak (4)",
+  "New_SmallIsland07": "Sakurajima (2)",
   "SkyIsland_A": "Sky Islands",
   "SkyIsland_B": "Sky Islands",
   "SkyIsland_BOSS": "Sky Islands",
   "SkyIsland_C": "Sky Islands",
   "SkyIsland_D": "Sky Islands",
   "SkyIsland_E": "Sky Islands",
-  "WatchTower_1": "Windswept (start)",
-  "WatchTower_10": "Windswept (start)",
-  "WatchTower_11": "Isle of Silence",
+  "WatchTower_1": "Bamboo Groves",
+  "WatchTower_10": "Sea Breeze Archipelago",
+  "WatchTower_11": "Isles of Silence",
   "WatchTower_12": "Sakurajima",
-  "WatchTower_13": "Volcano (Electric)",
-  "WatchTower_15": "Volcano (Electric)",
+  "WatchTower_13": "Mount Obsidian",
+  "WatchTower_15": "Volcano Foothills",
   "WatchTower_17": "Feybreak",
   "WatchTower_18": "Feybreak",
   "WatchTower_19": "Feybreak",
-  "WatchTower_2": "Windswept (start)",
+  "WatchTower_2": "Marsh Island",
   "WatchTower_20": "Feybreak",
   "WatchTower_21": "Feybreak",
   "WatchTower_22": "Sky Islands",
-  "WatchTower_3": "Forest",
-  "WatchTower_4": "Desert",
-  "WatchTower_5": "Desert",
-  "WatchTower_6": "Forest",
-  "WatchTower_7": "King Whale",
-  "WatchTower_8": "Snow",
-  "WatchTower_9": "Forest",
+  "WatchTower_3": "Crescent Moon Shore",
+  "WatchTower_4": "Desiccated Dunes",
+  "WatchTower_5": "Desiccated Dunes",
+  "WatchTower_6": "Verdant Stream",
+  "WatchTower_7": "Astral Mountains",
+  "WatchTower_8": "Astral Mountains",
+  "WatchTower_9": "Bamboo Groves",
   "WatchTower_WorldTree_1": "World Tree",
   "WatchTower_WorldTree_2": "World Tree",
   "WorldTree_A": "World Tree",
@@ -931,485 +1295,594 @@
  },
  "paldeck": {
   "001": {
-   "Windswept (start)": 1
+   "Bamboo Groves": 1,
+   "Marsh Island": 1,
+   "Sea Breeze Archipelago": 1,
+   "Verdant Stream": 1,
+   "Windswept Island": 1,
+   "Windswept Island (2)": 1
   },
   "002": {
-   "Isle of Silence": 1,
-   "Windswept (start)": 1
+   "Bamboo Groves": 3,
+   "Isles of Silence": 1,
+   "Sea Breeze Archipelago": 1,
+   "Windswept Island": 1,
+   "Windswept Island (2)": 1
   },
   "003": {
-   "Windswept (start)": 1
+   "Bamboo Groves": 1,
+   "Marsh Island": 1,
+   "Verdant Stream": 1,
+   "Windswept Island": 1
   },
   "004": {
-   "Isle of Silence": 4,
-   "Windswept (start)": 1
+   "Bamboo Groves": 4,
+   "Isles of Silence": 4,
+   "Marsh Island": 1,
+   "Sea Breeze Archipelago": 4,
+   "Windswept Island": 5
   },
   "005": {
-   "Windswept (start)": 10
+   "Bamboo Groves": 10,
+   "Marsh Island": 10
   },
   "005B": {
-   "Volcano (Electric)": 32
+   "Mount Obsidian": 32
   },
   "006": {
-   "Windswept (start)": 1
+   "Sea Breeze Archipelago": 1,
+   "Windswept Island": 5
   },
   "007": {
-   "Isle of Silence": 2,
-   "Windswept (start)": 2
+   "Bamboo Groves": 2,
+   "Isles of Silence": 2,
+   "Marsh Island": 2,
+   "Sea Breeze Archipelago": 2,
+   "Windswept Island": 2
   },
   "007B": {
-   "Desert": 26,
-   "King Whale": 26
+   "Astral Mountains": 26,
+   "Desiccated Dunes": 26,
+   "Verdant Stream": 26
   },
   "008": {
-   "Isle of Silence": 1,
-   "Windswept (start)": 1
+   "Isles of Silence": 1,
+   "Marsh Island": 1,
+   "Sea Breeze Archipelago": 1,
+   "Windswept Island (2)": 1
   },
   "009": {
-   "Isle of Silence": 47,
+   "Bamboo Groves": 4,
+   "Marsh Island": 10,
    "Sakurajima": 47,
-   "Windswept (start)": 4
+   "Windswept Island": 4
   },
   "009B": {
    "Feybreak": 61
   },
   "010": {
-   "Isle of Silence": 10,
-   "Outer Isles I": 1,
-   "Outer Isles II": 32,
-   "Outer Isles III": 40,
-   "Windswept (start)": 5
+   "Desiccated Dunes": 40,
+   "Isles of Silence": 10,
+   "Verdant Stream (2)": 10,
+   "Volcano Foothills": 32,
+   "Windswept Island": 1
   },
   "011": {
-   "Isle of Silence": 2,
-   "Windswept (start)": 2
+   "Isles of Silence": 2,
+   "Marsh Island": 2,
+   "Sea Breeze Archipelago": 2,
+   "Windswept Island": 2,
+   "Windswept Island (2)": 2
   },
   "012": {
-   "Windswept (start)": 2
+   "Bamboo Groves": 5,
+   "Marsh Island": 4,
+   "Windswept Island": 2
   },
   "013": {
-   "Windswept (start)": 2
+   "Windswept Island": 2
   },
   "014": {
-   "Windswept (start)": 3
+   "Bamboo Groves": 3,
+   "Windswept Island": 3
   },
   "015": {
-   "Windswept (start)": 4
+   "Bamboo Groves": 4,
+   "Windswept Island": 4
   },
   "015B": {
-   "Forest": 20,
-   "Outer Isles I": 10,
-   "Volcano (Electric)": 20
+   "Bamboo Groves": 20,
+   "Isles of Silence": 20,
+   "Volcano Foothills (3)": 10
   },
   "016": {
-   "Forest": 13,
-   "King Whale": 18,
-   "Volcano (Electric)": 13,
-   "Windswept (start)": 4
+   "Bamboo Groves": 5,
+   "Isles of Silence": 18,
+   "Marsh Island": 4,
+   "Verdant Stream": 4,
+   "Volcano Foothills (2)": 13,
+   "Windswept Island": 5
   },
   "017": {
-   "Isle of Silence": 2,
-   "King Whale": 35,
-   "Outer Isles I": 10,
-   "Snow": 35,
-   "Windswept (start)": 2
+   "Astral Mountains": 35,
+   "Bamboo Groves": 4,
+   "Isles of Silence": 2,
+   "Marsh Island": 2,
+   "Sea Breeze Archipelago": 2,
+   "Verdant Stream": 2,
+   "Volcano Foothills (3)": 10,
+   "Windswept Island": 2
   },
   "017B": {},
   "018": {
-   "King Whale": 39,
-   "Outer Isles I": 20,
-   "Snow": 39
+   "Astral Mountains": 39,
+   "Crescent Moon Shore (2)": 20,
+   "Volcano Foothills (3)": 22
   },
   "018B": {},
   "019": {
-   "Forest": 18,
-   "King Whale": 18,
-   "Volcano (Electric)": 18,
-   "Windswept (start)": 4
+   "Bamboo Groves": 5,
+   "Isles of Silence": 18,
+   "Sea Breeze Archipelago": 4,
+   "Volcano Foothills (2)": 18,
+   "Windswept Island": 5,
+   "Windswept Island (2)": 4
   },
   "020": {
-   "Windswept (start)": 7
+   "Bamboo Groves": 7,
+   "Marsh Island": 14,
+   "Sea Breeze Archipelago": 14,
+   "Verdant Stream": 14,
+   "Windswept Island": 7,
+   "Windswept Island (2)": 14
   },
   "021": {
    "World Tree": 80
   },
   "021B": {},
   "022": {
-   "Windswept (start)": 4
+   "Bamboo Groves": 4,
+   "Sea Breeze Archipelago": 12,
+   "Windswept Island": 4
   },
   "023": {
-   "Isle of Silence": 4,
-   "Windswept (start)": 4
+   "Bamboo Groves": 10,
+   "Isles of Silence": 4,
+   "Sea Breeze Archipelago": 4
   },
   "023B": {
-   "Windswept (start)": 10
+   "Bamboo Groves": 10
   },
   "024": {
-   "Isle of Silence": 4,
-   "Windswept (start)": 5
+   "Isles of Silence": 4,
+   "Windswept Island": 5
   },
   "025": {
-   "Desert": 10,
-   "Forest": 10,
-   "Isle of Silence": 4,
-   "Volcano (Electric)": 18,
-   "Windswept (start)": 4
+   "Bamboo Groves": 4,
+   "Isles of Silence": 4,
+   "Marsh Island": 4,
+   "Mount Obsidian": 22,
+   "Sea Breeze Archipelago": 4,
+   "Volcano Foothills (2)": 18
   },
   "026": {
-   "Desert": 10,
-   "Forest": 10,
-   "Isle of Silence": 4,
-   "Windswept (start)": 4
+   "Bamboo Groves": 9,
+   "Isles of Silence": 4,
+   "Marsh Island": 4,
+   "Sea Breeze Archipelago": 4
   },
   "027": {},
   "027B": {},
   "028": {
-   "Windswept (start)": 5
+   "Bamboo Groves": 5,
+   "Marsh Island": 10,
+   "Sea Breeze Archipelago": 10,
+   "Windswept Island": 5
   },
   "029": {
-   "Windswept (start)": 5
+   "Bamboo Groves": 5,
+   "Windswept Island": 5
   },
   "029B": {
-   "King Whale": 30,
-   "Snow": 30
+   "Astral Mountains": 30
   },
   "030": {
-   "Feybreak": 56,
-   "King Whale": 34
+   "Astral Mountains": 34,
+   "Feybreak": 56
   },
   "030B": {
-   "Desert": 24,
-   "King Whale": 24
+   "Astral Mountains": 24,
+   "Desiccated Dunes": 24,
+   "Verdant Stream": 24
   },
   "031": {
-   "Desert": 31,
-   "King Whale": 28
+   "Desiccated Dunes": 31,
+   "Isles of Silence": 28,
+   "Verdant Stream": 31,
+   "Verdant Stream (2)": 28
   },
   "032": {
-   "Forest": 11,
-   "Volcano (Electric)": 11,
-   "Windswept (start)": 9,
+   "Bamboo Groves": 11,
+   "Marsh Island": 11,
+   "Volcano Foothills (2)": 11,
+   "Windswept Island": 9,
    "World Tree": 80
   },
   "032B": {
-   "Outer Isles I": 20,
+   "Crescent Moon Shore (2)": 20,
    "World Tree": 80
   },
   "033": {
-   "Forest": 10,
-   "Isle of Silence": 11,
-   "Volcano (Electric)": 10,
-   "Windswept (start)": 10
+   "Bamboo Groves": 10,
+   "Isles of Silence": 11,
+   "Marsh Island": 10,
+   "Sea Breeze Archipelago": 11,
+   "Verdant Stream (2)": 11,
+   "Volcano Foothills (2)": 10,
+   "Windswept Island": 10,
+   "Windswept Island (2)": 10
   },
   "034": {
-   "Forest": 20,
-   "Isle of Silence": 20,
-   "King Whale": 23,
-   "Windswept (start)": 14
+   "Astral Mountains": 23,
+   "Bamboo Groves": 14,
+   "Crescent Moon Shore": 20,
+   "Isles of Silence": 20,
+   "Marsh Island": 20,
+   "Verdant Stream": 20,
+   "Windswept Island": 14
   },
   "034B": {
    "Feybreak": 52
   },
   "035": {
-   "Forest": 18,
-   "King Whale": 18,
-   "Snow": 30
+   "Astral Mountains": 30,
+   "Bamboo Groves": 18,
+   "Crescent Moon Shore": 18,
+   "Isles of Silence": 18
   },
   "036": {
-   "Forest": 25,
-   "King Whale": 25,
-   "Snow": 37
+   "Astral Mountains": 37,
+   "Bamboo Groves": 25,
+   "Crescent Moon Shore": 25,
+   "Isles of Silence": 25
   },
   "037": {
-   "King Whale": 30,
-   "Volcano (Electric)": 34,
-   "Windswept (start)": 10
+   "Astral Mountains": 30,
+   "Marsh Island": 10,
+   "Mount Obsidian": 34
   },
   "037B": {
-   "Sakurajima": 46,
-   "Volcano (Electric)": 40
+   "Mount Obsidian": 40,
+   "Sakurajima": 46
   },
   "038": {
-   "Forest": 18,
-   "King Whale": 18,
-   "Volcano (Electric)": 18,
-   "Windswept (start)": 9
+   "Bamboo Groves": 9,
+   "Crescent Moon Shore": 18,
+   "Isles of Silence": 18,
+   "Volcano Foothills (2)": 18,
+   "Windswept Island": 9
   },
   "038B": {
-   "King Whale": 32,
-   "Snow": 32
+   "Astral Mountains": 32
   },
   "039": {
-   "Forest": 9,
-   "Volcano (Electric)": 9
+   "Bamboo Groves": 9,
+   "Volcano Foothills (2)": 9
   },
   "039B": {
-   "Outer Isles III": 55
+   "Sakurajima (2)": 55
   },
   "040": {
-   "Windswept (start)": 9
+   "Bamboo Groves": 9,
+   "Marsh Island": 10,
+   "Windswept Island": 9
   },
   "041": {
-   "Forest": 35,
+   "Bamboo Groves": 35,
+   "Isles of Silence": 35,
    "World Tree": 80
   },
   "041B": {
-   "Outer Isles III": 50,
+   "Astral Mountains (2)": 50,
    "World Tree": 80
   },
   "042": {
-   "Windswept (start)": 10
+   "Bamboo Groves": 10,
+   "Windswept Island": 10,
+   "Windswept Island (2)": 10
   },
   "043": {
-   "Isle of Silence": 10,
-   "Windswept (start)": 9
+   "Bamboo Groves": 9,
+   "Crescent Moon Shore": 9,
+   "Isles of Silence": 10,
+   "Marsh Island": 9,
+   "Sea Breeze Archipelago": 10,
+   "Volcano Foothills (2)": 10
   },
   "043B": {
-   "Volcano (Electric)": 20
+   "Mount Obsidian": 20,
+   "Volcano Foothills": 20
   },
   "044": {
-   "Forest": 22,
-   "Isle of Silence": 1,
-   "King Whale": 18,
-   "Volcano (Electric)": 18,
-   "Windswept (start)": 1
+   "Astral Mountains": 22,
+   "Bamboo Groves": 1,
+   "Crescent Moon Shore": 22,
+   "Isles of Silence": 1,
+   "Marsh Island": 1,
+   "Verdant Stream": 1,
+   "Volcano Foothills (2)": 18,
+   "Windswept Island": 1
   },
   "044B": {
-   "Forest": 18,
-   "King Whale": 20,
-   "Volcano (Electric)": 18
+   "Astral Mountains": 28,
+   "Bamboo Groves": 18,
+   "Crescent Moon Shore": 28,
+   "Isles of Silence": 18,
+   "Verdant Stream": 28,
+   "Volcano Foothills (2)": 20
   },
   "045": {
    "Feybreak": 50,
-   "Outer Isles I": 10
+   "Volcano Foothills (3)": 10
   },
   "046": {
    "Feybreak": 50,
-   "Outer Isles II": 30
+   "Mount Obsidian": 30
   },
   "047": {
-   "Sky Islands": 64,
-   "Windswept (start)": 9
+   "Bamboo Groves": 9,
+   "Sky Islands": 64
   },
   "048": {
    "Feybreak": 50,
-   "Windswept (start)": 10
+   "Marsh Island": 10
   },
   "048B": {
    "Sky Islands": 65
   },
   "049": {
-   "Forest": 16,
-   "Isle of Silence": 11
+   "Bamboo Groves": 16,
+   "Crescent Moon Shore": 16,
+   "Isles of Silence": 11,
+   "Verdant Stream (2)": 11
   },
   "050": {
-   "Windswept (start)": 11,
+   "Bamboo Groves": 11,
+   "Marsh Island": 11,
+   "Windswept Island": 11,
+   "Windswept Island (2)": 11,
    "World Tree": 71
   },
   "051": {
-   "Forest": 12,
-   "Isle of Silence": 12,
-   "Volcano (Electric)": 12,
-   "Windswept (start)": 12
+   "Bamboo Groves": 12,
+   "Isles of Silence": 12,
+   "Marsh Island": 12,
+   "Volcano Foothills (2)": 12
   },
   "052": {
-   "Windswept (start)": 12
+   "Bamboo Groves": 12,
+   "Marsh Island": 13,
+   "Windswept Island": 12,
+   "Windswept Island (2)": 12
   },
   "053": {
-   "Desert": 25,
-   "Forest": 20,
-   "King Whale": 25,
-   "Outer Isles II": 30,
-   "Sakurajima": 46
+   "Astral Mountains": 25,
+   "Crescent Moon Shore": 20,
+   "Desiccated Dunes": 25,
+   "Isles of Silence": 30,
+   "Sakurajima": 46,
+   "Verdant Stream": 20,
+   "Verdant Stream (2)": 30
   },
   "054": {
-   "Forest": 20,
-   "King Whale": 20,
+   "Bamboo Groves": 20,
+   "Isles of Silence": 20,
    "World Tree": 80
   },
   "054B": {
    "World Tree": 75
   },
   "055": {
-   "Forest": 20,
-   "Isle of Silence": 14,
-   "Volcano (Electric)": 22
+   "Crescent Moon Shore": 20,
+   "Isles of Silence": 14,
+   "Verdant Stream": 20,
+   "Volcano Foothills (2)": 22
   },
   "055B": {
-   "Outer Isles II": 36,
-   "Volcano (Electric)": 34
+   "Mount Obsidian": 34
   },
   "056": {
-   "Desert": 34,
-   "Forest": 14,
-   "Isle of Silence": 15,
-   "King Whale": 20,
-   "Volcano (Electric)": 14,
-   "Windswept (start)": 25
+   "Astral Mountains": 25,
+   "Bamboo Groves": 14,
+   "Crescent Moon Shore": 23,
+   "Isles of Silence": 15,
+   "Marsh Island": 25,
+   "Verdant Stream": 23,
+   "Verdant Stream (2)": 15,
+   "Volcano Foothills (2)": 14
   },
   "056B": {
-   "Feybreak": 64,
-   "King Whale": 40,
-   "Snow": 40
+   "Astral Mountains": 40,
+   "Desiccated Dunes": 40,
+   "Feybreak": 64
   },
   "057": {
-   "Desert": 28,
+   "Astral Mountains": 28,
+   "Bamboo Groves": 14,
+   "Crescent Moon Shore": 25,
+   "Desiccated Dunes": 28,
    "Feybreak": 56,
-   "Forest": 14,
-   "Isle of Silence": 15,
-   "King Whale": 20,
-   "Outer Isles II": 31,
+   "Isles of Silence": 15,
    "Sakurajima": 54,
-   "Volcano (Electric)": 14
+   "Verdant Stream": 28,
+   "Verdant Stream (2)": 15,
+   "Volcano Foothills (2)": 14
   },
   "058": {
-   "Forest": 20,
-   "Volcano (Electric)": 20,
-   "Windswept (start)": 20
+   "Crescent Moon Shore": 20,
+   "Marsh Island": 20,
+   "Mount Obsidian": 25,
+   "Sea Breeze Archipelago": 20,
+   "Verdant Stream": 20,
+   "Volcano Foothills (2)": 20
   },
   "059": {
-   "Forest": 15,
+   "Bamboo Groves": 15,
+   "Crescent Moon Shore": 15,
    "Sky Islands": 64
   },
   "060": {
-   "Forest": 16
+   "Bamboo Groves": 16,
+   "Crescent Moon Shore": 16
   },
   "061": {
-   "Forest": 16
+   "Bamboo Groves": 16,
+   "Crescent Moon Shore": 16
   },
   "062": {
-   "Forest": 18,
-   "Sky Islands": 64,
-   "Volcano (Electric)": 18
+   "Bamboo Groves": 18,
+   "Isles of Silence": 18,
+   "Sky Islands": 64
   },
   "063": {
-   "Forest": 25,
-   "Outer Isles I": 20,
+   "Bamboo Groves": 25,
+   "Crescent Moon Shore": 25,
+   "Crescent Moon Shore (2)": 20,
    "World Tree": 80
   },
   "063B": {
-   "Desert": 33,
-   "Forest": 33,
-   "King Whale": 33,
    "Sakurajima": 53,
+   "Verdant Stream": 33,
    "World Tree": 80
   },
   "064": {
+   "Bamboo Groves": 20,
    "Feybreak": 57,
-   "Forest": 20,
-   "King Whale": 30,
-   "Volcano (Electric)": 30
+   "Isles of Silence": 30,
+   "Mount Obsidian": 30,
+   "Volcano Foothills": 30
   },
   "064B": {
-   "Desert": 30,
+   "Astral Mountains": 36,
+   "Bamboo Groves": 23,
    "Feybreak": 65,
-   "Forest": 23,
-   "King Whale": 30,
-   "Snow": 36
+   "Isles of Silence": 33,
+   "Verdant Stream": 30
   },
   "065": {
    "Feybreak": 63
   },
   "066": {
-   "Outer Isles I": 20,
+   "Crescent Moon Shore (2)": 20,
    "Sakurajima": 55
   },
   "067": {
-   "Forest": 28,
-   "King Whale": 28
+   "Crescent Moon Shore": 28,
+   "Verdant Stream": 28
   },
   "068": {
-   "Forest": 34,
-   "King Whale": 34
+   "Crescent Moon Shore": 34,
+   "Verdant Stream": 34
   },
   "069": {
-   "Desert": 30,
-   "King Whale": 30,
-   "Outer Isles II": 34
+   "Astral Mountains": 30,
+   "Desiccated Dunes": 30,
+   "Isles of Silence": 34,
+   "Verdant Stream": 30,
+   "Verdant Stream (2)": 34
   },
   "070": {
-   "Desert": 32,
-   "Forest": 25,
-   "Isle of Silence": 46,
-   "King Whale": 25,
+   "Astral Mountains": 25,
+   "Bamboo Groves": 25,
+   "Crescent Moon Shore": 25,
+   "Marsh Island": 25,
    "Sakurajima": 46,
-   "Windswept (start)": 25
+   "Verdant Stream": 25
   },
   "071": {
-   "Forest": 32,
-   "King Whale": 32
+   "Crescent Moon Shore": 32,
+   "Verdant Stream": 32
   },
   "072": {
-   "King Whale": 35,
-   "Snow": 33
+   "Astral Mountains": 33
   },
   "072B": {
-   "Outer Isles III": 55
+   "Sakurajima (2)": 55
   },
   "073": {
-   "Desert": 28,
-   "King Whale": 28,
-   "Outer Isles II": 31,
-   "Volcano (Electric)": 21
+   "Astral Mountains": 28,
+   "Desiccated Dunes": 28,
+   "Mount Obsidian": 30,
+   "Sea Breeze Archipelago": 21,
+   "Verdant Stream": 28,
+   "Volcano Foothills": 22,
+   "Volcano Foothills (2)": 21
   },
   "073B": {
-   "Volcano (Electric)": 28
+   "Mount Obsidian": 28,
+   "Volcano Foothills (2)": 28
   },
   "074": {
-   "Desert": 30,
-   "Forest": 30,
-   "King Whale": 30,
+   "Verdant Stream": 30,
    "World Tree": 80
   },
   "074B": {
-   "Desert": 35,
+   "Desiccated Dunes": 35,
+   "Verdant Stream": 35,
    "World Tree": 80
   },
   "075": {
-   "Desert": 24,
-   "Forest": 20,
-   "King Whale": 24,
-   "Windswept (start)": 12
+   "Astral Mountains": 24,
+   "Bamboo Groves": 12,
+   "Crescent Moon Shore": 20,
+   "Desiccated Dunes": 24,
+   "Marsh Island": 20,
+   "Verdant Stream": 24
   },
   "075B": {
-   "Desert": 31,
+   "Astral Mountains": 31,
+   "Desiccated Dunes": 31,
    "Feybreak": 52,
-   "Outer Isles II": 31
+   "Verdant Stream": 31
   },
   "076": {
-   "Forest": 30
+   "Marsh Island": 30,
+   "Verdant Stream": 30
   },
   "076B": {
-   "Desert": 32,
-   "Outer Isles II": 32
+   "Astral Mountains": 32,
+   "Desiccated Dunes": 32,
+   "Verdant Stream": 32
   },
   "077": {
-   "Forest": 22,
-   "King Whale": 22
+   "Astral Mountains": 22,
+   "Crescent Moon Shore": 22,
+   "Verdant Stream": 22
   },
   "078": {
-   "Desert": 32,
-   "Forest": 32,
-   "Outer Isles II": 30,
-   "Volcano (Electric)": 23
+   "Marsh Island": 32,
+   "Mount Obsidian": 23,
+   "Sea Breeze Archipelago": 23,
+   "Volcano Foothills": 23
   },
   "078B": {
    "Sakurajima": 46
   },
   "079": {
-   "Desert": 32,
-   "Forest": 25,
-   "King Whale": 25,
-   "Snow": 43,
-   "Windswept (start)": 25
+   "Astral Mountains": 25,
+   "Bamboo Groves": 25,
+   "Crescent Moon Shore": 25,
+   "Marsh Island": 25,
+   "Verdant Stream": 25
   },
   "079B": {},
   "080": {
-   "Desert": 34,
+   "Astral Mountains": 25,
+   "Bamboo Groves": 25,
+   "Crescent Moon Shore": 24,
    "Feybreak": 62,
-   "Forest": 24,
-   "King Whale": 25,
-   "Windswept (start)": 25,
+   "Marsh Island": 25,
+   "Verdant Stream": 24,
    "World Tree": 80
   },
   "080B": {
@@ -1417,22 +1890,23 @@
    "World Tree": 80
   },
   "081": {
-   "Forest": 24,
-   "Outer Isles I": 24,
-   "Volcano (Electric)": 24,
+   "Bamboo Groves": 24,
+   "Crescent Moon Shore (2)": 24,
+   "Isles of Silence": 24,
    "World Tree": 80
   },
   "081B": {
    "World Tree": 75
   },
   "082": {
-   "King Whale": 36,
-   "Outer Isles I": 25,
-   "Snow": 46,
-   "Volcano (Electric)": 25
+   "Astral Mountains": 36,
+   "Crescent Moon Shore (2)": 25,
+   "Mount Obsidian": 25,
+   "Sea Breeze Archipelago": 25,
+   "Volcano Foothills": 25
   },
   "083": {
-   "Outer Isles III": 45,
+   "Desiccated Dunes": 45,
    "World Tree": 80
   },
   "083B": {
@@ -1440,116 +1914,127 @@
    "World Tree": 80
   },
   "084": {
-   "Desert": 32,
-   "Windswept (start)": 25
+   "Bamboo Groves": 25,
+   "Desiccated Dunes": 32,
+   "Marsh Island": 25,
+   "Sea Breeze Archipelago": 25,
+   "Verdant Stream": 25,
+   "Windswept Island": 25,
+   "Windswept Island (2)": 25
   },
   "084B": {
-   "Desert": 34,
-   "Outer Isles II": 34
+   "Astral Mountains": 34,
+   "Desiccated Dunes": 34,
+   "Verdant Stream": 34
   },
   "085": {
-   "Desert": 30,
-   "Isle of Silence": 48,
-   "King Whale": 30,
-   "Outer Isles II": 30,
-   "Outer Isles III": 50,
+   "Astral Mountains": 30,
+   "Desiccated Dunes": 30,
+   "Mount Obsidian": 28,
    "Sakurajima": 47,
-   "Snow": 30,
-   "Volcano (Electric)": 25
+   "Sea Breeze Archipelago": 25,
+   "Verdant Stream": 30,
+   "Volcano Foothills": 27,
+   "Volcano Foothills (2)": 25
   },
   "085B": {
    "Feybreak": 50,
-   "Isle of Silence": 48,
    "Sakurajima": 47
   },
   "086": {
-   "Outer Isles I": 10,
-   "Snow": 32
+   "Astral Mountains": 32,
+   "Volcano Foothills (3)": 10
   },
   "087": {
-   "Forest": 26,
-   "King Whale": 26,
-   "Snow": 36,
-   "Volcano (Electric)": 26,
-   "Windswept (start)": 33,
+   "Astral Mountains": 36,
+   "Bamboo Groves": 26,
+   "Desiccated Dunes": 36,
+   "Isles of Silence": 26,
+   "Volcano Foothills (2)": 26,
+   "Windswept Island": 33,
    "World Tree": 80
   },
   "087B": {
-   "King Whale": 37,
-   "Snow": 36,
+   "Astral Mountains": 36,
+   "Desiccated Dunes": 36,
    "World Tree": 80
   },
   "088": {
-   "Outer Isles I": 1,
-   "Outer Isles II": 32
+   "Volcano Foothills": 32,
+   "Windswept Island": 1
   },
   "088B": {},
   "089": {
-   "Forest": 28,
-   "King Whale": 28,
-   "Sakurajima": 55
+   "Astral Mountains": 28,
+   "Crescent Moon Shore": 28,
+   "Sakurajima": 55,
+   "Verdant Stream": 28
   },
   "089B": {
    "World Tree": 71
   },
   "090": {
-   "Forest": 28,
-   "Sky Islands": 67
+   "Marsh Island": 28,
+   "Sky Islands": 67,
+   "Verdant Stream": 28
   },
   "091": {
-   "Outer Isles II": 36,
-   "Volcano (Electric)": 30
+   "Mount Obsidian": 30,
+   "Volcano Foothills (2)": 33
   },
   "091B": {
-   "Outer Isles II": 37
+   "Mount Obsidian": 37
   },
   "092": {
-   "Desert": 32,
-   "King Whale": 30
+   "Desiccated Dunes": 32,
+   "Isles of Silence": 30,
+   "Verdant Stream": 32,
+   "Verdant Stream (2)": 30
   },
   "092B": {
    "Feybreak": 50,
    "Sky Islands": 65
   },
   "093": {
-   "Volcano (Electric)": 30,
+   "Mount Obsidian": 30,
+   "Volcano Foothills (2)": 32,
    "World Tree": 80
   },
   "093B": {
-   "Outer Isles II": 35,
-   "Volcano (Electric)": 34,
+   "Mount Obsidian": 34,
+   "Sea Breeze Archipelago": 34,
+   "Volcano Foothills": 34,
+   "Volcano Foothills (2)": 34,
    "World Tree": 80
   },
   "094": {
-   "Desert": 30,
+   "Astral Mountains": 30,
+   "Bamboo Groves": 30,
    "Feybreak": 60,
-   "Forest": 30,
-   "King Whale": 30,
+   "Isles of Silence": 40,
    "Sakurajima": 47,
-   "Volcano (Electric)": 40,
+   "Verdant Stream": 30,
+   "Volcano Foothills (2)": 40,
    "World Tree": 80
   },
   "094B": {
-   "Desert": 48,
    "Feybreak": 63,
-   "Forest": 48,
-   "King Whale": 48,
-   "Outer Isles II": 48,
+   "Isles of Silence": 48,
+   "Marsh Island": 48,
+   "Mount Obsidian": 48,
    "Sakurajima": 48,
-   "Volcano (Electric)": 48,
+   "Verdant Stream": 48,
+   "Verdant Stream (2)": 48,
    "World Tree": 80
   },
   "095": {
-   "Desert": 30,
-   "Forest": 30,
-   "King Whale": 30,
-   "Snow": 34
+   "Astral Mountains": 34,
+   "Verdant Stream": 30
   },
   "096": {
-   "Desert": 30,
-   "Forest": 30,
-   "King Whale": 30,
-   "Outer Isles II": 35,
+   "Astral Mountains": 35,
+   "Desiccated Dunes": 34,
+   "Verdant Stream": 30,
    "World Tree": 80
   },
   "096B": {
@@ -1557,52 +2042,51 @@
   },
   "097": {
    "Feybreak": 50,
-   "Outer Isles II": 30,
-   "Volcano (Electric)": 50
+   "Mount Obsidian": 30
   },
   "097B": {},
   "098": {
-   "Feybreak": 52,
-   "King Whale": 31,
-   "Snow": 31
+   "Astral Mountains": 31,
+   "Feybreak": 52
   },
   "098B": {
-   "King Whale": 36,
-   "Snow": 35,
+   "Astral Mountains": 35,
    "World Tree": 75
   },
   "099": {
-   "Desert": 31,
-   "Outer Isles II": 31
+   "Astral Mountains": 31,
+   "Desiccated Dunes": 31,
+   "Verdant Stream": 31
   },
   "099B": {
-   "Outer Isles III": 48
+   "Desiccated Dunes": 48
   },
   "100": {
-   "Desert": 31,
-   "Outer Isles II": 31
+   "Astral Mountains": 31,
+   "Desiccated Dunes": 31,
+   "Desiccated Dunes (3)": 32,
+   "Verdant Stream": 31
   },
   "100B": {
-   "Desert": 33,
-   "Outer Isles II": 33
+   "Astral Mountains": 33,
+   "Desiccated Dunes": 33,
+   "Verdant Stream": 33
   },
   "101": {
-   "Desert": 32,
-   "Forest": 32,
-   "King Whale": 32,
-   "Snow": 36,
+   "Astral Mountains": 36,
+   "Verdant Stream": 32,
    "World Tree": 80
   },
   "102": {
-   "Forest": 32,
+   "Marsh Island": 32,
+   "Verdant Stream": 32,
    "World Tree": 80
   },
   "102B": {
    "World Tree": 70
   },
   "103": {
-   "King Whale": 32,
-   "Snow": 32,
+   "Astral Mountains": 32,
    "World Tree": 80
   },
   "103B": {
@@ -1611,78 +2095,91 @@
   },
   "104": {
    "Feybreak": 65,
-   "Outer Isles II": 34,
-   "Volcano (Electric)": 32,
+   "Mount Obsidian": 32,
+   "Volcano Foothills (2)": 33,
    "World Tree": 80
   },
   "105": {
-   "Outer Isles IV": 65,
-   "Volcano (Electric)": 32,
+   "Feybreak (2)": 65,
+   "Mount Obsidian": 32,
+   "Volcano Foothills (2)": 32,
    "World Tree": 80
   },
   "105B": {},
   "106": {
-   "Desert": 34,
-   "Outer Isles II": 32,
-   "Outer Isles III": 40
+   "Desiccated Dunes": 34,
+   "Volcano Foothills": 32
   },
   "107": {
-   "Desert": 33,
-   "King Whale": 33,
-   "Outer Isles II": 34
+   "Astral Mountains": 34,
+   "Desiccated Dunes": 33,
+   "Desiccated Dunes (3)": 35,
+   "Isles of Silence": 33,
+   "Verdant Stream": 33,
+   "Verdant Stream (2)": 33
   },
   "108": {
-   "Desert": 48,
-   "Forest": 34,
-   "King Whale": 35,
-   "Volcano (Electric)": 35,
-   "Windswept (start)": 33,
+   "Bamboo Groves": 34,
+   "Crescent Moon Shore": 34,
+   "Isles of Silence": 35,
+   "Marsh Island": 33,
+   "Verdant Stream": 33,
+   "Volcano Foothills (2)": 35,
    "World Tree": 80
   },
   "108B": {
-   "Forest": 51,
+   "Verdant Stream": 51,
    "World Tree": 80
   },
   "109": {
-   "Forest": 20,
-   "King Whale": 32,
-   "Volcano (Electric)": 20,
-   "Windswept (start)": 20
+   "Bamboo Groves": 22,
+   "Crescent Moon Shore": 20,
+   "Isles of Silence": 22,
+   "Marsh Island": 20,
+   "Mount Obsidian": 24,
+   "Sea Breeze Archipelago": 20,
+   "Verdant Stream": 20,
+   "Verdant Stream (2)": 32,
+   "Volcano Foothills": 22,
+   "Volcano Foothills (2)": 20
   },
   "109B": {
+   "Mount Obsidian": 28,
    "Sakurajima": 48,
-   "Volcano (Electric)": 25
+   "Sea Breeze Archipelago": 25,
+   "Volcano Foothills": 27,
+   "Volcano Foothills (2)": 25
   },
   "110": {
-   "Desert": 34,
-   "Isle of Silence": 33,
-   "Outer Isles III": 40,
-   "Windswept (start)": 33,
+   "Desiccated Dunes": 34,
+   "Isles of Silence": 33,
+   "Sea Breeze Archipelago": 33,
+   "Windswept Island (2)": 33,
    "World Tree": 80
   },
   "111": {
-   "Desert": 34,
-   "Forest": 34,
-   "King Whale": 34,
-   "Outer Isles II": 35
+   "Mount Obsidian": 35,
+   "Verdant Stream": 34
   },
   "111B": {
    "Feybreak": 61
   },
   "112": {
    "Feybreak": 65,
-   "Volcano (Electric)": 35,
+   "Mount Obsidian": 35,
+   "Volcano Foothills (2)": 35,
    "World Tree": 80
   },
   "112B": {
    "Feybreak": 65,
-   "Outer Isles II": 38,
-   "Volcano (Electric)": 35,
+   "Mount Obsidian": 35,
+   "Sea Breeze Archipelago": 35,
+   "Volcano Foothills": 35,
+   "Volcano Foothills (2)": 35,
    "World Tree": 80
   },
   "113": {
-   "Forest": 34,
-   "King Whale": 34,
+   "Verdant Stream": 34,
    "World Tree": 80
   },
   "113B": {
@@ -1692,35 +2189,33 @@
    "Sky Islands": 65
   },
   "115": {
-   "Outer Isles II": 35,
+   "Mount Obsidian": 35,
    "World Tree": 75
   },
   "116": {
-   "King Whale": 36,
-   "Snow": 36
+   "Astral Mountains": 36
   },
   "116B": {
    "World Tree": 75
   },
   "117": {
-   "King Whale": 40,
-   "Snow": 40
+   "Astral Mountains": 40,
+   "Desiccated Dunes": 40
   },
   "118": {
-   "Isle of Silence": 47,
    "Sakurajima": 47
   },
   "118B": {
    "Feybreak": 63,
-   "Isle of Silence": 47,
    "Sakurajima": 47
   },
   "119": {
-   "Snow": 45
+   "Astral Mountains": 45
   },
   "120": {
-   "Desert": 39,
-   "Outer Isles II": 39,
+   "Astral Mountains": 39,
+   "Desiccated Dunes": 39,
+   "Verdant Stream": 39,
    "World Tree": 80
   },
   "121": {
@@ -1738,18 +2233,19 @@
    "World Tree": 80
   },
   "123": {
-   "Desert": 31,
-   "Outer Isles II": 31,
-   "Sakurajima": 47
+   "Astral Mountains": 31,
+   "Desiccated Dunes": 31,
+   "Sakurajima": 47,
+   "Verdant Stream": 31
   },
   "124": {
-   "King Whale": 40,
+   "Astral Mountains": 40,
+   "Desiccated Dunes": 45,
    "Sky Islands": 70,
-   "Snow": 45,
    "World Tree": 80
   },
   "124B": {
-   "King Whale": 45,
+   "Astral Mountains": 45,
    "Sakurajima": 53,
    "World Tree": 80
   },
@@ -1763,19 +2259,19 @@
    "Sakurajima": 53
   },
   "128": {
-   "Forest": 30,
-   "King Whale": 30,
-   "Sky Islands": 65
+   "Isles of Silence": 30,
+   "Sky Islands": 65,
+   "Verdant Stream (2)": 30
   },
   "128B": {
-   "Outer Isles III": 40
+   "Desiccated Dunes": 40
   },
   "129": {
-   "Volcano (Electric)": 46
+   "Mount Obsidian": 46
   },
   "129B": {
-   "Feybreak": 66,
-   "Snow": 48
+   "Astral Mountains": 48,
+   "Feybreak": 66
   },
   "130": {
    "Feybreak": 53,
@@ -1785,24 +2281,22 @@
    "World Tree": 74
   },
   "131": {
-   "Outer Isles III": 42
+   "Desiccated Dunes": 42
   },
   "131B": {
    "Sky Islands": 68
   },
   "132": {
-   "Snow": 44
+   "Astral Mountains": 44
   },
   "132B": {
    "Feybreak": 62
   },
   "133": {
-   "Desert": 32,
-   "Forest": 32,
-   "King Whale": 32
+   "Verdant Stream": 32
   },
   "134": {
-   "Snow": 45,
+   "Astral Mountains": 45,
    "World Tree": 80
   },
   "134B": {
@@ -1811,44 +2305,45 @@
   },
   "135": {
    "Feybreak": 64,
-   "Isle of Silence": 46,
-   "Outer Isles II": 45,
+   "Mount Obsidian": 45,
    "Sakurajima": 46
   },
   "136": {
-   "Outer Isles III": 45
+   "Desiccated Dunes": 45
   },
   "137": {
-   "Outer Isles III": 46,
+   "Desiccated Dunes": 46,
    "World Tree": 80
   },
   "137B": {},
   "138": {
-   "King Whale": 46,
+   "Astral Mountains": 46,
    "World Tree": 73
   },
   "138B": {
    "World Tree": 75
   },
   "139": {
-   "Outer Isles IV": 68,
+   "Feybreak (4)": 68,
    "World Tree": 80
   },
   "140": {
-   "Desert": 37,
-   "Outer Isles II": 37,
-   "Outer Isles IV": 65,
+   "Astral Mountains": 37,
+   "Desiccated Dunes": 37,
+   "Feybreak (4)": 65,
+   "Verdant Stream": 37,
    "World Tree": 80
   },
   "141": {
    "Sakurajima": 48
   },
   "141B": {
-   "Outer Isles IV": 65
+   "Feybreak (4)": 65
   },
   "142": {
-   "Desert": 48,
-   "Outer Isles II": 48,
+   "Astral Mountains": 48,
+   "Desiccated Dunes": 48,
+   "Verdant Stream": 48,
    "World Tree": 80
   },
   "142B": {
@@ -1858,17 +2353,21 @@
    "Feybreak": 56
   },
   "144": {
-   "Desert": 25,
+   "Astral Mountains": 18,
+   "Bamboo Groves": 10,
+   "Crescent Moon Shore": 18,
+   "Desiccated Dunes": 25,
    "Feybreak": 50,
-   "Forest": 10,
-   "Isle of Silence": 12,
-   "King Whale": 18,
-   "Outer Isles II": 30,
+   "Isles of Silence": 12,
+   "Marsh Island": 20,
+   "Mount Obsidian": 22,
    "Sakurajima": 46,
+   "Sea Breeze Archipelago": 20,
    "Sky Islands": 65,
-   "Snow": 32,
-   "Volcano (Electric)": 10,
-   "Windswept (start)": 20,
+   "Verdant Stream": 18,
+   "Verdant Stream (2)": 12,
+   "Volcano Foothills": 22,
+   "Volcano Foothills (2)": 10,
    "World Tree": 70
   },
   "145": {},
@@ -1880,19 +2379,19 @@
    "Feybreak": 65
   },
   "148B": {
-   "Outer Isles III": 50
+   "Desiccated Dunes (2)": 50
   },
   "149": {
    "Feybreak": 50
   },
   "149B": {
-   "Outer Isles IV": 62
+   "Feybreak (3)": 62
   },
   "150": {
    "Feybreak": 51
   },
   "151": {
-   "Outer Isles III": 50,
+   "Astral Mountains (2)": 50,
    "World Tree": 80
   },
   "151B": {
@@ -1923,11 +2422,11 @@
    "World Tree": 80
   },
   "159": {
-   "Outer Isles III": 55,
+   "Desiccated Dunes": 55,
    "World Tree": 71
   },
   "159B": {
-   "Outer Isles IV": 65,
+   "Feybreak (2)": 65,
    "World Tree": 71
   },
   "160": {
@@ -1989,17 +2488,23 @@
    "World Tree": 80
   },
   "176": {
-   "Desert": 55,
+   "Astral Mountains": 55,
+   "Astral Mountains (2)": 55,
+   "Bamboo Groves": 55,
+   "Desiccated Dunes": 55,
+   "Desiccated Dunes (2)": 55,
+   "Desiccated Dunes (3)": 55,
    "Feybreak": 55,
-   "Outer Isles I": 55,
-   "Outer Isles II": 55,
-   "Outer Isles III": 55,
-   "Outer Isles IV": 55,
+   "Feybreak (2)": 55,
+   "Feybreak (3)": 55,
+   "Feybreak (4)": 55,
+   "Marsh Island": 55,
+   "Mount Obsidian": 55,
    "Sakurajima": 55,
+   "Sakurajima (2)": 55,
    "Sky Islands": 55,
-   "Snow": 55,
-   "Volcano (Electric)": 55,
-   "Windswept (start)": 55,
+   "Volcano Foothills (3)": 55,
+   "Windswept Island": 55,
    "World Tree": 72
   },
   "177": {
@@ -2045,7 +2550,7 @@
    "World Tree": 76
   },
   "189": {
-   "Outer Isles III": 50,
+   "Desiccated Dunes": 50,
    "World Tree": 80
   },
   "190": {
@@ -2072,16 +2577,50 @@
   "203": {},
   "204": {}
  },
- "towers": {
-  "Desert": "Desert",
+ "pieces": {
+  "Astral Mountains": "Astral Mountains",
+  "Astral Mountains (2)": "Astral Mountains",
+  "Bamboo Groves": "Bamboo Groves",
+  "Crescent Moon Shore": "Crescent Moon Shore",
+  "Crescent Moon Shore (2)": "Crescent Moon Shore",
+  "Crescent Moon Shore (3)": "Crescent Moon Shore",
+  "Desiccated Dunes": "Desiccated Dunes",
+  "Desiccated Dunes (2)": "Desiccated Dunes",
+  "Desiccated Dunes (3)": "Desiccated Dunes",
   "Feybreak": "Feybreak",
-  "Forest": "Forest",
-  "King Whale": "King Whale",
+  "Feybreak (2)": "Feybreak",
+  "Feybreak (3)": "Feybreak",
+  "Feybreak (4)": "Feybreak",
+  "Feybreak (5)": "Feybreak",
+  "Feybreak (6)": "Feybreak",
+  "Isles of Silence": "Isles of Silence",
+  "Marsh Island": "Marsh Island",
+  "Mount Obsidian": "Mount Obsidian",
+  "Open sea": "Open sea",
+  "Sakurajima": "Sakurajima",
+  "Sakurajima (2)": "Sakurajima",
+  "Sea Breeze Archipelago": "Sea Breeze Archipelago",
+  "Sky Islands": "Sky Islands",
+  "Verdant Stream": "Verdant Stream",
+  "Verdant Stream (2)": "Verdant Stream",
+  "Volcano Foothills": "Volcano Foothills",
+  "Volcano Foothills (2)": "Volcano Foothills",
+  "Volcano Foothills (3)": "Volcano Foothills",
+  "Windswept Island": "Windswept Island",
+  "Windswept Island (2)": "Windswept Island",
+  "World Tree": "World Tree"
+ },
+ "start": "Windswept Island",
+ "towers": {
+  "Desert": "Desiccated Dunes",
+  "Feybreak": "Feybreak",
+  "Forest": "Crescent Moon Shore",
+  "King Whale": "Crescent Moon Shore (3)",
   "Sakurajima": "Sakurajima",
   "Sky Islands": "Sky Islands",
-  "Snow": "Snow",
-  "Volcano (Electric)": "Volcano (Electric)",
-  "Windswept (Grass)": "Windswept (start)",
+  "Snow": "Astral Mountains",
+  "Volcano (Electric)": "Mount Obsidian",
+  "Windswept (Grass)": "Windswept Island",
   "World Tree": "World Tree"
  }
 }

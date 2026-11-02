@@ -1,11 +1,10 @@
-"""Area model from the game tables. Landmasses first (spawners within LINK of each other); on the main continent the
-low-level spawners form the starting area; the rest of a landmass joins its nearest tower (the World Tree's four towers
-are one region); a landmass with no tower is an island area; a region whose levels spread too far is split by level.
-Prints each area's level range and what it holds, and draws the areas.
-    <AP venv python> tools/area_model.py <tables dir> <out.png>   (also writes <out>.json and <out>-sources.json: data/areas-1.0.5.json and data/pal-sources-1.0.5.json,
-    and <out>-points.json: each spawn point's area, private, for tools/area_walls.py)
+"""Area model from the game tables and the area grid (tools/area_walls.py, run first): what each area (each piece of
+one) holds and where every Pal can be had. Prints each piece's level range and contents, and draws them.
+    <AP venv python> tools/area_model.py <tables dir> <out.png>   (reads <tables dir>/../areas/grid.npz; also writes
+    <out>.json and <out>-sources.json: data/areas-1.0.5.json and data/pal-sources-1.0.5.json)
 """
 import csv, re, sys, collections, pathlib
+from area_groups import START as START_AREA
 from PIL import Image, ImageDraw, ImageFont
 
 T = pathlib.Path(sys.argv[1])
@@ -13,10 +12,6 @@ rd = lambda n: list(csv.DictReader(open(T / n), delimiter='\t'))
 xyz = lambda s: tuple(float(v) for v in re.findall(r'-?[\d.]+', s)[:3])
 BOSS = {1: 'Windswept (Grass)', 2: 'Volcano (Electric)', 3: 'Forest', 4: 'Snow', 5: 'Desert', 6: 'Sakurajima',
         7: 'Feybreak', 8: 'Sky Islands', 9: 'King Whale', 10: 'World Tree', 11: 'World Tree', 12: 'World Tree', 13: 'World Tree'}
-CUTS = [15, 30, 45]          # a mixed region splits into levels 1-15 / 16-30 / 31-45 / 46+
-MIXED = 25                   # p10..p90 spread that counts as mixed
-LINK = 25e3                  # spawners closer than this are on the same landmass
-START = 15                   # main-continent spawners at or below this level form the starting area
 towers = [(BOSS[int(r['BossType'])], float(r['x']), float(r['y'])) for r in rd('actors_PalBossTower.tsv')]
 
 lv = collections.defaultdict(list)
@@ -35,91 +30,41 @@ for r in rd('DT_PalSpawnerPlacement.tsv'):
     x, y, _ = xyz(r['Location']); L = lv[r['SpawnerName']]
     pts.append((x, y, sum(L) / len(L))); pt_spawner.append(r['SpawnerName'])
 
-# Landmasses: connected components over a grid hash.
-grid = collections.defaultdict(list)
-for i, (x, y, _) in enumerate(pts): grid[(int(x // LINK), int(y // LINK))].append(i)
-comp = [-1] * len(pts); ncomp = 0
-for i in range(len(pts)):
-    if comp[i] >= 0: continue
-    comp[i] = ncomp; stack = [i]
-    while stack:
-        j = stack.pop(); x, y, _ = pts[j]; gx, gy = int(x // LINK), int(y // LINK)
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                for k in grid[(gx + dx, gy + dy)]:
-                    if comp[k] < 0 and (pts[k][0] - x) ** 2 + (pts[k][1] - y) ** 2 <= LINK ** 2:
-                        comp[k] = ncomp; stack.append(k)
-    ncomp += 1
-size = collections.Counter(comp)
-def comp_of(x, y):
-    return comp[min(range(len(pts)), key=lambda i: (pts[i][0] - x) ** 2 + (pts[i][1] - y) ** 2)]
-tower_comp = {t: comp_of(t[1], t[2]) for t in towers}
-main = max(size, key=size.get)
-centre = lambda c: (sum(pts[i][0] for i in range(len(pts)) if comp[i] == c) / size[c],
-                    sum(pts[i][1] for i in range(len(pts)) if comp[i] == c) / size[c])
-
-# Small islands with no tower are grouped by their median Pal level into four passes (decided 31 Oct 2026); most sit
-# well above the level of the nearest main area, so joining each to its neighbour would put high Pals behind early passes.
-ISLE_CUTS = [(30, 'Outer Isles I'), (42, 'Outer Isles II'), (60, 'Outer Isles III'), (99, 'Outer Isles IV')]
-def OUTER_ISLES(c):
-    v = sorted(pts[i][2] for i in range(len(pts)) if comp[i] == c)
-    m = v[len(v) // 2]
-    return next(name for cut, name in ISLE_CUTS if m <= cut)
-def base(i):
-    """Region before level splits: the start zone, a tower region within the landmass, or an island."""
-    x, y, l = pts[i]; c = comp[i]
-    if c == main and l <= START: return 'Windswept (start)'
-    mine = [t for t in towers if tower_comp[t] == c]
-    if mine: return min(mine, key=lambda t: (t[1] - x) ** 2 + (t[2] - y) ** 2)[0]
-    return OUTER_ISLES(c)
-region_of = [base(i) for i in range(len(pts))]
-by = collections.defaultdict(list)
-for i, k in enumerate(region_of): by[k].append(pts[i][2])
-mixed = set()
-for k, v in by.items():
-    v = sorted(v)
-    if v[int(.9 * (len(v) - 1))] - v[int(.1 * (len(v) - 1))] > MIXED: mixed.add(k)
-def band(l): return next((i for i, c in enumerate(CUTS) if l <= c), len(CUTS))
-def label(b): lo = ([1] + [c + 1 for c in CUTS])[b]; hi = (CUTS + [80])[b]; return f'{lo}-{hi}'
-area_of = [f'{k} {label(band(pts[i][2]))}' if k in mixed and not k.startswith('Outer') else k for i, k in enumerate(region_of)]
-# Fold scraps (a few spawners split off a mainland region by level) into the nearest other area.
-MINSIZE = 10
-counts = collections.Counter(area_of)
-for k in [k for k, n in counts.items() if n < MINSIZE and not k.startswith('Outer')]:
-    idx = [i for i, a in enumerate(area_of) if a == k]
-    for i in idx:
-        others = [j for j in range(len(pts)) if area_of[j] != k and not area_of[j].startswith('Outer')]
-        j = min(others, key=lambda j: (pts[j][0] - pts[i][0]) ** 2 + (pts[j][1] - pts[i][1]) ** 2)
-        area_of[i] = area_of[j]
-# An area must be one piece on the map, or its walls would shut part of it off (decided 1 Nov 2026). The start area's
-# second piece (Isle of Silence, Isle of Murmurs, Kelpsea Hill; levels 3-14) becomes an early area of its own; other stray
-# clusters of a mainland area (a few spawners) join the area around them. Island groups (Outer Isles) are many pieces by
-# design: open sea is free, so each piece is reached on its own.
-PIECE = 30e3                 # spawners closer than this (300 m) are in the same piece of an area
-SPLIT = {'Windswept (start)': 'Isle of Silence'}
-def pieces(name):
-    idx = [i for i, a in enumerate(area_of) if a == name]
-    left, out = set(idx), []
-    while left:
-        stack = [left.pop()]; piece = [stack[0]]
-        while stack:
-            j = stack.pop()
-            near = [k for k in left if (pts[k][0] - pts[j][0]) ** 2 + (pts[k][1] - pts[j][1]) ** 2 <= PIECE ** 2]
-            for k in near: left.discard(k); stack.append(k); piece.append(k)
-        out.append(piece)
-    return sorted(out, key=len, reverse=True)
-for name in sorted(set(area_of)):
-    if name.startswith('Outer'): continue
-    for piece in pieces(name)[1:]:
-        if len(piece) >= 100 and name in SPLIT:
-            for i in piece: area_of[i] = SPLIT[name]
-            continue
-        for i in piece:
-            others = [j for j in range(len(pts)) if area_of[j] != name]
-            area_of[i] = area_of[min(others, key=lambda j: (pts[j][0] - pts[i][0]) ** 2 + (pts[j][1] - pts[i][1]) ** 2)]
-def area(x, y, l):
-    i = min(range(len(pts)), key=lambda i: (pts[i][0] - x) ** 2 + (pts[i][1] - y) ** 2)
-    return area_of[i]
+# Areas come from tools/area_walls.py: a grid of the main map with every cell in one piece of one area (areas are groups
+# of the game's named regions, tools/area_groups.py; decided with JustEyeTee, 2 Nov 2026). A piece is a connected part of
+# an area: the largest carries the area's name, the others "<area> (2)" and on. Pals beyond the main map are on the World
+# Tree's own map.
+import numpy as np
+G = np.load(T.parent / 'areas' / 'grid.npz')
+GX0, GX1, GY0, GY1 = (float(v) for v in G['bounds'])
+GRID = G['pieces']
+GN = GRID.shape[0]
+GCELL = (GX1 - GX0) / GN
+AREA_NAMES_ = [str(n) for n in G['names']]
+PIECE_AREA = G['piece_area'].tolist()
+cells = collections.Counter(GRID.ravel().tolist())
+PIECE_NAME = {}
+for k, n in enumerate(AREA_NAMES_):
+    ps = sorted((q for q in range(1, len(PIECE_AREA)) if PIECE_AREA[q] == k), key=lambda q: -cells[q])
+    for j, q in enumerate(ps):
+        PIECE_NAME[q] = n if j == 0 else f'{n} ({j + 1})'
+OFFMAP = 'World Tree'
+def area(x, y, l=0):
+    """The piece at a spot; a spot on the water's edge takes the nearest land piece within 12 cells (175 m)."""
+    r, c = int((GX1 - x) / GCELL), int((y - GY0) / GCELL)
+    if not (0 <= r < GN and 0 <= c < GN):
+        return OFFMAP
+    for rad in range(12):
+        for i in range(-rad, rad + 1):
+            for j in range(-rad, rad + 1):
+                if max(abs(i), abs(j)) != rad or not (0 <= r + i < GN and 0 <= c + j < GN):
+                    continue
+                q = int(GRID[r + i, c + j])
+                if q and PIECE_AREA[q] != 0:
+                    return PIECE_NAME[q]
+    q = int(GRID[r, c])
+    return PIECE_NAME.get(q, 'Open sea')
+area_of = [area(x, y) for x, y, _ in pts]
 seeds = towers
 
 # Fast-travel points, effigies and alphas take the area of their nearest spawner (so a point sits with the Pals around it).
@@ -145,12 +90,13 @@ for r in rd('DT_BossSpawnerLoactionData.tsv'):
     if not is_pal(r['CharacterID']): continue
     x, y, _ = xyz(r['Location']); a = nearest_area(x, y)
     stats[a]['alpha'].append(int(r['Level'])); PAL_ALPHAS.append({'row': int(r['row']), 'character': r['CharacterID'], 'level': int(r['Level']), 'area': a})
-rows = sorted(stats.items(), key=lambda kv: sorted(kv[1]['lv'])[len(kv[1]['lv']) // 2])
+med = lambda v: sorted(v)[len(v) // 2] if v else None      # pieces with no Pals (rigs, sea) have no level
+rows = sorted(stats.items(), key=lambda kv: (med(kv[1]['lv']) is None, med(kv[1]['lv']) or 0))
 print(f"{'area':28s} spawners  levels p10/med/p90  fast-travel  effigies  alphas")
 for k, s in rows:
-    v = sorted(s['lv']); p = lambda q: v[int(q * (len(v) - 1))]
+    v = sorted(s['lv']); p = lambda q: f"{v[int(q * (len(v) - 1))]:3.0f}" if v else '  -'
     a = s['alpha']
-    print(f"{k:28s} {len(v):6d}   {p(.1):3.0f}/{p(.5):3.0f}/{p(.9):3.0f}        {s['ft']:3d}        {s['eff']:3d}   {len(a):3d}" + (f" ({min(a)}-{max(a)})" if a else ''))
+    print(f"{k:28s} {len(v):6d}   {p(.1)}/{p(.5)}/{p(.9)}        {s['ft']:3d}        {s['eff']:3d}   {len(a):3d}" + (f" ({min(a)}-{max(a)})" if a else ''))
 
 X0, X1, Y0, Y1, S = -1100e3, 700e3, -800e3, 650e3, 0.0011
 img = Image.new('RGB', (int((Y1 - Y0) * S) + 1, int((X1 - X0) * S) + 1), (18, 22, 30)); d = ImageDraw.Draw(img)
@@ -247,13 +193,14 @@ dedup = lambda xs: [dict(t) for t in dict.fromkeys(tuple(sorted((k, tuple(v) if 
                                                                  for k, v in x.items())) for x in xs)]
 none = [e for e in dex if not sources.get(e)]
 print(f"entries with no source at all: {none}")
-out = {'areas': {k: {'levels': sorted(v['lv'])[len(v['lv']) // 2], 'spawners': len(v['lv']), 'fast_travel': v['ft'],
+out = {'areas': {k: {'levels': med(v['lv']), 'spawners': len(v['lv']), 'fast_travel': v['ft'],
                      'effigies': v['eff'], 'alphas': sorted(v['alpha'])} for k, v in stats.items()},
        'paldeck': {e: where.get(e, {}) for e in dex},
-       'fast_travel': FAST_TRAVEL, 'alphas': PAL_ALPHAS, 'towers': TOWERS}
+       'fast_travel': FAST_TRAVEL, 'alphas': PAL_ALPHAS, 'towers': TOWERS,
+       # every piece (as a logic region) with its area, and the pieces that share a border
+       'pieces': {PIECE_NAME[q]: AREA_NAMES_[PIECE_AREA[q]] for q in PIECE_NAME},
+       'borders': sorted(sorted([PIECE_NAME[a], PIECE_NAME[b]]) for a, b in G['piece_borders'].tolist()),
+       'start': START_AREA}
 json.dump(out, open(pathlib.Path(sys.argv[2]).with_suffix('.json'), 'w'), indent=1, sort_keys=True)
 json.dump({'sources': {e: dedup(sources.get(e, [])) for e in dex}, 'breeding': breeding},
           open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-sources.json'), 'w'), indent=1, sort_keys=True)
-# Every spawn point with its area, for tools/area_walls.py (raw game positions: keep it out of the repository).
-json.dump([[round(x), round(y), area_of[i]] for i, (x, y, _) in enumerate(pts)],
-          open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-points.json'), 'w'))

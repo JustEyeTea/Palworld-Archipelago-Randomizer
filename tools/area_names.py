@@ -1,7 +1,5 @@
-"""The area model's area names -> the names players see (Area Pass items, locations), shared by the generators."""
-AREA_NAMES = {'Windswept (start)': 'Starting Zone', 'Isle of Silence': 'Isle of Silence', 'Forest': 'Forest',
-              'King Whale': 'King Whale Coast', 'Volcano (Electric)': 'Volcano', 'Desert': 'Desert', 'Snow': 'Snow',
-              'Sakurajima': 'Sakurajima', 'Feybreak': 'Feybreak', 'Sky Islands': 'Sky Islands', 'World Tree': 'World Tree',
-              'Outer Isles I': 'Outer Isles I', 'Outer Isles II': 'Outer Isles II',
-              'Outer Isles III': 'Outer Isles III', 'Outer Isles IV': 'Outer Isles IV'}
-START_AREA = 'Starting Zone'
+"""Area names as players see them (Area Pass items, locations): the areas of tools/area_groups.py, by their own names."""
+from area_groups import GROUPS, START
+
+AREA_NAMES = {a: a for a in GROUPS}
+START_AREA = START

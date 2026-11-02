@@ -7,12 +7,17 @@ from BaseClasses import CollectionState, Item, ItemClassification, Location, Reg
 from worlds.AutoWorld import WebWorld, World
 
 from .data import (AREAS, BREEDING_TECH, CATCHABLE, DIRECT, FILLER, ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LOCATION_NAME_TO_ID,
-                   LOCATIONS, PASS_AREAS, PREREQ_TECHS, PROGRESSIVE_SPHERE, SHOP_TECHS, SPHERE_TECHS, STARTER_LEVEL,
+                   LOCATIONS, PASS_AREAS, PREREQ_TECHS, PROGRESSIVE_SPHERE, SEA, SHOP_TECHS, SPHERE_TECHS, STARTER_LEVEL,
                    TECH_BY_ID, TOWER_EVENTS, area_pass, tech_item)
-from .game_data import PALDECK, START_AREA, TOWERS
+from .game_data import BORDERS, PALDECK, PIECES, START_AREA, TOWERS
 from .options import PalworldOptions, option_groups
 
 LOCATION_LEVEL = {loc.name: TECH_BY_ID[loc.key][2] for loc in LOCATIONS if loc.kind == "shop"}
+
+
+def piece_level(piece: str) -> int:
+    """A piece's typical Pal level; a piece with no Pals of its own takes its area's."""
+    return int(AREAS.get(piece) or AREAS.get(PIECES[piece]) or 0)
 FREE_LEVEL = 15              # levels anyone reaches in the starting zone
 LEVEL_SLACK = 8              # an area lets you level about this far past its typical Pal level
 SPHERE_STEP = 10             # each sphere tier catches Pals about this many levels higher
@@ -45,8 +50,14 @@ class PalworldWorld(World):
     topology_present = True
 
     # --- logic helpers -----------------------------------------------------------------------------------------
-    def area_open(self, state: CollectionState, area: str) -> bool:
-        return area == START_AREA or not self.options.area_locks or state.has(area_pass(area), self.player)
+    def can_enter(self, state: CollectionState, piece: str) -> bool:
+        """Crossing a border into a piece needs its area's pass (the start and open sea are free)."""
+        area = PIECES[piece]
+        return area in (START_AREA, SEA) or not self.options.area_locks or state.has(area_pass(area), self.player)
+
+    def area_open(self, state: CollectionState, piece: str) -> bool:
+        """A piece is open when the player can get there: through the borders from the start."""
+        return state.can_reach_region(piece, self.player)
 
     def level_ok(self, state: CollectionState, level: int) -> bool:
         if level <= FREE_LEVEL:
@@ -103,11 +114,14 @@ class PalworldWorld(World):
         menu = Region("Menu", self.player, self.multiworld)
         self.multiworld.regions.append(menu)
         regions = {}
-        for area in AREAS:
-            region = Region(area, self.player, self.multiworld)
+        for piece in PIECES:
+            region = Region(piece, self.player, self.multiworld)
             self.multiworld.regions.append(region)
-            regions[area] = region
-            menu.connect(region, f"To {area}", lambda state, a=area: self.area_open(state, a))
+            regions[piece] = region
+        menu.connect(regions[START_AREA], "Start")
+        for a, b in BORDERS:                     # the walls in game: each way needs the entered piece's pass
+            regions[a].connect(regions[b], f"{a} -> {b}", lambda state, p=b: self.can_enter(state, p))
+            regions[b].connect(regions[a], f"{b} -> {a}", lambda state, p=a: self.can_enter(state, p))
         for loc in LOCATIONS:
             if not self.wanted(loc):
                 continue
@@ -171,9 +185,9 @@ class PalworldWorld(World):
             elif loc.kind == "level":
                 location.access_rule = lambda state, n=loc.key: self.level_ok(state, n)
             elif loc.kind == "tower":
-                location.access_rule = lambda state, a=loc.area: self.level_ok(state, int(AREAS[a]) + LEVEL_SLACK // 2)
+                location.access_rule = lambda state, a=loc.area: self.level_ok(state, piece_level(a) + LEVEL_SLACK // 2)
         for name, area in TOWERS:
-            get(TOWER_EVENTS[name]).access_rule = lambda state, a=area: self.level_ok(state, int(AREAS[a]) + LEVEL_SLACK // 2)
+            get(TOWER_EVENTS[name]).access_rule = lambda state, a=area: self.level_ok(state, piece_level(a) + LEVEL_SLACK // 2)
         need = self.options.tower_count.value
         get("Goal Complete").access_rule = lambda state: sum(state.has(e, self.player) for e in TOWER_EVENTS.values()) >= need
         self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)

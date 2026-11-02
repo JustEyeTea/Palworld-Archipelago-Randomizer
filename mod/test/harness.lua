@@ -46,7 +46,12 @@ local record = {
     FastTravelPointUnlockFlag = FastArray({ { "6E03F8464BAD9E458B843AA30BE1CC8F", true } }),
 }
 local playerLevel = 4
-local pawn = { IsValid = function() return true end, GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
+local pawnAt = { X = -342035, Y = 236885, Z = -1700 }        -- the starting area (FTPoint21)
+local teleported = nil
+local pawn = { IsValid = function() return true end,
+               K2_GetActorLocation = function() return pawnAt end,
+               K2_TeleportTo = function(_, loc) teleported = loc; pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z } end,
+               GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
 local ps = {
     IsValid = function() return true end,
     GetTechnologyData = function() return td end,
@@ -144,7 +149,7 @@ push("item", "3", tostring(itemId["Tech Points +2"]), "4", "2", "0", "Tech Point
 push("scout", tostring(D.shop.RepairBench.loc), "77", "2", "1", "Map Width", "Friend", "ChecksFinder")
 push("scout", tostring(D.shop.PalBox.loc), tostring(itemId["Tech: Campfire"]), "1", "1", "Tech: Campfire", "Tester", "Palworld")
 push("scout", tostring(D.shop.Product_Cooking_Grade_01.loc), tostring(itemId["Wood Bundle"]), "1", "0", "Wood Bundle", "Tester", "Palworld")
-push("scout", tostring(D.shop.Special_PalSphere_Grade_01.loc), tostring(itemId["Area Pass: Outer Isles III"]), "1", "1", "Area Pass: Outer Isles III", "Tester", "Palworld")
+push("scout", tostring(D.shop.Special_PalSphere_Grade_01.loc), tostring(itemId["Area Pass: Feybreak"]), "1", "1", "Area Pass: Feybreak", "Tester", "Palworld")
 push("checked", tostring(D.shop.Wooden_houseset.loc))
 run(14)
 local have = {}
@@ -242,13 +247,27 @@ local function expected(open)
     end
     return n
 end
-local open = { ["Open sea"] = true, ["Starting Zone"] = true }
+local open = { ["Open sea"] = true, [WD.start] = true }
 run(40)
 expect(wallCount() == expected(open) and wallCount() > 100, "walls raised on every locked border: " .. wallCount())
-push("item", "6", tostring(itemId["Area Pass: Isle of Silence"]), "1", "1", "1", "Area Pass: Isle of Silence", "Tester")
+local WALLS = dofile(MOD .. "/Scripts/walls.lua")
+expect(WALLS.areaAt(-304485, 240071) == "Bamboo Groves" and WALLS.areaAt(-342035, 236885) == WD.start,
+       "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: " .. tostring(WALLS.areaAt(-304485, 240071)))
+pawnAt = { X = -312819, Y = 84516, Z = -800 }                  -- deep in Bamboo Groves, still locked
+run(21)
+expect(teleported and teleported.X == WALLS.home[1], "a player inside a locked area is sent home")
+local sent = false
+for _, t in ipairs(announced) do if t:find("Bamboo Groves is locked") then sent = true end end
+expect(sent, "and told why")
+push("item", "6", tostring(itemId["Area Pass: Bamboo Groves"]), "1", "1", "1", "Area Pass: Bamboo Groves", "Tester")
 run(40)
-open["Isle of Silence"] = true
-expect(wallCount() == expected(open), "an Area Pass takes its area's walls down: " .. wallCount())
+open["Bamboo Groves"] = true
+teleported = nil
+pawnAt = { X = -312819, Y = 84516, Z = -800 }
+run(21)
+expect(teleported == nil, "with its pass, nobody is sent away")
+expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),
+       "an Area Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)
 expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
 
@@ -292,7 +311,7 @@ expect(not logged("update error"), "no errors while the player's tech data is no
 
 req.v = FNameOf("Special_PalSphere_Grade_01"); research(nil, req)
 run(1)
-expect(passCard.shown.category == "Received" and passCard.shown.name == "Your Area Pass: Outer Isles III",
+expect(passCard.shown.category == "Received" and passCard.shown.name == "Your Area Pass: Feybreak",
        "bought, your other items say Received: " .. tostring(passCard.shown.category) .. " / " .. tostring(passCard.shown.name))
 expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent: prefix")
 

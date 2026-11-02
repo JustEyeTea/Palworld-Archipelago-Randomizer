@@ -2,7 +2,7 @@
 block, and a game update that adds rows appends to the end of its block."""
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .game_data import ALPHAS, AREAS, FAST_TRAVEL, PALDECK, START_AREA, TECHS, TOWERS
+from .game_data import ALPHAS, AREA_LIST, AREAS, BORDERS, FAST_TRAVEL, PALDECK, PIECES, START_AREA, TECHS, TOWERS
 
 BASE = 0x50A1_0000
 
@@ -37,7 +37,8 @@ _names = [v[0] for v in CATCHABLE.values()]
 CAPTURE_NAMES = {e: f"Capture: {v[0]}" + (f" ({e})" if _names.count(v[0]) > 1 else '') for e, v in CATCHABLE.items()}
 
 # --- areas -----------------------------------------------------------------------------------------------------
-PASS_AREAS = [a for a in AREAS if a != START_AREA]
+PASS_AREAS = [a for a in AREA_LIST if a != START_AREA]
+SEA = "Open sea"
 
 
 def area_pass(area: str) -> str:
