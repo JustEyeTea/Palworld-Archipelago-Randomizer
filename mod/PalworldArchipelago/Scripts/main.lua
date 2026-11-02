@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.3.0"
+local VERSION = "0.3.1"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -654,6 +654,17 @@ LoopAsync(300, function()
     end)
     return false
 end)
+
+-- Test builds: Ctrl+F8 cycles the walls' look through the game's barrier materials.
+if RegisterKeyBind and Key and ModifierKey then
+    RegisterKeyBind(Key.F8, { ModifierKey.CONTROL }, function()
+        ExecuteInGameThread(function()
+            local ok, msg = pcall(WALLS.nextLook)
+            notify("Wall look: " .. tostring(msg))
+            log("wall look: " .. tostring(msg))
+        end)
+    end)
+end
 
 -- Test builds: Ctrl+F7 saves the world map image (see mapexport.lua).
 local okm, errm = pcall(function() require("mapexport")(modDir) end)

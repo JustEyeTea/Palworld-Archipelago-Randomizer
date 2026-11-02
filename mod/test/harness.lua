@@ -65,7 +65,7 @@ local announced = {}
 local util = { IsValid = function() return true end, SendSystemAnnounce = function(_, _, text) announced[#announced + 1] = text end }
 
 -- UE4SS.
-local hooks, postHooks, loop = {}, {}, nil
+local hooks, postHooks, loop, extraLoops = {}, {}, nil, {}
 local function Card(tech)
     local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
     local function text(field)
@@ -95,10 +95,13 @@ FindFirstOf = function(class) if class == "PalGameInstance" then return gameInst
 local renderLib = { IsValid = function() return true end,
                     ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end }
 local wallsUp = {}
+lastGone = nil
 local gameplay = { IsValid = function() return true end,
                    BeginDeferredActorSpawnFromClass = function(_, _, _, t)
                        local a = { IsValid = function(self) return not self.gone end, t = t }
-                       function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil end
+                       function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
+                       function a:SetActorEnableCollision(on) self.collision = on end
+                       function a:K2_SetActorLocation(loc) self.sankTo = loc.Z end
                        return a
                    end,
                    FinishSpawningActor = function(_, a) wallsUp[a] = true end }
@@ -111,7 +114,7 @@ StaticFindObject = function(path)
     return nil
 end
 RegisterHook = function(path, fn, post) hooks[path], postHooks[path] = fn, post end
-LoopAsync = function(_, fn) loop = fn end
+LoopAsync = function(_, fn) if loop then extraLoops[#extraLoops + 1] = fn else loop = fn end end
 ExecuteInGameThread = function(fn) fn() end
 ExecuteWithDelay = function(_, fn) fn() end
 
@@ -126,7 +129,14 @@ AP_Scout = function() end
 AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end end
 AP_Goal = function() goals = goals + 1 end
 local function push(...) events[#events + 1] = table.concat({ ... }, "\t") end
-local function run(ticks) for _ = 1, ticks do loop() end end
+local function run(ticks)
+    for _ = 1, ticks do
+        loop()
+        for i = #extraLoops, 1, -1 do                     -- other loops (the walls sinking) end by returning true
+            for _ = 1, 10 do if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end end
+        end
+    end
+end
 local printed = {}
 local realPrint = print
 print = function(s) printed[#printed + 1] = tostring(s); realPrint(s) end
@@ -266,6 +276,8 @@ teleported = nil
 pawnAt = { X = -312819, Y = 84516, Z = -800 }
 run(21)
 expect(teleported == nil, "with its pass, nobody is sent away")
+expect(lastGone and lastGone.collision == false and lastGone.sankTo and lastGone.sankTo < 50000 - 290000,
+       "an opened wall stops blocking at once and sinks out of sight before it goes: " .. tostring(lastGone and lastGone.sankTo))
 expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),
        "an Area Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)

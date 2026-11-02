@@ -15,6 +15,7 @@ local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km
 local MID_Z = 50000
 local THICK = 4               -- 4 m, so nothing fast slips through
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
+local SINK_STEPS = 60         -- an opened wall sinks into the ground over 60 steps of 33 ms (2 s), then goes
 
 local raised = {}             -- piece index -> wall actor
 local cls, gs = nil, nil
@@ -31,6 +32,36 @@ local function ready()
     return cls ~= nil and cls:IsValid() and gs ~= nil and gs:IsValid()
 end
 
+-- Test builds: the look of the walls, cycled with Ctrl+F8 through the game's own barrier materials.
+local LOOKS = {
+    { "Red grid (the game's air block)", "/Game/Pal/Material/Effect/MI_AirBlock_v2" },
+    { "World Tree air block", "/Game/Pal/Material/Effect/MI_AirBlock_v2_WorldTreeArea" },
+    { "Golden dungeon wall", "/Game/Pal/Model/Other/PalBox/old/MI_PalBox_Wall" },
+    { "Tower hex shield", "/Game/Pal/Effect/Material/M_VFX_Dome_01_TF" },
+    { "Wildlife Sanctuary dome", "/Game/Pal/Effect/Material_Instances/MI_Wildlife_Sanctuary_Dome" },
+    { "Wildlife Sanctuary dome 2", "/Game/Pal/Effect/Material_Instances/MI_Wildlife_Sanctuary_Dome01" },
+    { "Sky Island barrier", "/Game/Pal/Effect/Material_Instances/MI_AreaBarrier" },
+    { "Sci-fi shield", "/Game/Others/VL_SciFiShield/Materials/Particles/MI_Shield" },
+}
+local look = 1
+local lookMaterial = nil
+local function meshes(a)
+    local out = {}
+    pcall(function()
+        local list = a:K2_GetComponentsByClass(StaticFindObject("/Script/Engine.StaticMeshComponent"))
+        local function add(e)
+            local okg, obj = pcall(function() return e:get() end)
+            out[#out + 1] = okg and obj or e
+        end
+        if type(list) == "table" then for _, e in ipairs(list) do add(e) end else list:ForEach(function(_, e) add(e) end) end
+    end)
+    return out
+end
+local function dress(a)
+    if not lookMaterial then return end
+    for _, m in ipairs(meshes(a)) do pcall(function() m:SetMaterial(0, lookMaterial) end) end
+end
+
 local function raise(i, context)
     local w = DATA.walls[i]
     local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
@@ -41,13 +72,52 @@ local function raise(i, context)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
     raised[i] = a
+    dress(a)
     return true
 end
 
+-- Opening a wall: it stops blocking at once, sinks out of sight (top first, so it reads as the barrier going down)
+-- and is then removed.
+local sinking = {}            -- wall actor -> { x, y, step }
+local sinkLoop = false
+local function sinkStep()
+    local busy = false
+    for a, s in pairs(sinking) do
+        if not a:IsValid() then
+            sinking[a] = nil
+        else
+            s[3] = s[3] + 1
+            local t = s[3] / SINK_STEPS
+            local eased = t * t * (3 - 2 * t)            -- slow, fast, slow
+            pcall(function() a:K2_SetActorLocation({ X = s[1], Y = s[2], Z = MID_Z - HEIGHT * eased }, false, {}, true) end)
+            if s[3] >= SINK_STEPS then
+                sinking[a] = nil
+                pcall(function() a:K2_DestroyActor() end)
+            else
+                busy = true
+            end
+        end
+    end
+    return busy
+end
 local function lower(i)
     local a = raised[i]
     raised[i] = nil
-    if a and a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
+    if not (a and a:IsValid()) then return end
+    pcall(function() a:SetActorEnableCollision(false) end)
+    local w = DATA.walls[i]
+    sinking[a] = { w[1], w[2], 0 }
+    if not sinkLoop then
+        sinkLoop = true
+        LoopAsync(33, function()
+            local done = false
+            ExecuteInGameThread(function()
+                local ok, busy = pcall(sinkStep)
+                if not ok or not busy then sinkLoop = false; done = true end
+            end)
+            return done
+        end)
+    end
 end
 
 -- Brings the walls in line with the passes held: raises missing pieces of locked borders, takes down pieces whose
@@ -115,6 +185,21 @@ function W.lockedAround(x, y, passes)
 end
 W.home = MAP.home
 W.start = START
+
+-- Switches every wall to the next look; returns its name (or why not).
+function W.nextLook()
+    look = look % #LOOKS + 1
+    local name, path = LOOKS[look][1], LOOKS[look][2]
+    pcall(LoadAsset, path)
+    local m = StaticFindObject(path .. "." .. path:match("([^/]+)$"))
+    if not m or not m:IsValid() then return name .. ": not found in this game build" end
+    lookMaterial = m
+    local n = 0
+    for _, a in pairs(raised) do
+        if a:IsValid() then dress(a); n = n + 1 end
+    end
+    return look .. "/" .. #LOOKS .. " " .. name .. " (" .. n .. " walls)"
+end
 
 function W.count()
     local n = 0
