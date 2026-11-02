@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.7.0"
+local VERSION = "0.8.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -16,6 +16,7 @@ local TECHS = require("tech_icons")
 local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local R = require("records")
 local WALLS = require("walls")
+local MENU = require("menu")
 
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -43,9 +44,13 @@ if type(AP_Connect) ~= "function" then
     return
 end
 local cfg = readConfig()
-if not cfg.server or cfg.server == "" or not cfg.slot or cfg.slot == "" then
-    log("to connect: copy config.example.txt to config.txt in " .. modDir .. " and set server and slot")
-    return
+local function writeConfig()
+    local f = io.open(modDir .. "\\config.txt", "w")
+    if not f then log("could not write config.txt"); return end
+    for _, k in ipairs({ "server", "slot", "password", "hint_key" }) do
+        if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
+    end
+    f:close()
 end
 
 -- tech id <-> shop slot
@@ -545,6 +550,13 @@ local function receive(f)
     end
 end
 
+local function resetSeed()
+    ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
+    ap.given, ap.goalSent, ap.ready, ap.shown = 0, false, false, false
+    hints.known, hints.shown, hints.offer = {}, {}, nil
+    log("a different seed or slot: progress of the last one forgotten")
+end
+
 local function onEvent(line)
     local f = split(line)
     local kind = f[1]
@@ -556,12 +568,18 @@ local function onEvent(line)
             ap.connectedTick = tick
             ap.me = tonumber(AP_SlotData("slot"))
             local seed = AP_SlotData("seed")
-            if seed ~= "" and seed ~= ap.seed then ap.seed = seed; loadSave() end
+            if seed ~= "" and (seed ~= ap.seed or cfg.slot ~= ap.slotName) then
+                if ap.seed then resetSeed() end            -- another seed or slot: nothing of the last one carries over
+                ap.seed, ap.slotName = seed, cfg.slot
+                loadSave()
+            end
             local locs = {}
             for loc in pairs(SLOT_TECH) do locs[#locs + 1] = tostring(loc) end
             AP_Scout(table.concat(locs, ","))
             ap.sent = {}
             if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
+        elseif f[2] == "connecting" then
+            if ap.status ~= "connected" then ap.status = "connecting" end
         elseif f[2] == "refused" then
             ap.status = "refused"
             notify("Archipelago refused the connection: " .. tostring(f[3]))
@@ -591,8 +609,33 @@ local function onEvent(line)
 end
 
 ------------------------------------------------------------------------------------------------------------------------
-log("connecting to " .. cfg.server .. " as " .. cfg.slot)
-AP_Connect(cfg.server, cfg.slot, cfg.password or "")
+-- Connecting: at start from config.txt, and from the title menu's Archipelago button (menu.lua), which saves it.
+local function connectTo(server, slot, password)
+    cfg.server, cfg.slot, cfg.password = server, slot, password or ""
+    writeConfig()
+    log("connecting to " .. server .. " as " .. slot)
+    ap.status = "connecting"
+    AP_Connect(server, slot, password or "")
+end
+MENU.install({
+    status = function() return ap.status end,
+    server = function() return cfg.server or "" end,
+    slot = function() return cfg.slot or "" end,
+    password = function() return cfg.password or "" end,
+    connect = connectTo,
+    disconnect = function()
+        AP_Disconnect()
+        ap.status, ap.ready = "disconnected", false
+        log("disconnected by the player")
+        notify("Disconnected from Archipelago.")
+    end,
+})
+if cfg.server and cfg.server ~= "" and cfg.slot and cfg.slot ~= "" then
+    log("connecting to " .. cfg.server .. " as " .. cfg.slot)
+    AP_Connect(cfg.server, cfg.slot, cfg.password or "")
+else
+    log("not connected: use the Archipelago button on the title menu (or set server and slot in config.txt)")
+end
 
 -- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.
 local function wallNotice(area)
@@ -637,6 +680,8 @@ local function update()
         if not ok then log("event error: " .. tostring(err) .. " in " .. line) end
     end
     registerLazyHooks()
+    local okm, errm = pcall(MENU.update)
+    if not okm then once("menu" .. tostring(errm), "menu error: " .. tostring(errm)) end
     -- The first batch of items arrives just after the connection; wait a moment before locking anything.
     if ap.status == "connected" and not ap.ready and tick - ap.connectedTick >= 5 then
         ap.ready = true

@@ -108,6 +108,7 @@ local mapBody = { IsValid = function() return true end, GetAddress = function() 
                                     SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
 FindAllOf = function(class)
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
+    if class == "WBP_TitleMenu_C" then return titleOpen and { titleMenu } or {} end
     if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
         return mapOpen and { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody } or {}
     end
@@ -141,11 +142,14 @@ local gameplay = { IsValid = function() return true end,
                        function a:K2_SetActorLocation(loc) self.sankTo = loc.Z end
                        return a
                    end,
-                   FinishSpawningActor = function(_, a) wallsUp[a] = true end }
+                   FinishSpawningActor = function(_, a) wallsUp[a] = true end,
+                   SpawnObject = function() return Widget() end }
 local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
     if path:find("GameplayStatics") then return gameplay end
+    if path:find("WidgetBlueprintLibrary") then return wbl end
+    if path == "/Script/UMG.SizeBox" then return Widget() end
     if path:find("KismetMaterialLibrary") then return materialLib end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("^/Game/") then return Texture(path) end
@@ -160,7 +164,39 @@ ExecuteWithDelay = function(_, fn) fn() end
 local D = dofile(MOD .. "/Scripts/ap_data.lua")
 local events, checks, goals = {}, {}, 0
 local slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1" }
-AP_Connect = function() end
+local connects, disconnects = {}, 0
+AP_Connect = function(server, slot, password) connects[#connects + 1] = { server, slot, password } end
+AP_Disconnect = function() disconnects = disconnects + 1 end
+-- The title menu, the button factory, the HUD and its text window, as menu.lua uses them.
+function Widget(extra)   -- global: the stubs above use it
+    local w = { IsValid = function(self) return not self.gone end, addr = math.random(1, 1e9) }
+    function w:GetAddress() return self.addr end
+    for k, v in pairs(extra or {}) do w[k] = v end
+    return w
+end
+local menuChildren = {}
+titleMenu = Widget({ VerticalBox_0 = Widget({ AddChildToVerticalBox = function(_, box)
+    menuChildren[#menuChildren + 1] = box
+    return { SetPadding = function() end, SetHorizontalAlignment = function() end } end }) })
+titleOpen = false
+wbl = { IsValid = function() return true end,   -- global: StaticFindObject above returns it
+              Create = function() return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
+                                                  SetVisibility = function(self, v) self.visibility = v end }) end }
+StaticConstructObject = function()
+    local box = Widget({ SetWidthOverride = function() end, SetHeightOverride = function() end })
+    function box:AddChild(c) self.child = c end
+    return box
+end
+local hudWindows, pushed = {}, {}
+local hud = { Push = function(_, cls, param)
+                  local id = "w" .. (#pushed + 1)
+                  pushed[#pushed + 1] = param
+                  hudWindows[id] = Widget({ Text_Head = { SetText = function(self, t) self.text = t.text end },
+                                            PalEditableTextBox_0 = { SetIsPassword = function(self, on) self.password = on end } })
+                  return id end,
+              GetWidget = function(_, id) return hudWindows[id] end }
+util.GetHUDService = function() return hud end
+gameplayStaticsSpawn = function() return Widget() end
 AP_Poll = function() local out = table.concat(events, "\n"); events = {}; return out end
 AP_SlotData = function(k) return slotData[k] or "" end
 AP_Scout = function() end
@@ -466,6 +502,52 @@ expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent:
 
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
 expect(f and f:read("*a"):match("given=7"), "save file records items applied")
+
+print("the title menu's Archipelago buttons")
+local UI = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
+local CLICK = UI .. "WBP_Title_MenuButton.WBP_Title_MenuButton_C:BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
+local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
+titleOpen = true
+run(1)
+local connectBtn, disconnectBtn = menuChildren[1] and menuChildren[1].child, menuChildren[2] and menuChildren[2].child
+expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as Tester" and disconnectBtn.visibility == 0,
+       "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
+run(3)
+expect(#menuChildren == 2, "added once")
+expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
+local function okWith(text)
+    pushed[#pushed].OutString = text
+    hooks[WINDOW_OK]()
+    for id, w in pairs(hudWindows) do w.gone = true end           -- the game closes the window
+    run(1)
+end
+hooks[CLICK]({ get = function() return connectBtn end })
+expect(#pushed == 1 and pushed[1].DefaultInputName == "localhost:38281", "clicking asks for the server, filled in")
+okWith("archipelago.gg:40000")
+expect(#pushed == 2 and pushed[2].DefaultInputName == "Tester", "then the slot")
+okWith("Other")
+expect(#pushed == 3 and hudWindows["w3"].PalEditableTextBox_0.password, "then the password, hidden")
+okWith("secret")
+local c = connects[#connects]
+expect(c and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret", "and connects with them")
+local cfgText = io.open(MOD .. "/config.txt"):read("*a")
+expect(cfgText:find("server=archipelago.gg:40000", 1, true) and cfgText:find("slot=Other", 1, true), "saved to config.txt")
+local before = #connects
+hooks[CLICK]({ get = function() return connectBtn end })
+for id, w in pairs(hudWindows) do w.gone = true end               -- Esc: closed without OK
+run(2)
+expect(#connects == before, "closing a window cancels")
+hooks[CLICK]({ get = function() return disconnectBtn end })
+run(1)
+expect(disconnects == 1 and connectBtn.Test_Content.text == "Archipelago: not connected" and disconnectBtn.visibility == 1,
+       "disconnect button disconnects: " .. tostring(connectBtn.Test_Content.text))
+slotData.seed = "67890"
+push("status", "connected", "Other")
+run(1)
+local forgot = false
+for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1, true) then forgot = true end end
+expect(forgot and connectBtn.Test_Content.text == "Archipelago: connected as Other", "a different seed starts afresh")
+titleOpen = false
 
 print(failures == 0 and "all passed" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)
