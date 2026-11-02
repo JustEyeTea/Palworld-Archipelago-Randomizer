@@ -131,6 +131,7 @@ local renderLib = { IsValid = function() return true end,
                     CreateRenderTarget2D = function(_, owner) rtOwners = rtOwners or {}; rtOwners[#rtOwners + 1] = owner
                                                return { IsValid = function() return true end, rt = true,
                                                         GetAddress = function() return 555 end } end,
+                    ReadRenderTargetPixel = function() return { R = mapArt, G = 90, B = 60, A = 255 } end,
                     ExportRenderTarget = function(_, _, _, dir, name) exports = (exports or 0) + 1
                                              local f = io.open(dir .. "/" .. name, "w"); f:write("png"); f:close() end,
                     BeginDrawCanvasToRenderTarget = function(_, _, rt, canvasOut, contextOut)
@@ -138,6 +139,7 @@ local renderLib = { IsValid = function() return true end,
                     EndDrawCanvasToRenderTarget = function() end }
 local wallsUp = {}
 lastGone = nil
+mapArt = 40                                                  -- the map picture the game shows (its fingerprint)
 local gameplay = { IsValid = function() return true end,
                    BeginDeferredActorSpawnFromClass = function(_, _, _, t)
                        spawned = (spawned or 0) + 1
@@ -507,6 +509,19 @@ mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true 
                                                GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_TreeMap.T_TreeMap" end }
 run(1)
 expect(not mapBody.Image_MapBody.Brush.ResourceObject.rt, "the World Tree's own map is left alone")
+-- A later session: the same map picture keeps the saved colour map; a mod that replaces the map art gets it saved again.
+local function nextSession()
+    local W2 = dofile(MOD .. "/Scripts/walls.lua")
+    W2.dir, W2.keep = MOD, function() end
+    for _ = 1, 3 do W2.updateMap(true, {}, pawn) end
+end
+nextSession()
+expect(exports == 1, "next session, same map picture: the saved colour map is reused")
+mapArt = 200
+nextSession()
+expect(exports == 2 and logged("map picture changed"), "a mod changed the map picture: the colour map is saved again")
+nextSession()
+expect(exports == 2, "and then reused")
 mapOpen = false
 
 print("a new world")

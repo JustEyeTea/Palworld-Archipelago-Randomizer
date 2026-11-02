@@ -321,10 +321,44 @@ end
 -- in the mod folder and is never shipped.
 local COLOUR_FILE = "map-colour-1.png"
 local composing, composedKey = nil, nil       -- the locked set being composed / last composed
+-- A fingerprint of the map the game shows: 16 pixels of it drawn small. A mod that replaces the map's art changes it, so
+-- the saved colour map is made again (once a session, cheaply, instead of exporting the whole map every time).
+local printChecked, printNow = false, nil
+local function mapPrint(krl, tex, gi)
+    local rt = krl:CreateRenderTarget2D(gi, 16, 16, 2, { R = 0, G = 0, B = 0, A = 1 }, false)
+    local canvasOut, contextOut, extra = {}, {}, {}
+    krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
+    canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = 16, Y = 16 }, { X = 0, Y = 0 },
+        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    local parts = {}
+    for i = 0, 15 do
+        local c = krl:ReadRenderTargetPixel(gi, rt, (i % 4) * 4 + 2, (i // 4) * 4 + 2)
+        parts[#parts + 1] = string.format("%d,%d,%d", c.R, c.G, c.B)
+    end
+    return table.concat(parts, ";")
+end
+local function readFile(path)
+    local f = io.open(path, "rb")
+    if not f then return nil end
+    local s = f:read("*a")
+    f:close()
+    return s
+end
 local function colourMap(krl, tex, gi)
     local path = W.dir .. "\\" .. COLOUR_FILE
+    if not printChecked then
+        printChecked = true
+        local ok, fp = pcall(mapPrint, krl, tex, gi)
+        if ok then printNow = fp else log("map: no fingerprint (" .. tostring(fp) .. "): keeping the saved colour map") end
+    end
+    local saved = readFile(path .. ".txt")
     local f = io.open(path, "rb")
-    if f then f:close(); return path end
+    if f then
+        f:close()
+        if not printNow or saved == printNow then return path end
+        log("map: the game's map picture changed (another mod?): saving it again")
+    end
     local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
     local canvasOut, contextOut, extra = {}, {}, {}
     krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
@@ -332,6 +366,10 @@ local function colourMap(krl, tex, gi)
         { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
     krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
     krl:ExportRenderTarget(gi, rt, W.dir, COLOUR_FILE)
+    if printNow then
+        local out = io.open(path .. ".txt", "wb")
+        if out then out:write(printNow); out:close() end
+    end
     log("map: saved the colour map " .. path)
     return path
 end
