@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.8.0"
+local VERSION = "0.9.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -518,6 +518,7 @@ local preloaded = false
 local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
                 key = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper() }
 local wallsLogged = false
+local death = { on = false, wasDead = false, incoming = nil, caused = nil }
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
 local SETTLE = 17
@@ -578,6 +579,9 @@ local function onEvent(line)
             AP_Scout(table.concat(locs, ","))
             ap.sent = {}
             if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
+            local dl = AP_SlotData("options.death_link")
+            death.on = (dl == "1" or dl == "true") and AP_SetTags ~= nil
+            if death.on then AP_SetTags("AP,DeathLink"); log("Death Link on") end
         elseif f[2] == "connecting" then
             if ap.status ~= "connected" then ap.status = "connecting" end
         elseif f[2] == "refused" then
@@ -595,6 +599,13 @@ local function onEvent(line)
                             own = player == ap.me }
     elseif kind == "checked" then
         ap.checked[tonumber(f[2])] = true
+    elseif kind == "bounce" then
+        if death.on and (f[2] or ""):find("DeathLink", 1, true) then
+            local data = f[3] or ""
+            local source = data:match('"source"%s*:%s*"(.-)"') or "someone"
+            local cause = data:match('"cause"%s*:%s*"(.-)"')
+            if source ~= cfg.slot then death.incoming = cause and cause ~= "" and cause or (source .. " died.") end
+        end
     elseif kind == "message" then
         local text, kindOf = tostring(f[2]), f[3]
         log("AP: " .. text)
@@ -671,6 +682,37 @@ if RegisterKeyBind and Key and Key[hints.key] then
             if not ok then log("hint error: " .. tostring(err)) end
         end)
     end)
+end
+
+-- Death Link (the slot's death_link option): dying sends a death to everyone linked; a death from them faints the
+-- player through the game's own self-kill. A death the link caused is not sent back.
+local function deathLink(ps)
+    if not death.on then return end
+    local okd, dead = pcall(function() return ps:IsPlayerDead() end)
+    if not okd then return end
+    if death.incoming then
+        local cause = death.incoming
+        death.incoming = nil
+        if not dead then
+            death.caused = tick
+            local pc = FindFirstOf("PalPlayerController")
+            local ok, err = pcall(function() pc:SelfKillPlayer() end)
+            notify("Death Link: " .. cause)
+            log("death link received: " .. cause .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+        end
+    end
+    if dead and not death.wasDead then
+        if death.caused and tick - death.caused < 50 then
+            log("death link: this death came from the link, not sent back")
+        else
+            local cause = cfg.slot .. " fainted in Palworld."
+            AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), (cfg.slot:gsub('"', "")),
+                (cause:gsub('"', ""))), "DeathLink")
+            notify("Death Link: your death was sent to the multiworld.")
+            log("death link sent")
+        end
+    end
+    death.wasDead = dead
 end
 
 local function update()
@@ -759,6 +801,8 @@ local function update()
             if syncTechs(ps) then refreshTree() end
             applyItems(ps)
             pollRecords(ps)
+            local okdl, errdl = pcall(deathLink, ps)
+            if not okdl then once("death" .. tostring(errdl), "death link error: " .. tostring(errdl)) end
         end
     end
 end

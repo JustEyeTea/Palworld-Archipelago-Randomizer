@@ -53,8 +53,11 @@ local pawn = { IsValid = function() return true end, GetAddress = function() ret
                K2_GetActorLocation = function() return pawnAt end,
                K2_TeleportTo = function(_, loc) teleported = loc; pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z } end,
                GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
+playerDead = false
+local playerController = { IsValid = function() return true end, SelfKillPlayer = function() playerDead = true end }
 local ps = {
     IsValid = function() return true end,
+    IsPlayerDead = function() return playerDead end,
     GetTechnologyData = function() return td end,
     GetInventoryData = function() return inv end,
     GetRecordData = function() return record end,
@@ -118,6 +121,7 @@ FindAllOf = function(class)
 end
 FindFirstOf = function(class)
     if class == "PalGameInstance" then return gameInstance end
+    if class == "PalPlayerController" then return playerController end
     if class == "WBP_Map_Body_C" then return mapOpen and mapBody or nil end
     return nil
 end
@@ -163,7 +167,8 @@ ExecuteWithDelay = function(_, fn) fn() end
 -- APConnector.
 local D = dofile(MOD .. "/Scripts/ap_data.lua")
 local events, checks, goals = {}, {}, 0
-local slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1" }
+local slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1",
+                   ["options.death_link"] = "1" }
 local connects, disconnects = {}, 0
 AP_Connect = function(server, slot, password) connects[#connects + 1] = { server, slot, password } end
 AP_Disconnect = function() disconnects = disconnects + 1 end
@@ -203,6 +208,9 @@ AP_Scout = function() end
 AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end end
 AP_Goal = function() goals = goals + 1 end
 local said, hintPoints, keyBinds = {}, "200,121", {}
+local tagsSet, bounces = nil, {}
+AP_SetTags = function(t) tagsSet = t end
+AP_Bounce = function(json, tags) bounces[#bounces + 1] = { json = json, tags = tags } end
 AP_Say = function(text) said[#said + 1] = text end
 AP_HintPoints = function() return hintPoints end
 Key = setmetatable({}, { __index = function(_, k) return "key:" .. k end })
@@ -455,6 +463,26 @@ run(10)
 expect(spawned == before, "no walls while the new world settles")
 run(60)
 expect(spawned > before, "then its walls go up: " .. (spawned - before))
+
+print("death link")
+expect(tagsSet == "AP,DeathLink", "the slot's death_link turns the link on: " .. tostring(tagsSet))
+playerDead = true
+run(7)
+local b = bounces[#bounces]
+expect(#bounces == 1 and b.tags == "DeathLink" and b.json:find('"source":"Tester"', 1, true)
+       and b.json:find('"cause":"Tester fainted in Palworld."', 1, true), "dying sends a death: " .. tostring(b and b.json))
+playerDead = false
+run(7)
+push("bounce", "DeathLink", '{"cause":"Tester died","source":"Tester","time":1}')
+run(7)
+expect(not playerDead, "our own death coming back is ignored")
+push("bounce", "DeathLink", '{"cause":"Ash fell off a cliff.","source":"Ash","time":2}')
+run(7)
+expect(playerDead and announced[#announced]:find("Ash fell off a cliff", 1, true), "a linked death faints the player")
+run(7)
+expect(#bounces == 1, "and is not sent back")
+playerDead = false
+run(7)
 
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")

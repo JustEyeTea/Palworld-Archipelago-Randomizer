@@ -8,6 +8,7 @@
 //   AP_Say(text)                         chat or a server command ("!hint ...")
 //   AP_Goal()                            report the goal complete
 //   AP_Bounce(json, "Tag,Tag")           send a bounce (Death Link)
+//   AP_SetTags("AP,DeathLink")           the connection's tags (which bounces the server sends us)
 //   AP_SlotData(path) -> string          a slot_data value by dotted path ("options.tower_count")
 //   AP_Status() -> string                disconnected | connecting | connected | refused
 //   AP_HintPoints() -> string            "points,cost" (hint points held, cost of a hint), "" when not connected
@@ -141,6 +142,10 @@ namespace
         lua.register_function("AP_Bounce", [](const LuaMadeSimple::Lua& l) -> int {
             const auto data = arg(l), tags = arg(l);
             bridge().bounce(data, tags);
+            return 0;
+        });
+        lua.register_function("AP_SetTags", [](const LuaMadeSimple::Lua& l) -> int {
+            bridge().set_tags(arg(l));
             return 0;
         });
         lua.register_function("AP_SlotData", [](const LuaMadeSimple::Lua& l) -> int {

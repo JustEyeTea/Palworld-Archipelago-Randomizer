@@ -116,8 +116,52 @@ local function hookOnce(path, fn)
     log((ok and "menu: hooked " or "menu: could not hook ") .. path:match("[^:]+$") .. (ok and "" or (": " .. tostring(err))))
 end
 
+-- Diagnostics (v0.8.1): the title menu mapped from the dedicated server's files was not on the client's title screen.
+-- Once on the title screen, log every user widget whose class names a title or menu, with its child widgets, so the
+-- client's real title menu can be found from a log.
+local surveyed, titleTicks = false, 0
+local function survey()
+    local seen = {}
+    for _, w in ipairs(FindAllOf("UserWidget") or {}) do
+        local ok, name = pcall(function() return w:GetClass():GetFName():ToString() end)
+        if ok and w:IsValid() and (name:find("Title") or name:find("Menu")) and not seen[name] then
+            seen[name] = true
+            local children = {}
+            pcall(function()
+                local tree = w.WidgetTree
+                local all = tree:GetAllWidgets()
+                local function add(c)
+                    local okc, cn = pcall(function()
+                        local o = c.get and c:get() or c
+                        return o:GetFName():ToString() .. ":" .. o:GetClass():GetFName():ToString()
+                    end)
+                    if okc then children[#children + 1] = cn end
+                end
+                if type(all) == "table" then for _, c in ipairs(all) do add(c) end else all:ForEach(function(_, c) add(c) end) end
+            end)
+            log("menu survey: " .. tostring(select(2, pcall(function() return w:GetFullName() end))) .. " | children: "
+                .. table.concat(children, ", "))
+        end
+    end
+    log("menu survey: done (" .. (function() local n = 0; for _ in pairs(seen) do n = n + 1 end; return n end)() .. " classes)")
+end
+
 -- Called from the mod's update loop (game thread).
 function M.update()
+    if not surveyed then
+        local inWorld = false
+        pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
+        local found = #(FindAllOf("WBP_TitleMenu_C") or {}) > 0
+        if not inWorld and not found then titleTicks = titleTicks + 1 else titleTicks = 0 end
+        if titleTicks >= 20 or found then                    -- 6 s on a title screen without the expected menu
+            surveyed = true
+            if not found then
+                log("menu: the expected title menu (WBP_TitleMenu_C) is not on this title screen; surveying")
+                local ok, err = pcall(survey)
+                if not ok then log("menu survey error: " .. tostring(err)) end
+            end
+        end
+    end
     hookOnce(CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
     hookOnce(WINDOW_OK, function() local ok, err = pcall(okPressed); if not ok then log("menu OK error: " .. tostring(err)) end end)
     for _, menu in ipairs(FindAllOf("WBP_TitleMenu_C") or {}) do

@@ -38,6 +38,8 @@ class ApBridge
     void say(const std::string& text);
     void goal();
     void bounce(const std::string& json_data, const std::string& tags_csv);
+    // The connection's tags ("AP,DeathLink"): which bounces the server sends us (ConnectUpdate).
+    void set_tags(const std::string& tags_csv);
 
     // A value from slot_data by dotted path ("options.tower_count"), as text ("" when absent). JSON for objects.
     auto slot_data(const std::string& path) -> std::string;

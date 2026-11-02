@@ -177,6 +177,16 @@ void ApBridge::goal()
     if (m_client) m_client->StatusUpdate(APClient::ClientStatus::GOAL);
 }
 
+void ApBridge::set_tags(const std::string& tags_csv)
+{
+    std::list<std::string> tags;
+    std::stringstream ss(tags_csv);
+    for (std::string t; std::getline(ss, t, ',');)
+        if (!t.empty()) tags.push_back(t);
+    std::lock_guard lock(m_mutex);
+    if (m_client) m_client->ConnectUpdate(false, 0, true, tags);
+}
+
 void ApBridge::bounce(const std::string& json_data, const std::string& tags_csv)
 {
     std::lock_guard lock(m_mutex);
