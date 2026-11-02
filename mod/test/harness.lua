@@ -87,7 +87,15 @@ local gameInstance = { ReferencedObjects = setmetatable({ GetArrayNum = function
                                                          { __newindex = function(_, i, v) kept[i] = v end }) }
 LoadAsset = function() end
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
-local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end }
+local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end,
+                 K2_DrawMaterialTriangle = function(_, mat, tris)
+                     assert(mat.saturation == 0 and mat.texture, "greyscale material set up")
+                     assert(tris[1].V2_UV and tris[1].V0_Pos.X, "triangles have positions and UVs")
+                     greyBoxes = greyBoxes + #tris end }
+local materialLib = { CreateDynamicMaterialInstance = function()
+    return { IsValid = function() return true end,
+             SetTextureParameterValue = function(self, name, t) if name:ToString() == "Texture" then self.texture = t end end,
+             SetScalarParameterValue = function(self, name, v) if name:ToString() == "Saturation" then self.saturation = v end end } end }
 local mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
                   Image_MapBody = { IsValid = function() return true end, Brush = {},
                                     SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
@@ -128,6 +136,7 @@ local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
     if path:find("GameplayStatics") then return gameplay end
+    if path:find("KismetMaterialLibrary") then return materialLib end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("^/Game/") then return Texture(path) end
     return nil
@@ -306,7 +315,7 @@ print("the world map")
 mapOpen = true
 run(3)
 expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt and mapDraws == 1 and greyBoxes > 100,
-       "the map shows locked areas greyed: " .. greyBoxes .. " grey runs")
+       "the map shows locked areas greyed: " .. greyBoxes .. " greyscale triangles")
 local before = greyBoxes
 push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
 run(3)

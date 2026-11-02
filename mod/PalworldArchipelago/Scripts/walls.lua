@@ -4,6 +4,7 @@
 -- is locked is ringed from the sea as well.
 local DATA = require("area_walls")
 local MAP = require("area_map")
+local SHAPES = require("area_shapes")
 
 local W = {}
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
@@ -214,17 +215,48 @@ function W.nextLook()
     return look .. "/" .. #LOOKS .. " " .. name .. " (" .. n .. " walls)"
 end
 
--- The world map with locked areas greyed out: the map texture drawn into a render target with a grey wash over every
--- locked area's cells, shown in the map screen's map image (the exploration fog is a separate layer above it).
--- Redrawn when the set of locked areas changes.
+-- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
+-- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it through the game's own UI saturation material
+-- (M_UI_ColorSaturation, Saturation 0) with the same map, so those parts lose their colour; shown in the map screen's
+-- map image (the exploration fog is a separate layer above it). Redrawn when the set of locked areas changes.
 local MAP_TEXTURE = "/Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
+local SATURATION = "/Game/Pal/Material/UI/Ingame/M_UI_ColorSaturation.M_UI_ColorSaturation"
 local RT_SIZE = 4096
-local mapRT, mapKey, mapShownOn = nil, nil, nil
+local mapRT, mapKey, mapShownOn, greyMat = nil, nil, nil, nil
+local triangles = {}          -- area index -> FCanvasUVTri list, built when first needed
+local function trianglesOf(k)
+    if triangles[k] then return triangles[k] end
+    local v, out = SHAPES.areas[k] or {}, {}
+    local white = { R = 1, G = 1, B = 1, A = 1 }
+    for t = 1, #v - 5, 6 do
+        local tri = {}
+        for j = 0, 2 do
+            local u, w = v[t + 2 * j], v[t + 2 * j + 1]
+            tri["V" .. j .. "_Pos"] = { X = u * RT_SIZE, Y = w * RT_SIZE }
+            tri["V" .. j .. "_UV"] = { X = u, Y = w }
+            tri["V" .. j .. "_Color"] = white
+        end
+        out[#out + 1] = tri
+    end
+    triangles[k] = out
+    return out
+end
 local function drawMap(ctx, passes)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     pcall(LoadAsset, "/Game/Pal/Texture/UI/Map/T_WorldMap")
     local tex = StaticFindObject(MAP_TEXTURE)
     if not tex or not tex:IsValid() then return false end
+    if not greyMat or not greyMat:IsValid() then
+        pcall(LoadAsset, "/Game/Pal/Material/UI/Ingame/M_UI_ColorSaturation")
+        local parent = StaticFindObject(SATURATION)
+        local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
+        if not parent or not parent:IsValid() or not kml then log("map: the saturation material is missing"); return false end
+        greyMat = kml:CreateDynamicMaterialInstance(ctx, parent, FName("PalworldAP_GreyMap"), 0)
+        if not greyMat or not greyMat:IsValid() then log("map: could not make the greyscale material"); return false end
+        greyMat:SetTextureParameterValue(FName("Texture"), tex)
+        greyMat:SetScalarParameterValue(FName("Saturation"), 0)
+        W.keep(greyMat)
+    end
     if not mapRT or not mapRT:IsValid() then
         mapRT = krl:CreateRenderTarget2D(ctx, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)  -- RTF_RGBA8_SRGB
         if not mapRT or not mapRT:IsValid() then return false end
@@ -236,17 +268,10 @@ local function drawMap(ctx, passes)
     if not canvas then return false end
     canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 }, { X = 1, Y = 1 },
         { R = 1, G = 1, B = 1, A = 1 }, 0, 0, { X = 0.5, Y = 0.5 })
-    local cell = RT_SIZE / MAP.size
-    local grey = { R = 0.42, G = 0.42, B = 0.45, A = 0.72 }
-    for r = 0, MAP.size - 1 do
-        local col = 0
-        for a, n in MAP.rows[r + 1]:gmatch("(%d+),(%d+)") do
-            a, n = tonumber(a), tonumber(n)
-            if not isOpen(DATA.areas[a + 1], passes) then
-                canvas:K2_DrawTexture(nil, { X = col * cell, Y = r * cell }, { X = n * cell, Y = cell },
-                    { X = 0, Y = 0 }, { X = 1, Y = 1 }, grey, 2, 0, { X = 0.5, Y = 0.5 })      -- BLEND_Translucent
-            end
-            col = col + n
+    for k, name in ipairs(DATA.areas) do
+        if not isOpen(name, passes) then
+            local tris = trianglesOf(k - 1)
+            if #tris > 0 then canvas:K2_DrawMaterialTriangle(greyMat, tris) end
         end
     end
     krl:EndDrawCanvasToRenderTarget(ctx, contextOut.RenderTarget and contextOut or extra)
