@@ -1,0 +1,4 @@
+# Copy this file to config.txt and fill it in (config.txt is never shipped, so updates keep it).
+server=
+slot=
+password=

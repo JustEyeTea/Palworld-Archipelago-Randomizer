@@ -91,6 +91,9 @@ local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes 
                  K2_DrawLine = function() edgeLines = (edgeLines or 0) + 1 end,
                  K2_DrawTriangle = function(_, tex, tris)
                      lastTriTex = tex
+                     if tris[1].V0_Color.R < 1 or tris[1].V1_Color.R < 1 or tris[1].V2_Color.R < 1 then
+                         edgeTris = (edgeTris or 0) + #tris
+                     end
                      assert(tex and tris[1].V2_UV and tris[1].V0_Pos.X, "triangles carry the map, positions and UVs")
                      greyBoxes = greyBoxes + #tris end }
 local materialLib = { IsValid = function() return true end, CreateDynamicMaterialInstance = function()
@@ -329,7 +332,7 @@ run(3)
 expect(mapDraws == 3, "and not again while nothing changes")
 expect(exports == 1 and lastTriTex and lastTriTex.path == "map-grey-1", "locked areas drawn from a greyscale copy made once: "
        .. tostring(lastTriTex and lastTriTex.path))
-expect(edgeLines and edgeLines > 100, "edged with darker lines: " .. tostring(edgeLines))
+expect(edgeTris and edgeTris > 100, "edged with a darker, shaded band: " .. tostring(edgeTris))
 local owned = true
 for _, o in ipairs(rtOwners) do if o ~= gameInstance then owned = false end end
 expect(owned and #rtOwners >= 2, "render targets belong to the game instance, not the world")

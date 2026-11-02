@@ -216,8 +216,8 @@ function W.nextLook()
 end
 
 -- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
--- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from a greyscale copy of the map, edged with
--- a darker line; shown in the map screen's map image (the exploration fog is a separate layer above it). Redrawn when
+-- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from a greyscale copy of the map, darkening
+-- softly toward its edge (a narrow band whose corners are shaded dark at the edge); shown in the map screen's map image (the exploration fog is a separate layer above it). Redrawn when
 -- the set of locked areas changes.
 -- The greyscale copy is made once on the player's machine and kept in the mod folder (it is the game's own art, so it
 -- is never shipped): the map is drawn into a render target, saved as a PNG, turned grey by the C++ part
@@ -232,8 +232,7 @@ local RT_SIZE = 4096
 local mapRT, mapKey, mapShownOn, greyTex, greyTried = nil, nil, nil, nil, false
 local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint without a greyscale copy
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
-local EDGE = { R = 0.10, G = 0.10, B = 0.11, A = 1 }
-local EDGE_WIDTH = 4
+local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at all)
 W.dir = "."
 local function owner()
     local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
@@ -285,15 +284,24 @@ local function trianglesOf(k, tint)
     triangles[key] = out
     return out
 end
-local function drawEdges(canvas, k)
-    for _, loop in ipairs((SHAPES.outlines or {})[k] or {}) do
-        local n = #loop // 2
-        for i = 0, n - 1 do
-            local j = (i + 1) % n
-            canvas:K2_DrawLine({ X = loop[2 * i + 1] * RT_SIZE, Y = loop[2 * i + 2] * RT_SIZE },
-                { X = loop[2 * j + 1] * RT_SIZE, Y = loop[2 * j + 2] * RT_SIZE }, EDGE_WIDTH, EDGE)
+local bands = {}              -- area index .. tint -> FCanvasUVTri list of its edge band
+local function bandOf(k, tint)
+    local key = k .. (tint == WHITE and "w" or "f")
+    if bands[key] then return bands[key] end
+    local v, out = (SHAPES.edges or {})[k] or {}, {}
+    for t = 1, #v - 8, 9 do
+        local tri = {}
+        for j = 0, 2 do
+            local u, w, sh = v[t + 3 * j], v[t + 3 * j + 1], v[t + 3 * j + 2]
+            local f = EDGE_SHADE + (1 - EDGE_SHADE) * sh
+            tri["V" .. j .. "_Pos"] = { X = u * RT_SIZE, Y = w * RT_SIZE }
+            tri["V" .. j .. "_UV"] = { X = u, Y = w }
+            tri["V" .. j .. "_Color"] = { R = tint.R * f, G = tint.G * f, B = tint.B * f, A = 1 }
         end
+        out[#out + 1] = tri
     end
+    bands[key] = out
+    return out
 end
 local function drawMap(ctx, passes)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
@@ -322,7 +330,10 @@ local function drawMap(ctx, passes)
         end
     end
     for k, name in ipairs(DATA.areas) do
-        if not isOpen(name, passes) then drawEdges(canvas, k - 1) end
+        if not isOpen(name, passes) then
+            local band = bandOf(k - 1, grey and WHITE or FADE)
+            if #band > 0 then canvas:K2_DrawTriangle(grey or tex, band) end
+        end
     end
     krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
     return true

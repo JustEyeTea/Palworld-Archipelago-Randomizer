@@ -19,7 +19,7 @@ concurrency:
 jobs:
   apworld:
     name: APWorld on Archipelago ${{ matrix.archipelago }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       matrix:

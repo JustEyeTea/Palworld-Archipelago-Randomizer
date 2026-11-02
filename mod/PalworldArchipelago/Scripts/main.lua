@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.5.0"
+local VERSION = "0.5.1"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -44,7 +44,7 @@ if type(AP_Connect) ~= "function" then
 end
 local cfg = readConfig()
 if not cfg.server or cfg.server == "" or not cfg.slot or cfg.slot == "" then
-    log("set server and slot in " .. modDir .. "\\config.txt to connect")
+    log("to connect: copy config.example.txt to config.txt in " .. modDir .. " and set server and slot")
     return
 end
 
