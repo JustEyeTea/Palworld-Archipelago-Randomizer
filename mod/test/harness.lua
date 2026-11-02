@@ -89,8 +89,8 @@ LoadAsset = function() end
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
 local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end }
 local mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
-                  Image_MapBody = { IsValid = function() return true end,
-                                    SetBrushResourceObject = function(self, rt) self.shown = rt end } }
+                  Image_MapBody = { IsValid = function() return true end, Brush = {},
+                                    SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
 FindAllOf = function(class)
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
@@ -107,7 +107,8 @@ FindFirstOf = function(class)
 end
 local renderLib = { IsValid = function() return true end,
                     ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end,
-                    CreateRenderTarget2D = function() return { IsValid = function() return true end, rt = true } end,
+                    CreateRenderTarget2D = function() return { IsValid = function() return true end, rt = true,
+                                                               GetAddress = function() return 555 end } end,
                     BeginDrawCanvasToRenderTarget = function(_, _, rt, canvasOut, contextOut)
                         canvasOut.Canvas = canvas; contextOut.RenderTarget = rt end,
                     EndDrawCanvasToRenderTarget = function() end }
@@ -312,6 +313,10 @@ run(3)
 expect(mapDraws == 2 and greyBoxes - before < before, "a pass redraws it with less grey: " .. (greyBoxes - before))
 run(3)
 expect(mapDraws == 2, "and not again while nothing changes")
+mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 9 end,
+                                               GetFullName = function() return "Texture2D T_WorldMap" end }
+run(1)
+expect(mapBody.Image_MapBody.Brush.ResourceObject.rt, "when the map screen puts its own picture back, the greyed one returns")
 mapOpen = false
 
 print("a new world")

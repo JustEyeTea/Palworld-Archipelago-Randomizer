@@ -7,6 +7,8 @@ local MAP = require("area_map")
 
 local W = {}
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local reported = {}
+local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
 
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 local START = DATA.start
@@ -252,13 +254,15 @@ local function drawMap(ctx, passes)
 end
 function W.updateMap(enabled, passes, ctx)
     if not enabled then return end
-    -- The game keeps a template of the map screen beside the real ones; only a real one has its map image.
-    local body, image = nil, nil
+    -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
+    -- more than one real one (different menus), and a map screen sets its own picture again when it opens, so every
+    -- one is checked each time and given the greyed map whenever it shows anything else.
+    local images = {}
     for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
-        if b:IsValid() and ok and img then body, image = b, img; break end
+        if b:IsValid() and ok and img then images[#images + 1] = img end
     end
-    if not body then return end
+    if #images == 0 then return end
     local locked = {}
     for _, name in ipairs(DATA.areas) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
@@ -272,11 +276,21 @@ function W.updateMap(enabled, passes, ctx)
         mapKey, redrawn = key, true
         log("map: " .. #locked .. " locked area(s) greyed")
     end
-    local id = tostring(body:GetAddress())
-    if redrawn or id ~= mapShownOn then
-        local ok, err = pcall(function() image:SetBrushResourceObject(mapRT) end)
-        if not ok then log("map overlay: could not show it: " .. tostring(err)) end
-        mapShownOn = id
+    local want = tostring(mapRT:GetAddress())
+    for _, image in ipairs(images) do
+        local okr, shown = pcall(function()
+            local res = image.Brush.ResourceObject
+            return res and res:IsValid() and res or nil
+        end)
+        local current = okr and shown and tostring(shown:GetAddress()) or nil
+        if redrawn or current ~= want then
+            if okr and shown and current ~= want and not mapShownOn then
+                mapShownOn = true
+                log("map: the map screen was showing " .. tostring(select(2, pcall(function() return shown:GetFullName() end))))
+            end
+            local ok, err = pcall(function() image:SetBrushResourceObject(mapRT) end)
+            if not ok then once("mapshow", "map overlay: could not show it: " .. tostring(err)) end
+        end
     end
 end
 
