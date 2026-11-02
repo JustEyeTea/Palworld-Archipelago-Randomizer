@@ -252,8 +252,13 @@ local function drawMap(ctx, passes)
 end
 function W.updateMap(enabled, passes, ctx)
     if not enabled then return end
-    local body = FindFirstOf("WBP_Map_Body_C")
-    if not body or not body:IsValid() then return end
+    -- The game keeps a template of the map screen beside the real ones; only a real one has its map image.
+    local body, image = nil, nil
+    for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
+        local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
+        if b:IsValid() and ok and img then body, image = b, img; break end
+    end
+    if not body then return end
     local locked = {}
     for _, name in ipairs(DATA.areas) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
@@ -269,7 +274,7 @@ function W.updateMap(enabled, passes, ctx)
     end
     local id = tostring(body:GetAddress())
     if redrawn or id ~= mapShownOn then
-        local ok, err = pcall(function() body.Image_MapBody:SetBrushResourceObject(mapRT) end)
+        local ok, err = pcall(function() image:SetBrushResourceObject(mapRT) end)
         if not ok then log("map overlay: could not show it: " .. tostring(err)) end
         mapShownOn = id
     end

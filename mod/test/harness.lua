@@ -86,16 +86,20 @@ local kept = {}
 local gameInstance = { ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
                                                          { __newindex = function(_, i, v) kept[i] = v end }) }
 LoadAsset = function() end
+local greyBoxes, mapDraws, mapOpen = 0, 0, false
+local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end }
+local mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
+                  Image_MapBody = { IsValid = function() return true end,
+                                    SetBrushResourceObject = function(self, rt) self.shown = rt end } }
 FindAllOf = function(class)
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
+    if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
+        return mapOpen and { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody } or {}
+    end
     if class == "PalPlayerState" then return { ps } end
     if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
     return nil
 end
-local greyBoxes, mapDraws, mapOpen = 0, 0, false
-local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end }
-local mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
-                  Image_MapBody = { SetBrushResourceObject = function(self, rt) self.shown = rt end } }
 FindFirstOf = function(class)
     if class == "PalGameInstance" then return gameInstance end
     if class == "WBP_Map_Body_C" then return mapOpen and mapBody or nil end
