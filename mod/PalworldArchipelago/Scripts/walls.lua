@@ -440,7 +440,10 @@ function W.updateMap(enabled, passes, ctx)
             return res and res:IsValid() and res or nil
         end)
         local current = okr and shown and tostring(shown:GetAddress()) or nil
-        if redrawn or current ~= want then
+        -- Only the main world's map is replaced: the World Tree has a map screen of its own (T_TreeMap).
+        local name = okr and shown and select(2, pcall(function() return shown:GetFullName() end)) or ""
+        local mainMap = current == want or tostring(name):find("T_WorldMap", 1, true) ~= nil
+        if mainMap and (redrawn or current ~= want) then
             if okr and shown and current ~= want and not mapShownOn then
                 mapShownOn = true
                 log("map: the map screen was showing " .. tostring(select(2, pcall(function() return shown:GetFullName() end))))

@@ -101,7 +101,10 @@ local materialLib = { IsValid = function() return true end, CreateDynamicMateria
              SetTextureParameterValue = function(self, name, t) if name:ToString() == "Texture" then self.texture = t end end,
              SetScalarParameterValue = function(self, name, v) if name:ToString() == "Saturation" then self.saturation = v end end } end }
 local mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
-                  Image_MapBody = { IsValid = function() return true end, Brush = {},
+                  Image_MapBody = { IsValid = function() return true end,
+                                    Brush = { ResourceObject = { IsValid = function() return true end,      -- as the game
+                                        GetAddress = function() return 8 end,                               -- opens it
+                                        GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
                                     SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
 FindAllOf = function(class)
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
@@ -355,9 +358,13 @@ local owned = true
 for _, o in ipairs(rtOwners) do if o ~= gameInstance then owned = false end end
 expect(owned and #rtOwners >= 2 and exports == 1, "render targets belong to the game instance; colour map saved once")
 mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 9 end,
-                                               GetFullName = function() return "Texture2D T_WorldMap" end }
+                                               GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end }
 run(1)
 expect(mapBody.Image_MapBody.Brush.ResourceObject.rt, "when the map screen puts its own picture back, ours returns")
+mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 10 end,
+                                               GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_TreeMap.T_TreeMap" end }
+run(1)
+expect(not mapBody.Image_MapBody.Brush.ResourceObject.rt, "the World Tree's own map is left alone")
 mapOpen = false
 
 print("a new world")
