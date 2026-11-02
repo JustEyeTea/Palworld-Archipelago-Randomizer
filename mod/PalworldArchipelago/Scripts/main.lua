@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.9.1"
+local VERSION = "0.9.2"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -17,6 +17,7 @@ local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local R = require("records")
 local WALLS = require("walls")
 local MENU = require("menu")
+local TECHSCAN = require("techscan")
 
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -551,10 +552,13 @@ local function receive(f)
     end
 end
 
+local techScan = { report = nil, tries = 0, sent = false }   -- other mods' techs (techscan.lua)
+
 local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
     ap.given, ap.goalSent, ap.ready, ap.shown = 0, false, false, false
     hints.known, hints.shown, hints.offer = {}, {}, nil
+    techScan.sent = false
     log("a different seed or slot: progress of the last one forgotten")
 end
 
@@ -715,6 +719,49 @@ local function deathLink(ps)
     death.wasDead = dead
 end
 
+-- Other mods' techs (techscan.lua): read once a session, as soon as the player's tech data is there. Their own techs stay
+-- normal research; the report goes to the log and mod_techs.txt.
+local function scanTechs(td)
+    techScan.tries = techScan.tries + 1
+    local ok, report, why = pcall(TECHSCAN.scan, td, D)
+    if not ok then
+        techScan.tries = math.huge
+        log("tech scan error: " .. tostring(report))
+        return
+    end
+    if not report then
+        if techScan.tries == 40 then log("tech scan: gave up: " .. tostring(why)) end
+        return
+    end
+    techScan.report = report
+    local lines = TECHSCAN.lines(report)
+    for _, l in ipairs(lines) do log(l) end
+    local f = io.open(modDir .. "\\mod_techs.txt", "w")
+    if f then
+        f:write("# PalworldArchipelago " .. VERSION .. ": techs other mods added, changed or removed (vanilla is 1.0.5)\n",
+                table.concat(lines, "\n"), "\n")
+        f:close()
+    end
+    if #report.added > 0 then notify(#report.added .. " tech(s) from other mods: they stay normal research.") end
+    if #report.warn > 0 then
+        notify(#report.warn .. " shop tech(s) moved to much higher levels by other mods; this seed's logic expects vanilla levels.")
+    end
+end
+
+-- A shop slot whose tech another mod removed can never be bought: send its check, so no one waits on it forever.
+local function sendRemovedSlots()
+    techScan.sent = true
+    local locs = {}
+    for _, id in ipairs(techScan.report.removed) do
+        local loc = D.shop[id].loc
+        if not ap.checked[loc] then locs[#locs + 1] = loc end
+    end
+    if #locs > 0 then
+        sendChecks(locs)
+        notify(#locs .. " shop slot(s) can't be bought (another mod removed their techs): their checks were sent.")
+    end
+end
+
 local function update()
     tick = tick + 1
     for line in AP_Poll():gmatch("[^\n]+") do
@@ -746,6 +793,11 @@ local function update()
         end)
     end
     refreshCards()
+    if not techScan.report and techScan.tries < 40 and tick % 7 == 1 then
+        local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
+        if td and safe(function() return td:IsValid() end) then scanTechs(td) end
+    end
+    if ap.ready and techScan.report and not techScan.sent then sendRemovedSlots() end
     -- Area locks: walls on the borders of areas whose pass has not arrived (only in a seed with area locks on). After a
     -- world loads, nothing happens for SETTLE ticks (5 s): spawning into a world still loading can crash the game.
     if ap.ready then

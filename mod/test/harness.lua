@@ -29,7 +29,7 @@ local function FastArray(pairsList)
 end
 
 -- The player.
-local unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Product_Cooking_Grade_01") })
+local unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Product_Cooking_Grade_01"), FNameOf("ModdedTech_Rocket") })
 local td = { TechnologyPoint = 10, bossTechnologyPoint = 0, UnlockedTechnologyNameArray = unlocked, reps = 0 }
 td.valid = true
 function td:IsValid() return self.valid end
@@ -121,6 +121,7 @@ FindAllOf = function(class)
 end
 FindFirstOf = function(class)
     if class == "PalGameInstance" then return gameInstance end
+    if class == "PalMasterDataTables" then return { technologyDataSet = { recipeUnlockDataTable = techTable } } end
     if class == "PalPlayerController" then return playerController end
     if class == "WBP_Map_Body_C" then return mapOpen and mapBody or nil end
     return nil
@@ -151,6 +152,7 @@ local gameplay = { IsValid = function() return true end,
 local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
+    if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
     if path:find("WidgetBlueprintLibrary") then return wbl end
     if path == "/Script/UMG.SizeBox" then return Widget() end
@@ -167,6 +169,26 @@ ExecuteWithDelay = function(_, fn) fn() end
 -- APConnector.
 local D = dofile(MOD .. "/Scripts/ap_data.lua")
 local events, checks, goals = {}, {}, 0
+
+-- (globals: the lookups above use them) The game's live tech table as other mods left it: one tech added, one vanilla tech moved up 12 levels, one removed.
+liveTechs = { "ModdedTech_Rocket" }
+for id in pairs(D.shop) do if id ~= "Product_Pickaxe_Grade_02" then liveTechs[#liveTechs + 1] = id end end
+for id in pairs(D.starters) do liveTechs[#liveTechs + 1] = id end
+local techRows = { ModdedTech_Rocket = { LevelCap = 12, Cost = 3, RequireTechnology = FNameOf("Workbench"), IsBossTechnology = false } }
+function td:GetTechlonogyBaseData(name)
+    local id = name:ToString()
+    if techRows[id] then return techRows[id] end
+    local slot = D.shop[id]
+    if not slot then return { LevelCap = 1, Cost = 1, RequireTechnology = FNameOf("None") } end
+    return { LevelCap = id == "AutoMealPouch_Tier3" and slot.level + 12 or slot.level, Cost = slot.cost,
+             RequireTechnology = FNameOf(slot.prereq or "None"), IsBossTechnology = slot.ancient }
+end
+techTable = { IsValid = function() return true end }
+dataTableLib = { IsValid = function() return true end,
+                       GetDataTableRowNames = function(_, dt, out)
+                           assert(dt == techTable, "reads the table the game uses")
+                           for i, n in ipairs(liveTechs) do out[i] = { get = function() return FNameOf(n) end } end   -- as UE4SS does
+                       end }
 local slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1",
                    ["options.death_link"] = "1" }
 local connects, disconnects = {}, 0
@@ -281,6 +303,37 @@ expect(goals == 1, "goal sent once")
 expect(checks[D.alpha_spawners.yamijima_iceland_pink_d_boss[1]], "alpha checked by spawner id")
 expect(checks[D.fast_travel.FTPoint101], "fast travel mapped from its instance id")
 expect(#announced > 0, "notices shown in game: " .. tostring(announced[1]))
+
+print("other mods' techs")
+expect(logged("tech table: %d+ techs; 1 added by mods, 1 vanilla changed, 1 vanilla removed"), "the live tech table compared with vanilla")
+have = {}
+unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
+expect(have.ModdedTech_Rocket, "a tech another mod added stays researched (never locked)")
+local mt = io.open(MOD .. "/mod_techs.txt")
+local mtText = mt and mt:read("*a") or ""
+expect(mtText:find("added\tModdedTech_Rocket\tlevel=12\tcost=3\tprereq=Workbench", 1, true), "mod_techs.txt lists the added tech")
+expect(mtText:find("changed\tAutoMealPouch_Tier3\tlevel 23 -> 35", 1, true) and mtText:find("removed\tProduct_Pickaxe_Grade_02", 1, true),
+       "and the changed and removed ones")
+expect(checks[D.shop.Product_Pickaxe_Grade_02.loc], "a removed tech's shop slot is sent (it can never be bought)")
+local told = table.concat(announced, " | ")
+expect(told:find("from other mods", 1, true) and told:find("much higher levels", 1, true) and told:find("checks were sent", 1, true),
+       "and the player is told: " .. told)
+local TS = dofile(MOD .. "/Scripts/techscan.lua")
+local saved = liveTechs
+liveTechs = { "Workbench", "PalBox", "ModdedTech_Rocket" }
+local r, why = TS.scan(td, D)
+expect(r == nil and tostring(why):find("not trusted"), "a read missing most vanilla techs is not trusted: " .. tostring(why))
+liveTechs = {}
+r, why = TS.scan(td, D)
+expect(r == nil, "nor an empty one: " .. tostring(why))
+liveTechs = saved
+local realRow = td.GetTechlonogyBaseData
+td.GetTechlonogyBaseData = function() return { LevelCap = 0, Cost = 0, RequireTechnology = FNameOf("None") } end
+r = TS.scan(td, D)
+expect(r and #r.changed == 0 and #r.warn == 0 and #r.removed == 1 and #r.added == 1 and r.unread,
+       "rows read back empty: levels not compared, added and removed still reported")
+td.GetTechlonogyBaseData = realRow
+liveTechs = saved
 
 print("shop cards")
 expect(cards[1].shown.name == "Friend's Map Width (ChecksFinder)" and cards[1].shown.icon == "progression",
