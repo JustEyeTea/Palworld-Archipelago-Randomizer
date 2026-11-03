@@ -357,7 +357,8 @@ local function colourMap(krl, tex, gi)
     if f then
         f:close()
         if not printNow or saved == printNow then return path end
-        log("map: the game's map picture changed (another mod?): saving it again")
+        if saved then log("map: the game's map picture changed (another mod?): saving it again")
+        else log("map: saving the colour map again with a fingerprint (made before map changes were checked)") end
     end
     local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
     local canvasOut, contextOut, extra = {}, {}, {}

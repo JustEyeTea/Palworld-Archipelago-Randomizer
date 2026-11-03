@@ -41,7 +41,31 @@ local function setText(button, text)
     pcall(function() button.Test_Content:SetText(FText(text)) end)
 end
 
-local function addButton(menu, kind)
+local function className(o)
+    local ok, n = pcall(function() return o:GetClass():GetFName():ToString() end)
+    return ok and n or "?"
+end
+
+-- The panel the game's own title buttons sit in. The server's files call it VerticalBox_0; the client's title menu
+-- differs (v0.10.0 playtest: no VerticalBox_0), so otherwise walk up from one of the game's buttons to the first box.
+local BOXES = { VerticalBox = true, ScrollBox = true, WrapBox = true, HorizontalBox = true }
+local function buttonList(menu)
+    local ok, b = pcall(function() local v = menu.VerticalBox_0; return v:IsValid() and v or nil end)
+    if ok and b then return b end
+    for _, button in ipairs(FindAllOf("WBP_Title_MenuButton_C") or {}) do
+        if button:IsValid() and not ours[tostring(button:GetAddress())] then
+            local w = button
+            for _ = 1, 5 do
+                local okp, parent = pcall(function() return w:GetParent() end)
+                if not okp or not parent or not parent:IsValid() then break end
+                if BOXES[className(parent)] then return parent end
+                w = parent
+            end
+        end
+    end
+end
+
+local function addButton(menu, list, kind)
     local class = find(BUTTON)
     local sizeClass = StaticFindObject("/Script/UMG.SizeBox")
     local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
@@ -52,7 +76,7 @@ local function addButton(menu, kind)
     box:SetWidthOverride(600)
     box:SetHeightOverride(38)
     box:AddChild(button)
-    local slot = menu.VerticalBox_0:AddChildToVerticalBox(box)
+    local slot = list:AddChild(box)
     pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 3 }) end)
     pcall(function() slot:SetHorizontalAlignment(0) end)
     ours[tostring(button:GetAddress())] = kind
@@ -119,7 +143,7 @@ end
 -- Diagnostics (v0.8.1): the title menu mapped from the dedicated server's files was not on the client's title screen.
 -- Once on the title screen, log every user widget whose class names a title or menu, with its child widgets, so the
 -- client's real title menu can be found from a log.
-local surveyed, titleTicks = false, 0
+local surveyed, titleTicks, added = false, 0, false
 local function survey()
     local seen = {}
     for _, w in ipairs(FindAllOf("UserWidget") or {}) do
@@ -143,6 +167,17 @@ local function survey()
                 .. table.concat(children, ", "))
         end
     end
+    for _, button in ipairs(FindAllOf("WBP_Title_MenuButton_C") or {}) do
+        local chain, w = {}, button
+        for _ = 1, 6 do
+            local okp, parent = pcall(function() return w:GetParent() end)
+            if not okp or not parent or not parent:IsValid() then break end
+            chain[#chain + 1] = tostring(select(2, pcall(function() return parent:GetFName():ToString() end))) .. ":" .. className(parent)
+            w = parent
+        end
+        log("menu survey: title button " .. tostring(select(2, pcall(function() return button:GetFullName() end)))
+            .. " | parents: " .. table.concat(chain, " < "))
+    end
     log("menu survey: done (" .. (function() local n = 0; for _ in pairs(seen) do n = n + 1 end; return n end)() .. " classes)")
 end
 
@@ -152,30 +187,33 @@ function M.update()
         local inWorld = false
         pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
         local found = #(FindAllOf("WBP_TitleMenu_C") or {}) > 0
-        if not inWorld and not found then titleTicks = titleTicks + 1 else titleTicks = 0 end
-        if titleTicks >= 20 or found then                    -- 6 s on a title screen without the expected menu
+        if not inWorld and not added then titleTicks = titleTicks + 1 else titleTicks = 0 end
+        if added then
             surveyed = true
-            if not found then
-                log("menu: the expected title menu (WBP_TitleMenu_C) is not on this title screen; surveying")
-                local ok, err = pcall(survey)
-                if not ok then log("menu survey error: " .. tostring(err)) end
-            end
+        elseif (found and titleTicks >= 20) or titleTicks >= 100 then   -- the menu up 6 s without our buttons, or 30 s without it
+            surveyed = true
+            log(found and "menu: the title menu is here but its button list was not found; surveying"
+                or "menu: the expected title menu (WBP_TitleMenu_C) is not on this title screen; surveying")
+            local ok, err = pcall(survey)
+            if not ok then log("menu survey error: " .. tostring(err)) end
         end
     end
     hookOnce(CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
     hookOnce(WINDOW_OK, function() local ok, err = pcall(okPressed); if not ok then log("menu OK error: " .. tostring(err)) end end)
     for _, menu in ipairs(FindAllOf("WBP_TitleMenu_C") or {}) do
-        local okb, box = pcall(function() local b = menu.VerticalBox_0; return b:IsValid() and b or nil end)
-        if menu:IsValid() and okb and box then
+        local okb, list = pcall(buttonList, menu)
+        if menu:IsValid() and okb and list then
             local key = tostring(menu:GetAddress())
             local m = menus[key]
             if not m or not m.connect:IsValid() then
-                local okc, c = pcall(addButton, menu, "connect")
-                local okd, d = pcall(addButton, menu, "disconnect")
+                local okc, c = pcall(addButton, menu, list, "connect")
+                local okd, d = pcall(addButton, menu, list, "disconnect")
                 if okc and c and okd and d then
                     m = { connect = c, disconnect = d }
                     menus[key] = m
-                    log("menu: Archipelago buttons added to the title menu")
+                    added = true
+                    log("menu: Archipelago buttons added to the title menu (" .. className(list) .. " "
+                        .. tostring(select(2, pcall(function() return list:GetFName():ToString() end))) .. ")")
                 else
                     once("menuadd", "menu: could not add the buttons: " .. tostring(c) .. " / " .. tostring(d))
                 end

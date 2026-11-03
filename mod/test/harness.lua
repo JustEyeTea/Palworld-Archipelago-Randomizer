@@ -112,6 +112,7 @@ local mapBody = { IsValid = function() return true end, GetAddress = function() 
 FindAllOf = function(class)
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     if class == "WBP_TitleMenu_C" then return titleOpen and { titleMenu } or {} end
+    if class == "WBP_Title_MenuButton_C" then return titleOpen and { gameTitleButton } or {} end
     if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
         return mapOpen and { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody } or {}
     end
@@ -205,9 +206,16 @@ function Widget(extra)   -- global: the stubs above use it
     return w
 end
 local menuChildren = {}
-titleMenu = Widget({ VerticalBox_0 = Widget({ AddChildToVerticalBox = function(_, box)
-    menuChildren[#menuChildren + 1] = box
-    return { SetPadding = function() end, SetHorizontalAlignment = function() end } end }) })
+-- As on the client (v0.10.0 playtest): the title menu has no VerticalBox_0; its buttons sit in a vertical box.
+local function classed(name) return { GetFName = function() return FNameOf(name) end } end
+local buttonBox = Widget({ GetClass = function() return classed("VerticalBox") end,
+                           GetFName = function() return FNameOf("VerticalBox_Menu") end,
+                           AddChild = function(_, box)
+                               menuChildren[#menuChildren + 1] = box
+                               return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
+local gameButtonWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end })
+gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
+titleMenu = Widget()
 titleOpen = false
 wbl = { IsValid = function() return true end,   -- global: StaticFindObject above returns it
               Create = function() return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
@@ -619,6 +627,7 @@ expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as
        "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
 run(3)
 expect(#menuChildren == 2, "added once")
+expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the game's buttons sit in")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
 local function okWith(text)
     pushed[#pushed].OutString = text
