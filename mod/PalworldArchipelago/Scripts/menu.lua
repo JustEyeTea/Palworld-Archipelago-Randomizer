@@ -128,6 +128,14 @@ local STEPS = {
     { key = "slot", title = "Your slot name" },
     { key = "password", title = "Room password (empty if none)", hidden = true },
 }
+-- The window's heading is a PalTextBlockBase bound to a text-table row (BindTextDatatableHandle -> "WorldName"),
+-- which it puts back on rebuild; unbind it, then set ours.
+local function setHeading(w, title)
+    pcall(function() w.Text_Head.IsAutoTextSetWhenWidgetRebuilt = false end)
+    pcall(function() w.Text_Head.BindTextDatatableHandle.RowName = FName("None") end)
+    pcall(function() w.Text_Head:SetText(FText(title)) end)
+end
+
 local function openWindow(context)
     local step = STEPS[asking.step]
     local hud = StaticFindObject("/Script/Pal.Default__PalUtility"):GetHUDService(context)
@@ -139,8 +147,7 @@ local function openWindow(context)
     asking.id = hud:Push(find(WINDOW), param)
     local w = hud:GetWidget(asking.id)
     if w and w:IsValid() then
-        pcall(function() w.Text_Head.IsAutoTextSetWhenWidgetRebuilt = false end)
-        pcall(function() w.Text_Head:SetText(FText(step.title)) end)
+        setHeading(w, step.title)
         if step.hidden then pcall(function() w.PalEditableTextBox_0:SetIsPassword(true) end) end
     end
     asking.title = step.title
@@ -282,10 +289,13 @@ function M.update()
         -- The heading is bound to the game's text table ("World Name") and puts that back when the window rebuilds:
         -- set ours again while it is open (v0.10.2 playtest: every window still read "World Name").
         if open and asking.title and not asking.reopen then
-            pcall(function() w.Text_Head:SetText(FText(asking.title)) end)
+            setHeading(w, asking.title)
             asking.headLogs = (asking.headLogs or 0) + 1
             if asking.headLogs <= 3 then                 -- does our heading stick? (diagnostic, first window ticks)
-                local okt, t = pcall(function() return w.Text_Head:GetText():ToString() end)
+                local okt, t = pcall(function()
+                    local h = w.Text_Head
+                    return h.Text:ToString() .. " (row " .. h.BindTextDatatableHandle.RowName:ToString() .. ")"
+                end)
                 log("menu: window heading reads '" .. tostring(okt and t or ("? " .. tostring(t))) .. "'"
                     .. (hooked[WINDOW_OK] and "" or " (OK not hooked yet)"))
             end
