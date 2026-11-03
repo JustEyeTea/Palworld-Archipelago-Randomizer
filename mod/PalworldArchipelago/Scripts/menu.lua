@@ -139,6 +139,7 @@ local function openWindow(context)
     asking.id = hud:Push(find(WINDOW), param)
     local w = hud:GetWidget(asking.id)
     if w and w:IsValid() then
+        pcall(function() w.Text_Head.IsAutoTextSetWhenWidgetRebuilt = false end)
         pcall(function() w.Text_Head:SetText(FText(step.title)) end)
         if step.hidden then pcall(function() w.PalEditableTextBox_0:SetIsPassword(true) end) end
     end
@@ -266,8 +267,13 @@ function M.update()
     end
     -- The text-window chain: open the next window once the last one closed; a window closed without OK cancels.
     if asking then
-        local open = false
-        pcall(function() local w = asking.hud:GetWidget(asking.id); open = w and w:IsValid() end)
+        local open, w = false, nil
+        pcall(function() w = asking.hud:GetWidget(asking.id); open = w and w:IsValid() end)
+        -- The heading is bound to the game's text table ("World Name") and puts that back when the window rebuilds:
+        -- set ours again while it is open (v0.10.2 playtest: every window still read "World Name").
+        if open and asking.title and not asking.reopen then
+            pcall(function() w.Text_Head:SetText(FText(asking.title)) end)
+        end
         if asking.reopen and not open then
             asking.reopen = false
             if asking.step > #STEPS then

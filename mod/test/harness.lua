@@ -639,6 +639,10 @@ local function okWith(text)
 end
 hooks[CLICK]({ get = function() return connectBtn end })
 expect(#pushed == 1 and pushed[1].DefaultInputName == "localhost:38281", "clicking asks for the server, filled in")
+hudWindows["w1"].Text_Head.text = "World Name"                     -- the game puts its own heading back
+run(1)
+expect(hudWindows["w1"].Text_Head.text == "Archipelago server (host:port)", "the window keeps our heading: "
+       .. tostring(hudWindows["w1"].Text_Head.text))
 okWith("archipelago.gg:40000")
 expect(#pushed == 2 and pushed[2].DefaultInputName == "Tester", "then the slot")
 okWith("Other")
