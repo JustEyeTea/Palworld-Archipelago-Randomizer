@@ -304,12 +304,14 @@ local function findChest()
     end
 end
 
--- The chest's size is its Blueprint's item-chest component's SlotNum (54 on ItemChest_04): raised on the templates
--- while ours is made, then put back, so chests the player builds stay as they are.
+-- The chest's size is its Blueprint's item-chest component's SlotNum (54 on ItemChest_04, in the template
+-- PalMapObjectItemChestParameter_GEN_VARIABLE): raised on the templates while ours is made, then put back, so chests
+-- the player builds stay as they are.
 local function chestTemplates()
     pcall(LoadAsset, CHEST_BP)
     local out, seen = {}, {}
     local function consider(c)
+        if not c then return end
         local ok, n = pcall(function() return c:GetFullName() end)
         if ok and n:find("BP_BuildObject_ItemChest_04", 1, true) and not seen[n]
                 and (n:find("GEN_VARIABLE", 1, true) or n:find("Default__", 1, true)) then
@@ -317,6 +319,7 @@ local function chestTemplates()
             out[#out + 1] = c
         end
     end
+    consider(StaticFindObject(CHEST_BP .. ".BP_BuildObject_ItemChest_04_C:PalMapObjectItemChestParameter_GEN_VARIABLE"))
     for _, c in ipairs(FindAllOf("PalMapObjectItemChestParameterComponent") or {}) do consider(c) end
     if #out == 0 and ForEachUObject then
         ForEachUObject(function(o)
