@@ -212,6 +212,10 @@ end
 local function refreshWindow()
     local w = win and win.hud:GetWidget(win.id)
     if not w or not w:IsValid() then return end
+    for _, part in ipairs({ "Title", "Summary", "List", "TakeAll", "Close" }) do       -- names the LogicMod must use
+        local ok, v = pcall(function() return w[part] end)
+        if not ok or v == nil then once("part" .. part, "mailbox: the LogicMod window has no widget named " .. part) end
+    end
     local rowClass = find(ROW)
     local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
     w.List:ClearChildren()
