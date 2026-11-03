@@ -892,6 +892,37 @@ for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1
 expect(forgot and connectBtn.Test_Content.text == "Archipelago: connected as Other", "a different seed starts afresh")
 titleOpen = false
 
+print("the other goals")
+local function newSeed(seed, extra)
+    slotData.seed = seed
+    for k, v in pairs(extra) do slotData[k] = v end
+    push("status", "connected", "Other")
+    run(14)
+end
+local relic = tostring(itemId["Palpagos Relic"])
+newSeed("70001", { ["options.goal"] = "1", relics_needed = "2", relics = "3" })
+local before = goals
+push("item", "0", relic, "1", "1", "1", "Palpagos Relic", "Friend")
+run(14)
+expect(goals == before and table.concat(announced, "|"):find("Palpagos Relic 1/2 found!", 1, true), "Relic Hunt: one relic of two")
+push("item", "1", relic, "2", "1", "1", "Palpagos Relic", "Friend")
+run(14)
+expect(goals == before + 1 and logged("Goal complete: 2 Palpagos Relics found!"), "Relic Hunt: the second relic wins")
+newSeed("70002", { ["options.goal"] = "2", ["options.paldeck_count"] = "3" })
+before = goals
+run(14)
+expect(goals == before, "Paldeck: two Pals registered of three")
+record.PaldeckUnlockFlag.Items.list[2] = { Key = FNameOf("SheepBall"), Value = true }   -- the third: SheepBall hatched
+run(14)
+expect(goals == before + 1 and logged("Goal complete: 3 Pals registered!"), "Paldeck: the third Pal wins")
+newSeed("70003", { ["options.goal"] = "3" })
+before = goals
+run(14)
+expect(goals == before, "World Tree: not beaten yet")
+local towerList = record.TowerBossDefeatFlag.Items.list
+towerList[#towerList + 1] = { Key = FNameOf("EPalBossType::WorldTreeBoss"), Value = true }
+run(14)
+expect(goals == before + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

@@ -1192,6 +1192,7 @@ M.items = {
     [1352730162] = { kind = "tech", tech = "FurnitureSet_12", name = "Tech: Road Sign Set" },
     [1352730163] = { kind = "tech", tech = "FurnitureSet_10", name = "Tech: Barricade Set" },
     [1352729476] = { kind = "progressive", name = "Progressive Sphere" },
+    [1352729516] = { kind = "relic", name = "Palpagos Relic" },
     [1352729526] = { kind = "filler", name = "Tech Points +2" },
     [1352729527] = { kind = "filler", name = "Ancient Tech Points +1" },
     [1352729528] = { kind = "filler", name = "Wood Bundle" },

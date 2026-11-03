@@ -6,7 +6,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.11.1"
+local VERSION = "0.12.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -198,16 +198,46 @@ local function giveOneOff(ps, id)
     end
 end
 
+-- Relics received so far (the Relic Hunt goal), up to item index `upto` (all by default; items are numbered from 0).
+local function relicCount(upto)
+    local n = 0
+    for i, id in pairs(ap.items) do
+        local it = D.items[id]
+        if it and it.kind == "relic" and (not upto or i <= upto) then n = n + 1 end
+    end
+    return n
+end
+
 local function applyItems(ps)
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
         local it = D.items[id]
         if it and it.kind == "filler" then giveOneOff(ps, id) end
+        if it and it.kind == "relic" then
+            local need = tonumber(AP_SlotData("relics_needed"))
+            notify("Palpagos Relic " .. relicCount(i) .. (need and ("/" .. need) or "") .. " found!")
+        end
         ap.given = i
         i = i + 1
     end
     writeSave()
+end
+
+-- The seed's goal (slot data options.goal: 0 towers, 1 relic hunt, 2 Paldeck, 3 World Tree); what was done, or nil.
+local GOALS = { ["0"] = "towers", ["1"] = "relic_hunt", ["2"] = "paldeck", ["3"] = "world_tree" }
+local function goalReached(found)
+    local goal = GOALS[AP_SlotData("options.goal")] or "towers"
+    if goal == "relic_hunt" then
+        local have, need = relicCount(), tonumber(AP_SlotData("relics_needed")) or 999
+        return have >= need and (have .. " Palpagos Relics found") or nil
+    elseif goal == "paldeck" then
+        local need = tonumber(AP_SlotData("options.paldeck_count")) or 999
+        return found.pals >= need and (found.pals .. " Pals registered") or nil
+    elseif goal == "world_tree" then
+        return found.beaten.WorldTreeBoss and "the World Tree's boss beaten" or nil
+    end
+    return found.towers >= (tonumber(AP_SlotData("options.tower_count")) or 99) and (found.towers .. " tower(s) beaten") or nil
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -233,10 +263,12 @@ local function pollRecords(ps)
     if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
     sendChecks(found.locations)
     ap.level, ap.beaten = found.level, found.beaten
-    if not ap.goalSent and found.towers >= (tonumber(AP_SlotData("options.tower_count")) or 99) then
+    if ap.goalSent then return end
+    local done = goalReached(found)
+    if done then
         ap.goalSent = true
         AP_Goal()
-        notify("Goal complete: " .. found.towers .. " tower(s) beaten!")
+        notify("Goal complete: " .. done .. "!")
     end
 end
 
@@ -579,7 +611,7 @@ local techScan = { report = nil, tries = 0, sent = false }   -- other mods' tech
 
 local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
-    ap.given, ap.goalSent, ap.ready, ap.shown = 0, false, false, false
+    ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
     MAIL.reset()
     hints.known, hints.shown, hints.offer = {}, {}, nil
     techScan.sent = false

@@ -3,12 +3,62 @@ from dataclasses import dataclass
 from Options import Choice, DeathLink, DefaultOnToggle, OptionGroup, PerGameCommonOptions, Range, Toggle
 
 
+class Goal(Choice):
+    """What wins the game.
+    Towers: beat a number of tower bosses (Towers to Beat).
+    Relic Hunt: collect Palpagos Relics, which are shuffled across the whole multiworld (Relics Needed of Relic Count).
+    Paldeck: register a number of different Pals in your Paldeck (Pals to Register).
+    World Tree: beat the boss at the top of the World Tree, the end of the game."""
+    display_name = "Goal"
+    option_towers = 0
+    option_relic_hunt = 1
+    option_paldeck = 2
+    option_world_tree = 3
+    default = 0
+
+
 class TowerCount(Range):
-    """How many tower bosses you must beat to win. One or two suit a run of a few hours; all eight is a long game."""
+    """Towers goal: how many tower bosses you must beat. One or two suit a run of a few hours; all eight is a long
+    game."""
     display_name = "Towers to Beat"
     range_start = 1
     range_end = 8
     default = 2
+
+
+class PaldeckCount(Range):
+    """Paldeck goal: how many different Pals you must register (catch or hatch)."""
+    display_name = "Pals to Register"
+    range_start = 10
+    range_end = 250
+    default = 60
+
+
+class RelicCount(Range):
+    """Relic Hunt goal: how many Palpagos Relics are shuffled into the multiworld."""
+    display_name = "Relic Count"
+    range_start = 5
+    range_end = 100
+    default = 30
+
+
+class RelicsNeeded(Range):
+    """Relic Hunt goal: what percentage of the relics you need to win (rounded up)."""
+    display_name = "Relics Needed (%)"
+    range_start = 10
+    range_end = 100
+    default = 75
+
+
+class CheckLevel(Range):
+    """The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,
+    alphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.
+    0 (auto) sets it from the goal: the level of the last tower you need, the level by which you can register enough
+    Pals, 30 for a Relic Hunt, and no limit for the World Tree."""
+    display_name = "Check Level Cap"
+    range_start = 0
+    range_end = 80
+    default = 0
 
 
 class AreaLocks(DefaultOnToggle):
@@ -59,7 +109,12 @@ class LevelChecks(Choice):
 
 @dataclass
 class PalworldOptions(PerGameCommonOptions):
+    goal: Goal
     tower_count: TowerCount
+    paldeck_count: PaldeckCount
+    relic_count: RelicCount
+    relics_needed: RelicsNeeded
+    check_level: CheckLevel
     area_locks: AreaLocks
     progressive_spheres: ProgressiveSpheres
     tech_checks: TechChecks
@@ -71,7 +126,21 @@ class PalworldOptions(PerGameCommonOptions):
 
 
 option_groups = [
-    OptionGroup("Goal", [TowerCount]),
+    OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
     OptionGroup("Progression", [AreaLocks, ProgressiveSpheres]),
-    OptionGroup("Checks", [TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
+    OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
 ]
+
+
+# Ready-made sets for the options page and the Launcher's template generator. Measured check counts (AP 0.6.8,
+# 2026-11-03): Short Sync 205, Sync 264, Long Sync 541, Relic Hunt Sync 339, Paldeck Sync 247, Async 731, Full Game
+# 1,149. A typical Archipelago game has about 180.
+options_presets = {
+    "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False},
+    "Sync": {"goal": "towers", "tower_count": 1},
+    "Long Sync": {"goal": "towers", "tower_count": 2},
+    "Relic Hunt Sync": {"goal": "relic_hunt", "relic_count": 20, "relics_needed": 75, "check_level": 25},
+    "Paldeck Sync": {"goal": "paldeck", "paldeck_count": 60},
+    "Async": {"goal": "towers", "tower_count": 3},
+    "Full Game Async": {"goal": "world_tree"},
+}

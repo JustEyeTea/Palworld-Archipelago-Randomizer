@@ -64,18 +64,20 @@ LEVELS = list(range(2, 81))
 FILLER = ["Tech Points +2", "Ancient Tech Points +1", "Wood Bundle", "Stone Bundle", "Paldium Bundle",
           "Ingot Bundle", "Sphere Bundle", "Food Bundle"]
 PROGRESSIVE_SPHERE = "Progressive Sphere"
+RELIC = "Palpagos Relic"                           # the Relic Hunt goal's item
 
 
 class ItemDef(NamedTuple):
     name: str
     id: int
-    kind: str                      # "pass", "tech", "progressive", "filler"
+    kind: str                      # "pass", "tech", "progressive", "relic", "filler"
 
 
 def _items() -> List[ItemDef]:
     out = [ItemDef(area_pass(a), BASE + i, "pass") for i, a in enumerate(PASS_AREAS)]
     out += [ItemDef(tech_item(t[0]), BASE + 1000 + i, "tech") for i, t in enumerate(TECHS) if t[2] > STARTER_LEVEL]
     out.append(ItemDef(PROGRESSIVE_SPHERE, BASE + 900, "progressive"))
+    out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
     return out
 
@@ -113,3 +115,25 @@ LOCATION_NAME_TO_ID: Dict[str, int] = {l.name: l.id for l in LOCATIONS}
 assert len(ITEM_NAME_TO_ID) == len(ITEMS), "duplicate item names"
 assert len(LOCATION_NAME_TO_ID) == len(LOCATIONS), "duplicate location names"
 assert DECOR_TECHS <= {t[0] for t in SHOP_TECHS} and not DECOR_TECHS & PREREQ_TECHS, "décor techs must be plain shop techs"
+
+
+# --- groups (for hints, start_inventory and the like) -----------------------------------------------------------
+ITEM_GROUPS = {
+    "Area Passes": {i.name for i in ITEMS if i.kind == "pass"},
+    "Techs": {i.name for i in ITEMS if i.kind == "tech"},
+    "Spheres": {tech_item(t[0]) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
+    "Bundles": {n for n in FILLER if n.endswith(" Bundle")},
+    "Tech Points": {"Tech Points +2", "Ancient Tech Points +1"},
+}
+LOCATION_GROUPS = {
+    "Shop": {l.name for l in LOCATIONS if l.kind == "shop"},
+    "Captures": {l.name for l in LOCATIONS if l.kind == "capture"},
+    "Alphas": {l.name for l in LOCATIONS if l.kind == "alpha"},
+    "Fast Travel": {l.name for l in LOCATIONS if l.kind == "fast_travel"},
+    "Levels": {l.name for l in LOCATIONS if l.kind == "level"},
+    "Towers": {l.name for l in LOCATIONS if l.kind == "tower"},
+}
+for _area in AREA_LIST:                            # "Windswept Island" and so on: the checks in that area
+    _names = {l.name for l in LOCATIONS if l.area and PIECES.get(l.area) == _area}
+    if _names:
+        LOCATION_GROUPS[_area] = _names
