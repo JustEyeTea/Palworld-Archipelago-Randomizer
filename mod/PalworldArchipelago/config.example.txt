@@ -4,3 +4,12 @@ slot=
 password=
 # The key that buys a hint for the Area Pass of the wall you are at (a letter or a key name such as F6).
 hint_key=H
+# The Archipelago Mailbox (Esc menu > Archipelago Mailbox): received items wait there until you take them.
+# mailbox=0 puts them straight into your bag instead.
+mailbox=1
+# Optional key that opens the mailbox (empty: only the Esc menu button).
+mailbox_key=
+# Slots of the hidden chest the game's chest window shows the mailbox in (54 to 2000; set before it is first made).
+mailbox_slots=300
+# chest: always use the chest window, even with the PalworldArchipelagoUI LogicMod installed.
+mailbox_view=

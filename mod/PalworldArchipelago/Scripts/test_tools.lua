@@ -1,11 +1,9 @@
 -- Test tools, only with test_tools=1 in config.txt: probes for features that need the game itself to answer.
 --   Ctrl+F9   give a Pal, route A1: build an Anubis Lv 50's save data, drop it as a pickup ahead of you, pick it up
 --   Ctrl+F7   give a Pal, route A2: an unseen captured cage spawns the Pal and hands it to you
---   Ctrl+F10  the mailbox: a chest (ItemChest_04, 54 slots) far outside the world and deep underground, kept from
---             decaying, with 10 Wood put in it; found again by position after a reload instead of spawning another
---   Ctrl+F6   open the mailbox's window from wherever you are (the game's chest window, HUD ShowCommonUI ItemChest)
+--   Ctrl+F8   give a Pal, route A5: the save data into the character manager with no callback, then the party
 -- Every step is logged as a "[test]" line. (v0.10.x playtest: RequestSpawnMonsterForPlayer is a stubbed cheat and
--- spawns nothing; a chest placed beside the player and opened from afar worked.)
+-- spawns nothing. The mailbox chest probes became the mailbox itself, mailbox.lua.)
 local T = {}
 local function log(msg) print("[PalworldAP] [test] " .. msg .. "\n") end
 local function try(what, fn)
@@ -14,7 +12,6 @@ local function try(what, fn)
     return ok and a or nil
 end
 
-local MAILBOX_AT = { X = -1050000, Y = -700000, Z = -40000 }   -- beyond the playable corner, under the ground
 local PAL, PAL_LEVEL = "Anubis", 50
 
 local function player()
@@ -121,87 +118,26 @@ local function palByCage()
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- The mailbox chest.
-local function findMailbox()
-    for _, m in ipairs(FindAllOf("PalMapObjectItemChestModel") or {}) do
-        local ok, t = pcall(function() return m:GetTransform().Translation end)
-        if ok and t and m:IsValid() then
-            local d2 = (t.X - MAILBOX_AT.X) ^ 2 + (t.Y - MAILBOX_AT.Y) ^ 2 + (t.Z - MAILBOX_AT.Z) ^ 2
-            if d2 < 200 ^ 2 then return m end
-        end
-    end
-end
-
--- Out of reach and kept: no decay (ItemChest_04 loses 0.15 HP/s outside a base), locked to us, the actor hidden.
-local function harden(chest, mgr, pawn)
-    local model = try("its map object", function() return mgr:FindModel(chest:GetModelInstanceId()) end)
-    if model then
-        try("decay before", function() return model.DeteriorationDamage end)
-        try("no decay", function() model.DeteriorationDamage = 0; return model.DeteriorationDamage end)
-        try("no damage", function() model.DamagableType = 2; return model.DamagableType end)
-    end
-    try("lock to you", function() return chest:RequestLockPrivate_ServerInternal(util():GetLocalPlayerID(pawn)) end)
-    try("hide its actor (if loaded)", function()
-        local a = chest:GetActor()
-        if not a or not a:IsValid() then return "not loaded" end
-        a:SetActorHiddenInGame(true); a:SetActorEnableCollision(false)
-        return "hidden"
-    end)
-end
-
-local function fill(chest)
-    local container = try("chest container", function() return chest:GetItemContainerModule():GetContainer() end)
-    if not container then return end
-    try("slot count", function() return container.ItemSlotArray:GetArrayNum() end)
-    local slot = try("first slot", function() return container.ItemSlotArray[1] end)
-    if not slot then return end
-    local ok = pcall(function() slot.ItemId.StaticId = FName("Wood") end)
-    if not ok then try("slot item (whole struct)", function() slot.ItemId = { StaticId = FName("Wood"), DynamicId = slot.ItemId.DynamicId } end) end
-    try("slot count to 10", function() slot.StackCount = 10 end)
-    try("OnRep_ItemId", function() return slot:OnRep_ItemId() end)
-    try("OnRep_StackCount", function() return slot:OnRep_StackCount() end)
-    try("slot now holds", function() return slot:GetItemId().StaticId:ToString() .. " x" .. slot:GetStackCount() end)
-end
-
-local function mailbox()
+-- Give a Pal, A5: the save data straight into the character manager (no callback: it returns the handle), then the
+-- party. Answers whether UE4SS can pass an empty delegate at all.
+local function palByCreate()
     local _, pawn, ps = player()
-    if not pawn then log("no player"); return end
-    local mgr = try("map object manager", function() return util():GetMapObjectManager(pawn) end)
-    if not mgr then return end
-    local chest = findMailbox()
-    if chest then
-        log("mailbox already there (kept in the save): " .. chest:GetFullName())
-        harden(chest, mgr, pawn)
-        fill(chest)
-        log("press Ctrl+F6 to open it")
-        return
-    end
-    try("RequestSpawnMapObjectByPlayer_Server(ItemChest_04) far away, underground", function()
-        return mgr:RequestSpawnMapObjectByPlayer_Server(FName("ItemChest_04"), MAILBOX_AT, { Pitch = 0, Yaw = 0, Roll = 0 }, ps.PlayerUId)
+    if not pawn or not ps then log("no player"); return end
+    local U = util()
+    local sp = {}
+    try("GetInitializedCharacterSaveParemter(" .. PAL .. ", " .. PAL_LEVEL .. ")", function()
+        return U:GetInitializedCharacterSaveParemter(pawn, FName(PAL), FName("None"), PAL_LEVEL, ps.PlayerUId, sp, false, false)
     end)
-    later(1500, function()
-        local m = findMailbox()
-        if not m then log("no mailbox chest at the far spot: the game may refuse to build there"); return end
-        log("mailbox chest made: " .. m:GetFullName())
-        harden(m, mgr, pawn)
-        fill(m)
-        log("now press Ctrl+F6; later save, go to the title, reload and press Ctrl+F10 again: is it found, still holding the Wood?")
+    local cm = try("character manager", function() return U:GetCharacterManager(pawn) end)
+    if not cm then return end
+    local handle = try("CreateIndividual(save data, nil)", function() return cm:CreateIndividual(sp, nil) end)
+    if not handle then handle = try("CreateIndividual(save data, {})", function() return cm:CreateIndividual(sp, {}) end) end
+    if not handle then return end
+    later(1000, function()
+        local holder = try("party holder", function() return U:GetOtomoHolderComponent(pawn) end)
+        if holder then try("AddOtomoHandleToFreeSlot", function() return holder:AddOtomoHandleToFreeSlot(handle) end) end
+        log("is " .. PAL .. " in your party?")
     end)
-end
-
-local function openMailbox()
-    local chest = findMailbox()
-    if not chest or not chest:IsValid() then log("no mailbox: Ctrl+F10 first"); return end
-    local _, pawn = player()
-    local hud = try("HUD service", function() return util():GetHUDService(pawn) end)
-    if not hud then return end
-    local param = try("dispatch parameter", function()
-        return hud:CreateDispatchParameterForK2Node(pawn, StaticFindObject("/Script/Pal.PalHUDDispatchParameter_MapObject"))
-    end)
-    if not param then return end
-    try("set its chest", function() param.MapObjectConcreteModel = chest end)
-    try("ShowCommonUI(ItemChest)", function() return hud:ShowCommonUI(7, param) end)
-    log("does the mailbox window open? can you move the Wood into your bag, and something back in?")
 end
 
 function T.install()
@@ -217,9 +153,8 @@ function T.install()
     end
     bind(Key.F9, palByDrop, "give a Pal (drop and pick up)")
     bind(Key.F7, palByCage, "give a Pal (captured cage)")
-    bind(Key.F10, mailbox, "the mailbox chest")
-    bind(Key.F6, openMailbox, "open the mailbox from here")
-    log("test tools on: Ctrl+F9 Pal by drop, Ctrl+F7 Pal by cage, Ctrl+F10 mailbox, Ctrl+F6 open it")
+    bind(Key.F8, palByCreate, "give a Pal (character manager)")
+    log("test tools on: Ctrl+F9 Pal by drop, Ctrl+F7 Pal by cage, Ctrl+F8 Pal by character manager")
 end
 
 return T

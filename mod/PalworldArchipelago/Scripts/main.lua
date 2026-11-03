@@ -2,11 +2,11 @@
 -- registers AP_* functions here when this mod starts (see cppmod/APConnector/src/dllmain.cpp).
 --  * Technology levels 2+ are a shop: each card shows what its slot holds in the multiworld, researching it spends the
 --    points and sends the check, and never unlocks the tech itself. Techs unlock as their items arrive.
---  * Received items: techs, Progressive Spheres, Area Passes (recorded; the barriers come later), points and bundles.
+--  * Received items: techs, Progressive Spheres, Area Passes, points, and bundles (into the mailbox, mailbox.lua).
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.10.6"
+local VERSION = "0.11.0"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -18,6 +18,7 @@ local R = require("records")
 local WALLS = require("walls")
 local MENU = require("menu")
 local TECHSCAN = require("techscan")
+local MAIL = require("mailbox")
 
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -48,7 +49,8 @@ local cfg = readConfig()
 local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
-    for _, k in ipairs({ "server", "slot", "password", "hint_key", "test_tools" }) do
+    for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
+                         "test_tools" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -76,7 +78,7 @@ end
 ------------------------------------------------------------------------------------------------------------------------
 -- Archipelago state. The server is the truth: on every connection it sends all items received so far and every
 -- location already checked, so most of this is rebuilt each time. Only one-off effects (points, bundles) need memory:
--- the index of the last item applied, kept per seed and slot in a save file next to the mod.
+-- the index of the last item applied, and the mailbox's contents, kept per seed and slot in a save file next to the mod.
 local ap = {
     status = "disconnected",
     ready = false,        -- connected and the first batch of items is in: safe to lock techs
@@ -106,16 +108,18 @@ local function loadSave()
     if not f then return end
     for line in f:lines() do
         local n = line:match("^given=(%-?%d+)")
-        if n then ap.given = tonumber(n) end
+        if n then ap.given = tonumber(n) else MAIL.load(line) end
     end
     f:close()
-    log("save " .. path .. ": items applied up to index " .. ap.given)
+    local kinds, items = MAIL.count()
+    log("save " .. path .. ": items applied up to index " .. ap.given .. "; mailbox " .. items .. " item(s) of " .. kinds .. " kind(s)")
 end
 local function writeSave()
     local path = saveFile()
     local f = path and io.open(path, "w")
     if not f then return end
     f:write("given=" .. ap.given .. "\n")
+    f:write(MAIL.serialize())
     f:close()
 end
 
@@ -184,8 +188,12 @@ local function giveOneOff(ps, id)
         safe(function() td[R.ANCIENT_ONREP](td) end)
     elseif R.BUNDLES[it.name] then
         for _, b in ipairs(R.BUNDLES[it.name]) do
-            local ok, err = pcall(function() inv:AddItem_ServerInternal(FName(b[1]), b[2], false, 0.0, true) end)
-            if not ok then log("could not give " .. b[1] .. ": " .. tostring(err)) end
+            if MAIL.on() then
+                MAIL.add(b[1], b[2])
+            else
+                local ok, err = pcall(function() inv:AddItem_ServerInternal(FName(b[1]), b[2], false, 0.0, true) end)
+                if not ok then log("could not give " .. b[1] .. ": " .. tostring(err)) end
+            end
         end
     end
 end
@@ -572,6 +580,7 @@ local techScan = { report = nil, tries = 0, sent = false }   -- other mods' tech
 local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
     ap.given, ap.goalSent, ap.ready, ap.shown = 0, false, false, false
+    MAIL.reset()
     hints.known, hints.shown, hints.offer = {}, {}, nil
     techScan.sent = false
     log("a different seed or slot: progress of the last one forgotten")
@@ -660,7 +669,10 @@ MENU.install({
         log("disconnected by the player")
         notify("Disconnected from Archipelago.")
     end,
+    mailboxLabel = MAIL.label,
+    openMailbox = function(context) MAIL.open(context) end,
 })
+MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end })
 if cfg.server and cfg.server ~= "" and cfg.slot and cfg.slot ~= "" then
     log("connecting to " .. cfg.server .. " as " .. cfg.slot)
     AP_Connect(cfg.server, cfg.slot, cfg.password or "")
@@ -787,6 +799,8 @@ local function update()
     registerLazyHooks()
     local okm, errm = pcall(MENU.update)
     if not okm then once("menu" .. tostring(errm), "menu error: " .. tostring(errm)) end
+    local okx, errx = pcall(MAIL.update)
+    if not okx then once("mail" .. tostring(errx), "mailbox error: " .. tostring(errx)) end
     -- The first batch of items arrives just after the connection; wait a moment before locking anything.
     if ap.status == "connected" and not ap.ready and tick - ap.connectedTick >= 5 then
         ap.ready = true

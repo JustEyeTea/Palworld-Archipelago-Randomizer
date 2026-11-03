@@ -37,7 +37,12 @@ function td:OnRep_UnlockedTechnologyNameArray() self.reps = self.reps + 1 end
 function td:OnRep_TechnologyPoint() end
 function td:OnRep_BossTechnologyPoint() end
 local given = {}
-local inv = { AddItem_ServerInternal = function(_, name, n) given[#given + 1] = name:ToString() .. " x" .. n end }
+bagFull = false
+local inv = { AddItem_ServerInternal = function(_, name, n)
+    if bagFull then return 16 end                            -- EPalItemOperationResult FailedNotEnoughSlotSpace
+    given[#given + 1] = name:ToString() .. " x" .. n
+    return 0
+end }
 local record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
     PaldeckUnlockFlag = FastArray({ { "Blueplatypus", true } }),
@@ -118,6 +123,9 @@ FindAllOf = function(class)
     end
     if class == "PalPlayerState" then return { ps } end
     if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
+    if class == "PalMapObjectItemChestModel" then return chests end
+    if class == "PalMapObjectItemChestParameterComponent" then return chestTemplates end
+    if class == "UserWidget" then return escOpen and { escMenu } or {} end
     return nil
 end
 FindFirstOf = function(class)
@@ -155,6 +163,8 @@ local gameplay = { IsValid = function() return true end,
 local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
+    if path:find("PalUIUtility") then return uiUtil end
+    if path:find("^/Game/Mods/") then return logicMod and Texture(path) or nil end
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
     if path:find("WidgetBlueprintLibrary") then return wbl end
@@ -313,7 +323,7 @@ unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
 expect(have.Workbench, "level-1 tech kept")
 expect(not have.PalBox, "PalBox locked (no item)")
 expect(have.Product_Cooking_Grade_01 and have.Special_PalSphere_Grade_01, "Campfire and the first sphere unlocked")
-expect(given[1] == "Wood x50", "Wood Bundle given: " .. tostring(given[1]))
+expect(#given == 0, "the Wood Bundle is not put in the bag: " .. tostring(given[1]))
 expect(td.TechnologyPoint == 12, "Tech Points +2 applied: " .. td.TechnologyPoint)
 expect(checks[D.levels[2]] and checks[D.levels[4]] and not checks[D.levels[5]], "levels 2-4 checked, not 5")
 expect(checks[D.captures.chickenpal] and not checks[D.captures.sheepball], "capture by count, not zero count")
@@ -583,7 +593,7 @@ push("status", "connected", "Tester")
 push("item", "2", tostring(itemId["Wood Bundle"]), "3", "2", "0", "Wood Bundle", "Friend")
 push("item", "3", tostring(itemId["Tech Points +2"]), "4", "2", "0", "Tech Points +2", "Friend")
 run(14)
-expect(#given == 1 and td.TechnologyPoint == 12, "no second Wood Bundle or points")
+expect(#given == 0 and select(2, require("mailbox").count()) == 50 and td.TechnologyPoint == 12, "no second Wood Bundle or points")
 
 print("buying a slot")
 local research = hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"]
@@ -624,9 +634,149 @@ expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent:
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
 expect(f and f:read("*a"):match("given=7"), "save file records items applied")
 
-print("the title menu's Archipelago buttons")
 local UI = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
 local CLICK = UI .. "WBP_Title_MenuButton.WBP_Title_MenuButton_C:BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
+
+print("the mailbox")
+local kinds, items = require("mailbox").count()
+expect(kinds == 1 and items == 50, "the Wood Bundle waits in the mailbox: " .. items)
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\nmailview=0", 1, true), "kept in the save file")
+expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox", 1, true), "the player is told where it is")
+-- The Esc menu (the client's): a vertical box of three buttons of one class, each in a size box.
+playerController.K2_GetPawn = function() return pawn end
+local escChildren = {}
+local function escButton()
+    local b = Widget({ GetClass = function() return classed("WBP_EscMenu_Button_C") end })
+    return Widget({ GetClass = function() return classed("SizeBox") end, GetChildAt = function() return b end })
+end
+for i = 1, 3 do escChildren[i] = escButton() end
+local escBox = Widget({ GetClass = function() return classed("VerticalBox") end, GetFName = function() return FNameOf("VerticalBox_Esc") end,
+                        GetChildrenCount = function() return #escChildren end, GetChildAt = function(_, i) return escChildren[i + 1] end,
+                        AddChild = function(_, box) escChildren[#escChildren + 1] = box
+                                       return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
+escMenu = Widget({ GetClass = function() return classed("WBP_EscMenu_C") end,
+                   WidgetTree = { GetAllWidgets = function() return { escBox } end },
+                   Close = function(self) self.closed = true end })
+escOpen = true
+run(4)
+local mailBtn = escChildren[4] and escChildren[4].child
+expect(mailBtn and mailBtn.Test_Content.text == "Archipelago Mailbox (50)", "the Esc menu has a mailbox button with the count: "
+       .. tostring(mailBtn and mailBtn.Test_Content.text))
+expect(logged("the Esc menu is WBP_EscMenu_C"), "found the Esc menu by its buttons")
+run(4)
+expect(#escChildren == 4, "added once")
+-- No LogicMod: the hidden chest. It is made on first use, 300 slots, with the chest template put back after.
+chests, chestTemplates = {}, { { SlotNum = 54, GetFullName = function()
+    return "PalMapObjectItemChestParameterComponent /Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04.BP_BuildObject_ItemChest_04_C:ItemChestParameter_GEN_VARIABLE" end } }
+local function Slot()
+    local slot = { ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }, StackCount = 0 }
+    function slot:IsValid() return true end
+    function slot:IsEmpty() return self.StackCount == 0 or self.ItemId.StaticId:ToString() == "None" end
+    function slot:GetItemId() return self.ItemId end
+    function slot:GetStackCount() return self.StackCount end
+    function slot:OnRep_ItemId() end
+    function slot:OnRep_StackCount() end
+    return slot
+end
+local spawnAsked = nil
+local mapObjects = { RequestSpawnMapObjectByPlayer_Server = function(_, id, at)
+    spawnAsked = id:ToString()
+    local slots = {}
+    for i = 1, chestTemplates[1].SlotNum do slots[i] = Slot() end
+    local c = { Num = function() return #slots end, Get = function(_, i) return slots[i + 1] end, slots = slots }
+    local model = { DeteriorationDamage = 0.15, DamagableType = 0 }
+    chests[#chests + 1] = { IsValid = function() return true end, at = at, c = c, model = model,
+        GetTransform = function(self) return { Translation = self.at } end,
+        GetItemContainerModule = function(self) return { GetContainer = function() return self.c end } end,
+        GetModelInstanceId = function() return "m" end, GetActor = function() return nil end,
+        RequestLockPrivate_ServerInternal = function(self) self.locked = true end }
+    return true end,
+    FindModel = function() return chests[1].model end }
+util.GetMapObjectManager = function() return mapObjects end
+util.GetLocalPlayerID = function() return 1 end
+util.GetItemIDManager = function() return { GetStaticItemData = function() return { GetMaxStackCount = function() return 9999 end } end } end
+uiUtil = { GetItemName = function(_, _, id, out) out.outName = { ToString = function() return ({ Wood = "Wood", Stone = "Stone" })[id:ToString()] end } end }
+local shown = {}
+hud.CreateDispatchParameterForK2Node = function() return {} end
+hud.ShowCommonUI = function(_, kind, param)
+    local id = "chest" .. (#shown + 1)
+    shown[#shown + 1] = { kind = kind, param = param }
+    hudWindows[id] = Widget()
+    return id end
+hud.Close = function(_, id) if hudWindows[id] then hudWindows[id].gone = true end end
+ps.PlayerUId = { A = 1, B = 2, C = 3, D = 4 }
+hooks[CLICK]({ get = function() return mailBtn end })
+expect(escMenu.closed, "the mailbox button closes the Esc menu")
+run(2)
+expect(spawnAsked == "ItemChest_04" and chests[1] and #chests[1].c.slots == 300, "a 300-slot chest is made: " .. tostring(chests[1] and #chests[1].c.slots))
+expect(chestTemplates[1].SlotNum == 54, "the chests players build keep their size")
+expect(chests[1].at.X == -1050000 and chests[1].at.Z == -40000, "far outside the map, under the ground")
+run(2)
+local slots = chests[1].c.slots
+expect(#shown == 1 and shown[1].kind == 7 and shown[1].param.MapObjectConcreteModel == chests[1], "the game's chest window opens on it")
+expect(slots[1].ItemId.StaticId:ToString() == "Wood" and slots[1].StackCount == 50, "filled from the mailbox")
+expect(chests[1].model.DeteriorationDamage == 0 and chests[1].model.DamagableType == 2 and chests[1].locked, "kept from decay and locked")
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview=1", 1, true), "the save knows a view is open")
+slots[1].StackCount = 20                                   -- the player takes 30 Wood
+slots[2].ItemId.StaticId, slots[2].StackCount = FNameOf("Sword"), 1    -- and leaves a sword (gear: has per-item data)
+slots[2].ItemId.DynamicId.LocalIdInCreatedWorld.A = 7
+push("item", "8", tostring(itemId["Stone Bundle"]), "9", "2", "0", "Stone Bundle", "Friend")   -- arrives meanwhile
+run(7)
+hudWindows["chest1"].gone = true                           -- the player closes it
+run(1)
+kinds, items = require("mailbox").count()
+expect(kinds == 2 and items == 70, "closed: what is left goes back into the mailbox, with what arrived meanwhile: " .. items)
+expect(slots[1]:IsEmpty() and not slots[2]:IsEmpty(), "the chest is emptied, gear stays in it")
+local saved = io.open(MOD .. "/save-12345-Tester.txt"):read("*a")
+expect(saved:find("mail=Wood:20,Stone:50\nmailview=0", 1, true), "saved: " .. saved)
+-- Open again: the chest is found, not made again.
+hooks[CLICK]({ get = function() return mailBtn end })
+run(2)
+expect(#chests == 1 and #shown == 2 and slots[1].ItemId.StaticId:ToString() == "Wood" and slots[3].ItemId.StaticId:ToString() == "Stone",
+       "found again by its place and filled around the gear")
+hudWindows["chest2"].gone = true
+run(2)
+-- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
+logicMod = true
+local function PalButton()
+    return Widget({ Label = { SetText = function(self, t) self.text = t.text end },
+                    Btn = { SetKeyboardFocus = function(self) self.focused = true end } })
+end
+local winRows = {}
+local window = Widget({ List = { ClearChildren = function() winRows = {} end, AddChild = function(_, r) winRows[#winRows + 1] = r end },
+                        Title = { SetText = function(self, t) self.text = t.text end },
+                        Summary = { SetText = function(self, t) self.text = t.text end },
+                        TakeAll = PalButton(), Close = PalButton() })
+local pushPlain = hud.Push
+hud.Push = function(self, cls, param)
+    if tostring(cls.path):find("WBP_APMailbox", 1, true) then hudWindows["mail"] = window; return "mail" end
+    return pushPlain(self, cls, param)
+end
+local wblCreate = wbl.Create
+wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end return wblCreate() end
+hooks[CLICK]({ get = function() return mailBtn end })
+run(1)
+local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
+expect(#winRows == 2 and winRows[1].Label.text == "Wood  x20" and winRows[2].Label.text == "Stone  x50",
+       "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
+expect(winRows[1].Btn.focused, "a controller starts on the first row")
+expect(hooks[ROW_CLICK], "its buttons are hooked")
+bagFull = true
+hooks[ROW_CLICK]({ get = function() return winRows[1] end })
+expect(#winRows == 2 and table.concat(announced, "|"):find("Your bag is full: Wood stays in the mailbox.", 1, true), "a full bag keeps the item")
+bagFull = false
+hooks[ROW_CLICK]({ get = function() return winRows[1] end })
+expect(given[#given] == "Wood x20" and #winRows == 1, "a row takes its item into the bag")
+hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
+expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\nmailview=0", 1, true), "and the save")
+hooks[ROW_CLICK]({ get = function() return window.Close end })
+run(1)
+hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false
+escOpen = false
+playerController.K2_GetPawn = nil
+
+print("the title menu's Archipelago buttons")
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
 titleOpen = true
 run(1)

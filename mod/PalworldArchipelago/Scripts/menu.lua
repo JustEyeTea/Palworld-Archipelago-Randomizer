@@ -1,6 +1,8 @@
 -- The title menu's Archipelago buttons: one shows the connection and, clicked, asks for the server, the slot and the
 -- password in the game's own text window (the world-name window), then connects; a second disconnects while connected.
--- Built from the game's own widgets: a WBP_Title_MenuButton added to the title menu's button list.
+-- In a world, the Esc menu gets an "Archipelago Mailbox" button (mailbox.lua).
+-- Built from the game's own widgets: a WBP_Title_MenuButton added to the menu's button list, so a controller reaches it
+-- like the menu's own buttons.
 local M = {}
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 local reported = {}
@@ -15,9 +17,11 @@ local WINDOW_OK = WINDOW .. ":BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_Com
 local PARAM = UI .. "BP_HUDDispatchParameter_WorldNameInput.BP_HUDDispatchParameter_WorldNameInput_C"
 local NOTHING = "\1"           -- what the window's result holds until OK is pressed
 
-local api                      -- status(), server(), slot(), password(), connect(server, slot, password), disconnect()
+local api                      -- status(), server(), slot(), password(), connect(server, slot, password), disconnect(),
+                               -- mailboxLabel(), openMailbox(context)
 local menus = {}               -- title menu address -> { connect = button, disconnect = button }
-local ours = {}                -- our button address -> "connect" | "disconnect"
+local escMenus = {}            -- Esc menu address -> { mailbox = button, menu = the Esc menu }
+local ours = {}                -- our button address -> "connect" | "disconnect" | "mailbox"
 local hooked = {}
 local asking = nil             -- the text-window chain: { step, values, param, id, hud }
 
@@ -160,6 +164,17 @@ local function clicked(button)
         api.disconnect()
         return
     end
+    if kind == "mailbox" then
+        -- Close the Esc menu first; the mailbox opens on the next update.
+        local menu
+        for _, m in pairs(escMenus) do if m.mailbox:IsValid() and m.mailbox:GetAddress() == button:GetAddress() then menu = m.menu end end
+        local closed = menu and pcall(function() menu:Close() end)
+        if not closed then
+            pcall(function() StaticFindObject("/Script/Pal.Default__PalUtility"):GetHUDService(button):CloseOwnerStackableUI(button) end)
+        end
+        api.openMailbox(button)
+        return
+    end
     if asking then return end
     asking = { step = 1, context = button, values = { server = api.server(), slot = api.slot(), password = api.password() } }
     local ok, err = pcall(openWindow, button)
@@ -238,6 +253,95 @@ local function survey()
     log("menu survey: done (" .. (function() local n = 0; for _ in pairs(seen) do n = n + 1 end; return n end)() .. " classes)")
 end
 
+
+-- The Esc menu, found by its class name the first time it is up (only the client has it): a user widget named like an
+-- Esc, pause or system menu whose widget tree holds a box of at least 3 buttons of one class. Until it is found, new
+-- in-world widget classes named like menus are logged, so a log can tell what the client calls it.
+local ESC_NAMES = { "esc", "pause", "systemmenu", "gamemenu" }
+local escClass = nil
+local seenClasses = {}
+local function escLike(name)
+    local l = name:lower()
+    for _, p in ipairs(ESC_NAMES) do if l:find(p, 1, true) then return true end end
+    return false
+end
+local function eachWidget(w, fn)
+    local tree = w.WidgetTree
+    local all = tree:GetAllWidgets()
+    local function one(c)
+        local o = c.get and c:get() or c
+        if o and o:IsValid() then fn(o) end
+    end
+    if type(all) == "table" then for _, c in ipairs(all) do one(c) end else all:ForEach(function(_, c) one(c) end) end
+end
+-- The box whose children are mostly buttons of one class (each maybe wrapped in a size box); nil below 3.
+local function escButtonBox(menu)
+    local best, bestCount = nil, 2
+    eachWidget(menu, function(o)
+        if not BOXES[className(o)] then return end
+        local counts = {}
+        local okn, n = pcall(function() return o:GetChildrenCount() end)
+        for i = 0, (okn and n or 0) - 1 do
+            local okc, child = pcall(function() return o:GetChildAt(i) end)
+            if okc and child and child:IsValid() then
+                local cn = className(child)
+                if cn == "SizeBox" or cn == "Overlay" then
+                    local okg, inner = pcall(function() return child:GetChildAt(0) end)
+                    if okg and inner and inner:IsValid() then cn = className(inner) end
+                end
+                if cn:match("_C$") and not ours[tostring(child:GetAddress())] then counts[cn] = (counts[cn] or 0) + 1 end
+            end
+        end
+        for _, c in pairs(counts) do
+            if c > bestCount then best, bestCount = o, c end
+        end
+    end)
+    return best
+end
+local function findEscMenus()
+    if escClass then return FindAllOf(escClass) or {} end
+    for _, w in ipairs(FindAllOf("UserWidget") or {}) do
+        local ok, name = pcall(function() return w:GetClass():GetFName():ToString() end)
+        if ok and w:IsValid() and not seenClasses[name] and (escLike(name) or name:lower():find("menu", 1, true)) then
+            seenClasses[name] = true
+            log("menu: in-world widget class " .. name)
+        end
+        if ok and w:IsValid() and escLike(name) then
+            local okb, box = pcall(escButtonBox, w)
+            if okb and box then
+                escClass = name
+                log("menu: the Esc menu is " .. name .. " (buttons in " .. className(box) .. " " .. nameOf(box) .. ")")
+                return { w }
+            end
+        end
+    end
+    return {}
+end
+local escTicks = 0
+local function updateEsc()
+    escTicks = escTicks + 1
+    if not escClass and escTicks % 4 ~= 0 then return end
+    for _, menu in ipairs(findEscMenus()) do
+        if menu:IsValid() then
+            local key = tostring(menu:GetAddress())
+            local m = escMenus[key]
+            if not m or not m.mailbox:IsValid() then
+                local okb, list = pcall(escButtonBox, menu)
+                local okc, b = false, nil
+                if okb and list then okc, b = pcall(addButton, menu, list, "mailbox") end
+                if okc and b then
+                    m = { mailbox = b, menu = menu }
+                    escMenus[key] = m
+                    log("menu: Archipelago Mailbox button added to the Esc menu | " .. chainText(b))
+                else
+                    once("escadd", "menu: could not add the mailbox button: " .. tostring(b or list))
+                end
+            end
+            if m then setText(m.mailbox, api.mailboxLabel()) end
+        end
+    end
+end
+
 -- Called from the mod's update loop (game thread).
 function M.update()
     if not surveyed then
@@ -254,6 +358,12 @@ function M.update()
             local ok, err = pcall(survey)
             if not ok then log("menu survey error: " .. tostring(err)) end
         end
+    end
+    local inWorld = false
+    pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
+    if inWorld and api.mailboxLabel then
+        local oke, erre = pcall(updateEsc)
+        if not oke then once("esc" .. tostring(erre), "menu: Esc menu error: " .. tostring(erre)) end
     end
     hookOnce(CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
     hookOnce(WINDOW_OK, function() local ok, err = pcall(okPressed); if not ok then log("menu OK error: " .. tostring(err)) end end)
