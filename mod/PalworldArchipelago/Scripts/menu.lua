@@ -22,13 +22,14 @@ local api                      -- status(), server(), slot(), password(), connec
 local menus = {}               -- title menu address -> { connect = button, disconnect = button }
 local escMenus = {}            -- Esc menu address -> { mailbox = button, menu = the Esc menu }
 local ours = {}                -- our button address -> "connect" | "disconnect" | "mailbox"
+local closeEsc = nil           -- the mailbox button was pressed: { menu, button }, handled on the next update
 local hooked = {}
 local asking = nil             -- the text-window chain: { step, values, param, id, hud }
 
 local function find(path)
     local o = StaticFindObject(path)
     if o and o:IsValid() then return o end
-    pcall(LoadAsset, path)
+    pcall(LoadAsset, (path:gsub("_C$", "")))              -- the full "/Game/Dir/Asset.Asset" (a class path may not load)
     o = StaticFindObject(path)
     return o and o:IsValid() and o or nil
 end
@@ -165,14 +166,10 @@ local function clicked(button)
         return
     end
     if kind == "mailbox" then
-        -- Close the Esc menu first; the mailbox opens on the next update.
+        -- Closing the Esc menu waits for the next update, outside this click's hook; the mailbox opens a tick later.
         local menu
         for _, m in pairs(escMenus) do if m.mailbox:IsValid() and m.mailbox:GetAddress() == button:GetAddress() then menu = m.menu end end
-        local closed = menu and pcall(function() menu:Close() end)
-        if not closed then
-            pcall(function() StaticFindObject("/Script/Pal.Default__PalUtility"):GetHUDService(button):CloseOwnerStackableUI(button) end)
-        end
-        api.openMailbox(button)
+        closeEsc = { menu = menu, button = button }
         return
     end
     if asking then return end
@@ -391,6 +388,16 @@ function M.update()
                 pcall(function() m.disconnect:SetVisibility(api.status() == "connected" and 0 or 1) end)  -- Visible / Collapsed
             end
         end
+    end
+    if closeEsc then
+        local c = closeEsc
+        closeEsc = nil
+        local closed = c.menu and c.menu:IsValid() and pcall(function() c.menu:Close() end)
+        if not closed then
+            pcall(function() StaticFindObject("/Script/Pal.Default__PalUtility"):GetHUDService(c.button):CloseOwnerStackableUI(c.button) end)
+        end
+        log("menu: Esc menu closed for the mailbox (" .. (closed and "Close" or "CloseOwnerStackableUI") .. ")")
+        api.openMailbox(c.button)
     end
     -- The text-window chain: open the next window once the last one closed; a window closed without OK cancels.
     if asking then

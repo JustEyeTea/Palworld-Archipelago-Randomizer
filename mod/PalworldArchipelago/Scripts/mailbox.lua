@@ -30,6 +30,9 @@ local want = nil                -- an open was asked for: the context object (a 
 local win = nil                 -- the LogicMod window: { id, hud, rows = { button address -> item id | "all" | "close" } }
 local view = nil                -- the chest window: { id, hud, chest, held = list entries not in the chest, ticks, how }
 local spawning = nil            -- { ticks, templates = { { component, old } } }
+local wait = 0                  -- ticks to wait before opening (the Esc menu closes first)
+local clickedRow = nil          -- a LogicMod button pressed: handled on the next update, outside the click's hook
+local world = nil               -- the player controller's address: a new one means a new world (or the title)
 local tipped = false
 local chestOpenById, chestWindowShown, closeView      -- (defined with the chest view)
 
@@ -37,7 +40,7 @@ local function util() return StaticFindObject("/Script/Pal.Default__PalUtility")
 local function find(path)
     local o = StaticFindObject(path)
     if o and o:IsValid() then return o end
-    pcall(LoadAsset, (path:gsub("%.[^./]+$", "")))
+    pcall(LoadAsset, (path:gsub("_C$", "")))              -- the full "/Game/Dir/Asset.Asset" (a package path fails silently)
     o = StaticFindObject(path)
     return o and o:IsValid() and o or nil
 end
@@ -143,7 +146,15 @@ local function itemName(id)
     return name
 end
 
--- Into the player's bag, a stack at a time; how many went in.
+local function bagCount(ps, id)
+    local ok, n = pcall(function()
+        return StaticFindObject("/Script/Pal.Default__PalItemUtility"):CountLocalPlayerInventoryItemNum64(ps, FName(id))
+    end)
+    return ok and tonumber(n) or nil
+end
+
+-- Into the player's bag, a stack at a time; how many went in. What a full bag does with AddItem is untested, so the
+-- bag is counted before and after, and any mismatch with the game's answer is logged (playtest diagnostic).
 local function toBag(id, n)
     local _, ps = player()
     local inv = ps and ps:GetInventoryData()
@@ -151,10 +162,18 @@ local function toBag(id, n)
     local per, done = maxStack(id), 0
     while done < n do
         local k = math.min(per, n - done)
+        local before = bagCount(ps, id)
         local ok, r = pcall(function() return inv:AddItem_ServerInternal(FName(id), k, false, 0.0, true) end)
         local res = ok and tonumber(r) or nil
-        if not ok or (res and not OK_RESULTS[res]) then
-            if not ok then log("mailbox: could not give " .. id .. ": " .. tostring(r)) end
+        local accepted = ok and (res == nil or OK_RESULTS[res]) or false
+        local after = before and bagCount(ps, id)
+        if before and after and after - before ~= (accepted and k or 0) then
+            once("bag" .. tostring(res), "mailbox: adding " .. k .. " " .. id .. " answered " .. tostring(res)
+                .. " but the bag gained " .. (after - before))
+        end
+        if not accepted then
+            if not ok then log("mailbox: could not give " .. id .. ": " .. tostring(r))
+            else once("refused" .. tostring(res), "mailbox: the bag refused " .. id .. " (result " .. tostring(res) .. ")") end
             break
         end
         done = done + k
@@ -244,10 +263,8 @@ local function refreshWindow()
     pcall(function() (first or w.TakeAll).Btn:SetKeyboardFocus() end)   -- a controller starts on the first row
 end
 
-local function rowClicked(button)
+local function rowClicked(what)
     if not win then return end
-    local what = win.rows[addr(button)]
-    if not what then return end
     if what == "close" then
         pcall(function() win.hud:Close(win.id) end)
         return
@@ -265,8 +282,10 @@ local function hookRows()
     if rowHooked or not StaticFindObject(ROW) then return end
     rowTries = rowTries + 1
     if rowTries > 1 and rowTries % 10 ~= 1 then return end
+    -- Only note which button it was: the list is rebuilt on the next update, not inside the click (that would remove
+    -- the very button whose click is still running).
     local ok, err = pcall(RegisterHook, ROW_CLICK, function(self)
-        local okc, errc = pcall(rowClicked, self:get())
+        local okc, errc = pcall(function() clickedRow = win and win.rows[addr(self:get())] or nil end)
         if not okc then log("mailbox click error: " .. tostring(errc)) end
     end)
     if ok then rowHooked = true; log("mailbox: hooked the LogicMod's buttons")
@@ -308,7 +327,7 @@ end
 -- PalMapObjectItemChestParameter_GEN_VARIABLE): raised on the templates while ours is made, then put back, so chests
 -- the player builds stay as they are.
 local function chestTemplates()
-    pcall(LoadAsset, CHEST_BP)
+    pcall(LoadAsset, CHEST_BP .. ".BP_BuildObject_ItemChest_04")
     local out, seen = {}, {}
     local function consider(c)
         if not c then return end
@@ -347,7 +366,7 @@ local function startSpawn(pawn, ps)
     local ok, err = pcall(function()
         return mgr:RequestSpawnMapObjectByPlayer_Server(FName(CHEST), SPOT, { Pitch = 0, Yaw = 0, Roll = 0 }, ps.PlayerUId)
     end)
-    if not ok then log("mailbox: the chest spawn failed: " .. tostring(err)) end
+    log(ok and ("mailbox: chest spawn asked, the game answered " .. tostring(err)) or ("mailbox: the chest spawn failed: " .. tostring(err)))
 end
 
 -- Kept out of reach and from decaying (ItemChest_04 loses 0.15 HP/s outside a base), locked to the player, unseen.
@@ -397,7 +416,9 @@ local function fill(chest)
     for i = 0, slots - 1 do
         local slot = c:Get(i)
         if slot and slot:IsValid() then
-            if M.stale and not slot:IsEmpty() and isPlain(slot) then clear(slot) end
+            -- Plain items in this chest are only ever copies of the list (a view that never closed, or a world save
+            -- older than the mod's save after a crash): the list is the truth, so they go before filling.
+            if not slot:IsEmpty() and isPlain(slot) then clear(slot) end
             if #held > 0 and slot:IsEmpty() then
                 local e = held[1]
                 local k = math.min(e.n, maxStack(e.id))
@@ -413,18 +434,21 @@ local function fill(chest)
 end
 
 -- The chest's plain items back into the list (ahead of what never fitted), the chest emptied.
+-- The list is set before any slot is cleared: a slot left uncleared is a copy, which the next fill removes.
 local function absorb()
-    local got = {}
+    assert(view.chest:IsValid(), "the chest is gone")
+    local got, plain = {}, {}
     local c = container(view.chest)
     for i = 0, c:Num() - 1 do
         local slot = c:Get(i)
         if slot and slot:IsValid() and not slot:IsEmpty() and isPlain(slot) then
             local id, n = slot:GetItemId().StaticId:ToString(), slot:GetStackCount()
-            if n > 0 and clear(slot) then merge(got, id, n) end
+            if n > 0 then merge(got, id, n); plain[#plain + 1] = slot end
         end
     end
     for _, e in ipairs(view.held) do merge(got, e.id, e.n) end
     M.queue = got
+    for _, slot in ipairs(plain) do clear(slot) end
 end
 
 local function openChest(chest, pawn)
@@ -473,10 +497,43 @@ end
 function M.open(ctx)
     if not M.on() then env.notify("The mailbox is off (mailbox=0 in config.txt): items go straight to your bag."); return end
     if not env.connected() and #M.queue == 0 then env.notify("Connect to Archipelago to see your mailbox."); return end
-    want = ctx or true
+    want, wait = ctx or true, 1
+end
+
+-- The live player controller's address (FindFirstOf can return the class default object, which never changes).
+local function worldKey()
+    for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
+        local ok, k = pcall(function()
+            if not pc:IsValid() then return nil end
+            local okn, n = pcall(function() return pc:GetFullName() end)
+            if okn and tostring(n):find("Default__", 1, true) then return nil end
+            return tostring(pc:GetAddress())
+        end)
+        if ok and k then return k end
+    end
+    return nil
 end
 
 function M.update()
+    -- A new world (or the title): views and requests belong to the old one. A chest view not yet settled leaves copies
+    -- in the chest, which the next fill removes.
+    local w = worldKey()
+    if w ~= world then
+        if world and (view or win or want or spawning) then
+            log("mailbox: the world changed; " .. (view and "the open chest view is settled on the next open" or "dropped what was open"))
+        end
+        if view then M.stale = true end
+        restoreTemplates()
+        view, win, want, spawning, clickedRow = nil, nil, nil, nil, nil
+        world = w
+    end
+    if clickedRow then
+        local what = clickedRow
+        clickedRow = nil
+        local ok, err = pcall(rowClicked, what)
+        if not ok then log("mailbox click error: " .. tostring(err)) end
+    end
+    if want and wait > 0 then wait = wait - 1; return end
     if win then
         local open = false
         pcall(function() local w = win.hud:GetWidget(win.id); open = w and w:IsValid() end)
@@ -491,7 +548,10 @@ function M.update()
             if byId then view.how = "id"
             elseif byWidget then view.how = "widget"
             elseif view.ticks >= 7 then view.how = "unknown" end
-            if view.how then log("mailbox: chest window followed by " .. view.how) end
+            if view.how then
+                local okc, cls = pcall(function() return view.hud:GetWidget(view.id):GetClass():GetFName():ToString() end)
+                log("mailbox: chest window followed by " .. view.how .. (okc and (" (" .. tostring(cls) .. ")") or ""))
+            end
         end
         if (view.how == "id" and not byId) or (view.how == "widget" and not byWidget) then closeView() end
     end

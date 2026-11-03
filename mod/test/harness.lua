@@ -38,9 +38,11 @@ function td:OnRep_TechnologyPoint() end
 function td:OnRep_BossTechnologyPoint() end
 local given = {}
 bagFull = false
+bagHas = {}
 local inv = { AddItem_ServerInternal = function(_, name, n)
     if bagFull then return 16 end                            -- EPalItemOperationResult FailedNotEnoughSlotSpace
     given[#given + 1] = name:ToString() .. " x" .. n
+    bagHas[name:ToString()] = (bagHas[name:ToString()] or 0) + n
     return 0
 end }
 local record = {
@@ -93,7 +95,14 @@ local function Texture(path) return { IsValid = function() return true end, path
 local kept = {}
 local gameInstance = { IsValid = function() return true end, ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
                                                          { __newindex = function(_, i, v) kept[i] = v end }) }
-LoadAsset = function() end
+-- As on the client: LoadAsset needs "/Game/Dir/Asset.Asset"; a package path or a class path ("_C") loads nothing
+-- (v0.4.3 playtest). The LogicMod's assets and the chest Blueprint exist only once their package is loaded properly.
+loaded, badLoads = {}, {}
+LoadAsset = function(path)
+    local pkg, asset = path:match("^(/[^.]+)%.([^./:]+)$")
+    if not pkg or asset:match("_C$") or asset ~= pkg:match("([^/]+)$") then badLoads[#badLoads + 1] = path; return end
+    loaded[pkg] = true
+end
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
 local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end,
                  K2_DrawLine = function() edgeLines = (edgeLines or 0) + 1 end,
@@ -122,9 +131,16 @@ FindAllOf = function(class)
         return mapOpen and { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody } or {}
     end
     if class == "PalPlayerState" then return { ps } end
+    if class == "PalPlayerController" then                   -- the class default object comes first, as in the game
+        return { { IsValid = function() return true end, GetAddress = function() return 1 end,
+                   GetFullName = function() return "BP_PalPlayerController_C /Script/Pal.Default__PalPlayerController" end },
+                 playerController }
+    end
     if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
     if class == "PalMapObjectItemChestModel" then return chests end
-    if class == "PalMapObjectItemChestParameterComponent" then return chestTemplates end
+    if class == "PalMapObjectItemChestParameterComponent" then
+        return loaded["/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"] and chestTemplates or {}
+    end
     if class == "UserWidget" then return escOpen and { escMenu } or {} end
     return nil
 end
@@ -164,7 +180,13 @@ local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
     if path:find("PalUIUtility") then return uiUtil end
-    if path:find("^/Game/Mods/") then return logicMod and Texture(path) or nil end
+    if path:find("PalItemUtility") then
+        return { CountLocalPlayerInventoryItemNum64 = function(_, _, id) return bagHas[id:ToString()] or 0 end }
+    end
+    if path:find("^/Game/Mods/") then return logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
+    if path:find("BP_BuildObject_ItemChest_04_C:", 1, true) then
+        return loaded[path:match("^[^.]+")] and chestTemplates and chestTemplates[1] or nil
+    end
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
     if path:find("WidgetBlueprintLibrary") then return wbl end
@@ -644,6 +666,7 @@ expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\nm
 expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox", 1, true), "the player is told where it is")
 -- The Esc menu (the client's): a vertical box of three buttons of one class, each in a size box.
 playerController.K2_GetPawn = function() return pawn end
+playerController.GetAddress = function() return 998 end
 local escChildren = {}
 local function escButton()
     local b = Widget({ GetClass = function() return classed("WBP_EscMenu_Button_C") end })
@@ -706,11 +729,14 @@ hud.ShowCommonUI = function(_, kind, param)
 hud.Close = function(_, id) if hudWindows[id] then hudWindows[id].gone = true end end
 ps.PlayerUId = { A = 1, B = 2, C = 3, D = 4 }
 hooks[CLICK]({ get = function() return mailBtn end })
-expect(escMenu.closed, "the mailbox button closes the Esc menu")
+expect(not escMenu.closed, "nothing is closed inside the click's hook")
+run(1)
+expect(escMenu.closed and logged("Esc menu closed for the mailbox %(Close%)"), "the mailbox button closes the Esc menu on the next update")
 run(2)
 expect(spawnAsked == "ItemChest_04" and chests[1] and #chests[1].c.slots == 300, "a 300-slot chest is made: " .. tostring(chests[1] and #chests[1].c.slots))
 expect(chestTemplates[1].SlotNum == 54, "the chests players build keep their size")
 expect(chests[1].at.X == -1050000 and chests[1].at.Z == -40000, "far outside the map, under the ground")
+expect(logged("chest spawn asked, the game answered true"), "the spawn's answer is logged")
 run(2)
 local slots = chests[1].c.slots
 expect(#shown == 1 and shown[1].kind == 7 and shown[1].param.MapObjectConcreteModel == chests[1], "the game's chest window opens on it")
@@ -729,11 +755,14 @@ expect(kinds == 2 and items == 70, "closed: what is left goes back into the mail
 expect(slots[1]:IsEmpty() and not slots[2]:IsEmpty(), "the chest is emptied, gear stays in it")
 local saved = io.open(MOD .. "/save-12345-Tester.txt"):read("*a")
 expect(saved:find("mail=Wood:20,Stone:50\nmailview=0", 1, true), "saved: " .. saved)
--- Open again: the chest is found, not made again.
+-- Open again: the chest is found, not made again. A plain stack left in it (a world save older than the mod's save,
+-- after a crash) is a copy: it goes before filling.
+slots[5].ItemId.StaticId, slots[5].StackCount = FNameOf("Wood"), 20
 hooks[CLICK]({ get = function() return mailBtn end })
-run(2)
+run(3)
 expect(#chests == 1 and #shown == 2 and slots[1].ItemId.StaticId:ToString() == "Wood" and slots[3].ItemId.StaticId:ToString() == "Stone",
        "found again by its place and filled around the gear")
+expect(slots[5]:IsEmpty(), "a leftover copy is cleared, not counted twice")
 hudWindows["chest2"].gone = true
 run(2)
 -- A chest window the mod can't follow (no widget for its id, no chest widget found): never emptied early; the next
@@ -741,14 +770,29 @@ run(2)
 local showPlain = hud.ShowCommonUI
 hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
 hooks[CLICK]({ get = function() return mailBtn end })
-run(10)
+run(11)
 expect(logged("followed by unknown") and slots[1].StackCount == 20, "a window it can't follow is left alone")
 slots[1].StackCount = 5                                    -- the player takes 15 Wood
 hud.ShowCommonUI = showPlain
 hooks[CLICK]({ get = function() return mailBtn end })
-run(2)
+run(3)
 kinds, items = require("mailbox").count()
 expect(items == 55 and slots[1].StackCount == 5 and logged("followed by id"), "the next open settles it first: " .. items)
+hudWindows["chest" .. #shown].gone = true
+run(2)
+-- The world changes while a view the mod can't follow is open: it is dropped, and the next open fills afresh.
+hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
+hooks[CLICK]({ get = function() return mailBtn end })
+run(11)
+slots[1].StackCount = 1                                    -- the copy left in the chest
+playerController.GetAddress = function() return 999 end    -- a new world
+run(1)
+hud.ShowCommonUI = showPlain
+expect(logged("the world changed; the open chest view is settled on the next open"), "a world change drops the view")
+hooks[CLICK]({ get = function() return mailBtn end })
+run(3)
+kinds, items = require("mailbox").count()
+expect(items == 55 and slots[1].StackCount == 5, "the next open fills from the list, not the copy: " .. slots[1].StackCount)
 hudWindows["chest" .. #shown].gone = true
 run(2)
 -- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
@@ -770,7 +814,7 @@ end
 local wblCreate = wbl.Create
 wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end return wblCreate() end
 hooks[CLICK]({ get = function() return mailBtn end })
-run(1)
+run(2)
 local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
 expect(#winRows == 2 and winRows[1].Label.text == "Wood  x5" and winRows[2].Label.text == "Stone  x50",
        "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
@@ -778,18 +822,23 @@ expect(winRows[1].Btn.focused, "a controller starts on the first row")
 expect(hooks[ROW_CLICK], "its buttons are hooked")
 bagFull = true
 hooks[ROW_CLICK]({ get = function() return winRows[1] end })
+expect(#winRows == 2 and not table.concat(announced, "|"):find("Your bag is full", 1, true), "nothing happens inside the click's hook")
+run(1)
 expect(#winRows == 2 and table.concat(announced, "|"):find("Your bag is full: Wood stays in the mailbox.", 1, true), "a full bag keeps the item")
+expect(logged("the bag refused Wood %(result 16%)"), "a refusal is logged")
 bagFull = false
 hooks[ROW_CLICK]({ get = function() return winRows[1] end })
+run(1)
 expect(given[#given] == "Wood x5" and #winRows == 1, "a row takes its item into the bag")
 hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
+run(1)
 expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\nmailview=0", 1, true), "and the save")
 hooks[ROW_CLICK]({ get = function() return window.Close end })
 run(1)
 hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false
 escOpen = false
-playerController.K2_GetPawn = nil
+playerController.K2_GetPawn, playerController.GetAddress = nil, nil
 
 print("the title menu's Archipelago buttons")
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
@@ -843,5 +892,7 @@ for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1
 expect(forgot and connectBtn.Test_Content.text == "Archipelago: connected as Other", "a different seed starts afresh")
 titleOpen = false
 
+expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
+expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)
