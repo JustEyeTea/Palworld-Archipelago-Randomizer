@@ -215,7 +215,8 @@ local buttonBox = Widget({ GetClass = function() return classed("VerticalBox") e
                                return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
 local gameButtonWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end })
 gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
-titleMenu = Widget()
+titleMenu = Widget({ WBP_Title_MenuButton_StartLocalGame = gameTitleButton,
+                     VerticalBox_0 = Widget({ AddChild = function() error("buttons belong with the game's") end }) })
 titleOpen = false
 wbl = { IsValid = function() return true end,   -- global: StaticFindObject above returns it
               Create = function() return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
@@ -627,7 +628,8 @@ expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as
        "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
 run(3)
 expect(#menuChildren == 2, "added once")
-expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the game's buttons sit in")
+expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
+expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
 local function okWith(text)
     pushed[#pushed].OutString = text

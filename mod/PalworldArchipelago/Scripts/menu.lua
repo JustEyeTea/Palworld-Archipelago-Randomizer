@@ -45,24 +45,63 @@ local function className(o)
     local ok, n = pcall(function() return o:GetClass():GetFName():ToString() end)
     return ok and n or "?"
 end
+local function nameOf(o)
+    local ok, n = pcall(function() return o:GetFName():ToString() end)
+    return ok and n or "?"
+end
 
--- The panel the game's own title buttons sit in. The server's files call it VerticalBox_0; the client's title menu
--- differs (v0.10.0 playtest: no VerticalBox_0), so otherwise walk up from one of the game's buttons to the first box.
+-- The panel the game's own title buttons sit in: walk up from the menu's Start Game button to the first box. (v0.10.1
+-- playtest: the client's title menu has a VerticalBox_0, as the server's files do, but buttons added to it never
+-- showed: the client lays its menu out differently.) Then any other game title button; VerticalBox_0 last.
 local BOXES = { VerticalBox = true, ScrollBox = true, WrapBox = true, HorizontalBox = true }
+local START_BUTTONS = { "WBP_Title_MenuButton_StartLocalGame", "WBP_Title_MenuButton_StartMultiGame_InviteCode",
+                        "WBP_Title_MenuButton_ExitGame" }
+local function boxAbove(button)
+    local w = button
+    for _ = 1, 5 do
+        local okp, parent = pcall(function() return w:GetParent() end)
+        if not okp or not parent or not parent:IsValid() then return nil end
+        if BOXES[className(parent)] then return parent end
+        w = parent
+    end
+end
 local function buttonList(menu)
-    local ok, b = pcall(function() local v = menu.VerticalBox_0; return v:IsValid() and v or nil end)
-    if ok and b then return b end
+    for _, name in ipairs(START_BUTTONS) do
+        local ok, b = pcall(function() local v = menu[name]; return v and v:IsValid() and v or nil end)
+        local box = ok and b and boxAbove(b)
+        if box then return box end
+    end
     for _, button in ipairs(FindAllOf("WBP_Title_MenuButton_C") or {}) do
         if button:IsValid() and not ours[tostring(button:GetAddress())] then
-            local w = button
-            for _ = 1, 5 do
-                local okp, parent = pcall(function() return w:GetParent() end)
-                if not okp or not parent or not parent:IsValid() then break end
-                if BOXES[className(parent)] then return parent end
-                w = parent
-            end
+            local box = boxAbove(button)
+            if box then return box end
         end
     end
+    local ok, b = pcall(function() local v = menu.VerticalBox_0; return v:IsValid() and v or nil end)
+    if ok and b then return b end
+end
+
+-- One line per widget chain: each parent's name, class and visibility (0 visible, 1 collapsed, 2 hidden).
+local function chainText(w)
+    local parts = {}
+    for _ = 1, 8 do
+        local okp, parent = pcall(function() return w:GetParent() end)
+        if not okp or not parent or not parent:IsValid() then break end
+        local okv, vis = pcall(function() return parent:GetVisibility() end)
+        parts[#parts + 1] = nameOf(parent) .. ":" .. className(parent) .. (okv and ("/" .. tostring(vis)) or "")
+        w = parent
+    end
+    return table.concat(parts, " < ")
+end
+local layoutLogged = false
+local function logLayout(menu, ourButton)
+    if layoutLogged then return end
+    layoutLogged = true
+    for _, name in ipairs(START_BUTTONS) do
+        local ok, b = pcall(function() local v = menu[name]; return v and v:IsValid() and v or nil end)
+        log("menu layout: " .. name .. (ok and b and (" | " .. chainText(b)) or ": not on this menu"))
+    end
+    if ourButton then log("menu layout: our button | " .. chainText(ourButton)) end
 end
 
 local function addButton(menu, list, kind)
@@ -172,7 +211,7 @@ local function survey()
         for _ = 1, 6 do
             local okp, parent = pcall(function() return w:GetParent() end)
             if not okp or not parent or not parent:IsValid() then break end
-            chain[#chain + 1] = tostring(select(2, pcall(function() return parent:GetFName():ToString() end))) .. ":" .. className(parent)
+            chain[#chain + 1] = nameOf(parent) .. ":" .. className(parent)
             w = parent
         end
         log("menu survey: title button " .. tostring(select(2, pcall(function() return button:GetFullName() end)))
@@ -212,8 +251,8 @@ function M.update()
                     m = { connect = c, disconnect = d }
                     menus[key] = m
                     added = true
-                    log("menu: Archipelago buttons added to the title menu (" .. className(list) .. " "
-                        .. tostring(select(2, pcall(function() return list:GetFName():ToString() end))) .. ")")
+                    pcall(logLayout, menu, c)
+                    log("menu: Archipelago buttons added to the title menu (" .. className(list) .. " " .. nameOf(list) .. ")")
                 else
                     once("menuadd", "menu: could not add the buttons: " .. tostring(c) .. " / " .. tostring(d))
                 end
