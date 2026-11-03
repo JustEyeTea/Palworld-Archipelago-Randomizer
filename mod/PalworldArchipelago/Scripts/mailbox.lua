@@ -28,9 +28,10 @@ M.queue = {}                    -- { { id = static item id, n = count } } in arr
 M.stale = false                 -- the last chest view never closed (game quit): the chest holds copies of the list
 local want = nil                -- an open was asked for: the context object (a pawn or a widget)
 local win = nil                 -- the LogicMod window: { id, hud, rows = { button address -> item id | "all" | "close" } }
-local view = nil                -- the chest window: { id, hud, chest, held = list entries not in the chest, ticks }
+local view = nil                -- the chest window: { id, hud, chest, held = list entries not in the chest, ticks, how }
 local spawning = nil            -- { ticks, templates = { { component, old } } }
 local tipped = false
+local chestOpenById, chestWindowShown, closeView      -- (defined with the chest view)
 
 local function util() return StaticFindObject("/Script/Pal.Default__PalUtility") end
 local function find(path)
@@ -436,6 +437,34 @@ local function openChest(chest, pawn)
     if #held > 0 then env.notify("The mailbox shows " .. placed .. " stacks at a time: take some to see the rest.") end
 end
 
+chestOpenById = function()
+    local open = false
+    pcall(function() local w = view.hud:GetWidget(view.id); open = w ~= nil and w:IsValid() end)
+    return open
+end
+
+chestWindowShown = function()
+    for _, w in ipairs(FindAllOf("WBP_ItemChest_C") or {}) do
+        local ok, shown = pcall(function()
+            return w:IsValid() and w:IsVisible() and (w:IsInViewport() or w:GetParent() ~= nil)
+        end)
+        if ok and shown then return true end
+    end
+    return false
+end
+
+closeView = function()
+    local ok, err = pcall(absorb)
+    if ok then
+        view = nil
+        env.save()
+        log("mailbox: chest view closed; " .. #M.queue .. " kind(s) in the mailbox")
+    else
+        log("mailbox: could not empty the chest (" .. tostring(err) .. "); it is emptied on the next open")
+        view, M.stale = nil, true
+    end
+end
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Opening: asked from the Esc menu or the key, done on the next update (after the menu has closed).
 function M.open(ctx)
@@ -452,19 +481,16 @@ function M.update()
     end
     if view then
         view.ticks = view.ticks + 1
-        local open = false
-        pcall(function() local w = view.hud:GetWidget(view.id); open = w and w:IsValid() end)
-        if not open and view.ticks >= 2 then
-            local ok, err = pcall(absorb)
-            if ok then
-                view = nil
-                env.save()
-                log("mailbox: chest view closed; " .. #M.queue .. " kind(s) in the mailbox")
-            else
-                log("mailbox: could not empty the chest (" .. tostring(err) .. "); it is emptied on the next open")
-                view, M.stale = nil, true
-            end
+        -- How to tell it closed: the HUD's id for it, else the chest window widget itself; if neither shows it open in
+        -- the first 2 s, it is never emptied early: the next open settles it first.
+        local byId, byWidget = chestOpenById(), chestWindowShown()
+        if not view.how then
+            if byId then view.how = "id"
+            elseif byWidget then view.how = "widget"
+            elseif view.ticks >= 7 then view.how = "unknown" end
+            if view.how then log("mailbox: chest window followed by " .. view.how) end
         end
+        if (view.how == "id" and not byId) or (view.how == "widget" and not byWidget) then closeView() end
     end
     if spawning then
         spawning.ticks = spawning.ticks + 1
@@ -484,6 +510,7 @@ function M.update()
             end
         end
     end
+    if want and view and view.how == "unknown" then closeView() end      -- settle a view that could not be followed
     if want and not spawning and not view and not win then
         local pawn, ps = player()
         if not pawn or not ps then want = nil; return end

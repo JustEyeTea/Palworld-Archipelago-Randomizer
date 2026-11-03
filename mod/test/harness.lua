@@ -736,6 +736,21 @@ expect(#chests == 1 and #shown == 2 and slots[1].ItemId.StaticId:ToString() == "
        "found again by its place and filled around the gear")
 hudWindows["chest2"].gone = true
 run(2)
+-- A chest window the mod can't follow (no widget for its id, no chest widget found): never emptied early; the next
+-- open settles it first.
+local showPlain = hud.ShowCommonUI
+hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
+hooks[CLICK]({ get = function() return mailBtn end })
+run(10)
+expect(logged("followed by unknown") and slots[1].StackCount == 20, "a window it can't follow is left alone")
+slots[1].StackCount = 5                                    -- the player takes 15 Wood
+hud.ShowCommonUI = showPlain
+hooks[CLICK]({ get = function() return mailBtn end })
+run(2)
+kinds, items = require("mailbox").count()
+expect(items == 55 and slots[1].StackCount == 5 and logged("followed by id"), "the next open settles it first: " .. items)
+hudWindows["chest" .. #shown].gone = true
+run(2)
 -- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
 logicMod = true
 local function PalButton()
@@ -757,7 +772,7 @@ wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, t
 hooks[CLICK]({ get = function() return mailBtn end })
 run(1)
 local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
-expect(#winRows == 2 and winRows[1].Label.text == "Wood  x20" and winRows[2].Label.text == "Stone  x50",
+expect(#winRows == 2 and winRows[1].Label.text == "Wood  x5" and winRows[2].Label.text == "Stone  x50",
        "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
 expect(winRows[1].Btn.focused, "a controller starts on the first row")
 expect(hooks[ROW_CLICK], "its buttons are hooked")
@@ -766,7 +781,7 @@ hooks[ROW_CLICK]({ get = function() return winRows[1] end })
 expect(#winRows == 2 and table.concat(announced, "|"):find("Your bag is full: Wood stays in the mailbox.", 1, true), "a full bag keeps the item")
 bagFull = false
 hooks[ROW_CLICK]({ get = function() return winRows[1] end })
-expect(given[#given] == "Wood x20" and #winRows == 1, "a row takes its item into the bag")
+expect(given[#given] == "Wood x5" and #winRows == 1, "a row takes its item into the bag")
 hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
 expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\nmailview=0", 1, true), "and the save")
