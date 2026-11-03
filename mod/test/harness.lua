@@ -164,7 +164,14 @@ StaticFindObject = function(path)
     if path:find("^/Game/") then return Texture(path) end
     return nil
 end
-RegisterHook = function(path, fn, post) hooks[path], postHooks[path] = fn, post end
+okHookFails = 1        -- as on the client (v0.10.3 playtest): the text window's OK hook fails while its class loads
+RegisterHook = function(path, fn, post)
+    if path:find("NameWindow", 1, true) and okHookFails > 0 then
+        okHookFails = okHookFails - 1
+        error("Was unable to register a hook with Lua function 'RegisterHook', information:\nUFunction::Func: 0x0")
+    end
+    hooks[path], postHooks[path] = fn, post
+end
 LoopAsync = function(ms, fn) if ms == 300 then loop = fn else extraLoops[#extraLoops + 1] = fn end end   -- 300 ms: the core
 ExecuteInGameThread = function(fn) fn() end
 ExecuteWithDelay = function(_, fn) fn() end
@@ -631,6 +638,8 @@ expect(#menuChildren == 2, "added once")
 expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
+expect(logged("could not hook BndEvt__WBP_Title_WorldSettings_NameWindow.* yet %(will retry%)")
+       and logged("hooked BndEvt__WBP_Title_WorldSettings_NameWindow.*%(try 11%)"), "a failed hook is retried")
 local function okWith(text)
     pushed[#pushed].OutString = text
     hooks[WINDOW_OK]()

@@ -171,13 +171,23 @@ local function okPressed()
     asking.reopen = true                       -- the next window opens on the next update, once this one has closed
 end
 
+-- Hooks a function once its class is loaded. A failed attempt is retried every 10 calls (v0.10.3 playtest: the text
+-- window's OK hook failed with "UFunction::Func: 0x0" while its class was still loading, and was never retried, so
+-- every Confirm read as a cancel).
+local hookTries = {}
 local function hookOnce(path, fn)
     if hooked[path] then return end
     local cls = StaticFindObject((path:gsub(":.*$", "")))
     if not cls or not cls:IsValid() then return end
-    hooked[path] = true
+    hookTries[path] = (hookTries[path] or 0) + 1
+    if hookTries[path] > 1 and hookTries[path] % 10 ~= 1 then return end
     local ok, err = pcall(RegisterHook, path, fn)
-    log((ok and "menu: hooked " or "menu: could not hook ") .. path:match("[^:]+$") .. (ok and "" or (": " .. tostring(err))))
+    if ok then
+        hooked[path] = true
+        log("menu: hooked " .. path:match("[^:]+$") .. (hookTries[path] > 1 and (" (try " .. hookTries[path] .. ")") or ""))
+    elseif hookTries[path] == 1 then
+        log("menu: could not hook " .. path:match("[^:]+$") .. " yet (will retry): " .. tostring(err):match("^[^\n]*"))
+    end
 end
 
 -- Diagnostics (v0.8.1): the title menu mapped from the dedicated server's files was not on the client's title screen.
@@ -273,6 +283,12 @@ function M.update()
         -- set ours again while it is open (v0.10.2 playtest: every window still read "World Name").
         if open and asking.title and not asking.reopen then
             pcall(function() w.Text_Head:SetText(FText(asking.title)) end)
+            asking.headLogs = (asking.headLogs or 0) + 1
+            if asking.headLogs <= 3 then                 -- does our heading stick? (diagnostic, first window ticks)
+                local okt, t = pcall(function() return w.Text_Head:GetText():ToString() end)
+                log("menu: window heading reads '" .. tostring(okt and t or ("? " .. tostring(t))) .. "'"
+                    .. (hooked[WINDOW_OK] and "" or " (OK not hooked yet)"))
+            end
         end
         if asking.reopen and not open then
             asking.reopen = false
