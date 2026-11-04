@@ -13,3 +13,12 @@ mailbox_key=
 mailbox_slots=300
 # chest: always use the chest window, even with the PalworldArchipelagoUI LogicMod installed.
 mailbox_view=
+# Test builds: the performance probe. perf_log=1 writes a "[perf]" line to UE4SS.log every 30 s (frame rate, the mod's
+# time per update, lookups, hooks; how to read it: mod/PERF-PROBE.md in the repository). Set 0 for normal play.
+perf_log=1
+# test_tools=1: the probe's A/B hotkeys (Ctrl+F5 mark, Ctrl+F6 walls, Ctrl+F7 pause, Ctrl+F8 hook bypass, Ctrl+F9 old
+# load) and the probes that need the game to answer. For playtests only.
+test_tools=
+# perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
+# labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
+perf_no_bp_hooks=

@@ -8,6 +8,7 @@ purchase sends to the multiworld, with captures, bosses, fast-travel points and 
 passes gating progression. It runs as a UE4SS mod inside the player's own game: a Lua core plus a C++ part that
 connects to the Archipelago server. Targets Palworld 1.0.5 and Archipelago 0.6.8.
 
+`mod/PERF-PROBE.md` explains the test builds' performance probe (`perf_log=1`) and how to read its log lines.
 `logicmod/` holds the optional PalworldArchipelagoUI Blueprint pak (the Archipelago Mailbox's own window), built in
 the community Palworld Modding Kit; its README has the steps. `spike/` holds the feasibility probes (a server-side probe and the client tech-shop probe). `tools/` reads Palworld's
 own data through the probe and turns it into the facts the randomizer needs; `data/` holds those facts (areas, where
