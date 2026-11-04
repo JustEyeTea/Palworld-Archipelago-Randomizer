@@ -1,0 +1,35 @@
+name: Generation or options problem
+description: Archipelago refuses your YAML, generation fails, or a seed seems unbeatable.
+labels: [bug]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: APWorld and Archipelago versions
+      placeholder: "palworld.apworld 0.4.0, Archipelago 0.6.8"
+    validations:
+      required: true
+  - type: dropdown
+    id: apworld-source
+    attributes:
+      label: Where the .apworld came from
+      options:
+        - A release on this repository
+        - Built with tools/build_apworld.py or Archipelago's "Build APWorlds"
+        - A plain zip of the apworld folder (loads as version 0.0.0; please use one of the above)
+        - Not sure
+  - type: textarea
+    id: yaml
+    attributes:
+      label: Your player YAML
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: The error, or what seems wrong with the seed
+      description: The generator's output, or the spoiler log's lines for the part that seems stuck.
+      render: text
+    validations:
+      required: true

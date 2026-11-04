@@ -1,0 +1,43 @@
+name: Bug in the game
+description: Something went wrong while playing with the mod (crash, wrong item, walls, mailbox, shop, connection).
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The mod writes everything it does to `UE4SS.log` (in `Pal/Binaries/Win64/ue4ss/`); lines
+        from it are the most useful thing you can add. Please remove server passwords before pasting.
+  - type: input
+    id: mod-version
+    attributes:
+      label: Mod version
+      description: The first "[PalworldAP]" line of UE4SS.log names it (for example 0.13.5).
+    validations:
+      required: true
+  - type: input
+    id: apworld-version
+    attributes:
+      label: APWorld and Archipelago versions
+      placeholder: "palworld.apworld 0.4.0, Archipelago 0.6.8"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: "1. Open the Technology tree\n2. Buy the card ...\n3. ..."
+  - type: textarea
+    id: log
+    attributes:
+      label: UE4SS.log
+      description: The "[PalworldAP]" lines around the problem, or attach the whole file.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Other mods installed, single player or a dedicated server, screenshots.
