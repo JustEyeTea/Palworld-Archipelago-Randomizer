@@ -52,25 +52,6 @@
       }
      ],
      "default": "full"
-    },
-    {
-     "key": "death_link",
-     "name": "Death Link",
-     "type": "DeathLink",
-     "help": "When you die, everyone who enabled death link dies. Of course, the reverse is true too.",
-     "choices": [
-      {
-       "name": "false",
-       "value": 0,
-       "yaml": "'false'"
-      },
-      {
-       "name": "true",
-       "value": 1,
-       "yaml": "'true'"
-      }
-     ],
-     "default": "false"
     }
    ]
   },
@@ -197,7 +178,7 @@
      "key": "check_level",
      "name": "Check Level Cap",
      "type": "Range",
-     "help": "The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,\nalphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.\n0 (auto) sets it from the goal: the level of the last tower you need, the level by which you can register enough\nPals, 30 for a Relic Hunt, and no limit for the World Tree.",
+     "help": "The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,\nalphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.\n0 (auto) sets it from the goal: 8 levels past the last tower you need, 5 levels past the level by which you can\nregister enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2.",
      "min": 0,
      "max": 80,
      "default": 0
@@ -244,7 +225,7 @@
      "key": "alpha_checks",
      "name": "Alpha Checks",
      "type": "DefaultOnToggle",
-     "help": "A check for beating each field alpha (90).",
+     "help": "A check for beating each field alpha (89). Untested in game so far: if beating an alpha sends nothing, turn this\noff for your next game.",
      "choices": [
       {
        "name": "false",
@@ -282,7 +263,7 @@
      "key": "level_checks",
      "name": "Level Checks",
      "type": "Choice",
-     "help": "A check for reaching player levels: every level (79 checks), every 5, every 10, or none.",
+     "help": "A check for reaching player levels: every level (79 checks), every 5 (levels 5, 10, 15...), every 10 (levels\n10, 20, 30...), or none.",
      "choices": [
       {
        "name": "off",
@@ -306,6 +287,91 @@
       }
      ],
      "default": "every_level"
+    }
+   ]
+  },
+  {
+   "name": "Traps",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "trap_chance",
+     "name": "Trap Chance",
+     "type": "Range",
+     "help": "The percentage of filler items (bundles and tech points) replaced by traps: received items that do something\nmildly bad. None of them can make you faint. 0 means no traps, and seeds come out exactly as without this option.\nTraps are untested in game so far.",
+     "min": 0,
+     "max": 100,
+     "default": 0
+    },
+    {
+     "key": "slow_trap_weight",
+     "name": "Slow Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Slow Trap: half walking speed for a minute.",
+     "min": 0,
+     "max": 100,
+     "default": 40
+    },
+    {
+     "key": "hunger_trap_weight",
+     "name": "Hunger Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Hunger Trap: your stomach loses half a full meter of satiety, but never drops below\na quarter.",
+     "min": 0,
+     "max": 100,
+     "default": 40
+    },
+    {
+     "key": "teleport_trap_weight",
+     "name": "Teleport Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Teleport Trap: back to the starting area (it waits while you are in a dungeon).",
+     "min": 0,
+     "max": 100,
+     "default": 15
+    },
+    {
+     "key": "fool_trap_weight",
+     "name": "Fool Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Fool Trap: an alarming notice that turns out to be a joke. Nothing happens.",
+     "min": 0,
+     "max": 100,
+     "default": 25
+    }
+   ]
+  },
+  {
+   "name": "Death Link",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "death_link",
+     "name": "Death Link",
+     "type": "DeathLink",
+     "help": "When you die, everyone who enabled death link dies. Of course, the reverse is true too.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
+    {
+     "key": "death_link_amnesty",
+     "name": "Death Link Amnesty",
+     "type": "Range",
+     "help": "Death Link: how many of your own faints are forgiven before one is sent to the multiworld. 0 sends every\nfaint; 2 sends every third. Deaths other players send you never count.",
+     "min": 0,
+     "max": 20,
+     "default": 0
     }
    ]
   },
