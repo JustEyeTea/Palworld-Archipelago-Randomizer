@@ -1,6 +1,7 @@
 -- The Archipelago mailbox: items received from the multiworld wait here until the player takes them, instead of
 -- landing in the bag mid-fight. The list is the mod's own (kept in the save file, no limit). It opens from the Esc
--- menu's "Archipelago Mailbox" button (menu.lua; works with a controller), or from an optional key (mailbox_key).
+-- menu's "Archipelago Mailbox" button (menu.lua; works with a controller), from the same button on the Inventory page
+-- (menu.lua; untested in game), or from an optional key (mailbox_key).
 -- Two views of the same list:
 --  * the mod's own window, when the LogicMod PalworldArchipelagoUI is installed (see logicmod/): one row per item,
 --    pick a row to take it, or Take all;
@@ -31,7 +32,7 @@ local want = nil                -- an open was asked for: the context object (a 
 local win = nil                 -- the LogicMod window: { id, hud, rows = { button address -> item id | "all" | "close" } }
 local view = nil                -- the chest window: { id, hud, chest, held = list entries not in the chest, ticks, how }
 local spawning = nil            -- { ticks, templates = { { component, old } } }
-local wait = 0                  -- ticks to wait before opening (the Esc menu closes first)
+local wait = 0                  -- ticks to wait before opening (the menu closes first)
 local clickedRow = nil          -- a LogicMod button pressed: handled on the next update, outside the click's hook
 local world = nil               -- the player controller's address: a new one means a new world (or the title)
 local tipped = false
@@ -81,7 +82,7 @@ function M.add(id, n)
     if view then merge(view.held, id, n) end
     if not tipped then
         tipped = true
-        env.notify("Items you receive wait in your Archipelago Mailbox: Esc menu > Archipelago Mailbox.")
+        env.notify("Items you receive wait in your Archipelago Mailbox: Esc menu > Archipelago Mailbox, or its button at the right of your name on the Inventory page.")
     end
 end
 
@@ -674,7 +675,7 @@ closeView = function()
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- Opening: asked from the Esc menu or the key, done on the next update (after the menu has closed).
+-- Opening: asked from the Esc menu, the Inventory page or the key, done on the next update (after the menu has closed).
 function M.open(ctx)
     if not M.on() then env.notify("The mailbox is off (mailbox=0 in config.txt): items go straight to your bag."); return end
     if not env.connected() and #M.queue == 0 then env.notify("Connect to Archipelago to see your mailbox."); return end

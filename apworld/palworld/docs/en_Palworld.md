@@ -35,7 +35,8 @@ By default the décor techs (furniture, flag and foliage sets, statues, signs an
 with tech points as usual; the Tech Checks option can make them checks too.
 
 Items you receive (material bundles and the like) wait in your Archipelago Mailbox until you take them, so nothing
-lands in your bag mid-fight. Open it from the Esc menu's Archipelago Mailbox button; it has no size limit.
+lands in your bag mid-fight. Open it from the Esc menu's Archipelago Mailbox button, or from the one at the right
+of your name on the Inventory page (new, not yet tried in game); it has no size limit.
 
 Most of this world's code, tools and documentation were written by Claude, an AI model made by Anthropic, at
 JustEyeTee's direction.
