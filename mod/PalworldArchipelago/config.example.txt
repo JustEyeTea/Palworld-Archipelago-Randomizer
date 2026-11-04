@@ -2,6 +2,8 @@
 server=
 slot=
 password=
+# A seed belongs to the first world you play it in: in other worlds the mod connects but locks, sends and gives
+# nothing. To move a seed to another world, delete the world= line from its save-<seed>-<slot>.txt in this folder.
 # The key that buys a hint for the Area Pass of the wall you are at (a letter or a key name such as F6).
 hint_key=H
 # The Archipelago Mailbox (Esc menu > Archipelago Mailbox): received items wait there until you take them.

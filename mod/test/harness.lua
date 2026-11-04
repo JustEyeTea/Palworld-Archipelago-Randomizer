@@ -9,7 +9,14 @@ end
 
 -- Windows paths -> this machine's.
 local realOpen = io.open
-io.open = function(p, m) return realOpen((p:gsub("\\", "/")), m) end
+saveWrites = 0                                             -- (global) the mod's save file written
+io.open = function(p, m)
+    if m == "w" and p:find("save%-[^\\/]*%.txt") then saveWrites = saveWrites + 1 end
+    return realOpen((p:gsub("\\", "/")), m)
+end
+local realRemove, realRename = os.remove, os.rename
+os.remove = function(p) return realRemove((p:gsub("\\", "/"))) end
+os.rename = function(a, b) return realRename((a:gsub("\\", "/")), (b:gsub("\\", "/"))) end
 package.path = MOD .. "/Scripts/?.lua;" .. package.path
 
 -- Unreal values.
@@ -69,7 +76,7 @@ local ps = {
     GetTechnologyData = function() return td end,
     GetInventoryData = function() return inv end,
     GetRecordData = function() return record end,
-    GetPawn = function() return pawn end,
+    GetPawn = function() return not pawnGone and pawn or nil end,   -- (pawnGone: a moment without one, same world)
 }
 local ftActor = { IsValid = function() return true end, FastTravelPointID = FNameOf("FTPoint101"), bUnlocked = false,
                   LevelObjectInstanceId = { A = 0x6E03F846, B = 0x4BAD9E45, C = 0x8B843AA3, D = 0x0BE1CC8F } }
@@ -94,7 +101,10 @@ local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade
 cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
 local function Texture(path) return { IsValid = function() return true end, path = path } end
 local kept = {}
-local gameInstance = { IsValid = function() return true end, ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
+worldDir = "AP_WORLD"                                        -- the loaded world's save folder
+local gameInstance = { IsValid = function() return true end,
+                       GetSelectedWorldSaveDirectoryName = function() return { ToString = function() return worldDir end } end,
+                       ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
                                                          { __newindex = function(_, i, v) kept[i] = v end }) }
 -- As on the client: LoadAsset needs "/Game/Dir/Asset.Asset"; a package path or a class path ("_C") loads nothing
 -- (v0.4.3 playtest). The LogicMod's assets and the chest Blueprint exist only once their package is loaded properly.
@@ -131,7 +141,7 @@ FindAllOf = function(class)
     if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
         return mapOpen and { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody } or {}
     end
-    if class == "PalPlayerState" then return { ps } end
+    if class == "PalPlayerState" then return noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
     if class == "PalPlayerController" then                   -- the class default object comes first, as in the game
         return { { IsValid = function() return true end, GetAddress = function() return 1 end,
                    GetFullName = function() return "BP_PalPlayerController_C /Script/Pal.Default__PalPlayerController" end },
@@ -316,7 +326,10 @@ AP_ComposeMap = function(colour, labels, locked, out)
 end
 AP_ComposeStatus = function()
     local s = composeState
-    if s == "busy" then                                       -- the background job finishes by the next look
+    if s == "busy" and composeFails then                      -- (composeFails: the job fails, as when its file is locked)
+        composeState = ""
+        return "error: could not write map-composed.png"
+    elseif s == "busy" then                                   -- the background job finishes by the next look
         local f = io.open(composeJob.out, "w"); f:write("map"); f:close()
         composeState = "done"
     elseif s ~= "" then composeState = "" end
@@ -544,6 +557,16 @@ for i = count + 1, #announced do
     if announced[i]:find(hintArea .. " is sealed. Tester's Area Pass: " .. hintArea .. " is at Shop: Foo Stand", 1, true) then remembered = true end
 end
 expect(remembered, "the wall then says where the pass is")
+-- The finder hears hints too: another player's Area Pass of the same name, sitting in our world, is not ours.
+push("message", "[Hint]: Friend's Area Pass: " .. hintArea .. " is at Shop: Palbox in Tester's World. (not found)", "Hint")
+local count2 = #announced
+run(420)
+local stillOurs, theirs = false, false
+for i = count2 + 1, #announced do
+    if announced[i]:find("sealed. Tester's Area Pass: " .. hintArea, 1, true) then stillOurs = true end
+    if announced[i]:find("sealed. Friend's", 1, true) then theirs = true end
+end
+expect(stillOurs and not theirs, "another player's pass hint is not shown at our wall as ours")
 hintPoints = "3,121"
 local saidBefore = #said
 keyBinds["key:H"]()
@@ -595,15 +618,57 @@ nextSession()
 expect(exports == 2 and logged("map picture changed"), "a mod changed the map picture: the colour map is saved again")
 nextSession()
 expect(exports == 2, "and then reused")
+-- The compositor fails (its file locked): the map is drawn without it, not left on an old picture logged as current.
+composeFails = true
+mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 11 end,
+                                               GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end }
+local W3 = dofile(MOD .. "/Scripts/walls.lua")
+W3.dir, W3.keep = MOD, function() end
+local drawn = greyBoxes
+for _ = 1, 4 do W3.updateMap(true, {}, pawn) end
+composeFails = false
+expect(logged("composing failed: error: could not write") and greyBoxes > drawn and mapBody.Image_MapBody.Brush.ResourceObject.rt,
+       "a failed composition: the map is drawn without the compositor")
 mapOpen = false
 
 print("a new world")
+-- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
+local before, up = spawned, wallCount()
+pawnGone = true
+run(5)
+pawnGone = false
+run(80)
+expect(spawned == before and wallCount() == up, "a moment without a pawn: no second set of walls: " .. (spawned - before))
+local function leaveWorld() for a in pairs(wallsUp) do a.gone = true; wallsUp[a] = nil end end   -- its walls go with it
 pawnAddress = 8192                                             -- back from the title, the world loaded again
-local before = spawned
+leaveWorld()
+before = spawned
 run(10)
 expect(spawned == before, "no walls while the new world settles")
 run(60)
 expect(spawned > before, "then its walls go up: " .. (spawned - before))
+
+print("another world")
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("world=AP_WORLD\n", 1, true), "the seed keeps the world it is played in")
+-- A world this seed is not played in (config.txt connects at every start): nothing is locked, sent or given there.
+worldDir, pawnAddress = "VANILLA", 12288
+leaveWorld()
+unlocked.list[#unlocked.list + 1] = FNameOf("PalBox")          -- researched in that world
+record.PalCaptureCount.Items.list[2].Value = 1                 -- and a SheepBall caught there
+before = spawned
+run(80)
+have = {}
+unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
+expect(have.PalBox and not checks[D.captures.sheepball] and spawned == before, "another world: no tech relocked, no check sent, no walls")
+expect(logged("world: VANILLA is not this seed's world %(AP_WORLD%)") and table.concat(announced, "|"):find("not the world this Archipelago seed", 1, true),
+       "and the player is told")
+worldDir, pawnAddress = "AP_WORLD", 16384
+leaveWorld()
+run(80)
+have = {}
+unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
+expect(not have.PalBox and checks[D.captures.sheepball] and spawned > before, "back in the seed's world, all as before")
+record.PalCaptureCount.Items.list[2].Value = 0
 
 print("death link")
 expect(tagsSet == "AP,DeathLink", "the slot's death_link turns the link on: " .. tostring(tagsSet))
@@ -624,6 +689,13 @@ run(7)
 expect(#bounces == 1, "and is not sent back")
 playerDead = false
 run(7)
+-- A death received while no player is in the world (the title, a load) does not faint the player in the next one.
+noPlayer = true
+push("bounce", "DeathLink", '{"cause":"Misty fell.","source":"Misty","time":3}')
+run(70)
+noPlayer = false
+run(14)
+expect(not playerDead and logged("death link received while no player was in the world"), "a death from before the world loaded is dropped")
 
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
@@ -835,6 +907,10 @@ run(1)
 expect(slots[1].StackCount == 20 and (bagHas.Wood or 0) == bagWood + 5 and moves[1].to == 5 and moves[1].index == 0 and moves[1].n == 5,
        "a deposit goes back to the bag by the game's move: " .. slots[1].StackCount)
 expect(slots[2]:IsEmpty() and bagHas.Sword == 1, "gear too")
+slots[2].ItemId = { StaticId = FNameOf("Sword"), DynamicId = { LocalIdInCreatedWorld = { A = 8, B = 0, C = 0, D = 0 } } }
+slots[2].StackCount = 1                                    -- a second sword, into the same slot
+run(1)
+expect(slots[2]:IsEmpty() and bagHas.Sword == 2, "a second piece of gear in the same slot goes back too")
 expect(table.concat(announced, "|"):find("The mailbox only hands items out: Wood went back to your bag.", 1, true), "and the player is told")
 push("item", "8", tostring(itemId["Stone Bundle"]), "9", "2", "0", "Stone Bundle", "Friend")   -- arrives meanwhile
 run(8)                                                     -- (bundles are applied every 7th update)
@@ -845,9 +921,12 @@ local givenBefore = #given
 run(5)
 expect(slots[2].StackCount == 50 and given[#given] == "Stone x3" and #given == givenBefore + 1 and logged("did nothing; deposits are returned by hand"),
        "a deposit the move left is returned by hand, once: " .. slots[2].StackCount)
+require("mailbox").open(pawn)                              -- the mailbox key pressed again while it is open
+run(3)
 slots[1].StackCount = 21                                   -- put in just before closing (the move does nothing)
 hudWindows["chest1"].gone = true                           -- the player closes it
 run(1)
+expect(#shown == 1, "closed, it stays closed (the key pressed while it was open did nothing)")
 movesWork = true
 kinds, items = require("mailbox").count()
 expect(kinds == 2 and items == 70, "closed: what is left goes back into the mailbox, with what arrived meanwhile: " .. items)
@@ -898,6 +977,27 @@ expect(items == 55 and slots[1].StackCount == 5, "the next open fills from the l
 run(1)
 hudWindows["chest" .. #shown].gone = true
 run(2)
+-- Taken during a view it can't follow, then the world changes before that view is settled: what was taken left the
+-- list at once, so the next fill does not give it again.
+hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
+run(11)
+local bagWoodBefore = bagHas.Wood or 0
+slots[1].StackCount = 1                                    -- the player takes 4 Wood
+bagHas.Wood = bagWoodBefore + 4
+run(1)
+playerController.GetAddress = function() return 1000 end  -- a new world
+run(1)
+hud.ShowCommonUI = showPlain
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
+run(3)
+local woodListed = 0
+for _, e in ipairs(require("mailbox").queue) do if e.id == "Wood" then woodListed = e.n end end
+expect(woodListed == 1 and slots[1].StackCount == 1 and bagHas.Wood - bagWoodBefore + woodListed == 5,
+       "a take is off the list at once: 5 Wood in all, not 9: " .. woodListed .. " listed")
+run(1)
+hudWindows["chest" .. #shown].gone = true
+run(2)
 -- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
 logicMod = true
 local function PalButton()
@@ -919,7 +1019,7 @@ wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, t
 hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
 local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
-expect(#winRows == 2 and winRows[1].Label.text == "Wood  x5" and winRows[2].Label.text == "Stone  x50",
+expect(#winRows == 2 and winRows[1].Label.text == "Wood  x1" and winRows[2].Label.text == "Stone  x50",
        "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
 expect(winRows[1].Btn.focused, "a controller starts on the first row")
 expect(hooks[ROW_CLICK], "its buttons are hooked")
@@ -932,7 +1032,7 @@ expect(logged("the bag refused Wood %(result 16%)"), "a refusal is logged")
 bagFull = false
 hooks[ROW_CLICK]({ get = function() return winRows[1] end })
 run(1)
-expect(given[#given] == "Wood x5" and #winRows == 1, "a row takes its item into the bag")
+expect(given[#given] == "Wood x1" and #winRows == 1, "a row takes its item into the bag")
 hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
 run(1)
 expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
@@ -995,7 +1095,34 @@ run(1)
 local forgot = false
 for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1, true) then forgot = true end end
 expect(forgot and connectBtn.Test_Content.text == "Archipelago: connected as Other", "a different seed starts afresh")
+-- A slot the server refuses: what is in memory is still Other's, and is saved as Other's, not under the refused name.
+require("mailbox").add("Wood", 10)
+run(7)
+hooks[CLICK]({ get = function() return connectBtn end })
+okWith("archipelago.gg:40000")
+okWith("Typo")
+okWith("")
+push("status", "refused", "InvalidSlot")
+run(1)
+playerController.K2_GetPawn = function() return pawn end
+local took = require("mailbox").takeAll()
+playerController.K2_GetPawn = nil
+expect(took == 10 and io.open(MOD .. "/save-67890-Other.txt"):read("*a"):find("mail=\n", 1, true)
+       and not io.open(MOD .. "/save-67890-Typo.txt"), "a refused slot: the take is saved in the connected slot's file")
+hooks[CLICK]({ get = function() return connectBtn end })
+okWith("archipelago.gg:40000")
+okWith("Other")
+okWith("")
+push("status", "connected", "Other")
+run(1)
 titleOpen = false
+run(1)
+-- In a world the title menu is gone; a game title button made later at a freed address of ours is not ours.
+local disconnectsBefore, pushedBefore = disconnects, #pushed
+hooks[CLICK]({ get = function() return Widget({ addr = disconnectBtn.addr }) end })
+hooks[CLICK]({ get = function() return Widget({ addr = connectBtn.addr }) end })
+run(1)
+expect(disconnects == disconnectsBefore and #pushed == pushedBefore, "our old title buttons' addresses are forgotten")
 
 print("the other goals")
 local function newSeed(seed, extra)
@@ -1028,6 +1155,36 @@ local towerList = record.TowerBossDefeatFlag.Items.list
 towerList[#towerList + 1] = { Key = FNameOf("EPalBossType::WorldTreeBoss"), Value = true }
 run(14)
 expect(goals == before + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
+print("mailbox off: bundles straight to the bag")
+local MB = require("mailbox")
+local mailOn = MB.on
+MB.on = function() return false end
+playerController.K2_GetPawn = function() return pawn end
+newSeed("70004", {})
+bagFull = true
+local woodBefore = bagHas.Wood or 0
+push("item", "0", tostring(itemId["Wood Bundle"]), "3", "2", "0", "Wood Bundle", "Friend")
+run(14)
+local save4 = MOD .. "/save-70004-Other.txt"
+expect((bagHas.Wood or 0) == woodBefore and io.open(save4):read("*a"):find("given=-1", 1, true)
+       and table.concat(announced, "|"):find("Wood Bundle waits until there is room", 1, true), "a full bag: the bundle waits, not counted as given")
+bagFull = false
+run(14)
+expect(bagHas.Wood == woodBefore + 50 and io.open(save4):read("*a"):find("given=0", 1, true), "and is given once there is room")
+
+print("the save file")
+local writes = saveWrites
+run(14)
+expect(saveWrites == writes, "not written again while nothing changed")
+-- Cut off between putting the old file away and the new one in place: the complete copy written last is used.
+os.rename(save4, save4 .. ".tmp")
+newSeed("70005", {})
+newSeed("70004", {})
+push("item", "0", tostring(itemId["Wood Bundle"]), "3", "2", "0", "Wood Bundle", "Friend")
+run(14)
+expect(bagHas.Wood == woodBefore + 50 and logged("using the copy written last"), "a save cut off: the .tmp copy is used, nothing given twice")
+MB.on, playerController.K2_GetPawn = mailOn, nil
+
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

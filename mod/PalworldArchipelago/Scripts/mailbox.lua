@@ -61,6 +61,16 @@ local function merge(list, id, n)
     list[#list + 1] = { id = id, n = n }
 end
 
+local function unmerge(list, id, n)
+    for i, e in ipairs(list) do
+        if e.id == id then
+            e.n = e.n - n
+            if e.n <= 0 then table.remove(list, i) end
+            return
+        end
+    end
+end
+
 function M.on() return env.cfg.mailbox ~= "0" end
 
 function M.count()
@@ -181,6 +191,8 @@ local function toBag(id, n)
     end
     return done
 end
+
+M.give = toBag                  -- (main.lua, with mailbox=0: bundles straight to the bag, the same way)
 
 local function take(id)
     for i, e in ipairs(M.queue) do
@@ -555,13 +567,25 @@ local function sweep(pawn)
                 count[id] = (count[id] or 0) + slot:GetStackCount()
                 where[id] = where[id] or {}
                 where[id][#where[id] + 1] = slot
-            else
-                gear[#gear + 1] = { slot = slot, i = i }
+            else                                         -- tried per piece: its slot and its own id
+                local okd, d = pcall(function()
+                    local x = slot:GetItemId().DynamicId.LocalIdInCreatedWorld
+                    return x.A .. "-" .. x.B .. "-" .. x.C .. "-" .. x.D
+                end)
+                gear[#gear + 1] = { slot = slot, key = i .. ":" .. (okd and d or "?") }
             end
         end
     end
-    for id, n in pairs(view.shown) do                    -- taken out: the chest may hold that much less
-        if (count[id] or 0) < n then view.shown[id] = count[id] or 0 end
+    -- Taken out: off the list at once, so the list always matches the chest. A view dropped without closing (a world
+    -- change, a quit) then leaves nothing taken on the list for the next fill to give again.
+    local changed = false
+    for id, n in pairs(view.shown) do
+        local now = count[id] or 0
+        if now < n then
+            view.shown[id] = now
+            unmerge(M.queue, id, n - now)
+            changed = true
+        end
     end
     for id, n in pairs(count) do
         local extra = n - (view.shown[id] or 0)
@@ -597,14 +621,19 @@ local function sweep(pawn)
                 end
                 if back < extra then                           -- the bag is full: the rest stays as mailbox items
                     view.shown[id] = (view.shown[id] or 0) + (extra - back)
+                    merge(M.queue, id, extra - back)
+                    changed = true
                     env.notify("Your bag is full: " .. itemName(id) .. " stays in the mailbox.")
                 end
                 view.tries[id] = nil
             end
         end
     end
+    local gearTries = {}                                   -- only the pieces in the chest now
+    for _, g in ipairs(gear) do gearTries[g.key] = view.gearTries[g.key] end
+    view.gearTries = gearTries
     for _, g in ipairs(gear) do                            -- gear can only go back by the game's move
-        local tries = view.gearTries[g.i] or 0
+        local tries = view.gearTries[g.key] or 0
         if tries == 0 then
             once("geardeposit", "mailbox: gear got into the chest: returning it")
             local ok, err = pcall(moveToBag, pawn, g.slot, g.slot:GetStackCount())
@@ -613,7 +642,7 @@ local function sweep(pawn)
         elseif tries == RETRY then
             env.notify("Take your " .. itemName(g.slot:GetItemId().StaticId:ToString()) .. " back out of the mailbox: it can't return it.")
         end
-        view.gearTries[g.i] = tries + 1
+        view.gearTries[g.key] = tries + 1
     end
     if #view.held > 0 then                                 -- received while open: into empty slots
         for i = 0, c:Num() - 1 do
@@ -629,6 +658,7 @@ local function sweep(pawn)
             end
         end
     end
+    if changed then env.save() end
 end
 
 local function openChest(chest, pawn)
@@ -678,6 +708,9 @@ end
 function M.open(ctx)
     if not M.on() then env.notify("The mailbox is off (mailbox=0 in config.txt): items go straight to your bag."); return end
     if not env.connected() and #M.queue == 0 then env.notify("Connect to Archipelago to see your mailbox."); return end
+    -- Already open (the key pressed again): nothing to do. Asking again would reopen it as soon as it closes. A chest
+    -- view that can't be followed is the exception: a new open is what settles it.
+    if win or (view and view.how ~= "unknown") then return end
     want, wait = ctx or true, 2
 end
 

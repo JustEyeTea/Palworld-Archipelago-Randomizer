@@ -40,9 +40,14 @@ local function ready()
     return cls ~= nil and cls:IsValid() and gs ~= nil and gs:IsValid()
 end
 
--- A new world (another save, back from the title): its walls are gone with the old one; start over.
+-- A new world (another save, back from the title): its walls are gone with the old one; start over. Only walls that
+-- are really gone are forgotten: the core's world key is the pawn, which also changes (or reads nil for a moment) in
+-- the same world, and a wall forgotten while still standing could never be taken down.
 function W.reset()
-    raised = {}
+    for i, a in pairs(raised) do
+        local ok, valid = pcall(function() return a:IsValid() end)
+        if not (ok and valid) then raised[i] = nil end
+    end
 end
 
 local function raise(i, context)
@@ -320,7 +325,7 @@ end
 -- shadow; when it is ready it is loaded and drawn into the render target. The picture is the game's own art: it stays
 -- in the mod folder and is never shipped.
 local COLOUR_FILE = "map-colour-1.png"
-local composing, composedKey = nil, nil       -- the locked set being composed / last composed
+local composing, composedKey, failedKey = nil, nil, nil   -- the locked set being composed / last composed / last failed
 -- A fingerprint of the map the game shows: 16 pixels of it drawn small. A mod that replaces the map's art changes it, so
 -- the saved colour map is made again (once a session, cheaply, instead of exporting the whole map every time).
 local printChecked, printNow = false, nil
@@ -381,7 +386,8 @@ local function lockedIndexes(passes)
     end
     return table.concat(out, ",")
 end
--- Starts or finishes a composition; true once the render target holds the picture for this locked set.
+-- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
+-- composing it failed.
 local function composeMap(ctx, passes, key)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local gi = owner()
@@ -391,9 +397,11 @@ local function composeMap(ctx, passes, key)
         if st == "busy" then return false end
         local done = composing
         composing = nil
-        if st ~= "done" then log("map: composing failed: " .. tostring(st)); composedKey = done; return false end
+        -- A failure is not a picture: the render target still holds the last one. That set is not composed again (no
+        -- retry loop); the map is drawn without the compositor instead.
+        if st ~= "done" then log("map: composing failed: " .. tostring(st) .. "; drawing it without the compositor"); failedKey = done; return false end
         local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\map-composed.png")
-        if not tex or not tex:IsValid() then log("map: could not load the composed map"); composedKey = done; return false end
+        if not tex or not tex:IsValid() then log("map: could not load the composed map; drawing it without the compositor"); failedKey = done; return false end
         if not mapRT or not mapRT:IsValid() then
             mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
             W.keep(mapRT)
@@ -407,6 +415,7 @@ local function composeMap(ctx, passes, key)
         return done == key
     end
     if composedKey == key then return true end
+    if failedKey == key then return "failed" end
     pcall(LoadAsset, MAP_TEXTURE)
     local tex = StaticFindObject(MAP_TEXTURE)
     if not tex or not tex:IsValid() then return false end
@@ -434,21 +443,28 @@ function W.updateMap(enabled, passes, ctx)
     end
     local key = table.concat(locked, "|")
     local redrawn = false
-    if AP_ComposeMap and AP_ComposeStatus then
+    local compose = AP_ComposeMap and AP_ComposeStatus
+    if compose then
         local ok, ready = pcall(composeMap, ctx, passes, key)
         if not ok then once("composeerr" .. tostring(ready), "map error: " .. tostring(ready)); ready = false end
-        if ready and key ~= mapKey then
-            mapKey, redrawn = key, true
-            log("map: " .. #locked .. " locked area(s) greyed")
+        if ready == "failed" then
+            compose = false
+        else
+            if ready and key ~= mapKey then
+                mapKey, redrawn = key, true
+                log("map: " .. #locked .. " locked area(s) greyed")
+            end
+            if not mapKey or not mapRT then return end    -- nothing composed yet: the game's own map stays
         end
-        if not mapKey or not mapRT then return end    -- nothing composed yet: the game's own map stays
-    elseif key ~= mapKey then
+    end
+    if not compose and key ~= mapKey then
         local ok, done = pcall(drawMap, ctx, passes)
         if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return end
         if not done then return end
         mapKey, redrawn = key, true
         log("map: " .. #locked .. " locked area(s) greyed")
     end
+    if not mapRT or not mapRT:IsValid() then return end
     local want = tostring(mapRT:GetAddress())
     for _, image in ipairs(images) do
         local okr, shown = pcall(function()
