@@ -11,7 +11,7 @@ from worlds.AutoWorld import WebWorld, World
 from .data import (AREAS, BREEDING_TECH, CATCHABLE, DECOR_TECHS, DIRECT, FILLER, FLYING_MOUNTS, ITEM_GROUPS,
                    ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS, PASS_AREAS,
                    PREREQ_TECHS, PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS, SPHERE_NEEDS,
-                   SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, area_pass, tech_item)
+                   SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, area_pass, tech_item)
 from .game_data import BORDERS, PALDECK, PIECES, START_AREA, TOWERS
 from .options import PalworldOptions, option_groups, options_presets
 
@@ -122,6 +122,9 @@ class PalworldWorld(World):
                               + (" and at least one relic" if relic_hunt else "")
                               + "; turn on more checks (capture, alpha, fast-travel or level checks) or raise the "
                                 "Check Level Cap.")
+        if o.trap_chance and not any(self.trap_weights()):
+            logging.warning(f"Palworld ({self.player_name}): Trap Chance is {o.trap_chance.value}% but every trap weight "
+                            f"is 0, so there are no traps")
 
     # --- logic helpers -----------------------------------------------------------------------------------------
     def can_enter(self, state: CollectionState, piece: str) -> bool:
@@ -275,6 +278,8 @@ class PalworldWorld(World):
         kind = next(i.kind for i in ITEMS if i.name == name)
         if kind in ("pass", "progressive", "relic"):
             cls = ItemClassification.progression
+        elif kind == "trap":
+            cls = ItemClassification.trap
         elif kind == "tech":
             tech = next(t for t in SHOP_TECHS if tech_item(t[0]) == name)
             cls = ItemClassification.progression if tech[0] in PREREQ_TECHS else ItemClassification.useful
@@ -308,11 +313,26 @@ class PalworldWorld(World):
                 self.relics = room                  # at least one: generate_early made sure of it
                 self.relics_needed = math.ceil(self.relics * self.options.relics_needed.value / 100)
             pool += [self.create_item(RELIC) for _ in range(self.relics)]
-        filler = [self.create_item(self.get_filler_item_name()) for _ in range(slots - len(pool))]
+        filler = [self.create_item(self.filler_or_trap()) for _ in range(slots - len(pool))]
         self.multiworld.itempool += pool + filler
 
     def get_filler_item_name(self) -> str:
+        # Filler only, never a trap: core's own replacements (item links, plando, start inventory from pool) use this.
         return self.random.choice(FILLER)
+
+    def trap_weights(self) -> list:
+        o = self.options
+        return [o.slow_trap_weight.value, o.hunger_trap_weight.value, o.teleport_trap_weight.value,
+                o.fool_trap_weight.value]
+
+    def filler_or_trap(self) -> str:
+        """A filler item, or with Trap Chance a trap in its place. With Trap Chance 0 no extra random number is drawn,
+        so this draws exactly what get_filler_item_name always drew and seeds without traps do not change."""
+        if self.options.trap_chance and self.random.randint(1, 100) <= self.options.trap_chance.value:
+            weights = self.trap_weights()
+            if any(weights):
+                return self.random.choices(TRAPS, weights=weights)[0]
+        return self.get_filler_item_name()
 
     def set_rules(self) -> None:
         get = lambda name: self.multiworld.get_location(name, self.player)
@@ -353,7 +373,7 @@ class PalworldWorld(World):
     def fill_slot_data(self) -> Dict[str, Any]:
         return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "progressive_spheres",
                                                 "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks",
-                                                "level_checks", "death_link"),
+                                                "level_checks", "death_link", "death_link_amnesty", "trap_chance"),
                 "relics": self.relics, "relics_needed": self.relics_needed,
                 "check_level": self.cap,                                   # checks above it are not in this seed
                 "research_techs": ",".join(sorted(self.research())),   # techs the mod leaves as normal research

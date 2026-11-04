@@ -2,7 +2,8 @@
 -- registers AP_* functions here when this mod starts (see cppmod/APConnector/src/dllmain.cpp).
 --  * Technology levels 2+ are a shop: each card shows what its slot holds in the multiworld, researching it spends the
 --    points and sends the check, and never unlocks the tech itself. Techs unlock as their items arrive.
---  * Received items: techs, Progressive Spheres, Area Passes, points, and bundles (into the mailbox, mailbox.lua).
+--  * Received items: techs, Progressive Spheres, Area Passes, points, bundles (into the mailbox, mailbox.lua), and traps
+--    (traps.lua).
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
@@ -19,6 +20,7 @@ local WALLS = require("walls")
 local MENU = require("menu")
 local TECHSCAN = require("techscan")
 local MAIL = require("mailbox")
+local TRAPS = require("traps")
 
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -92,8 +94,9 @@ end
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Archipelago state. The server is the truth: on every connection it sends all items received so far and every
--- location already checked, so most of this is rebuilt each time. Only one-off effects (points, bundles) need memory:
--- the index of the last item applied, and the mailbox's contents, kept per seed and slot in a save file next to the mod.
+-- location already checked, so most of this is rebuilt each time. Only one-off effects (points, bundles, traps) need
+-- memory: the index of the last item applied, the mailbox's contents, the traps still to fire and the Death Link amnesty
+-- count, kept per seed and slot in a save file next to the mod.
 local ap = {
     status = "disconnected",
     ready = false,        -- connected and the first batch of items is in: safe to lock techs
@@ -110,6 +113,8 @@ local ap = {
     level = 0,            -- the player's level, as last read
     beaten = {},          -- tower boss type -> true
     given = -1,           -- highest item index whose one-off effect has been applied
+    from = {},            -- index -> the player who sent a trap item (nil: found in our own world)
+    forgiven = 0,         -- own faints forgiven since a death was last sent (Death Link amnesty; in the save file)
     goalSent = false,
     world = nil,          -- the world save this seed is played in (its folder name), kept in the save file
 }
@@ -145,17 +150,23 @@ local function loadSave()
     for _, line in ipairs(lines) do
         local n = line:match("^given=(%-?%d+)")
         local w = line:match("^world=(.+)$")
-        if n then ap.given = tonumber(n) elseif w then ap.world = w else MAIL.load(line) end
+        local d = line:match("^deaths=(%d+)")
+        if n then ap.given = tonumber(n)
+        elseif w then ap.world = w
+        elseif d then ap.forgiven = tonumber(d)
+        elseif not TRAPS.load(line) then MAIL.load(line) end
     end
     local kinds, items = MAIL.count()
-    log("save " .. path .. ": items applied up to index " .. ap.given .. "; mailbox " .. items .. " item(s) of " .. kinds .. " kind(s)"
-        .. "; world " .. tostring(ap.world))
+    log("save " .. path .. ": items applied up to index " .. ap.given .. "; mailbox " .. items .. " item(s) of " .. kinds
+        .. " kind(s); " .. #TRAPS.queue .. " trap(s) waiting; " .. ap.forgiven .. " faint(s) forgiven; world " .. tostring(ap.world))
 end
 local lastSave = nil          -- path and text of the last write: the same again is not written (it ran every 2 s)
 local function writeSave()
     local path = saveFile()
     if not path then return end
-    local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "") .. MAIL.serialize() .. "end\n"
+    -- One write holds everything that must agree: what was applied, and the traps and mailbox items it left.
+    local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "")
+        .. "deaths=" .. ap.forgiven .. "\n" .. TRAPS.serialize() .. MAIL.serialize() .. "end\n"
     if lastSave == path .. "\n" .. text then return end
     local f = io.open(path .. ".tmp", "w")
     if not f then return end
@@ -307,6 +318,7 @@ local function applyItems(ps)
             break
         end
         if waiting == i then waiting = nil; log("bundle " .. it.name .. " given, now the bag has room") end
+        if it and it.kind == "trap" then TRAPS.add(it.name, i) end      -- queued: traps.lua paces and fires them
         if it and it.kind == "relic" then
             local need = tonumber(AP_SlotData("relics_needed"))
             notify("Palpagos Relic " .. relicCount(i) .. (need and ("/" .. need) or "") .. " found!")
@@ -699,6 +711,10 @@ local function receive(f)
         for k = 1, math.min(n, #D.spheres) do ap.techs[D.spheres[k]] = true end
     elseif it.kind == "pass" then
         ap.passes[it.area] = true
+    elseif it.kind == "trap" then
+        -- No "Received" line: the trap names itself when it fires (and a Fool Trap must not give itself away).
+        ap.from[index] = player ~= ap.me and from or nil
+        return
     end
     if index > ap.given then
         notify("Received " .. name .. (player ~= ap.me and (" from " .. from) or ""))
@@ -711,7 +727,9 @@ local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
     ap.world, seedWorld = nil, nil
+    ap.from, ap.forgiven = {}, 0
     MAIL.reset()
+    TRAPS.reset()
     hints.known, hints.shown, hints.offer = {}, {}, nil
     techScan.sent = false
     log("a different seed or slot: progress of the last one forgotten")
@@ -743,7 +761,13 @@ local function onEvent(line)
             if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
             local dl = AP_SlotData("options.death_link")
             death.on = (dl == "1" or dl == "true") and AP_SetTags ~= nil
-            if death.on then AP_SetTags("AP,DeathLink"); log("Death Link on") end
+            if death.on then
+                AP_SetTags("AP,DeathLink")
+                log("Death Link on: amnesty " .. (tonumber(AP_SlotData("options.death_link_amnesty")) or 0) .. ", "
+                    .. ap.forgiven .. " faint(s) forgiven so far")
+            end
+            local chance = tonumber(AP_SlotData("options.trap_chance")) or 0
+            if chance > 0 then log("traps: " .. chance .. "% of filler items are traps in this seed") end
         elseif f[2] == "connecting" then
             if ap.status ~= "connected" then ap.status = "connecting" end
         elseif f[2] == "refused" then
@@ -807,6 +831,10 @@ MENU.install({
     openMailbox = function(context) MAIL.open(context) end,
 })
 MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end })
+TRAPS.install({ notify = notify, save = writeSave,
+                announce = function(text) log(text); R.notify(text, playerState()) end,
+                sender = function(index) return ap.from[index] end,
+                home = function() return WALLS.home end, start = function() return WALLS.start end })
 if cfg.server and cfg.server ~= "" and cfg.slot and cfg.slot ~= "" then
     log("connecting to " .. cfg.server .. " as " .. cfg.slot)
     AP_Connect(cfg.server, cfg.slot, cfg.password or "")
@@ -851,7 +879,8 @@ if RegisterKeyBind and Key and Key[hints.key] then
 end
 
 -- Death Link (the slot's death_link option): dying sends a death to everyone linked; a death from them faints the
--- player through the game's own self-kill. A death the link caused is not sent back.
+-- player through the game's own self-kill. A death the link caused is not sent back, and neither counts towards nor
+-- resets the amnesty.
 local function deathLink(ps)
     if not death.on then return end
     local okd, dead = pcall(function() return ps:IsPlayerDead() end)
@@ -873,11 +902,25 @@ local function deathLink(ps)
         if death.caused and tick - death.caused < 50 then
             log("death link: this death came from the link, not sent back")
         else
-            local cause = cfg.slot .. " fainted in Palworld."
-            AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), (cfg.slot:gsub('"', "")),
-                (cause:gsub('"', ""))), "DeathLink")
-            notify("Death Link: your death was sent to the multiworld.")
-            log("death link sent")
+            -- Amnesty (slot data options.death_link_amnesty): that many of your own faints are forgiven before one is
+            -- sent. The count is kept in the seed's save file, so quitting does not reset it.
+            local amnesty = tonumber(AP_SlotData("options.death_link_amnesty")) or 0
+            if ap.forgiven < amnesty then
+                ap.forgiven = ap.forgiven + 1
+                writeSave()
+                local left = amnesty - ap.forgiven
+                notify(left > 0 and string.format("Death Link: faint forgiven (%d more before one is sent).", left)
+                                 or "Death Link: faint forgiven. The next one is sent to the multiworld.")
+                log(string.format("death link: forgiven %d of %d", ap.forgiven, amnesty))
+            else
+                ap.forgiven = 0
+                writeSave()
+                local cause = cfg.slot .. " fainted in Palworld."
+                AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), (cfg.slot:gsub('"', "")),
+                    (cause:gsub('"', ""))), "DeathLink")
+                notify("Death Link: your death was sent to the multiworld.")
+                log("death link sent")
+            end
         end
     end
     death.wasDead = dead
@@ -1014,15 +1057,26 @@ local function update()
             end
         end
     end
-    if tick % 7 == 0 and ap.ready then
+    if tick % 7 == 0 then
         local ps = playerState()
-        if ps then seedWorld = checkWorld() end
-        if ps and seedWorld then
+        local pawn = ps and safe(function() return ps:GetPawn() end)
+        -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
+        local okk, errk = pcall(TRAPS.tick, { tick = tick, pawn = pawn })
+        if not okk then once("trapsk" .. tostring(errk), "traps error: " .. tostring(errk)) end
+        if ps and ap.ready then seedWorld = checkWorld() end
+        if ps and ap.ready and seedWorld then
             if syncTechs(ps) then refreshTree() end
             applyItems(ps)
             pollRecords(ps)
             local okdl, errdl = pcall(deathLink, ps)
             if not okdl then once("death" .. tostring(errdl), "death link error: " .. tostring(errdl)) end
+            -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.
+            local okt, errt = pcall(function()
+                local okd, dead = pcall(function() return ps:IsPlayerDead() end)
+                TRAPS.update({ tick = tick, ps = ps, pawn = pawn, settled = wallsWorld ~= nil and worldTicks >= SETTLE,
+                               dead = not okd or dead, busy = MAIL.busy() })
+            end)
+            if not okt then once("traps" .. tostring(errt), "traps error: " .. tostring(errt)) end
         end
     end
 end

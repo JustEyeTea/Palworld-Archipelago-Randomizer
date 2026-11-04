@@ -80,6 +80,11 @@ function M.count()
     return kinds, items
 end
 
+-- The mailbox is open or opening (its window, the chest view, or the hidden chest still being made): traps wait.
+-- A chest view that could not be followed (how "unknown") does not count: it stays set until the next open, which
+-- could hold every trap back for the rest of the session.
+function M.busy() return (win or want or spawning or (view and view.how ~= "unknown")) and true or false end
+
 function M.label()
     local _, items = M.count()
     return "Archipelago Mailbox" .. (items > 0 and (" (" .. items .. ")") or "")
