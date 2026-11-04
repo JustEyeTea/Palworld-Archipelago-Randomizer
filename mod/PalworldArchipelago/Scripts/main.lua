@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.13.4"
+local VERSION = "0.13.5"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -1025,11 +1025,11 @@ local function wallNotice(area)
     if not points then return text end
     points, cost = tonumber(points), tonumber(cost)
     hints.offer, hints.offeredAt = area, tick
+    -- Both cases say what the player has and what a hint costs (the user, 2026-11-04), with the configured key.
     if points >= cost then
-        return text .. " Press " .. hints.key .. " to ask the server where it is (" .. cost .. " hint points; you have "
-            .. points .. ")."
+        return text .. " Press " .. hints.key .. " for a hint: you have " .. points .. " points, a hint costs " .. cost .. "."
     end
-    return text .. " A hint costs " .. cost .. " hint points; you have " .. points .. "."
+    return text .. " Not enough points for a hint: you have " .. points .. " points, a hint costs " .. cost .. "."
 end
 local function askHint()
     local area = hints.offer

@@ -698,9 +698,10 @@ pawnAt = hintAt
 run(14)
 local offered
 for i = before + 1, #announced do
-    if announced[i]:find("needs Area Pass: " .. hintArea, 1, true) and announced[i]:find("Press H", 1, true) then offered = true end
+    if announced[i]:find("needs Area Pass: " .. hintArea, 1, true)
+       and announced[i]:find("Press H for a hint: you have 200 points, a hint costs 121.", 1, true) then offered = true end
 end
-expect(offered, "walking up to a wall names its pass and offers a hint: " .. tostring(announced[#announced]))
+expect(offered, "walking up to a wall names its pass and offers a hint, with the points and the cost: " .. tostring(announced[#announced]))
 local count = #announced
 run(14)
 expect(#announced == count, "and not again straight away")
@@ -726,6 +727,31 @@ for i = count2 + 1, #announced do
 end
 expect(stillOurs and not theirs, "another player's pass hint is not shown at our wall as ours")
 hintPoints = "3,121"
+;(function()   -- (a function: the main chunk is at Lua's 200-local limit)
+    -- At a wall to another locked area (no hint known for it yet).
+    local at, area
+    for _, w in ipairs(WD.walls) do
+        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
+        if other and other ~= "Open sea" and other ~= "Bamboo Groves" and other ~= hintArea and w[3] > 5000
+           then
+            local yaw = math.rad(w[4])
+            for _, side in ipairs({ 1, -1 }) do
+                local x, y = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
+                if WALLS.areaAt(x, y) == WD.start then at, area = { X = x, Y = y, Z = 0 }, other end
+            end
+            if at then break end
+        end
+    end
+    local n = #announced
+    pawnAt = at; run(14)
+    local short = false
+    for i = n + 1, #announced do
+        if announced[i]:find("needs Area Pass: " .. tostring(area), 1, true)
+           and announced[i]:find("Not enough points for a hint: you have 3 points, a hint costs 121.", 1, true) then short = true end
+    end
+    expect(at and short, "short of points, the wall says so with the points and the cost: " .. tostring(announced[#announced]))
+end)()
 local saidBefore = #said
 keyBinds["key:H"]()
 expect(#said == saidBefore, "no offer pending, nothing asked")
