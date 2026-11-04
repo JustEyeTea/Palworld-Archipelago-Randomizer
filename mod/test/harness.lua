@@ -664,12 +664,13 @@ local kinds, items = require("mailbox").count()
 expect(kinds == 1 and items == 50, "the Wood Bundle waits in the mailbox: " .. items)
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\nmailview=0", 1, true), "kept in the save file")
 expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox", 1, true), "the player is told where it is")
--- The Esc menu (the client's): a vertical box of three buttons of one class, each in a size box.
+-- The Esc menu (the client's WBP_MenuESC_C, from kdump): Canvas_Buttons holds vertical boxes of WBP_MenuESC_Button_C.
+-- Its WidgetTree has RootWidget but no GetAllWidgets (C++ only in the game; calling it errors).
 playerController.K2_GetPawn = function() return pawn end
 playerController.GetAddress = function() return 998 end
 local escChildren = {}
 local function escButton()
-    local b = Widget({ GetClass = function() return classed("WBP_EscMenu_Button_C") end })
+    local b = Widget({ GetClass = function() return classed("WBP_MenuESC_Button_C") end })
     return Widget({ GetClass = function() return classed("SizeBox") end, GetChildAt = function() return b end })
 end
 for i = 1, 3 do escChildren[i] = escButton() end
@@ -677,15 +678,20 @@ local escBox = Widget({ GetClass = function() return classed("VerticalBox") end,
                         GetChildrenCount = function() return #escChildren end, GetChildAt = function(_, i) return escChildren[i + 1] end,
                         AddChild = function(_, box) escChildren[#escChildren + 1] = box
                                        return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
-escMenu = Widget({ GetClass = function() return classed("WBP_EscMenu_C") end,
-                   WidgetTree = { GetAllWidgets = function() return { escBox } end },
+local function panel(name, kids)
+    return Widget({ GetClass = function() return classed(name) end, GetChildrenCount = function() return #kids end,
+                    GetChildAt = function(_, i) return kids[i + 1] end })
+end
+local escRoot = panel("CanvasPanel", { panel("CanvasPanel", {}), panel("CanvasPanel", { escBox }) })
+escMenu = Widget({ GetClass = function() return classed("WBP_MenuESC_C") end,
+                   WidgetTree = { RootWidget = escRoot },
                    Close = function(self) self.closed = true end })
 escOpen = true
 run(4)
 local mailBtn = escChildren[4] and escChildren[4].child
 expect(mailBtn and mailBtn.Test_Content.text == "Archipelago Mailbox (50)", "the Esc menu has a mailbox button with the count: "
        .. tostring(mailBtn and mailBtn.Test_Content.text))
-expect(logged("the Esc menu is WBP_EscMenu_C"), "found the Esc menu by its buttons")
+expect(logged("the Esc menu is WBP_MenuESC_C"), "found the Esc menu by its buttons")
 run(4)
 expect(#escChildren == 4, "added once")
 -- No LogicMod: the hidden chest. It is made on first use, 300 slots, with the chest template put back after.

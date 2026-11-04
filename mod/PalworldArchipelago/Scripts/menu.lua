@@ -117,7 +117,7 @@ local function addButton(menu, list, kind)
     local button = wbl:Create(menu, class, nil)
     if not button or not button:IsValid() then return nil end
     local box = StaticConstructObject(sizeClass, menu)
-    box:SetWidthOverride(600)
+    if kind ~= "mailbox" then box:SetWidthOverride(600) end   -- the Esc menu's column is narrower: fill it instead
     box:SetHeightOverride(38)
     box:AddChild(button)
     local slot = list:AddChild(box)
@@ -209,6 +209,25 @@ local function hookOnce(path, fn)
     end
 end
 
+-- Every widget in a menu's own tree, from WidgetTree.RootWidget down through panels (GetChildrenCount/GetChildAt).
+-- UWidgetTree:GetAllWidgets is C++ only, not a UFunction: from Lua it errors (v0.11.1 playtest: no Esc button).
+-- Stops at nested user widgets, which have trees of their own.
+local function eachWidget(w, fn)
+    local okr, root = pcall(function() return w.WidgetTree.RootWidget end)
+    if not okr or not root then return end
+    local function walk(o, depth)
+        if not o or not o:IsValid() or depth > 30 then return end
+        fn(o)
+        local okn, n = pcall(function() return o:GetChildrenCount() end)
+        if not okn or type(n) ~= "number" then return end
+        for i = 0, n - 1 do
+            local okc, c = pcall(function() return o:GetChildAt(i) end)
+            if okc and c then walk(c, depth + 1) end
+        end
+    end
+    walk(root, 0)
+end
+
 -- Diagnostics (v0.8.1): the title menu mapped from the dedicated server's files was not on the client's title screen.
 -- Once on the title screen, log every user widget whose class names a title or menu, with its child widgets, so the
 -- client's real title menu can be found from a log.
@@ -220,17 +239,9 @@ local function survey()
         if ok and w:IsValid() and (name:find("Title") or name:find("Menu")) and not seen[name] then
             seen[name] = true
             local children = {}
-            pcall(function()
-                local tree = w.WidgetTree
-                local all = tree:GetAllWidgets()
-                local function add(c)
-                    local okc, cn = pcall(function()
-                        local o = c.get and c:get() or c
-                        return o:GetFName():ToString() .. ":" .. o:GetClass():GetFName():ToString()
-                    end)
-                    if okc then children[#children + 1] = cn end
-                end
-                if type(all) == "table" then for _, c in ipairs(all) do add(c) end else all:ForEach(function(_, c) add(c) end) end
+            pcall(eachWidget, w, function(o)
+                local okc, cn = pcall(function() return o:GetFName():ToString() .. ":" .. o:GetClass():GetFName():ToString() end)
+                if okc then children[#children + 1] = cn end
             end)
             log("menu survey: " .. tostring(select(2, pcall(function() return w:GetFullName() end))) .. " | children: "
                 .. table.concat(children, ", "))
@@ -261,15 +272,6 @@ local function escLike(name)
     local l = name:lower()
     for _, p in ipairs(ESC_NAMES) do if l:find(p, 1, true) then return true end end
     return false
-end
-local function eachWidget(w, fn)
-    local tree = w.WidgetTree
-    local all = tree:GetAllWidgets()
-    local function one(c)
-        local o = c.get and c:get() or c
-        if o and o:IsValid() then fn(o) end
-    end
-    if type(all) == "table" then for _, c in ipairs(all) do one(c) end else all:ForEach(function(_, c) one(c) end) end
 end
 -- The box whose children are mostly buttons of one class (each maybe wrapped in a size box); nil below 3.
 local function escButtonBox(menu)
@@ -305,6 +307,7 @@ local function findEscMenus()
         end
         if ok and w:IsValid() and escLike(name) then
             local okb, box = pcall(escButtonBox, w)
+            if not okb then once("escbox" .. name, "menu: could not read " .. name .. ": " .. tostring(box)) end
             if okb and box then
                 escClass = name
                 log("menu: the Esc menu is " .. name .. " (buttons in " .. className(box) .. " " .. nameOf(box) .. ")")
