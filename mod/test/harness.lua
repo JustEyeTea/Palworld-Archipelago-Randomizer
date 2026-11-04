@@ -715,7 +715,7 @@ local taskBox = Widget({ GetClass = function() return classed("HorizontalBox") e
 taskList = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_SimpleList_C") end,
                     WidgetTree = { RootWidget = panel("CanvasPanel", { taskBox }) } })
 escOpen = true
-run(4)
+run(1)                                                     -- the button is there on the first update (v0.11.4: ~1 s)
 expect(#taskChildren == 3, "the HUD's mission list gets no button: " .. #taskChildren)
 local mailBtn = escChildren[4]
 expect(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text == "Archipelago Mailbox (50)",
@@ -837,7 +837,7 @@ expect(slots[1].StackCount == 20 and (bagHas.Wood or 0) == bagWood + 5 and moves
 expect(slots[2]:IsEmpty() and bagHas.Sword == 1, "gear too")
 expect(table.concat(announced, "|"):find("The mailbox only hands items out: Wood went back to your bag.", 1, true), "and the player is told")
 push("item", "8", tostring(itemId["Stone Bundle"]), "9", "2", "0", "Stone Bundle", "Friend")   -- arrives meanwhile
-run(6)                                                     -- (bundles reach the mailbox a few updates after the notice)
+run(8)                                                     -- (bundles are applied every 7th update)
 expect(slots[2].ItemId.StaticId:ToString() == "Stone" and slots[2].StackCount == 50, "what arrives while it is open shows at once")
 movesWork = false                                          -- a move that does nothing: by hand after a few updates
 slots[2].StackCount = 53
@@ -853,6 +853,7 @@ kinds, items = require("mailbox").count()
 expect(kinds == 2 and items == 70, "closed: what is left goes back into the mailbox, with what arrived meanwhile: " .. items)
 expect(given[#given] == "Wood x1" and logged("put in at the last moment went back to the bag"), "a last-moment deposit goes to the bag")
 expect(slots[1]:IsEmpty() and slots[2]:IsEmpty(), "the chest is emptied")
+expect(not logged("no chest window heading found"), "the heading is not looked for as the window closes")
 local saved = io.open(MOD .. "/save-12345-Tester.txt"):read("*a")
 expect(saved:find("mail=Wood:20,Stone:50\nmailview=0", 1, true), "saved: " .. saved)
 -- Open again: the chest is found, not made again. A plain stack left in it (a world save older than the mod's save,

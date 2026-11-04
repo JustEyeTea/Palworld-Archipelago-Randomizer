@@ -629,7 +629,6 @@ local function sweep(pawn)
             end
         end
     end
-    heading()
 end
 
 local function openChest(chest, pawn)
@@ -730,6 +729,7 @@ function M.update()
             if not oks then once("sweep" .. tostring(errs), "mailbox: sweep error: " .. tostring(errs)) end
         end
         local byId, byWidget = chestOpenById(), chestWindowShown()
+        if byId or byWidget then pcall(heading) end           -- (not while it closes: no heading then)
         if not view.how then
             if byId then view.how = "id"
             elseif byWidget then view.how = "widget"

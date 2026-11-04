@@ -361,10 +361,10 @@ local function findEscMenus()
     end
     return out
 end
-local escTicks, escAdds = 0, 0
+-- Every update, so the button is there as the menu opens (v0.11.4 playtest: every 4th update took about a second); a
+-- menu's tree is only walked when it is new, and the label only set when it changes.
+local escAdds = 0
 local function updateEsc()
-    escTicks = escTicks + 1
-    if escTicks % 4 ~= 0 then return end
     -- The game makes a new Esc menu each time it opens: forget the ones gone (v0.11.3 log: one per visit).
     local live = {}
     local found = findEscMenus()
@@ -394,7 +394,10 @@ local function updateEsc()
                     once("escadd", "menu: could not add the mailbox button: " .. tostring(b or list))
                 end
             end
-            if m then setText(m.mailbox, api.mailboxLabel()) end
+            if m then
+                local text = api.mailboxLabel()
+                if m.label ~= text then m.label = text; setText(m.mailbox, text) end
+            end
         end
     end
 end
