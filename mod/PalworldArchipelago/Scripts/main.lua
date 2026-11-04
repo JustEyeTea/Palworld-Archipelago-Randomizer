@@ -206,7 +206,9 @@ end
 -- alone. Runs only once the connection is ready, so playing offline never relocks anything.
 -- The whole list was read and compared every 7th update (estimated 0.3-1.2 ms, unmeasured). It is skipped while the
 -- game's list has the same length and techsVersion is unchanged since a comparison that changed nothing: the game adds
--- techs to the list, so a new one changes its length. Every 15th poll (about 30 s) compares in full regardless.
+-- techs to the list, so a new one changes its length. Every 15th poll (about 30 s) compares in full regardless. The
+-- skip is tied to the TechnologyData it was taken from (another world loaded with the same seed and an equally long
+-- list must be compared at once, as 6dd356e did within 2.1 s), and it is forgotten on a world change as well.
 local techsSeen, techPolls = nil, 0
 local function syncTechs(ps)
     local td = ps:GetTechnologyData()
@@ -215,7 +217,10 @@ local function syncTechs(ps)
     techPolls = techPolls + 1
     local okNum, num = pcall(function() return arr:GetArrayNum() end)
     if not okNum then num = nil end
-    if num and techsSeen and techsSeen.version == techsVersion and techsSeen.num == num and techPolls % 15 ~= 0 then
+    local okAddr, addr = pcall(function() return tostring(td:GetAddress()) end)
+    if not okAddr then addr = nil end
+    if num and addr and techsSeen and techsSeen.version == techsVersion and techsSeen.num == num and techsSeen.td == addr
+        and techPolls % 15 ~= 0 then
         return false
     end
     techsSeen = nil
@@ -243,8 +248,8 @@ local function syncTechs(ps)
         arr:Empty()
         for i, n in ipairs(keep) do arr[i] = FName(n) end
         safe(function() td:OnRep_UnlockedTechnologyNameArray() end)
-    elseif num then
-        techsSeen = { version = techsVersion, num = num }
+    elseif num and addr then
+        techsSeen = { version = techsVersion, num = num, td = addr }
     end
     return changed
 end
@@ -427,16 +432,18 @@ local function bought(tech) return ap.checked[D.shop[tech].loc] == true end
 local categories = { structure = "Structures", item = "Items" }
 local function readCategory(card, tech)
     local text = safe(function() return card.BP_PalTextBlock_Category:GetText():ToString() end)
-    if type(text) == "string" and text ~= "" then categories[STRUCTURES[tech] and "structure" or "item"] = text end
+    if type(text) == "string" and text ~= "" then categories[STRUCTURES[tech] and "structure" or "item"] = text; return true end
+    return false
 end
 
 -- A card the mod labelled is labelled again only when something says it needs it. 6dd356e set every card's texts,
 -- icon and click state on every update (about 11 UE4SS calls a card, an estimated 1-3 ms an update with the menu's
 -- 30-80 cards, unmeasured). Now a card is skipped when its tech and what it should show are as last applied AND the
--- card itself still shows it: its name text, its icon and its click state are read back (three cheap reads), which
--- catches the game setting a pooled card up again. Anything that can't be read back counts as changed. Every 10th
--- pass (3 s) relabels every card anyway, as a safety net for anything those reads miss.
-local labelled = {}           -- card address -> { tech, sig, name, tex address, clickable } as last applied
+-- card itself still shows it: its name texts, its category, its icon and its click state are read back (cheap reads),
+-- which catches the game setting a pooled card up again, or a text block re-applying its own text-table row on a
+-- rebuild (issues-log: PalTextBlockBase). Anything that can't be read back counts as changed. Every 10th pass (3 s)
+-- relabels every card anyway, as a safety net for anything those reads miss.
+local labelled = {}           -- card address -> { tech, sig, name, category, tex address, clickable } as last applied
 local readBack = {}           -- which read-backs worked (logged once each, for the playtest)
 local function noteRead(what, ok)
     if readBack[what] == nil then
@@ -448,6 +455,12 @@ local function stillShows(card, seen)
     local okt, text = pcall(function() return card.RichText_TechnologyName_Lock:GetText():ToString() end)
     noteRead("name", okt)
     if not okt or text ~= seen.name then return false end
+    local oku, unlock = pcall(function() return card.RichText_TechnologyName_Unlock:GetText():ToString() end)
+    noteRead("unlocked name", oku)
+    if not oku or unlock ~= seen.name then return false end
+    local okg, cat = pcall(function() return card.BP_PalTextBlock_Category:GetText():ToString() end)
+    noteRead("category", okg)
+    if not okg or cat ~= seen.category then return false end
     if seen.tex then
         local oki, res = pcall(function() return tostring(card.Image_Icon.Brush.ResourceObject:GetAddress()) end)
         noteRead("icon", oki)
@@ -462,9 +475,10 @@ end
 -- other items say "Received" once bought, other players' items "Sent".
 local function relabel(card, key, full)
     local tech = card.BindedTechnologyName:ToString()
+    -- A level-1 card's category is read until the game has filled it in (it can still be empty as the card is built),
+    -- then again only on a full pass or when the card shows another tech.
     if D.starters[tech] and (full or not labelled[key] or labelled[key].tech ~= tech) then
-        readCategory(card, tech)
-        labelled[key] = { tech = tech }
+        labelled[key] = readCategory(card, tech) and { tech = tech } or nil
     end
     if not shopCard(tech) then return end
     local sent, mine = bought(tech), ownTech(tech)
@@ -493,7 +507,7 @@ local function relabel(card, key, full)
     safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
     safe(function() card.BP_PalTextBlock_Category:SetText(FText(category)) end)
     if tex then safe(function() card.Image_Icon:SetBrushFromTexture(tex, false) end) end
-    labelled[key] = { tech = tech, sig = sig, name = name, tex = texAddr, clickable = clickable }
+    labelled[key] = { tech = tech, sig = sig, name = name, category = category, tex = texAddr, clickable = clickable }
 end
 
 local cardPasses = 0
@@ -635,6 +649,9 @@ local okh, errh = pcall(RegisterHook, "/Script/Pal.PalNetworkPlayerComponent:Req
         local tech = name:get():ToString()
         if not D.shop[tech] then return end
         name:set(FName("AP_ShopSlot"))
+        -- Ctrl+F8 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
+        -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
+        if P.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+F8) is on"); return end
         ExecuteWithDelay(300, function() ExecuteInGameThread(function()
             local ok, err = pcall(buy, tech)
             if not ok then log("buy error: " .. tostring(err)) end
@@ -1027,6 +1044,7 @@ local function update(ctx)
         if world ~= wallsWorld then
             wallsWorld, worldTicks = world, 0
             WALLS.reset()
+            techsSeen = nil                              -- another world's tech list: compare it in full
         end
         worldTicks = worldTicks + 1
         if world and worldTicks >= SETTLE then
@@ -1133,12 +1151,18 @@ end
 
 LoopAsync(300, function()
     ExecuteInGameThread(function()
-        local okc, ctx = pcall(playerContext)
-        if not okc then onceErr("context", ctx, "player lookup error: " .. tostring(ctx)); ctx = nil end
+        -- Ctrl+F7 (perf test tools) pauses the whole update, the controller walk included, so the pause takes away
+        -- all of the mod's per-update work. That walk is timed as "ctx" and counted in the update's "lua" time.
+        local ran = not P.paused
+        local ctx = nil
+        if ran then
+            P.start("ctx")
+            local okc, c = pcall(playerContext)
+            if okc then ctx = c else onceErr("context", c, "player lookup error: " .. tostring(c)) end
+        end
         ctx = ctx or { playerState = findPlayerState }
         frame = ctx
-        P.frameBegin(ctx)
-        local ran = not P.paused                         -- Ctrl+F7 (perf test tools) pauses the whole update
+        P.frameBegin(ctx, ran and P.stop("ctx") or nil)
         if ran then
             local ok, err = pcall(update, ctx)
             if not ok then onceErr("update", err, "update error: " .. tostring(err)) end

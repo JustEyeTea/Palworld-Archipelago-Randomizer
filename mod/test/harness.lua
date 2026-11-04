@@ -44,6 +44,8 @@ local unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Prod
 local td = { TechnologyPoint = 10, bossTechnologyPoint = 0, UnlockedTechnologyNameArray = unlocked, reps = 0 }
 td.valid = true
 function td:IsValid() return self.valid end
+local tdAddress = 3072
+function td:GetAddress() return tdAddress end
 function td:OnRep_UnlockedTechnologyNameArray() self.reps = self.reps + 1 end
 function td:OnRep_TechnologyPoint() end
 function td:OnRep_BossTechnologyPoint() end
@@ -480,6 +482,22 @@ run(1)
 expect(cards[1].shown.name == "Friend's Map Width (ChecksFinder)" and cards[3].shown.icon == "filler",
        "a card the game set up again is labelled again on the next update: " .. tostring(cards[1].shown.name)
        .. ", " .. tostring(cards[3].shown.icon))
+run(1)
+cards[3].shown.category = "Items"                            -- a rebuild re-applied the category's own text-table row
+run(1)
+expect(cards[3].shown.category == "Archipelago", "a category the game reset is labelled again on the next update: "
+       .. tostring(cards[3].shown.category))
+-- A level-1 card whose category the game has not filled in yet is read again on the next update, not 3 s later.
+local late = Card("Workbench")
+table.insert(cards, 1, late)
+run(1)
+late.shown.category = "Bauwerke"
+run(1)
+expect(cards[3].shown.category == "Bauwerke", "a level-1 category filled in late is read on the next update: "
+       .. tostring(cards[3].shown.category))
+table.remove(cards, 1)
+run(10)                                                      -- a full pass reads the other level-1 card again
+expect(cards[2].shown.category == "Estructuras", "and back to the other level-1 card's category: " .. tostring(cards[2].shown.category))
 
 print("tooltips")
 local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"
@@ -752,6 +770,14 @@ run(7)
 local relocked = true
 for _, n in ipairs(unlocked.list) do if n:ToString() == "PalBox" then relocked = false end end
 expect(relocked, "a tech the game added is still locked again at the next poll")
+run(7)
+reads, tdAddress = 0, 3080                                   -- another world's TechnologyData, its list as long
+run(7)
+local afterSwitch = reads
+run(7)
+expect(afterSwitch == 1 and reads <= 2, "another TechnologyData with a list as long: compared at the next poll ("
+       .. afterSwitch .. "), then skipped again (" .. reads .. ")")
+tdAddress = 3072
 unlocked.ForEach = forEachTechs
 
 print("an error every update is logged once")
@@ -1166,6 +1192,8 @@ if PERF then
     expect(logged("%[perf%] getters world=1 pc=ok ps=ok pawn=ok same_pc=1 same_ps=1"), "the game's player getters compared with the mod's lookups")
     expect(logged("%[perf%] fa poll=1 PalCaptureCount=2/1 "), "record arrays: size and replication key")
     expect(logged("%[perf%] notify check .*WBP_MenuESC_C=0/0/0") and logged("%(set/findall/fired%) ok"), "the notify sets checked against FindAllOf")
+    expect(logged("top=[^|]* probe=[1-9]"),
+           "the probe's own walks are counted apart, not in FAO or top")
     local ESC_PATH = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC.WBP_MenuESC_C"
     expect(notifies[ESC_PATH] ~= nil, "NotifyOnNewObject watches the Esc menu by its full class path")
     notifies[ESC_PATH](escMenu)
@@ -1199,6 +1227,8 @@ if PERF then
     expect(full > 100 and inState(true, true) == full and logged("%[perf%] walls hidden"),
            "Ctrl+F6 hidden: every raised piece hidden, collision kept: " .. inState(true, true) .. " of " .. full)
     run(45)
+    keyBinds["ctrl+key:F5"]()
+    expect(logged("%[perf%] reminder: still in a test state: walls hidden"), "a line while a test state is on reminds of it")
     expect(logged("%[perf%] ab walls full%->hidden: before fps=66%.7 ft=15%.0 lua=[%d.]+ | after fps=66%.7"), "and the before/after line by itself")
     keyBinds["ctrl+key:F6"]()
     expect(inState(false, false) == full and inState(true, true) == 0, "nocoll: shown again, collision off")
@@ -1219,8 +1249,11 @@ if PERF then
 
     keyBinds["ctrl+key:F7"]()
     push("message", "while paused", "Chat")
+    local function walks() local n = 0; for _, c in pairs(lookups) do n = n + c end; return n end
+    local walksBefore = walks()
     run(3)
     expect(logged("update paused") and not logged("AP: while paused"), "Ctrl+F7 pauses the update (events wait)")
+    expect(walks() == walksBefore, "and makes no lookups at all while paused, the controller walk included: " .. (walks() - walksBefore))
     keyBinds["ctrl+key:F7"]()
     run(1)
     expect(logged("AP: while paused"), "and resumes it")
@@ -1230,10 +1263,15 @@ if PERF then
     local before = cardUnlocked()
     keyBinds["ctrl+key:F8"]()
     expect(before == false and cardUnlocked() == nil, "Ctrl+F8: the check hooks answer nothing (the game's answer stands)")
+    local boughtBefore = count("BOUGHT RepairBench")
     req.v = FNameOf("RepairBench"); research(nil, req)
     expect(req.v:ToString() == "AP_ShopSlot", "but research requests are still rewritten (nothing unlocks for real)")
+    expect(logged("purchase of RepairBench ignored while the hook bypass") and count("BOUGHT RepairBench") == boughtBefore,
+           "and a confirm during the bypass buys nothing (the dialog showed the game's text)")
     keyBinds["ctrl+key:F8"]()
-    expect(cardUnlocked() == true, "and back to the mod's answer (the slot now bought)")
+    expect(cardUnlocked() == false, "and back to the mod's answer (the slot still unbought)")
+    req.v = FNameOf("RepairBench"); research(nil, req)
+    expect(cardUnlocked() == true, "bought once the bypass is off")
 
     local ffo = lookups["first:PalPlayerController"] or 0
     keyBinds["ctrl+key:F9"]()

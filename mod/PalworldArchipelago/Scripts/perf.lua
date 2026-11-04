@@ -18,11 +18,13 @@
 --   dt     the engine's frame time sampled as each update starts (a frame without the mod's work in it), a/m
 --   h      the worst frame time 1 and 2 frames after an update (the frame that carried the update is one of them)
 --   upd    updates in the window (about 100 expected; fewer means the 300 ms loop is being starved)
---   lua    the whole update on the game thread, a/m;  gc = KB of Lua garbage made per update
---   then each part of the update, a/m, averaged over the updates where it ran: poll (Archipelago events), menu, mail,
+--   lua    the whole update on the game thread (its controller walk included), a/m;  gc = KB of Lua garbage per update
+--   then each part of the update, a/m, averaged over the updates where it ran: ctx (the controller walk that starts
+--   each update), poll (Archipelago events), menu, mail,
 --   cards (the shop labels), scan (other mods' techs), walls, map, e7 (the work every 7th update) with rec (records),
 --   techs (the tech list) and save (the save file) inside it, and legacy (the old per-update load, Ctrl+F9 only)
 --   FAO / FFO   FindAllOf / FindFirstOf calls / total ms; top = the 3 costliest classes as class:calls x avg ms : avg hits
+--   probe  the probe's own object walks (the notify check, test_tools) as calls / total ms; not in FAO or top
 --   hk     how often each hook's callback ran (H1-H11, as numbered in the hook list below)
 --   n      counters: cards relabelled/skipped, sweep and refill slots looked at, record entries read, techs read,
 --          save files written
@@ -54,9 +56,10 @@ local HOOKS = {
     { "H10", "NameWindow_C:" }, { "H11", "AP_Clicked" },
 }
 -- Ctrl+F8 skips only the callbacks that run on the game's own checks and refreshes. The research request (H5) keeps
--- rewriting, so research never really unlocks a shop tech; the unhover (H3) and the clicks (H8-H11) cost nothing.
+-- rewriting, so research never really unlocks a shop tech (and main.lua buys nothing while the bypass is on: the
+-- confirm box showed the game's own text); the unhover (H3) and the clicks (H8-H11) cost nothing.
 local BYPASSED = { H1 = true, H2 = true, H4 = true, H6 = true, H7 = true }
-local SECTIONS = { "poll", "menu", "mail", "cards", "scan", "walls", "map", "e7", "rec", "techs", "save", "legacy" }
+local SECTIONS = { "ctx", "poll", "menu", "mail", "cards", "scan", "walls", "map", "e7", "rec", "techs", "save", "legacy" }
 local COUNTERS = { "sweep", "refill", "rec", "techs", "save" }
 
 local env                     -- { wallsCount() -> raised, setWalls(mode), mailOpen() -> bool }
@@ -65,11 +68,11 @@ local ring = {}               -- recent samples { t, frames, lua } for the A/B l
 local ab = nil                -- an A/B measure under way
 local marks = 0
 local ksl, gsl, util, gi = nil, nil, nil, nil
-local frameT0, gcBefore = nil, nil
+local frameT0, gcBefore, ctxMs = nil, nil, 0
 
 local function newWindow()
     return { t = now(), wall = os.time(), frames = nil, upd = 0, lua = { 0, 0 }, gc = 0, dt = { 0, 0, 0 }, h1 = 0, h2 = 0,
-             sec = {}, look = {}, fao = { 0, 0 }, ffo = { 0, 0 }, n = {}, hk = {} }
+             sec = {}, look = {}, fao = { 0, 0 }, ffo = { 0, 0 }, probe = { 0, 0 }, n = {}, hk = {} }
 end
 
 local function engine()
@@ -83,7 +86,7 @@ local function frames()
     local ok, n = pcall(function() return k:GetFrameCount() end)
     return ok and tonumber(n) or nil
 end
-local realFindFirstOf = nil
+local realFindFirstOf, realFindAllOf = nil, nil
 local function gameInstance()
     if gi and gi:IsValid() then return gi end
     gi = (realFindFirstOf or FindFirstOf)("PalGameInstance")
@@ -135,7 +138,7 @@ local function line(label)
         top[#top + 1] = cls .. ":" .. v[1] .. "x" .. f2(v[2] / v[1]) .. ":" .. f1(v[3] / v[1])
     end
     parts[#parts + 1] = "FAO=" .. w.fao[1] .. "/" .. f1(w.fao[2]) .. " FFO=" .. w.ffo[1] .. "/" .. f1(w.ffo[2])
-        .. " top=" .. table.concat(top, ",")
+        .. " top=" .. table.concat(top, ",") .. " probe=" .. w.probe[1] .. "/" .. f1(w.probe[2])
     local hk = {}
     for _, h in ipairs(HOOKS) do hk[#hk + 1] = h[1] .. ":" .. (w.hk[h[1]] or 0) end
     parts[#parts + 1] = "hk=" .. table.concat(hk, ",")
@@ -147,6 +150,13 @@ local function line(label)
         .. ",mail:" .. ((env and env.mailOpen and env.mailOpen()) and 1 or 0) .. ",legacy:" .. (P.legacy and 1 or 0)
         .. ",pause:" .. (P.paused and 1 or 0) .. ",bypass:" .. (P.bypass and 1 or 0)
     log(table.concat(parts, " | "))
+    -- A test state left on skews every later line (and held walls stop raising, lowering and sending home): say so.
+    local on = {}
+    if P.walls ~= "full" then on[#on + 1] = "walls " .. P.walls .. " (Ctrl+F6 until 'walls full again')" end
+    if P.paused then on[#on + 1] = "update paused (Ctrl+F7)" end
+    if P.bypass then on[#on + 1] = "hook bypass (Ctrl+F8; purchases are ignored)" end
+    if P.legacy then on[#on + 1] = "old load (Ctrl+F9)" end
+    if #on > 0 then log("reminder: still in a test state: " .. table.concat(on, ", ")) end
     return t
 end
 
@@ -192,7 +202,7 @@ local function lookup(kind, cls, ms, hits)
 end
 local function wrapLookups()
     local fao, ffo = FindAllOf, FindFirstOf
-    realFindFirstOf = ffo
+    realFindFirstOf, realFindAllOf = ffo, fao
     FindAllOf = function(cls)
         local t = now()
         local r = fao(cls)
@@ -312,12 +322,14 @@ local WATCH = {
     "/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_TitleMenu.WBP_TitleMenu_C",
 }
 local watched = {}            -- short class -> { set = { address -> object }, fired = n, seeded = n | nil }
+local order = {}              -- the short class names, in WATCH order
 local function watch()
     if not NotifyOnNewObject then log("notify: NotifyOnNewObject is not there"); return end
     for _, path in ipairs(WATCH) do
         local short = path:match("%.([^.]+)$")
         local w = { set = {}, fired = 0 }
         watched[short] = w
+        order[#order + 1] = short
         local ok, err = pcall(NotifyOnNewObject, path, function(o)
             w.fired = w.fired + 1
             local oka, a = pcall(function() return o:GetAddress() end)
@@ -336,37 +348,53 @@ local function live(list)
     end
     return n
 end
-local checks = 0
+-- The probe's own walks: the saved FindAllOf, so they are not counted in FAO or top (they are not the mod's update),
+-- and timed in their own "probe" column. One class per update at most: five walks in one frame would make that
+-- frame the window's worst h every 30 s.
+local function walk(short)
+    local t = now()
+    local r = (realFindAllOf or FindAllOf)(short) or {}
+    win.probe[1], win.probe[2] = win.probe[1] + 1, win.probe[2] + (now() - t) * 1000
+    return r
+end
+local checks, round = 0, nil
+-- Returns true when it walked the object array this update (that frame's h is then not sampled).
 local function notifyCheck()
     checks = checks + 1
     for short, w in pairs(watched) do
-        if not w.seeded then
-            local found = FindAllOf(short) or {}
-            w.seeded, w.firstFired = live(found), w.fired
-            for _, o in ipairs(found) do pcall(function() w.set[o:GetAddress()] = o end) end
-        end
-        if w.fired > w.firstFired and not w.told then
+        if w.seeded and w.fired > w.firstFired and not w.told then
             w.told = true
             log("notify " .. short .. " first fire (seeded " .. w.seeded .. " by FindAllOf)")
         end
     end
-    if checks % 100 ~= 0 then return end
-    -- One line every 100 updates (30 s): per class, live objects in the set / found by FindAllOf / times it fired.
-    local out, bad = {}, false
-    for _, path in ipairs(WATCH) do
-        local short = path:match("%.([^.]+)$")
+    for _, short in ipairs(order) do
         local w = watched[short]
-        if w then
-            for a, o in pairs(w.set) do
-                local ok, valid = pcall(function() return o:IsValid() end)
-                if not (ok and valid) then w.set[a] = nil end
-            end
-            local mine, found = live(w.set), live(FindAllOf(short) or {})
-            if mine ~= found then bad = true end
-            out[#out + 1] = short .. "=" .. mine .. "/" .. found .. "/" .. w.fired
+        if not w.seeded then
+            local found = walk(short)
+            w.seeded, w.firstFired = live(found), w.fired
+            for _, o in ipairs(found) do pcall(function() w.set[o:GetAddress()] = o end) end
+            return true
         end
     end
-    log("notify check " .. table.concat(out, " ") .. " (set/findall/fired) " .. (bad and "MISMATCH" or "ok"))
+    -- Every 100 updates (30 s) a round starts: one class per update, then one line with, per class, live objects in
+    -- the set / found by FindAllOf / times it fired.
+    if not round and checks % 100 == 0 and #order > 0 then round = { i = 0, out = {}, bad = false } end
+    if not round then return false end
+    round.i = round.i + 1
+    local short = order[round.i]
+    local w = watched[short]
+    for a, o in pairs(w.set) do
+        local ok, valid = pcall(function() return o:IsValid() end)
+        if not (ok and valid) then w.set[a] = nil end
+    end
+    local mine, found = live(w.set), live(walk(short))
+    if mine ~= found then round.bad = true end
+    round.out[#round.out + 1] = short .. "=" .. mine .. "/" .. found .. "/" .. w.fired
+    if round.i >= #order then
+        log("notify check " .. table.concat(round.out, " ") .. " (set/findall/fired) " .. (round.bad and "MISMATCH" or "ok"))
+        round = nil
+    end
+    return true
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -384,17 +412,20 @@ local function install(cfg, e)
     P.start = function(name) t0[name] = now() end
     P.stop = function(name)
         local t = t0[name]
-        if not t then return end
+        if not t then return nil end
         t0[name] = nil
         local ms = (now() - t) * 1000
         local v = win.sec[name]
         if not v then v = { 0, 0, 0 }; win.sec[name] = v end
         v[1], v[2], v[3] = v[1] + ms, math.max(v[2], ms), v[3] + 1
+        return ms
     end
     P.count = function(key, n) win.n[key] = (win.n[key] or 0) + (n or 1) end
     P.records = function(ps) pcall(records, ps) end
     P.world = function(ctx) pcall(getters, ctx) end
-    P.frameBegin = function(ctx)
+    -- ms: the controller walk main.lua made just before (nil while paused, when it makes none). It is part of the
+    -- update's frame, so it is added to lua; the probe's own work here is not.
+    P.frameBegin = function(ctx, ms)
         if not started then
             started = true
             pcall(cvars, "start")
@@ -403,16 +434,17 @@ local function install(cfg, e)
             worldProbed = true
             pcall(cvars, "world")
         end
-        deltaCtx = ctx and ctx.pawn or nil
+        if not P.paused then deltaCtx = ctx and ctx.pawn or nil end      -- paused: no walk, keep the last world
         if not win.frames then win.frames = frames() end
         local d = delta()
         if d then win.dt[1], win.dt[2], win.dt[3] = win.dt[1] + d, math.max(win.dt[2], d), win.dt[3] + 1 end
         gcBefore = collectgarbage("count")
+        ctxMs = ms or 0
         frameT0 = now()
     end
     P.frameEnd = function(ran)
         local t = now()
-        local ms = frameT0 and (t - frameT0) * 1000 or 0
+        local ms = frameT0 and (t - frameT0) * 1000 + ctxMs or 0
         if ran then
             win.upd = win.upd + 1
             win.lua[1], win.lua[2] = win.lua[1] + ms, math.max(win.lua[2], ms)
@@ -421,10 +453,18 @@ local function install(cfg, e)
         end
         ring[#ring + 1] = { t = t, frames = frames(), lua = ms }
         while #ring > 0 and ring[1].t < t - 20 do table.remove(ring, 1) end
+        -- The notify check (test_tools) runs first: on an update where it walks, that frame is the probe's, not the
+        -- update's, so its h is not sampled. Not while paused: the pause takes away every per-update walk.
+        local walked = false
+        if P.tools and ran then
+            local okn, w = pcall(notifyCheck)
+            walked = okn and w == true
+        end
         -- The frame the update ran in shows up 1 or 2 frames later in the engine's delta (where the engine sets it is
         -- untested): queue a look at both. Actions queued while UE4SS runs its queue run on the next tick
-        -- (LuaMod.cpp 4134-4145).
-        if ExecuteInGameThread then
+        -- (LuaMod.cpp 4134-4145), with DefaultExecuteInGameThreadMethod=EngineTick; with ProcessEvent they can run in
+        -- the same frame, and h means little.
+        if ExecuteInGameThread and not walked then
             ExecuteInGameThread(function()
                 local d1 = delta()
                 if d1 and d1 > win.h1 then win.h1 = d1 end
@@ -434,7 +474,6 @@ local function install(cfg, e)
                 end)
             end)
         end
-        if P.tools then pcall(notifyCheck) end
         abTick(t)
         if t - win.t >= 30 then
             line("30s")
