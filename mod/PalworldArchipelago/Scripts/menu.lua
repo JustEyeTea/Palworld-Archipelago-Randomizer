@@ -430,7 +430,19 @@ function M.update()
         hookOnce(ESC_CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
     end
     hookOnce(WINDOW_OK, function() local ok, err = pcall(okPressed); if not ok then log("menu OK error: " .. tostring(err)) end end)
-    for _, menu in ipairs(FindAllOf("WBP_TitleMenu_C") or {}) do
+    -- Title menus gone (into a world) or rebuilt: forget them and their buttons' addresses, as with the Esc menu. A
+    -- game title button made later at a freed address of ours would otherwise connect or disconnect when clicked.
+    local titleMenus = FindAllOf("WBP_TitleMenu_C") or {}
+    local live = {}
+    for _, menu in ipairs(titleMenus) do pcall(function() live[tostring(menu:GetAddress())] = menu:IsValid() end) end
+    for key, m in pairs(menus) do
+        local okv, valid = pcall(function() return m.connect:IsValid() and m.disconnect:IsValid() end)
+        if not live[key] or not (okv and valid) then
+            for _, k in ipairs(m.keys) do ours[k] = nil end
+            menus[key] = nil
+        end
+    end
+    for _, menu in ipairs(titleMenus) do
         local okb, list = pcall(buttonList, menu)
         if menu:IsValid() and okb and list then
             local key = tostring(menu:GetAddress())
@@ -439,7 +451,7 @@ function M.update()
                 local okc, c = pcall(addButton, menu, list, "connect")
                 local okd, d = pcall(addButton, menu, list, "disconnect")
                 if okc and c and okd and d then
-                    m = { connect = c, disconnect = d }
+                    m = { connect = c, disconnect = d, keys = { tostring(c:GetAddress()), tostring(d:GetAddress()) } }
                     menus[key] = m
                     added = true
                     local okq, why = pcall(quitLast, menu, list)

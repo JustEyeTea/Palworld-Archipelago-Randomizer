@@ -111,31 +111,61 @@ local ap = {
     beaten = {},          -- tower boss type -> true
     given = -1,           -- highest item index whose one-off effect has been applied
     goalSent = false,
+    world = nil,          -- the world save this seed is played in (its folder name), kept in the save file
 }
 
+-- Named after the slot whose progress is in memory (set with the seed on connecting), not cfg.slot: the title menu
+-- changes that before the server has said yes, and a refused slot must not get this one's progress.
 local function saveFile()
     if not ap.seed then return nil end
-    return modDir .. "\\save-" .. ap.seed .. "-" .. (cfg.slot:gsub("[^%w_%-]", "_")) .. ".txt"
+    return modDir .. "\\save-" .. ap.seed .. "-" .. (ap.slotName:gsub("[^%w_%-]", "_")) .. ".txt"
+end
+-- The file is written whole to save-...txt.tmp, then put in place, and ends with "end": a write cut short (a crash, a
+-- power cut) leaves either the old file or a complete .tmp, never half a file. Older saves have no "end" line.
+local function readSave(path)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local lines, complete = {}, false
+    for line in f:lines() do
+        if line == "end" then complete = true else lines[#lines + 1] = line end
+    end
+    f:close()
+    return lines, complete
 end
 local function loadSave()
     local path = saveFile()
-    local f = path and io.open(path, "r")
-    if not f then return end
-    for line in f:lines() do
-        local n = line:match("^given=(%-?%d+)")
-        if n then ap.given = tonumber(n) else MAIL.load(line) end
+    if not path then return end
+    local lines, complete = readSave(path)
+    local tmp, tmpComplete = readSave(path .. ".tmp")
+    if tmp and tmpComplete and not complete then
+        log("save " .. path .. ": " .. (lines and "incomplete" or "missing") .. "; using the copy written last (.tmp)")
+        lines = tmp
     end
-    f:close()
+    if not lines then return end
+    for _, line in ipairs(lines) do
+        local n = line:match("^given=(%-?%d+)")
+        local w = line:match("^world=(.+)$")
+        if n then ap.given = tonumber(n) elseif w then ap.world = w else MAIL.load(line) end
+    end
     local kinds, items = MAIL.count()
-    log("save " .. path .. ": items applied up to index " .. ap.given .. "; mailbox " .. items .. " item(s) of " .. kinds .. " kind(s)")
+    log("save " .. path .. ": items applied up to index " .. ap.given .. "; mailbox " .. items .. " item(s) of " .. kinds .. " kind(s)"
+        .. "; world " .. tostring(ap.world))
 end
+local lastSave = nil          -- path and text of the last write: the same again is not written (it ran every 2 s)
 local function writeSave()
     local path = saveFile()
-    local f = path and io.open(path, "w")
+    if not path then return end
+    local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "") .. MAIL.serialize() .. "end\n"
+    if lastSave == path .. "\n" .. text then return end
+    local f = io.open(path .. ".tmp", "w")
     if not f then return end
-    f:write("given=" .. ap.given .. "\n")
-    f:write(MAIL.serialize())
+    local okw = f:write(text)
     f:close()
+    if not okw then once("savewrite", "could not write " .. path .. ".tmp"); return end
+    os.remove(path)                                   -- (Windows will not rename over a file)
+    local okr, err = os.rename(path .. ".tmp", path)
+    if not okr then once("saverename", "could not put the save in place: " .. tostring(err)); return end
+    lastSave = path .. "\n" .. text
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -144,6 +174,18 @@ local function playerState()
     local all = FindAllOf("PalPlayerState")
     if not all then return nil end
     for _, ps in ipairs(all) do if ps:IsValid() then return ps end end
+end
+
+-- Which world save is loaded: the game instance's selected world folder (PalGameInstance, a pure UFunction returning
+-- an FString). Untested from Lua: its first answer is logged. Nil when it can't be read.
+local function worldId()
+    local gi = FindFirstOf("PalGameInstance")
+    if not gi or not gi:IsValid() then return nil end
+    local ok, v = pcall(function() return gi:GetSelectedWorldSaveDirectoryName() end)
+    local okt, id = pcall(function() return type(v) == "string" and v or v:ToString() end)
+    id = ok and okt and type(id) == "string" and id or nil
+    once("worldid", "world save folder: " .. tostring(id) .. (ok and "" or (" (" .. tostring(v) .. ")")))
+    return id ~= "" and id or nil
 end
 
 local function arrayNames(arr)
@@ -190,11 +232,35 @@ local function notify(text)
     R.notify("[Archipelago] " .. text, playerState())
 end
 
--- One-off effects of items, in index order; each is applied once per seed.
+-- A seed belongs to one world: the first one the mod sees it played in (kept in the save file as world=). config.txt
+-- connects at every start, whatever world is loaded next; in any other world nothing is locked, sent, given or
+-- linked, or a vanilla world would have its techs relocked and its records sent as checks. If the world can't be told,
+-- the seed is not tied to one (logged above).
+local seedWorld = nil         -- whether the world loaded now is the seed's; nil until looked at
+local function checkWorld()
+    local id = worldId()
+    if not id then return true end
+    if not ap.world then
+        ap.world = id
+        writeSave()
+        log("world: this seed is played in world " .. id)
+        return true
+    end
+    if id == ap.world then return true end
+    if seedWorld ~= false then
+        log("world: " .. id .. " is not this seed's world (" .. ap.world .. "): nothing is locked, sent or given here"
+            .. " (to move the seed to this world, delete the world= line from " .. tostring(saveFile()) .. ")")
+        notify("This is not the world this Archipelago seed is played in: nothing is locked, sent or given here.")
+    end
+    return false
+end
+
+-- One-off effects of items, in index order; each is applied once per seed. False when it could not be applied yet (a
+-- bundle the bag refused, with the mailbox off): it is tried again later.
 local function giveOneOff(ps, id)
     local it = D.items[id]
-    if not it then return end
-    local td, inv = ps:GetTechnologyData(), ps:GetInventoryData()
+    if not it then return true end
+    local td = ps:GetTechnologyData()
     if it.name == "Tech Points +2" then
         td.TechnologyPoint = td.TechnologyPoint + 2
         safe(function() td:OnRep_TechnologyPoint() end)
@@ -206,11 +272,15 @@ local function giveOneOff(ps, id)
             if MAIL.on() then
                 MAIL.add(b[1], b[2])
             else
-                local ok, err = pcall(function() inv:AddItem_ServerInternal(FName(b[1]), b[2], false, 0.0, true) end)
-                if not ok then log("could not give " .. b[1] .. ": " .. tostring(err)) end
+                -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
+                local okg, got = pcall(MAIL.give, b[1], b[2])
+                if not okg then once("give" .. tostring(got), "could not give " .. b[1] .. ": " .. tostring(got)); return false end
+                if got == 0 then return false end
+                if got < b[2] then log("bundle " .. it.name .. ": only " .. got .. " of " .. b[2] .. " " .. b[1] .. " went in") end
             end
         end
     end
+    return true
 end
 
 -- Relics received so far (the Relic Hunt goal), up to item index `upto` (all by default; items are numbered from 0).
@@ -223,12 +293,20 @@ local function relicCount(upto)
     return n
 end
 
+local waiting = nil           -- the index of a bundle the bag had no room for (mailbox off): given once there is room
 local function applyItems(ps)
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
         local it = D.items[id]
-        if it and it.kind == "filler" then giveOneOff(ps, id) end
+        if it and it.kind == "filler" and not giveOneOff(ps, id) then
+            if waiting ~= i then
+                waiting = i
+                notify("Your bag is full: " .. it.name .. " waits until there is room.")
+            end
+            break
+        end
+        if waiting == i then waiting = nil; log("bundle " .. it.name .. " given, now the bag has room") end
         if it and it.kind == "relic" then
             local need = tonumber(AP_SlotData("relics_needed"))
             notify("Palpagos Relic " .. relicCount(i) .. (need and ("/" .. need) or "") .. " found!")
@@ -495,6 +573,10 @@ local function buy(tech)
         notify("Not connected to Archipelago: nothing bought.")
         return
     end
+    if seedWorld == false then
+        notify("This is not the world this Archipelago seed is played in: nothing bought.")
+        return
+    end
     if bought(tech) then return end
     local td = ps:GetTechnologyData()
     local field = s.ancient and R.ANCIENT_POINTS or "TechnologyPoint"
@@ -589,7 +671,8 @@ local preloaded = false
 local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
                 key = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper() }
 local wallsLogged = false
-local death = { on = false, wasDead = false, incoming = nil, caused = nil }
+local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil }
+local DEATH_LATE = 20         -- ticks (6 s): a linked death older than this (received at the title, or while loading) is dropped
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
 local SETTLE = 17
@@ -627,6 +710,7 @@ local techScan = { report = nil, tries = 0, sent = false }   -- other mods' tech
 local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
+    ap.world, seedWorld = nil, nil
     MAIL.reset()
     hints.known, hints.shown, hints.offer = {}, {}, nil
     techScan.sent = false
@@ -682,15 +766,16 @@ local function onEvent(line)
             local data = f[3] or ""
             local source = data:match('"source"%s*:%s*"(.-)"') or "someone"
             local cause = data:match('"cause"%s*:%s*"(.-)"')
-            if source ~= cfg.slot then death.incoming = cause and cause ~= "" and cause or (source .. " died.") end
+            if source ~= cfg.slot then death.incoming, death.at = cause and cause ~= "" and cause or (source .. " died."), tick end
         end
     elseif kind == "message" then
         local text, kindOf = tostring(f[2]), f[3]
         log("AP: " .. text)
         if kindOf == "Hint" then
             notify(text)
-            local pass = text:match("Area Pass: (.-) is at ")
-            if pass then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
+            -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
+            local who, pass = text:match("^%[Hint%]: (.-)'s Area Pass: (.-) is at ")
+            if pass and who == (ap.slotName or cfg.slot) then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
         elseif kindOf == "CommandResult" and hints.asked and tick - hints.asked < 50 then
             notify(text)                               -- the server's answer to a hint the player asked for
         end
@@ -774,7 +859,9 @@ local function deathLink(ps)
     if death.incoming then
         local cause = death.incoming
         death.incoming = nil
-        if not dead then
+        if tick - death.at > DEATH_LATE then
+            log("death link received while no player was in the world (" .. (tick - death.at) .. " updates ago): not applied: " .. cause)
+        elseif not dead then
             death.caused = tick
             local pc = FindFirstOf("PalPlayerController")
             local ok, err = pcall(function() pc:SelfKillPlayer() end)
@@ -884,10 +971,11 @@ local function update()
         local world = pawn and pawn:IsValid() and safe(function() return tostring(pawn:GetAddress()) end)   -- new world, new pawn
         if world ~= wallsWorld then
             wallsWorld, worldTicks = world, 0
+            seedWorld = nil                            -- looked at again (every 7th update) before any wall goes up
             WALLS.reset()
         end
         worldTicks = worldTicks + 1
-        if world and worldTicks >= SETTLE then
+        if world and worldTicks >= SETTLE and seedWorld then
             local on = AP_SlotData("options.area_locks")
             local ok, err = pcall(WALLS.update, on == "1" or on == "true", ap.passes, pawn)
             if not ok then once("walls" .. tostring(err), "walls error: " .. tostring(err)) end
@@ -928,7 +1016,8 @@ local function update()
     end
     if tick % 7 == 0 and ap.ready then
         local ps = playerState()
-        if ps then
+        if ps then seedWorld = checkWorld() end
+        if ps and seedWorld then
             if syncTechs(ps) then refreshTree() end
             applyItems(ps)
             pollRecords(ps)
