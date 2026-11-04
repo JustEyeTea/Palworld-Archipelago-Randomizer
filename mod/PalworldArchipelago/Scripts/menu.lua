@@ -1,8 +1,10 @@
 -- The title menu's Archipelago buttons: one shows the connection and, clicked, asks for the server, the slot and the
 -- password in the game's own text window (the world-name window), then connects; a second disconnects while connected.
--- In a world, the Esc menu gets an "Archipelago Mailbox" button (mailbox.lua).
--- Built from the game's own widgets: a WBP_Title_MenuButton added to the title menu's button list, and a
--- WBP_MenuESC_Button_S (the Esc menu's own small button) in the Esc menu, so they look and work like the game's.
+-- In a world, the Esc menu and the Inventory page each get an "Archipelago Mailbox" button (mailbox.lua).
+-- Built from the game's own widgets: a WBP_Title_MenuButton added to the title menu's button list, a
+-- WBP_MenuESC_Button_S (the Esc menu's own small button) in the Esc menu, and a WBP_CommonButton (the class of the
+-- Inventory page's own Edit Name button) at the right end of that page's name bar, so they look and work like the
+-- game's. The Inventory button is untested in game: it is placed from the dedicated server's pak (kdump, 2026-11-04).
 local M = {}
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 local reported = {}
@@ -17,15 +19,24 @@ local WINDOW_OK = WINDOW .. ":BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_Com
 local PARAM = UI .. "BP_HUDDispatchParameter_WorldNameInput.BP_HUDDispatchParameter_WorldNameInput_C"
 local ESC_BUTTON = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Button_S.WBP_MenuESC_Button_S_C"
 local ESC_CLICK = ESC_BUTTON .. ":BndEvt__WBP_MenuESC_Button_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
+-- The game's small labelled button (the Inventory page's Edit Name is one). Its click is component event 3; 4 and 5 are
+-- hover and unhover, and all three end in CommonButtonBaseClicked (kdump: the class's ComponentDelegateBinding).
+local COMMON_BUTTON = "/Game/Pal/Blueprint/UI/UserInterface/Common/WBP_CommonButton.WBP_CommonButton_C"
+local COMMON_CLICK = COMMON_BUTTON .. ":BndEvt__WBP_CommonButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_3_CommonButtonBaseClicked__DelegateSignature"
+local MAIN_MENU = "WBP_InGameMainMenu_C"
+local INVENTORY_TAB = "WBP_InventoryEquipment_ForDisplay_C"
 local NOTHING = "\1"           -- what the window's result holds until OK is pressed
 
 local api                      -- status(), server(), slot(), password(), connect(server, slot, password), disconnect(),
                                -- mailboxLabel(), openMailbox(context)
 local menus = {}               -- title menu address -> { connect = button, disconnect = button }
 local escMenus = {}            -- Esc menu address -> { mailbox = button, menu = the Esc menu }
-local ours = {}                -- our button address -> "connect" | "disconnect" | "mailbox"
-local closeEsc = nil           -- the mailbox button was pressed: { menu, button }, handled on the next update
+local invPages = {}            -- Inventory page address -> { mailbox = button, page = the page, main = its main menu }
+local ours = {}                -- our button address -> "connect" | "disconnect" | "mailbox" | "inventory"
+local closing = nil            -- a mailbox button was pressed: { from = "esc" | "inventory", menu or main, button },
+                               -- handled on the next update
 local mainMenuLook = nil       -- updates until the mod looks whether the main menu closed (a diagnostic)
+local lookFrom = nil           -- the button that look follows: "esc" | "inventory"
 local hooked = {}
 local asking = nil             -- the text-window chain: { step, values, param, id, hud }
 
@@ -223,7 +234,14 @@ local function clicked(button)
         -- Closing the Esc menu waits for the next update, outside this click's hook; the mailbox opens a tick later.
         local menu
         for _, m in pairs(escMenus) do if m.mailbox:IsValid() and m.mailbox:GetAddress() == button:GetAddress() then menu = m.menu end end
-        closeEsc = { menu = menu, button = button }
+        closing = { from = "esc", menu = menu, button = button }
+        return
+    end
+    if kind == "inventory" then
+        -- The same for the Inventory page's button: only noted here; the main menu closes on the next update.
+        local main
+        for _, m in pairs(invPages) do if m.mailbox:IsValid() and m.mailbox:GetAddress() == button:GetAddress() then main = m.main end end
+        closing = { from = "inventory", main = main, button = button }
         return
     end
     if asking then return end
@@ -265,13 +283,13 @@ end
 
 -- Every widget in a menu's own tree, from WidgetTree.RootWidget down through panels (GetChildrenCount/GetChildAt).
 -- UWidgetTree:GetAllWidgets is C++ only, not a UFunction: from Lua it errors (v0.11.1 playtest: no Esc button).
--- Stops at nested user widgets, which have trees of their own.
-local function eachWidget(w, fn)
+-- Stops at nested user widgets, which have trees of their own, and below maxDepth (30 if not given).
+local function eachWidget(w, fn, maxDepth)
     local okr, root = pcall(function() return w.WidgetTree.RootWidget end)
     if not okr or not root then return end
     local function walk(o, depth)
-        if not o or not o:IsValid() or depth > 30 then return end
-        fn(o)
+        if not o or not o:IsValid() or depth > (maxDepth or 30) then return end
+        fn(o, depth)
         local okn, n = pcall(function() return o:GetChildrenCount() end)
         if not okn or type(n) ~= "number" then return end
         for i = 0, n - 1 do
@@ -361,13 +379,13 @@ local function findEscMenus()
     end
     return out
 end
--- Every update, so the button is there as the menu opens (v0.11.4 playtest: every 4th update took about a second); a
--- menu's tree is only walked when it is new, and the label only set when it changes.
+-- Every update the main menu is up, so the button is there as the menu opens (v0.11.4 playtest: every 4th update
+-- took about a second); a menu's tree is only walked when it is new, and the label only set when it changes. found is
+-- the Esc menus up now (empty when no main menu is: then every entry is dropped).
 local escAdds = 0
-local function updateEsc()
+local function updateEsc(found)
     -- The game makes a new Esc menu each time it opens: forget the ones gone (v0.11.3 log: one per visit).
     local live = {}
-    local found = findEscMenus()
     for _, menu in ipairs(found) do live[tostring(menu:GetAddress())] = true end
     for key, m in pairs(escMenus) do
         if not live[key] or not m.menu:IsValid() then
@@ -402,6 +420,203 @@ local function updateEsc()
     end
 end
 
+-- The Inventory page: the main menu's Inventory tab. All of this is read from the dedicated server's pak (kdump,
+-- 2026-11-04) and untested in game. The menu makes a new WBP_InventoryEquipment_ForDisplay_C each time the tab is
+-- picked (SelectInventoryEquipmentTab) and keeps it in CurrentContentWidget; the page itself is its
+-- WBP_InventoryEquipment. Never FindAllOf("WBP_InventoryEquipment_C"): the page is a designer child of that wrapper,
+-- so the wrapper's template has one with no "Default__" in its name (the WBP_Map_Body_C trap). A tab the menu let go
+-- stays valid until collected, so only a menu's current one counts. No fallback by the wrapper's class: the client's
+-- main menu is WBP_InGameMainMenu_C (2026-11-03 log, "in-world widget class WBP_InGameMainMenu_C" as it opened).
+local function notDefault(o)
+    local okd, full = pcall(function() return o:GetFullName() end)
+    return o:IsValid() and not (okd and tostring(full):find("Default__", 1, true))
+end
+local pageLogged = false
+local function inventoryPages(mains)
+    local out = {}
+    for _, mm in ipairs(mains) do
+        local ok, page, tabClass, why = pcall(function()
+            local tab = mm.CurrentContentWidget
+            if not tab or not tab:IsValid() then return nil, "nothing" end
+            local cn = className(tab)
+            if cn ~= INVENTORY_TAB then return nil, cn end
+            local p = tab.WBP_InventoryEquipment
+            if p and p:IsValid() then return p, cn end
+            return nil, cn, "has no valid WBP_InventoryEquipment"
+        end)
+        local okt, tabType = pcall(function() return mm.CurrentTabType end)
+        tabType = tostring(okt and tabType or "?")
+        -- Which tab widgets the client's main menu shows, once each, so a missing button has a reason in the log.
+        if not ok then
+            once("mmerr", "menu: could not read the main menu's tab: " .. tostring(page))
+        else
+            once("mmtab" .. tabClass, "menu: main menu content is " .. tabClass .. " (tab " .. tabType .. ")")
+            if why then once("invnopage", "menu: the main menu's " .. tabClass .. " " .. why .. "; no mailbox button there") end
+        end
+        if ok and page then
+            out[#out + 1] = { page = page, main = mm }
+            if not pageLogged then
+                pageLogged = true
+                log("menu: the inventory page is " .. className(page) .. " (via the main menu's CurrentContentWidget, tab " .. tabType .. ")")
+            end
+        end
+    end
+    return out
+end
+
+-- The page's name bar (CanvasPanelChara > Overlay_0, 996x32; kdump). Its row (HorizontalBox_0) holds the game's Edit
+-- Name button in SizeBox_NameEdit, then the player's name, both on the left: the bar's right end is empty. The bar is
+-- not a variable of the page, so it is reached from the row's widgets. Returns the bar, or nil and why.
+local NAME_BAR_FROM = { "SizeBox_NameEdit", "Text_CharacterName" }
+local function nameBar(page)
+    local why = {}
+    for _, field in ipairs(NAME_BAR_FROM) do
+        local ok, bar, miss = pcall(function()
+            local w = page[field]
+            if not w or not w:IsValid() then return nil, "no " .. field end
+            local row = w:GetParent()
+            if not row or not row:IsValid() or className(row) ~= "HorizontalBox" then
+                return nil, field .. " is in " .. (row and className(row) or "nothing")
+            end
+            local b = row:GetParent()
+            if not b or not b:IsValid() or className(b) ~= "Overlay" then
+                return nil, field .. "'s row is in " .. (b and className(b) or "nothing")
+            end
+            return b
+        end)
+        if ok and bar then return bar end
+        why[#why + 1] = ok and tostring(miss) or tostring(bar)
+    end
+    return nil, table.concat(why, "; ")
+end
+
+-- The game's own small button, 230x28 (28 is Edit Name's height; its label is at most 216 wide and scales itself down
+-- to fit), at the right end of the bar. An Overlay slot starts at Left/Top: Right, and Fill as the Edit Name row is.
+-- The page binds only its own Edit Name's OnClicked, so ours stays unbound and only our hook answers it.
+local function addInventoryButton(page, bar)
+    local class = find(COMMON_BUTTON)
+    local sizeClass = StaticFindObject("/Script/UMG.SizeBox")
+    local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
+    if not class or not sizeClass or not wbl then return nil, "no " .. (class and (sizeClass and "WidgetBlueprintLibrary" or "SizeBox") or "WBP_CommonButton_C") end
+    local button = wbl:Create(page, class, nil)
+    if not button or not button:IsValid() then return nil, "the button was not made" end
+    local box = StaticConstructObject(sizeClass, page)
+    box:SetWidthOverride(230)
+    box:SetHeightOverride(28)
+    box:AddChild(button)
+    local slot = bar:AddChild(box)
+    pcall(function() slot:SetHorizontalAlignment(3) end)      -- HAlign_Right
+    pcall(function() slot:SetVerticalAlignment(0) end)        -- VAlign_Fill
+    ours[tostring(button:GetAddress())] = "inventory"
+    return button
+end
+
+-- Does a game button have focus? Its inner WBP_PalInvisibleButton is what takes it (the class's GetFocusTarget).
+local function focused(button)
+    local ok, yes = pcall(function()
+        local inner = button.WBP_PalInvisibleButton
+        return inner and inner:IsValid() and (inner:HasAnyUserFocus() or inner:HasFocusedDescendants())
+    end)
+    return ok and yes == true
+end
+local INPUT_TYPES = { [0] = "mouse and keyboard", [1] = "gamepad", [2] = "touch" }   -- ECommonInputType
+local function inputType()
+    for _, s in ipairs(FindAllOf("CommonInputSubsystem") or {}) do
+        local ok, t = pcall(function() return notDefault(s) and s:GetCurrentInputType() or nil end)
+        if ok and t ~= nil then return tostring(t) .. " " .. (INPUT_TYPES[tonumber(t)] or "?") end
+    end
+    return "unknown"
+end
+
+-- Every update, as the Esc menu: a page is new each visit, so key by its address and forget the ones gone. found is
+-- the pages up now (empty when no main menu is).
+local invAdds = 0
+local invFailed = {}           -- page addresses where adding the button failed
+local focusLogged = {}
+local function updateInventory(found)
+    local live = {}
+    for _, e in ipairs(found) do live[tostring(e.page:GetAddress())] = true end
+    for key, m in pairs(invPages) do
+        if not live[key] or not m.page:IsValid() then
+            pcall(function() ours[tostring(m.mailbox:GetAddress())] = nil end)
+            invPages[key] = nil
+        end
+    end
+    for key in pairs(invFailed) do if not live[key] then invFailed[key] = nil end end   -- a later page may reuse the address
+    for _, e in ipairs(found) do
+        local key = tostring(e.page:GetAddress())
+        local m = invPages[key]
+        if (not m or not m.mailbox:IsValid()) and not invFailed[key] then
+            local bar, why = nameBar(e.page)
+            if bar then
+                local okc, b, err = pcall(addInventoryButton, e.page, bar)
+                if okc and b then
+                    m = { mailbox = b, page = e.page }
+                    invPages[key] = m
+                    invAdds = invAdds + 1
+                    if invAdds == 1 then
+                        log("menu: Archipelago Mailbox button added to the inventory page (" .. className(b) .. ") | " .. chainText(b))
+                    end
+                else
+                    invFailed[key] = true                      -- not again for this page: each try makes a widget
+                    once("invadd", "menu: could not add the inventory mailbox button: " .. tostring(okc and err or b))
+                end
+            elseif not reported["invnobar"] then
+                once("invnobar", "menu: the inventory page has no name bar (" .. tostring(why) .. "); no mailbox button there (the Esc menu has one)")
+                local parts = {}
+                pcall(eachWidget, e.page, function(o, depth)
+                    if #parts < 120 then parts[#parts + 1] = depth .. ":" .. nameOf(o) .. ":" .. className(o) end
+                end, 4)
+                log("menu survey: inventory page | " .. table.concat(parts, ", "))
+            end
+        end
+        if m then
+            m.main = e.main                                    -- kept fresh: the close goes to the menu showing it
+            local text = api.mailboxLabel()
+            if m.label ~= text then m.label = text; setText(m.mailbox, text) end
+            -- Can a controller reach it? A mouse click focuses too, so the input type tells them apart (untested).
+            if not focusLogged.ours and focused(m.mailbox) then
+                focusLogged.ours = true
+                log("menu: the inventory mailbox button has focus (input " .. inputType() .. ")")
+            end
+            if not focusLogged.edit then
+                local oke, edit = pcall(function() return e.page.WBP_CommonButton_NameEdit end)
+                if oke and edit and focused(edit) then
+                    focusLogged.edit = true
+                    log("menu: the game's Edit Name button has focus (input " .. inputType() .. ")")
+                end
+            end
+        end
+    end
+end
+
+-- One object scan per update while the main menu is closed (UE4SS's FindAllOf walks the whole object array, and the
+-- 2026-11-03 FPS drop is still unexplained): look for WBP_InGameMainMenu_C, and only while one is up for the Esc menu
+-- (it shows as the main menu's Options tab) and the Inventory page (its CurrentContentWidget, no scan of its own).
+-- Until a main menu was ever seen, the Esc menu is also looked for by its class every 4th update, in case the client
+-- names the main menu differently: the Esc button would then come up to a second late, not never.
+local mainMenuSeen, fallbackTicks = false, 0
+local function menusUp()
+    local mains = {}
+    for _, mm in ipairs(FindAllOf(MAIN_MENU) or {}) do
+        if notDefault(mm) then mains[#mains + 1] = mm end
+    end
+    if mains[1] then mainMenuSeen = true end
+    local esc = {}                                         -- nil: not looked this update, keep what we have
+    if mains[1] then
+        esc = findEscMenus()
+    elseif not mainMenuSeen then
+        fallbackTicks = fallbackTicks + 1
+        if fallbackTicks % 4 == 1 then
+            esc = findEscMenus()
+            if esc[1] then once("escnomain", "menu: the Esc menu is up but no " .. MAIN_MENU .. " was found (looking by its class every 4th update)") end
+        else
+            esc = nil
+        end
+    end
+    return esc, inventoryPages(mains)
+end
+
 -- Called from the mod's update loop (game thread).
 function M.update()
     if not surveyed then
@@ -421,13 +636,28 @@ function M.update()
     end
     local inWorld = false
     pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
-    if inWorld and api.mailboxLabel then
-        local oke, erre = pcall(updateEsc)
-        if not oke then once("esc" .. tostring(erre), "menu: Esc menu error: " .. tostring(erre)) end
+    if api.mailboxLabel then
+        local escFound, invFound = {}, {}
+        if inWorld then
+            local okf, err = pcall(function() escFound, invFound = menusUp() end)
+            if not okf then once("mm" .. tostring(err), "menu: main menu error: " .. tostring(err)) end
+        else
+            -- Out of a world, nothing of ours is up: drop it all (below, with nothing found), so a stale address can't
+            -- match a new button at the title (the WBP_CommonButton click hook stays and fires there too).
+            closing = nil
+        end
+        if escFound then
+            local oke, erre = pcall(updateEsc, escFound)
+            if not oke then once("esc" .. tostring(erre), "menu: Esc menu error: " .. tostring(erre)) end
+        end
+        local oki, erri = pcall(updateInventory, invFound)
+        if not oki then once("inv" .. tostring(erri), "menu: inventory page error: " .. tostring(erri)) end
     end
     hookOnce(CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
     if inWorld then
         hookOnce(ESC_CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
+        -- Fires for every WBP_CommonButton_C in the game (dialogs, Edit Name, Quick Stack); clicked() ignores all but ours.
+        hookOnce(COMMON_CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
     end
     hookOnce(WINDOW_OK, function() local ok, err = pcall(okPressed); if not ok then log("menu OK error: " .. tostring(err)) end end)
     -- Title menus gone (into a world) or rebuilt: forget them and their buttons' addresses, as with the Esc menu. A
@@ -472,11 +702,16 @@ function M.update()
     -- The Esc menu is one tab of the in-game main menu (WBP_InGameMainMenu_C): its own CloseAction (what backing out
     -- of it does) tells the main menu to close (v0.11.3 playtest: Close shut only the tab; the menu stayed behind the
     -- chest window). Then a look at whether the main menu really went.
-    if closeEsc then
-        local c = closeEsc
-        closeEsc = nil
+    -- From the Inventory page, Close() on the main menu itself: what its X button, the Inventory tab's cancel and
+    -- OnTryClose_Inventory all call (kdump bytecode; untested from Lua on this class). Not OnCancelAction: during a
+    -- status-point edit it cancels the edit and leaves the menu open.
+    if closing then
+        local c = closing
+        closing = nil
         local how = nil
-        if c.menu and c.menu:IsValid() then
+        if c.from == "inventory" then
+            if c.main and c.main:IsValid() and pcall(function() c.main:Close() end) then how = "Close" end
+        elseif c.menu and c.menu:IsValid() then
             if pcall(function() c.menu:CloseAction() end) then how = "CloseAction"
             elseif pcall(function() c.menu:Close() end) then how = "Close" end
         end
@@ -484,19 +719,21 @@ function M.update()
             pcall(function() StaticFindObject("/Script/Pal.Default__PalUtility"):GetHUDService(c.button):CloseOwnerStackableUI(c.button) end)
             how = "CloseOwnerStackableUI"
         end
-        log("menu: Esc menu closed for the mailbox (" .. how .. ")")
-        mainMenuLook = 2
+        log(c.from == "inventory" and ("menu: main menu closed for the mailbox from the inventory (" .. how .. ")")
+            or ("menu: Esc menu closed for the mailbox (" .. how .. ")"))
+        mainMenuLook, lookFrom = 2, c.from
         api.openMailbox(c.button)
     elseif mainMenuLook then
         mainMenuLook = mainMenuLook - 1
         if mainMenuLook == 0 then
             mainMenuLook = nil
             local up = 0
-            for _, w in ipairs(FindAllOf("WBP_InGameMainMenu_C") or {}) do
+            for _, w in ipairs(FindAllOf(MAIN_MENU) or {}) do
                 local ok, shown = pcall(function() return w:IsValid() and w:IsVisible() and w:IsInViewport() end)
                 if ok and shown then up = up + 1 end
             end
-            once("mainmenu" .. up, "menu: in-game main menu after closing: " .. (up == 0 and "gone" or (up .. " still shown")))
+            local from = lookFrom == "inventory" and " from the inventory" or ""
+            once("mainmenu" .. from .. up, "menu: in-game main menu after closing" .. from .. ": " .. (up == 0 and "gone" or (up .. " still shown")))
         end
     end
     -- The text-window chain: open the next window once the last one closed; a window closed without OK cancels.
