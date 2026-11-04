@@ -389,6 +389,39 @@ function W.skinTick()
     log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " without a mesh") or ""))
 end
 
+-- The locked-area stamp (Art & Assets lane, round 1: art/ap-map-stamp.png, 256x256, the area-pass ticket with a padlock)
+-- drawn on each locked area at its deepest point (area_centres.lua, from tools/area_centres.py), STAMP_PX across on
+-- the 4096 map. Untested in game (2026-11-04).
+local CENTRES = require("area_centres")
+local STAMP_PX = 88
+local stampTex, stampTried = nil, false
+local function lockedList(passes)
+    local out = {}
+    for k, name in ipairs(DATA.areas) do
+        if not isOpen(name, passes) then out[#out + 1] = k - 1 end
+    end
+    return out
+end
+local function drawStamps(canvas, krl, gi, locked)
+    if not (stampTex and stampTex:IsValid()) then
+        if stampTried then return end
+        stampTried = true
+        local path = W.dir .. "\\art\\ap-map-stamp.png"
+        stampTex = krl:ImportFileAsTexture2D(gi, path)
+        if not (stampTex and stampTex:IsValid()) then stampTex = nil; log("map: no stamp (" .. path .. ")"); return end
+        W.keep(stampTex)
+    end
+    local n = 0
+    for _, k in ipairs(locked) do
+        local c = CENTRES[k]
+        if c then
+            canvas:K2_DrawTexture(stampTex, { X = c[1] * RT_SIZE - STAMP_PX / 2, Y = c[2] * RT_SIZE - STAMP_PX / 2 },
+                { X = STAMP_PX, Y = STAMP_PX }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+            n = n + 1
+        end
+    end
+    once("stamps" .. n, "map: " .. n .. " locked-area stamp(s) drawn")
+end
 local function greyscaleMap(krl, tex)
     if greyTex and greyTex:IsValid() then return greyTex end
     if greyTried or not AP_GreyscalePNG then return nil end
@@ -486,6 +519,8 @@ local function drawMap(ctx, passes)
             if #band > 0 then canvas:K2_DrawTriangle(grey or tex, band) end
         end
     end
+    local okS, errS = pcall(drawStamps, canvas, krl, gi, lockedList(passes))
+    if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
     krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
     return true
 end
@@ -495,6 +530,7 @@ end
 -- in the mod folder and is never shipped.
 local COLOUR_FILE = "map-colour-1.png"
 local composing, composedKey, failedKey = nil, nil, nil   -- the locked set being composed / last composed / last failed
+local composingList = {}                                  -- that set's area indexes (for the stamps)
 -- A fingerprint of the map the game shows: 16 pixels of it drawn small. A mod that replaces the map's art changes it, so
 -- the saved colour map is made again (once a session, cheaply, instead of exporting the whole map every time).
 local printChecked, printNow = false, nil
@@ -583,6 +619,8 @@ local function composeMap(ctx, passes, key)
         krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
         canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
             { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+        local okS, errS = pcall(drawStamps, canvasOut.Canvas, krl, gi, composingList)
+        if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
         krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
         composedKey = done
         return done == key
@@ -593,7 +631,7 @@ local function composeMap(ctx, passes, key)
     local colour = colourMap(krl, tex, gi)
     local err = AP_ComposeMap(colour, W.dir .. "\\area_labels.png", lockedIndexes(passes),
         W.dir .. "\\map-composed.png", "0.4545")
-    if err == "" then composing = key elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
+    if err == "" then composing, composingList = key, lockedList(passes) elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
     return false
 end
 

@@ -132,6 +132,55 @@ local function logLayout(menu, ourButton)
     if ourButton then log("menu layout: our button | " .. chainText(ourButton)) end
 end
 
+-- The title banner (Art & Assets lane, round 1: art/ap-title-banner.png, 1200x300 shown at 600x150, the width of the
+-- title buttons) above our buttons, with the connection in its pill: a dot (art/ap-status-dot.png) tinted by state and
+-- a line of text. Positions are the art's own (the pill spans x 140-575, y 107-133 at 600x150; the dot is centred at
+-- 155,120 and the text starts at 167). Untested in game (2026-11-04): its place on the screen is a first guess.
+local ART = require("art")
+local DOT = { connected = { R = 0.074, G = 0.631, B = 0.195, A = 1 },      -- #4DD07A, as linear colours
+              connecting = { R = 0.839, G = 0.515, B = 0.155, A = 1 },     -- #ECBE6E
+              other = { R = 0.863, G = 0.144, B = 0.105, A = 1 } }         -- #EF6A5B
+local TEXT_COLOUR = { R = 0.807, G = 0.905, B = 0.888, A = 1 }            -- #E8F4F2
+local function addBanner(menu, list)
+    local box, img = ART.box(menu, "ap-title-banner", 600, 150)
+    if not box then return nil end
+    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), menu)
+    box:RemoveChild(img)
+    box:AddChild(over)
+    over:AddChild(img)                                         -- fills the overlay
+    local b = { box = box }
+    local dotBox, dot = ART.box(menu, "ap-status-dot", 12, 12)
+    if dotBox then
+        local s = over:AddChild(dotBox)
+        pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)   -- Left, Top
+        pcall(function() s:SetPadding({ Left = 149, Top = 114, Right = 0, Bottom = 0 }) end)
+        b.dot = dot
+    end
+    local text = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), menu)
+    local sized = pcall(function() local f = text.Font; f.Size = 13; text:SetFont(f) end)
+    if not sized then                                          -- the default font is 24: scale it down instead
+        pcall(function() text:SetRenderTransformPivot({ X = 0, Y = 0.5 }); text:SetRenderScale({ X = 13 / 24, Y = 13 / 24 }) end)
+    end
+    pcall(function() text:SetColorAndOpacity({ SpecifiedColor = TEXT_COLOUR, ColorUseRule = 0 }) end)
+    local s = over:AddChild(text)
+    pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)
+    pcall(function() s:SetPadding({ Left = 167, Top = 111, Right = 24, Bottom = 0 }) end)
+    b.text = text
+    local slot = list:AddChild(box)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 8 }) end)
+    pcall(function() slot:SetHorizontalAlignment(0) end)
+    log("menu: title banner added (" .. (sized and "13 pt text" or "text scaled down") .. (b.dot and "" or ", no status dot") .. ")")
+    return b
+end
+local function bannerStatus(b)
+    local st, server = api.status(), api.server()
+    local text = st == "connected" and ("Connected | " .. server .. " | Slot: " .. api.slot())
+        or st == "connecting" and ("Connecting to " .. server .. "...")
+        or (server ~= "" and ("Not connected | " .. server) or "Not connected")
+    if b.shown ~= text then b.shown = text; pcall(function() b.text:SetText(FText(text)) end) end
+    if b.dot and b.state ~= st then b.state = st; pcall(function() b.dot:SetColorAndOpacity(DOT[st] or DOT.other) end) end
+end
+
 local function addButton(menu, list, kind)
     local class = find(BUTTON)
     local sizeClass = StaticFindObject("/Script/UMG.SizeBox")
@@ -507,6 +556,13 @@ local function addInventoryButton(page, bar)
     local slot = bar:AddChild(box)
     pcall(function() slot:SetHorizontalAlignment(3) end)      -- HAlign_Right
     pcall(function() slot:SetVerticalAlignment(0) end)        -- VAlign_Fill
+    -- The mailbox emblem (art/ap-mailbox-emblem-64.png) just left of the button, 24 high.
+    local okE, emblem = pcall(ART.box, page, "ap-mailbox-emblem-64", 24, 24)
+    if okE and emblem then
+        local es = bar:AddChild(emblem)
+        pcall(function() es:SetHorizontalAlignment(3); es:SetVerticalAlignment(2) end)   -- Right, Center
+        pcall(function() es:SetPadding({ Left = 0, Top = 0, Right = 236, Bottom = 0 }) end)
+    end
     ours[tostring(button:GetAddress())] = "inventory"
     return button
 end
@@ -702,10 +758,12 @@ function M.update(ctx)
             local key = tostring(menu:GetAddress())
             local m = menus[key]
             if not m or not m.connect:IsValid() then
+                local okB, banner = pcall(addBanner, menu, list)
+                if not okB then log("menu: title banner error: " .. tostring(banner)); banner = nil end
                 local okc, c = pcall(addButton, menu, list, "connect")
                 local okd, d = pcall(addButton, menu, list, "disconnect")
                 if okc and c and okd and d then
-                    m = { connect = c, disconnect = d, keys = { tostring(c:GetAddress()), tostring(d:GetAddress()) } }
+                    m = { connect = c, disconnect = d, banner = banner, keys = { tostring(c:GetAddress()), tostring(d:GetAddress()) } }
                     menus[key] = m
                     added = true
                     local okq, why = pcall(quitLast, menu, list)
@@ -717,6 +775,7 @@ function M.update(ctx)
                 end
             end
             if m then
+                if m.banner then pcall(bannerStatus, m.banner) end
                 setText(m.connect, label())
                 setText(m.disconnect, "Disconnect from Archipelago")
                 pcall(function() m.disconnect:SetVisibility(api.status() == "connected" and 0 or 1) end)  -- Visible / Collapsed

@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.13.1"
+local VERSION = "0.13.2"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -474,6 +474,7 @@ local function keep(obj)
 end
 WALLS.keep = keep
 WALLS.dir = modDir
+do local ART = require("art"); ART.keep, ART.dir = keep, modDir end
 do      -- wall skins (test builds; walls.lua): wall_skin=a|b, wall_tiling=U,V and wall_scroll=U,V in config.txt
     local function pair(s)
         local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")

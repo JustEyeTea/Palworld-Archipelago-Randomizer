@@ -551,9 +551,30 @@ local function told(what)
     env.notify("The mailbox only hands items out: " .. what .. " went back to your bag.")
 end
 
+-- The mailbox emblem (Art & Assets lane, round 1: art/ap-mailbox-emblem-64.png) beside the heading, only in the chest
+-- window the mailbox opened (found through its own HUD widget: chests share the window class) and only where the
+-- heading sits in a horizontal box; anything else is logged. Untested in game (2026-11-04).
+local function emblem(t)
+    if view.emblem then return end
+    view.emblem = true
+    local parent = t:GetParent()
+    local kind = parent and parent:IsValid() and parent:GetClass():GetFName():ToString() or "nothing"
+    if kind ~= "HorizontalBox" then log("mailbox: the heading sits in a " .. kind .. "; no emblem"); return end
+    local box = require("art").box(parent, "ap-mailbox-emblem-64", 32, 32)
+    if not box then return end
+    local s = parent:AddChild(box)
+    pcall(function() s:SetVerticalAlignment(2); s:SetPadding({ Left = 8, Top = 0, Right = 0, Bottom = 0 }) end)
+    log("mailbox: emblem added beside the heading")
+end
+
 local function heading()
-    local t
+    local t, ours = nil, false
     pcall(function() t = view.hud:GetWidget(view.id).WBP_IngameMenu_Chest.Text_TargetContainerName end)
+    if t and select(2, pcall(function() return t:IsValid() end)) then ours = true end
+    if ours then
+        local ok, err = pcall(emblem, t)
+        if not ok then once("emblem", "mailbox: emblem error: " .. tostring(err)) end
+    end
     if not t or not select(2, pcall(function() return t:IsValid() end)) then
         t = nil
         for _, w in ipairs(FindAllOf("WBP_IngameMenu_Chest_C") or {}) do

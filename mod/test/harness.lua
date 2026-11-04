@@ -243,7 +243,7 @@ StaticFindObject = function(path)
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
     if path:find("WidgetBlueprintLibrary") then return wbl end
-    if path == "/Script/UMG.SizeBox" then return Widget() end
+    if path:match("^/Script/UMG%.%a+$") then return Widget({ umg = path:match("%.(%a+)$") }) end   -- SizeBox, Image, ...
     if path:find("KismetMaterialLibrary") then return materialLib end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("KismetSystemLibrary") then return systemLib end
@@ -340,10 +340,30 @@ wbl = { IsValid = function() return true end,   -- global: StaticFindObject abov
                   end
                   return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
                                   SetVisibility = function(self, v) self.visibility = v end }) end }
-StaticConstructObject = function()
-    local box = Widget({ GetClass = function() return classed("SizeBox") end,
-                         SetWidthOverride = function(self, w) self.width = w end, SetHeightOverride = function(self, h) self.height = h end })
-    function box:AddChild(c) self.child = c; c.GetParent = function() return self end end
+-- UMG widgets the mod makes (SizeBox, Overlay, Image, TextBlock): one stand-in that records what is done to it.
+bannerTexts = {}                                             -- every text a made TextBlock was given, in order
+StaticConstructObject = function(cls)
+    local kind = type(cls) == "table" and cls.umg or "SizeBox"
+    local box = Widget({ GetClass = function() return classed(kind) end, kind = kind, children = {}, Font = { Size = 24 },
+                         SetWidthOverride = function(self, w) self.width = w end, SetHeightOverride = function(self, h) self.height = h end,
+                         SetBrushFromTexture = function(self, t) self.texture = t end,
+                         SetFont = function(self, f) self.fontSize = f.Size end,
+                         SetColorAndOpacity = function(self, c) self.colour = c end,
+                         SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
+    function box:AddChild(c)
+        self.child = c
+        self.children[#self.children + 1] = c
+        c.GetParent = function() return self end
+        local slot = { SetPadding = function(s, pad) s.padding = pad end, SetHorizontalAlignment = function(s, a) s.h = a end,
+                       SetVerticalAlignment = function(s, a) s.v = a end }
+        c.slot = slot
+        return slot
+    end
+    function box:RemoveChild(c)
+        for i, x in ipairs(self.children) do if x == c then table.remove(self.children, i) end end
+        if self.child == c then self.child = nil end
+        return true
+    end
     return box
 end
 local hudWindows, pushed = {}, {}
@@ -1056,7 +1076,11 @@ hud.CreateDispatchParameterForK2Node = function() return {} end
 hud.ShowCommonUI = function(_, kind, param)
     local id = "chest" .. (#shown + 1)
     shown[#shown + 1] = { kind = kind, param = param }
-    local head = { IsValid = function() return true end, text = "Advanced Chest", BindTextDatatableHandle = {} }
+    local row = Widget({ GetClass = function() return classed("HorizontalBox") end, children = {} })   -- the heading's row
+    function row:AddChild(c) self.children[#self.children + 1] = c; return { SetVerticalAlignment = function() end, SetPadding = function() end } end
+    chestRow = row
+    local head = { IsValid = function() return true end, text = "Advanced Chest", BindTextDatatableHandle = {},
+                   GetParent = function() return row end }
     function head:SetText(t) self.text = t.text end
     function head:GetText() local t = self.text; return { ToString = function() return t end } end
     hudWindows[id] = Widget({ WBP_IngameMenu_Chest = { Text_TargetContainerName = head } })
@@ -1367,7 +1391,11 @@ mainMenuOpen = true
 run(1)
 local invBox = barKids[1]
 local invBtn = invBox and invBox.child
-expect(#barKids == 1 and invBox.width == 230 and invBox.height == 28 and invBtn and invBtn.Text_Main
+local emblemBox = barKids[2]                               -- the mailbox emblem, left of the button
+expect(emblemBox and emblemBox.child and emblemBox.child.texture and emblemBox.child.texture.path == "ap-mailbox-emblem-64"
+       and emblemBox.width == 24 and emblemBox.halign == 3 and emblemBox.padding and emblemBox.padding.Right == 236,
+       "with the mailbox emblem just left of it, 24 high")
+expect(#barKids == 2 and invBox.width == 230 and invBox.height == 28 and invBtn and invBtn.Text_Main
        and invBtn.Text_Main.text == "Archipelago Mailbox (5)",
        "the name bar gets the game's button, 230x28, with the count: " .. tostring(invBtn and invBtn.Text_Main and invBtn.Text_Main.text))
 expect(invBox and invBox.halign == 3 and invBox.valign == 0, "at the bar's right end, as tall as the Edit Name row")
@@ -1377,7 +1405,7 @@ expect(logged("Mailbox button added to the inventory page %(WBP_CommonButton_C%)
        "logged where it went, once")
 expect(hooks[COMMON_CLICK], "its click is hooked")
 run(4)
-expect(#barKids == 1, "added once")
+expect(#barKids == 2, "added once")
 -- Focus probes: which of the bar's buttons a player reached, and with what input.
 inputSubsystems = { named("CommonInputSubsystem_0", "CommonInputSubsystem", { GetCurrentInputType = function() return 1 end }) }
 editName.WBP_PalInvisibleButton.focused = true
@@ -1397,7 +1425,7 @@ local page2, barKids2 = inventoryPage()
 mainMenu.CurrentContentWidget = inventoryTab(page2)
 run(1)
 local invBtn2 = barKids2[1] and barKids2[1].child
-expect(#barKids2 == 1 and #barKids == 1 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (5)"
+expect(#barKids2 == 2 and #barKids == 2 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (5)"
        and linesWith("Mailbox button added to the inventory page") == 1, "a new page gets its button, quietly; the old one none again")
 commonClick(invBtn)                                        -- the old page's button: no longer ours
 run(1)
@@ -1749,13 +1777,17 @@ print("the title menu's Archipelago buttons")
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
 titleOpen = true
 run(1)
-local connectBtn, disconnectBtn = menuChildren[1] and menuChildren[1].child, menuChildren[2] and menuChildren[2].child
+local bannerBox = menuChildren[1]                           -- the title banner, above our buttons
+expect(bannerBox and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
+       and #bannerBox.child.children == 3 and bannerBox.child.children[1].texture.path == "ap-title-banner",
+       "the banner (600x150: picture, status dot, text) sits above our buttons")
+local connectBtn, disconnectBtn = menuChildren[2] and menuChildren[2].child, menuChildren[3] and menuChildren[3].child
 expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as Tester" and disconnectBtn.visibility == 0,
        "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
-expect(menuChildren[3] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+expect(menuChildren[4] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
        "Quit Game moved back to the end, with its padding")
 run(3)
-expect(#menuChildren == 3, "added once")
+expect(#menuChildren == 4, "added once")
 expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
@@ -2142,6 +2174,19 @@ if PERF then
     RegisterHook, FindAllOf, FindFirstOf = saved.RegisterHook, saved.FindAllOf, saved.FindFirstOf
     expect(count("update error") == 0, "no update errors with the probe on")
 end
+end
+do  -- the Art & Assets lane's round-1 art (art.lua): the title banner with its status, the mailbox emblems
+    local sawNot, sawConnected = false, false
+    for _, t in ipairs(bannerTexts) do
+        sawNot = sawNot or t:find("^Not connected") ~= nil
+        sawConnected = sawConnected or t:find("^Connected | .+ | Slot: ") ~= nil
+    end
+    expect(logged("menu: title banner added %(13 pt text%)") and not logged("title banner error"),
+           "the title banner goes in above our buttons, its text at 13 pt")
+    expect(sawNot and sawConnected, "its pill shows the connection: not connected, then connected with the server and slot")
+    expect(logged("mailbox: emblem added beside the heading") and chestRow and #chestRow.children == 1 and not logged("emblem error"),
+           "the mailbox emblem goes beside the chest window's heading (the mailbox's own window)")
+    expect(not logged("art: could not load"), "every art file loads")
 end
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
