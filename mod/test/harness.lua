@@ -141,7 +141,8 @@ FindAllOf = function(class)
     if class == "PalMapObjectItemChestParameterComponent" then
         return loaded["/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"] and chestTemplates or {}
     end
-    if class == "UserWidget" then return escOpen and { escMenu } or {} end
+    if class == "WBP_MenuESC_C" then return escOpen and { escMenu } or {} end
+    if class == "UserWidget" then return escOpen and { taskList, escMenu } or {} end   -- the HUD's mission list too
     return nil
 end
 FindFirstOf = function(class)
@@ -251,10 +252,18 @@ local buttonBox = Widget({ GetClass = function() return classed("VerticalBox") e
                            GetFName = function() return FNameOf("VerticalBox_Menu") end,
                            AddChild = function(_, box)
                                menuChildren[#menuChildren + 1] = box
-                               return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
+                               return { SetPadding = function(_, p) box.padding = p end, SetHorizontalAlignment = function() end } end,
+                           RemoveChild = function(_, box)
+                               for i, c in ipairs(menuChildren) do if c == box then table.remove(menuChildren, i); return true end end
+                               return false end })
 local gameButtonWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end })
 gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
+-- Quit Game, last in the list until our buttons go in (v0.11.2 playtest: ours sat below it).
+local quitWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end,
+                          Slot = { Padding = { Left = 0, Top = 0, Right = 0, Bottom = 7 }, HorizontalAlignment = 2 } })
+menuChildren[1] = quitWrap
 titleMenu = Widget({ WBP_Title_MenuButton_StartLocalGame = gameTitleButton,
+                     WBP_Title_MenuButton_ExitGame = Widget({ GetParent = function() return quitWrap end }),
                      VerticalBox_0 = Widget({ AddChild = function() error("buttons belong with the game's") end }) })
 titleOpen = false
 wbl = { IsValid = function() return true end,   -- global: StaticFindObject above returns it
@@ -686,8 +695,18 @@ local escRoot = panel("CanvasPanel", { panel("CanvasPanel", {}), panel("CanvasPa
 escMenu = Widget({ GetClass = function() return classed("WBP_MenuESC_C") end,
                    WidgetTree = { RootWidget = escRoot },
                    Close = function(self) self.closed = true end })
+-- v0.11.2 playtest: the HUD's mission list (its name holds "gamemenu") has a box of buttons too, and got ours.
+local taskChildren = {}
+for i = 1, 3 do taskChildren[i] = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_Simple_Button_C") end }) end
+local taskBox = Widget({ GetClass = function() return classed("HorizontalBox") end,
+                         GetChildrenCount = function() return #taskChildren end, GetChildAt = function(_, i) return taskChildren[i + 1] end,
+                         AddChild = function(_, box) taskChildren[#taskChildren + 1] = box
+                                        return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
+taskList = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_SimpleList_C") end,
+                    WidgetTree = { RootWidget = panel("CanvasPanel", { taskBox }) } })
 escOpen = true
 run(4)
+expect(#taskChildren == 3, "the HUD's mission list gets no button: " .. #taskChildren)
 local mailBtn = escChildren[4] and escChildren[4].child
 expect(mailBtn and mailBtn.Test_Content.text == "Archipelago Mailbox (50)", "the Esc menu has a mailbox button with the count: "
        .. tostring(mailBtn and mailBtn.Test_Content.text))
@@ -853,8 +872,10 @@ run(1)
 local connectBtn, disconnectBtn = menuChildren[1] and menuChildren[1].child, menuChildren[2] and menuChildren[2].child
 expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as Tester" and disconnectBtn.visibility == 0,
        "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
+expect(menuChildren[3] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+       "Quit Game moved back to the end, with its padding")
 run(3)
-expect(#menuChildren == 2, "added once")
+expect(#menuChildren == 3, "added once")
 expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")

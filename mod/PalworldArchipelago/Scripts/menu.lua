@@ -127,6 +127,28 @@ local function addButton(menu, list, kind)
     return button
 end
 
+-- Our buttons go in after the game's last one; move Quit Game (its size box) back to the end of the list, keeping its
+-- slot's padding and alignment (v0.11.2 playtest: the Archipelago buttons sat below Quit Game).
+local function quitLast(menu, list)
+    local quit = menu.WBP_Title_MenuButton_ExitGame
+    if not quit or not quit:IsValid() then return "no Quit Game button" end
+    local wrap = quit:GetParent()
+    if not wrap or not wrap:IsValid() or wrap == list then return "Quit Game is not in a size box" end
+    local okp, parent = pcall(function() return wrap:GetParent() end)
+    if not okp or not parent or tostring(parent:GetAddress()) ~= tostring(list:GetAddress()) then return "Quit Game is not in our list" end
+    local pad, align = nil, nil
+    pcall(function()
+        local p = wrap.Slot.Padding
+        pad = { Left = p.Left, Top = p.Top, Right = p.Right, Bottom = p.Bottom }
+        align = wrap.Slot.HorizontalAlignment
+    end)
+    list:RemoveChild(wrap)
+    local slot = list:AddChild(wrap)
+    if pad then pcall(function() slot:SetPadding(pad) end) end
+    if align then pcall(function() slot:SetHorizontalAlignment(align) end) end
+    return nil
+end
+
 -- The next window of the chain: server, slot, password.
 local STEPS = {
     { key = "server", title = "Archipelago server (host:port)" },
@@ -265,14 +287,10 @@ end
 -- The Esc menu, found by its class name the first time it is up (only the client has it): a user widget named like an
 -- Esc, pause or system menu whose widget tree holds a box of at least 3 buttons of one class. Until it is found, new
 -- in-world widget classes named like menus are logged, so a log can tell what the client calls it.
-local ESC_NAMES = { "esc", "pause", "systemmenu", "gamemenu" }
-local escClass = nil
-local seenClasses = {}
-local function escLike(name)
-    local l = name:lower()
-    for _, p in ipairs(ESC_NAMES) do if l:find(p, 1, true) then return true end end
-    return false
-end
+-- The client's Esc menu, by its exact class (kdump; v0.11.2 log). Matching class names loosely picked the HUD's mission
+-- list (WBP_IngameMenu_Task_SimpleList_C: "ingamemenu" holds "gamemenu") and put buttons in each of its copies.
+local ESC_CLASS = "WBP_MenuESC_C"
+local escLogged = false
 -- The box whose children are mostly buttons of one class (each maybe wrapped in a size box); nil below 3.
 local function escButtonBox(menu)
     local best, bestCount = nil, 2
@@ -288,7 +306,7 @@ local function escButtonBox(menu)
                     local okg, inner = pcall(function() return child:GetChildAt(0) end)
                     if okg and inner and inner:IsValid() then cn = className(inner) end
                 end
-                if cn:match("_C$") and not ours[tostring(child:GetAddress())] then counts[cn] = (counts[cn] or 0) + 1 end
+                if cn:match("Button.*_C$") and not ours[tostring(child:GetAddress())] then counts[cn] = (counts[cn] or 0) + 1 end
             end
         end
         for _, c in pairs(counts) do
@@ -298,29 +316,23 @@ local function escButtonBox(menu)
     return best
 end
 local function findEscMenus()
-    if escClass then return FindAllOf(escClass) or {} end
-    for _, w in ipairs(FindAllOf("UserWidget") or {}) do
-        local ok, name = pcall(function() return w:GetClass():GetFName():ToString() end)
-        if ok and w:IsValid() and not seenClasses[name] and (escLike(name) or name:lower():find("menu", 1, true)) then
-            seenClasses[name] = true
-            log("menu: in-world widget class " .. name)
-        end
-        if ok and w:IsValid() and escLike(name) then
-            local okb, box = pcall(escButtonBox, w)
-            if not okb then once("escbox" .. name, "menu: could not read " .. name .. ": " .. tostring(box)) end
-            if okb and box then
-                escClass = name
-                log("menu: the Esc menu is " .. name .. " (buttons in " .. className(box) .. " " .. nameOf(box) .. ")")
-                return { w }
-            end
-        end
+    local out = {}
+    for _, w in ipairs(FindAllOf(ESC_CLASS) or {}) do
+        local okd, full = pcall(function() return w:GetFullName() end)
+        if w:IsValid() and not (okd and tostring(full):find("Default__", 1, true)) then out[#out + 1] = w end
     end
-    return {}
+    if out[1] and not escLogged then
+        escLogged = true
+        local okb, box = pcall(escButtonBox, out[1])
+        log("menu: the Esc menu is " .. ESC_CLASS .. " (" .. #out .. " found; buttons in "
+            .. (okb and box and (className(box) .. " " .. nameOf(box)) or ("none: " .. tostring(box))) .. ")")
+    end
+    return out
 end
 local escTicks = 0
 local function updateEsc()
     escTicks = escTicks + 1
-    if not escClass and escTicks % 4 ~= 0 then return end
+    if escTicks % 4 ~= 0 then return end
     for _, menu in ipairs(findEscMenus()) do
         if menu:IsValid() then
             local key = tostring(menu:GetAddress())
@@ -379,6 +391,8 @@ function M.update()
                     m = { connect = c, disconnect = d }
                     menus[key] = m
                     added = true
+                    local okq, why = pcall(quitLast, menu, list)
+                    if not okq or why then log("menu: Quit Game left where it was: " .. tostring(why)) end
                     pcall(logLayout, menu, c)
                     log("menu: Archipelago buttons added to the title menu (" .. className(list) .. " " .. nameOf(list) .. ")")
                 else
