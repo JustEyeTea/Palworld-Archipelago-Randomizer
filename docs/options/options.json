@@ -1,0 +1,424 @@
+{
+ "game": "Palworld",
+ "game_yaml": "Palworld",
+ "world_version": "0.3.0",
+ "archipelago_version": "0.6.8",
+ "yaml_header": "# Q. What is this file?\n# A. This file contains options which allow you to configure your multiworld experience while allowing\n#    others to play how they want as well.\n#\n# Q. How do I use it?\n# A. The options in this file are weighted. This means the higher number you assign to a value, the\n#    more chances you have for that option to be chosen. For example, an option like this:\n#\n#    map_shuffle:\n#      on: 5\n#      off: 15\n#\n#    Means you have 5 chances for map shuffle to occur, and 15 chances for map shuffle to be turned\n#    off.\n#\n# Q. I've never seen a file like this before. What characters am I allowed to use?\n# A. This is a .yaml file. You are allowed to use most characters.\n#    To test if your yaml is valid or not, you can use this website:\n#        http://www.yamllint.com/\n#    You can also verify that your Archipelago options are valid at this site:\n#        https://archipelago.gg/check\n\n# Your name in-game, limited to 16 characters.\n#     {player} will be replaced with the player's slot number.\n#     {PLAYER} will be replaced with the player's slot number, if that slot number is greater than 1.\n#     {number} will be replaced with the counter value of the name.\n#     {NUMBER} will be replaced with the counter value of the name, if the counter value is greater than 1.\n",
+ "descriptions": {
+  "": "Default Palworld Template",
+  "custom": "Custom Palworld Options",
+  "Short Sync": "Short Sync Preset for Palworld",
+  "Sync": "Sync Preset for Palworld",
+  "Long Sync": "Long Sync Preset for Palworld",
+  "Relic Hunt Sync": "Relic Hunt Sync Preset for Palworld",
+  "Paldeck Sync": "Paldeck Sync Preset for Palworld",
+  "Async": "Async Preset for Palworld",
+  "Full Game Async": "Full Game Async Preset for Palworld"
+ },
+ "groups": [
+  {
+   "name": "Game Options",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "progression_balancing",
+     "name": "Progression Balancing",
+     "type": "NamedRange",
+     "help": "A system that can move progression earlier, to try and prevent the player from getting stuck and bored early.\n\nA lower setting means more getting stuck. A higher setting means less getting stuck.",
+     "min": 0,
+     "max": 99,
+     "default": 50,
+     "named_values": {
+      "disabled": 0,
+      "normal": 50,
+      "extreme": 99
+     }
+    },
+    {
+     "key": "accessibility",
+     "name": "Accessibility",
+     "type": "Choice",
+     "help": "Set rules for reachability of your items/locations.\n\n**Full:** ensure everything can be reached and acquired.\n\n**Minimal:** ensure what is needed to reach your goal can be acquired.",
+     "choices": [
+      {
+       "name": "full",
+       "value": 0,
+       "yaml": "full"
+      },
+      {
+       "name": "minimal",
+       "value": 2,
+       "yaml": "minimal"
+      }
+     ],
+     "default": "full"
+    },
+    {
+     "key": "death_link",
+     "name": "Death Link",
+     "type": "DeathLink",
+     "help": "When you die, everyone who enabled death link dies. Of course, the reverse is true too.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    }
+   ]
+  },
+  {
+   "name": "Goal",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "goal",
+     "name": "Goal",
+     "type": "Choice",
+     "help": "What wins the game.\nTowers: beat a number of tower bosses (Towers to Beat).\nRelic Hunt: collect Palpagos Relics, which are shuffled across the whole multiworld (Relics Needed of Relic Count).\nPaldeck: register a number of different Pals in your Paldeck (Pals to Register).\nWorld Tree: beat the boss at the top of the World Tree, the end of the game.",
+     "choices": [
+      {
+       "name": "towers",
+       "value": 0,
+       "yaml": "towers"
+      },
+      {
+       "name": "relic_hunt",
+       "value": 1,
+       "yaml": "relic_hunt"
+      },
+      {
+       "name": "paldeck",
+       "value": 2,
+       "yaml": "paldeck"
+      },
+      {
+       "name": "world_tree",
+       "value": 3,
+       "yaml": "world_tree"
+      }
+     ],
+     "default": "towers"
+    },
+    {
+     "key": "tower_count",
+     "name": "Towers to Beat",
+     "type": "Range",
+     "help": "Towers goal: how many tower bosses you must beat. One or two suit a run of a few hours; all eight is a long\ngame.",
+     "min": 1,
+     "max": 8,
+     "default": 2
+    },
+    {
+     "key": "paldeck_count",
+     "name": "Pals to Register",
+     "type": "Range",
+     "help": "Paldeck goal: how many different Pals you must register (catch or hatch).",
+     "min": 10,
+     "max": 250,
+     "default": 60
+    },
+    {
+     "key": "relic_count",
+     "name": "Relic Count",
+     "type": "Range",
+     "help": "Relic Hunt goal: how many Palpagos Relics are shuffled into the multiworld.",
+     "min": 5,
+     "max": 100,
+     "default": 30
+    },
+    {
+     "key": "relics_needed",
+     "name": "Relics Needed (%)",
+     "type": "Range",
+     "help": "Relic Hunt goal: what percentage of the relics you need to win (rounded up).",
+     "min": 10,
+     "max": 100,
+     "default": 75
+    }
+   ]
+  },
+  {
+   "name": "Progression",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "area_locks",
+     "name": "Area Locks",
+     "type": "DefaultOnToggle",
+     "help": "Areas beyond the starting zone open with an Area Pass item. Until its pass arrives, a locked area is walled off\n(a red grid at its border) and shown grey on the map; the open sea is always free.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "progressive_spheres",
+     "name": "Progressive Spheres",
+     "type": "DefaultOnToggle",
+     "help": "Sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on) instead of separately.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    }
+   ]
+  },
+  {
+   "name": "Checks",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "check_level",
+     "name": "Check Level Cap",
+     "type": "Range",
+     "help": "The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,\nalphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.\n0 (auto) sets it from the goal: the level of the last tower you need, the level by which you can register enough\nPals, 30 for a Relic Hunt, and no limit for the World Tree.",
+     "min": 0,
+     "max": 80,
+     "default": 0
+    },
+    {
+     "key": "tech_checks",
+     "name": "Tech Checks",
+     "type": "Choice",
+     "help": "Which technologies are checks. All: every tech from level 2 up (583). No décor: furniture, flag and foliage\nsets, statues, signs and lights (62 techs) are normal research instead, with no check and no item (521).",
+     "choices": [
+      {
+       "name": "all",
+       "value": 0,
+       "yaml": "all"
+      },
+      {
+       "name": "no_decor",
+       "value": 1,
+       "yaml": "no_decor"
+      }
+     ],
+     "default": "no_decor"
+    },
+    {
+     "key": "capture_checks",
+     "name": "Capture Checks",
+     "type": "DefaultOnToggle",
+     "help": "A check for the first capture of each Paldeck entry that can be caught (raid, tower and special-event Pals\nhave no check).",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "alpha_checks",
+     "name": "Alpha Checks",
+     "type": "DefaultOnToggle",
+     "help": "A check for beating each field alpha (90).",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "fast_travel_checks",
+     "name": "Fast-Travel Checks",
+     "type": "DefaultOnToggle",
+     "help": "A check for unlocking each fast-travel point (174).",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "level_checks",
+     "name": "Level Checks",
+     "type": "Choice",
+     "help": "A check for reaching player levels: every level (79 checks), every 5, every 10, or none.",
+     "choices": [
+      {
+       "name": "off",
+       "value": 0,
+       "yaml": "'off'"
+      },
+      {
+       "name": "every_level",
+       "value": 1,
+       "yaml": "every_level"
+      },
+      {
+       "name": "every_5",
+       "value": 5,
+       "yaml": "every_5"
+      },
+      {
+       "name": "every_10",
+       "value": 10,
+       "yaml": "every_10"
+      }
+     ],
+     "default": "every_level"
+    }
+   ]
+  },
+  {
+   "name": "Item & Location Options",
+   "start_collapsed": true,
+   "options": [
+    {
+     "key": "local_items",
+     "name": "Local Items",
+     "type": "ItemSet",
+     "help": "Forces these items to be in their native world.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "non_local_items",
+     "name": "Non-local Items",
+     "type": "ItemSet",
+     "help": "Forces these items to be outside their native world.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "start_inventory",
+     "name": "Start Inventory",
+     "type": "ItemDict",
+     "help": "Start with the specified amount of these items. Example: {Bomb: 1, Arrow: 3}",
+     "default": {},
+     "yaml_value": "{}"
+    },
+    {
+     "key": "start_hints",
+     "name": "Start Hints",
+     "type": "ItemSet",
+     "help": "Start with these item's locations prefilled into the ``!hint`` command.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "start_location_hints",
+     "name": "Start Location Hints",
+     "type": "LocationSet",
+     "help": "Start with these locations and their item prefilled into the ``!hint`` command.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "exclude_locations",
+     "name": "Excluded Locations",
+     "type": "LocationSet",
+     "help": "Prevent these locations from having an important item.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "priority_locations",
+     "name": "Priority Locations",
+     "type": "LocationSet",
+     "help": "Prevent these locations from having an unimportant item.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "item_links",
+     "name": "Item Links",
+     "type": "OptionList",
+     "help": "Share part of your item pool with other players.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "plando_items",
+     "name": "Plando Items",
+     "type": "PlandoItems",
+     "help": "Generic items plando.",
+     "default": [],
+     "yaml_value": "[]"
+    }
+   ]
+  }
+ ],
+ "presets": {
+  "Short Sync": {
+   "goal": "towers",
+   "tower_count": 1,
+   "level_checks": "every_5",
+   "fast_travel_checks": false
+  },
+  "Sync": {
+   "goal": "towers",
+   "tower_count": 1
+  },
+  "Long Sync": {
+   "goal": "towers",
+   "tower_count": 2
+  },
+  "Relic Hunt Sync": {
+   "goal": "relic_hunt",
+   "relic_count": 20,
+   "relics_needed": 75,
+   "check_level": 25
+  },
+  "Paldeck Sync": {
+   "goal": "paldeck",
+   "paldeck_count": 60
+  },
+  "Async": {
+   "goal": "towers",
+   "tower_count": 3
+  },
+  "Full Game Async": {
+   "goal": "world_tree"
+  }
+ }
+}
