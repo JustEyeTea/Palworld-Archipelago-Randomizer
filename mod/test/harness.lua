@@ -539,7 +539,7 @@ expect(#kept >= 3, "textures kept alive: " .. #kept)
 local passCard = Card("Special_PalSphere_Grade_01")
 cards[#cards + 1] = passCard
 run(1)
-expect(passCard.shown.icon == "area-pass", "your Area Pass shows the ticket icon: " .. tostring(passCard.shown.icon))
+expect(passCard.shown.icon == "ap-pass-feybreak", "your Area Pass shows its own area's ticket: " .. tostring(passCard.shown.icon))
 
 do   -- (its own block: the harness main chunk is near Lua's 200-local limit)
 print("cards are labelled again only when needed")

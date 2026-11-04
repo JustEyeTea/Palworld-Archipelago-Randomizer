@@ -389,12 +389,14 @@ function W.skinTick()
     log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " without a mesh") or ""))
 end
 
--- The locked-area stamp (Art & Assets lane, round 1: art/ap-map-stamp.png, 256x256, the area-pass ticket with a padlock)
--- drawn on each locked area at its deepest point (area_centres.lua, from tools/area_centres.py), STAMP_PX across on
--- the 4096 map. Untested in game (2026-11-04).
+-- The locked-area stamps (Art & Assets lane: art/ap-map-stamp-<area>.png per area, round 2; art/ap-map-stamp.png when
+-- an area has none), 256x256 tickets with a padlock, drawn on each locked area at its deepest point (area_centres.lua,
+-- from tools/area_centres.py), STAMP_PX across on the 4096 map. Untested in game (2026-11-04).
+local ART = require("art")
 local CENTRES = require("area_centres")
 local STAMP_PX = 88
-local stampTex, stampTried = nil, false
+local function slugOf(name) return (name:lower():gsub("[^%w]+", "-")) end
+W.slugOf = slugOf
 local function lockedList(passes)
     local out = {}
     for k, name in ipairs(DATA.areas) do
@@ -403,19 +405,12 @@ local function lockedList(passes)
     return out
 end
 local function drawStamps(canvas, krl, gi, locked)
-    if not (stampTex and stampTex:IsValid()) then
-        if stampTried then return end
-        stampTried = true
-        local path = W.dir .. "\\art\\ap-map-stamp.png"
-        stampTex = krl:ImportFileAsTexture2D(gi, path)
-        if not (stampTex and stampTex:IsValid()) then stampTex = nil; log("map: no stamp (" .. path .. ")"); return end
-        W.keep(stampTex)
-    end
     local n = 0
     for _, k in ipairs(locked) do
-        local c = CENTRES[k]
-        if c then
-            canvas:K2_DrawTexture(stampTex, { X = c[1] * RT_SIZE - STAMP_PX / 2, Y = c[2] * RT_SIZE - STAMP_PX / 2 },
+        local c, name = CENTRES[k], DATA.areas[k + 1]
+        local tex = c and name and (ART.texture("ap-map-stamp-" .. slugOf(name)) or ART.texture("ap-map-stamp"))
+        if tex then
+            canvas:K2_DrawTexture(tex, { X = c[1] * RT_SIZE - STAMP_PX / 2, Y = c[2] * RT_SIZE - STAMP_PX / 2 },
                 { X = STAMP_PX, Y = STAMP_PX }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
             n = n + 1
         end
