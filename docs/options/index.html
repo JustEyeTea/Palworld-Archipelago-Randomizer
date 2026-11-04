@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Palworld Archipelago Options</title>
+<meta name="description" content="Pick your Palworld Archipelago options and download a player YAML for Archipelago.">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Palworld Archipelago options</h1>
+    <p>Pick your options, or start from a preset, then download your player YAML. Give the file to whoever is
+      generating the multiworld (it goes in Archipelago's <code>Players</code> folder). The host also needs the
+      Palworld APWorld installed.</p>
+  </header>
+
+  <noscript><p class="error">This page needs JavaScript to build your YAML.</p></noscript>
+  <p id="load-error" class="error" role="alert" hidden></p>
+
+  <form id="options-form" novalidate hidden>
+    <section class="panel" aria-labelledby="player-heading">
+      <h2 id="player-heading">Player</h2>
+      <div class="field">
+        <label for="player-name">Player name</label>
+        <input id="player-name" name="name" type="text" autocomplete="nickname" spellcheck="false" required
+               aria-describedby="player-name-help player-name-error">
+        <p id="player-name-help" class="help">Your name in the multiworld, up to 16 characters.
+          {number} is replaced with a counter, for several players with the same name.</p>
+        <p id="player-name-error" class="error" aria-live="polite"></p>
+      </div>
+      <div class="field">
+        <label for="preset">Preset</label>
+        <select id="preset" aria-describedby="preset-help preset-status"></select>
+        <p id="preset-help" class="help">A preset fills in the options below; you can change any of them after.</p>
+        <p id="preset-status" class="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <div id="groups"></div>
+
+    <section class="panel actions">
+      <button id="download" type="submit">Download YAML</button>
+      <p id="form-error" class="error" role="alert"></p>
+      <details>
+        <summary>Show the YAML</summary>
+        <pre id="preview" tabindex="0" aria-label="The YAML this page will download"></pre>
+      </details>
+    </section>
+  </form>
+
+  <footer>
+    <p>This page was written by Claude (Opus 5.5), an AI model made by Anthropic, at JustEyeTee's direction, as is
+      most of the Palworld Archipelago project's code.</p>
+    <p><a href="https://github.com/JustEyeTee/Palworld-Archipelago-Randomizer">Palworld Archipelago on GitHub</a>
+      <span id="built-from"></span></p>
+    <p>An unofficial fan project, not affiliated with or endorsed by Pocketpair, Inc. or the Archipelago project.
+      Palworld is a trademark of Pocketpair, Inc.</p>
+  </footer>
+</main>
+<script src="build-yaml.js"></script>
+<script src="options.js"></script>
+</body>
+</html>
