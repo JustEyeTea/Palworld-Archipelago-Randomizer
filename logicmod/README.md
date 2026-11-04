@@ -129,7 +129,8 @@ To go back to the chest window without removing the pak, set `mailbox_view=chest
 
 ## Later, only if needed
 
-- **Giving Pals:** if all three Lua routes fail in game (Ctrl+F9 drop and pick up, Ctrl+F7 cage, Ctrl+F8 character
-  manager), a Blueprint function here can call `CreateIndividual` with a real callback and put the Pal in the party or
-  the Palbox.
+- **Giving Pals:** two of the three Lua routes crashed the game in the v0.11.3 playtest (drop and pick up, and the
+  character manager: UE4SS can't pass a Pal's save parameter struct from Lua), and the cage route is still being
+  tested. A Blueprint function here can build the save parameter itself, call `CreateIndividual` with a real callback
+  and put the Pal in the party or the Palbox; so can the C++ connector.
 - **Wall look:** the red grid is the accepted look. A custom material can go here if that changes.
