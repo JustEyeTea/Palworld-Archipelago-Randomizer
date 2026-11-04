@@ -22,6 +22,16 @@ local MAIL = require("mailbox")
 
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+-- For errors caught every update: the key drops numbers and addresses (an error naming an object's address would
+-- otherwise log anew on each update, three lines a second), and each kind logs at most 20 different errors.
+local errKinds = {}
+local function onceErr(kind, err, msg)
+    local key = kind .. tostring(err):gsub("0x%x+", ""):gsub("%d+", "#")
+    if reported[key] then return end
+    errKinds[kind] = (errKinds[kind] or 0) + 1
+    if errKinds[kind] > 20 then return end
+    once(key, msg .. (errKinds[kind] == 20 and " (further errors of this kind are not logged)" or ""))
+end
 local function safe(fn, ...)
     local ok, a, b = pcall(fn, ...)
     if ok then return a, b end
@@ -46,11 +56,15 @@ if type(AP_Connect) ~= "function" then
     return
 end
 local cfg = readConfig()
+-- The performance probe (perf_log=1; perf.lua). Installed before any hook is registered, so it counts them all.
+local P = require("perf")
+P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
+                 mailOpen = function() return MAIL.viewOpen() end })
 local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
     for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-                         "test_tools" }) do
+                         "test_tools", "perf_log", "perf_no_bp_hooks" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -59,6 +73,9 @@ end
 -- tech id <-> shop slot
 local SLOT_TECH = {}
 for tech, s in pairs(D.shop) do SLOT_TECH[s.loc] = tech end
+-- Bumped whenever what syncTechs compares against changes (the techs items unlocked, or which techs are the shop's),
+-- so it can skip the comparison while neither that nor the game's list has changed.
+local techsVersion = 0
 
 -- Techs a seed leaves as normal research (slot data research_techs, e.g. décor with tech_checks no_decor): they leave
 -- D.shop for D.research, so nothing locks, labels or sends them. Set again on every connection.
@@ -66,6 +83,7 @@ D.research = {}
 local function setResearch(list)
     for tech, s in pairs(D.research) do D.shop[tech], SLOT_TECH[s.loc] = s, tech end
     D.research = {}
+    techsVersion = techsVersion + 1
     for tech in (list or ""):gmatch("[^,]+") do
         local s = D.shop[tech]
         if s then D.research[tech], D.shop[tech], SLOT_TECH[s.loc] = s, nil, nil end
@@ -114,21 +132,68 @@ local function loadSave()
     local kinds, items = MAIL.count()
     log("save " .. path .. ": items applied up to index " .. ap.given .. "; mailbox " .. items .. " item(s) of " .. kinds .. " kind(s)")
 end
-local function writeSave()
+-- Written only when its text changed: it was rewritten every 7th update (2.1 s) even when nothing had changed (an
+-- estimated 0.2-2 ms each time for creating, writing and closing the file; more with antivirus; unmeasured). The text
+-- is compared, not ap.given alone: mail that arrives (MAIL.add) is saved only by this write.
+local lastSave = { path = nil, text = nil }
+local function writeSave(always)
     local path = saveFile()
-    local f = path and io.open(path, "w")
-    if not f then return end
-    f:write("given=" .. ap.given .. "\n")
-    f:write(MAIL.serialize())
-    f:close()
+    if not path then return end
+    local text = "given=" .. ap.given .. "\n" .. MAIL.serialize()
+    if not always and path == lastSave.path and text == lastSave.text then return end
+    P.start("save")
+    local f = io.open(path, "w")
+    if f then
+        f:write(text)
+        f:close()
+        lastSave.path, lastSave.text = path, text
+        P.count("save")
+    end
+    P.stop("save")
 end
 
 ------------------------------------------------------------------------------------------------------------------------
 -- The game side.
-local function playerState()
+local function findPlayerState()
     local all = FindAllOf("PalPlayerState")
     if not all then return nil end
     for _, ps in ipairs(all) do if ps:IsValid() then return ps end end
+end
+-- The player for this update. Each FindAllOf walks the whole object array (UE4SS has no class index; an estimated
+-- 2-15 ms per walk, unmeasured), and 6dd356e made one to four for the same player in one update (menu, mailbox, walls,
+-- every 7th update). Now: one controller walk per update, and one player-state walk the first time something asks.
+-- The choice is the one each lookup made before: the first live, non-default controller (FindFirstOf skips the class
+-- default object; FindAllOf does not, hence the name test, as mailbox.lua's world key did), the first valid state.
+-- It lives for one update only (frame is cleared after it), so nothing kept goes stale across a world change.
+local frame = nil
+local function liveKey(pc)
+    if not pc:IsValid() then return nil end
+    local okn, n = pcall(function() return pc:GetFullName() end)
+    if okn and tostring(n):find("Default__", 1, true) then return nil end
+    return tostring(pc:GetAddress())
+end
+local function playerContext()
+    local ctx = {}
+    for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
+        local ok, key = pcall(liveKey, pc)
+        if ok and key then ctx.pc, ctx.worldKey = pc, key; break end
+    end
+    if ctx.pc then
+        local ok, pawn = pcall(function() return ctx.pc:K2_GetPawn() end)
+        ctx.hasPawn = ok and pawn ~= nil              -- menu.lua's old in-world test (UE4SS hands back an object, valid or not)
+        local okv, valid = pcall(function() return pawn:IsValid() end)
+        ctx.pawn = ok and okv and valid and pawn or nil
+    end
+    local looked, ps = false, nil
+    ctx.playerState = function()
+        if not looked then looked, ps = true, findPlayerState() end
+        return ps
+    end
+    return ctx
+end
+local function playerState()
+    if frame then return frame.playerState() end
+    return findPlayerState()
 end
 
 local function arrayNames(arr)
@@ -139,12 +204,24 @@ end
 
 -- The techs items have unlocked, and nothing else from the shop. Level-1 techs and anything outside the shop are left
 -- alone. Runs only once the connection is ready, so playing offline never relocks anything.
+-- The whole list was read and compared every 7th update (estimated 0.3-1.2 ms, unmeasured). It is skipped while the
+-- game's list has the same length and techsVersion is unchanged since a comparison that changed nothing: the game adds
+-- techs to the list, so a new one changes its length. Every 15th poll (about 30 s) compares in full regardless.
+local techsSeen, techPolls = nil, 0
 local function syncTechs(ps)
     local td = ps:GetTechnologyData()
     if not td or not td:IsValid() then return end   -- still loading into the world
     local arr = td.UnlockedTechnologyNameArray
+    techPolls = techPolls + 1
+    local okNum, num = pcall(function() return arr:GetArrayNum() end)
+    if not okNum then num = nil end
+    if num and techsSeen and techsSeen.version == techsVersion and techsSeen.num == num and techPolls % 15 ~= 0 then
+        return false
+    end
+    techsSeen = nil
     local okNames, names = pcall(arrayNames, arr)
     if not okNames then return end                    -- not readable this moment (seen as the menu first opens)
+    P.count("techs", #names)
     local keep, have, changed = {}, {}, false
     for _, n in ipairs(names) do
         have[n] = true
@@ -166,6 +243,8 @@ local function syncTechs(ps)
         arr:Empty()
         for i, n in ipairs(keep) do arr[i] = FName(n) end
         safe(function() td:OnRep_UnlockedTechnologyNameArray() end)
+    elseif num then
+        techsSeen = { version = techsVersion, num = num }
     end
     return changed
 end
@@ -277,8 +356,10 @@ end
 -- Blueprint hooks, which crashed kits 5 and 6).
 -- Textures the cards use are kept alive in the game instance's ReferencedObjects for the whole session: otherwise
 -- nothing references them once the menu rebuilds its cards, the engine frees them, and the cards go blank grey.
+local keptBy = nil         -- the game instance lives all session (skill: GameInstance-owned objects); checked on use
 local function keep(obj)
-    local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
+    if not (keptBy and keptBy:IsValid()) then keptBy = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance") end
+    local gi = keptBy
     local ok, err = pcall(function()
         local arr = gi.ReferencedObjects
         arr[arr:GetArrayNum() + 1] = obj
@@ -349,11 +430,42 @@ local function readCategory(card, tech)
     if type(text) == "string" and text ~= "" then categories[STRUCTURES[tech] and "structure" or "item"] = text end
 end
 
+-- A card the mod labelled is labelled again only when something says it needs it. 6dd356e set every card's texts,
+-- icon and click state on every update (about 11 UE4SS calls a card, an estimated 1-3 ms an update with the menu's
+-- 30-80 cards, unmeasured). Now a card is skipped when its tech and what it should show are as last applied AND the
+-- card itself still shows it: its name text, its icon and its click state are read back (three cheap reads), which
+-- catches the game setting a pooled card up again. Anything that can't be read back counts as changed. Every 10th
+-- pass (3 s) relabels every card anyway, as a safety net for anything those reads miss.
+local labelled = {}           -- card address -> { tech, sig, name, tex address, clickable } as last applied
+local readBack = {}           -- which read-backs worked (logged once each, for the playtest)
+local function noteRead(what, ok)
+    if readBack[what] == nil then
+        readBack[what] = ok
+        log("cards: reading back the " .. what .. (ok and " works" or " does not work (those cards are relabelled every update)"))
+    end
+end
+local function stillShows(card, seen)
+    local okt, text = pcall(function() return card.RichText_TechnologyName_Lock:GetText():ToString() end)
+    noteRead("name", okt)
+    if not okt or text ~= seen.name then return false end
+    if seen.tex then
+        local oki, res = pcall(function() return tostring(card.Image_Icon.Brush.ResourceObject:GetAddress()) end)
+        noteRead("icon", oki)
+        if not oki or res ~= seen.tex then return false end
+    end
+    local okc, on = pcall(function() return card.WBP_PalInvisibleButton:IsInteractionEnabled() end)
+    noteRead("click state", okc)
+    return okc and on == seen.clickable
+end
+
 -- Card header: one of your techs looks like ordinary research (its own category, before and after buying); your
 -- other items say "Received" once bought, other players' items "Sent".
-local function relabel(card)
+local function relabel(card, key, full)
     local tech = card.BindedTechnologyName:ToString()
-    if D.starters[tech] then readCategory(card, tech) end
+    if D.starters[tech] and (full or not labelled[key] or labelled[key].tech ~= tech) then
+        readCategory(card, tech)
+        labelled[key] = { tech = tech }
+    end
     if not shopCard(tech) then return end
     local sent, mine = bought(tech), ownTech(tech)
     local r = ap.scouted[D.shop[tech].loc]
@@ -361,34 +473,55 @@ local function relabel(card)
     local category = mine and categories[STRUCTURES[mine] and "structure" or "item"]
         or (sent and (own and "Received" or "Sent") or "Archipelago")
     local name = ((sent and not own) and "Sent: " or "") .. rewardText(tech)
+    local clickable = not sent or mine ~= nil
+    local it = own and D.items[r.id]
+    local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
+    local tex = mine and techIcon(mine) or icon(kind, card)
+    local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
+    local sig = name .. "\0" .. category .. "\0" .. tostring(clickable) .. "\0" .. tostring(texAddr)
+    local seen = labelled[key]
+    if not full and seen and seen.tech == tech and seen.sig == sig and stillShows(card, seen) then
+        P.count("cardsSkipped")
+        return
+    end
+    P.count("cards")
     -- A bought card does nothing when clicked (the game is told it cannot be researched). One showing your own tech
     -- stays interactive so its tooltip still works; the others are switched off outright.
-    safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(not sent or mine ~= nil) end)
+    safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(clickable) end)
     local text = FText(name)
     safe(function() card.RichText_TechnologyName_Lock:SetText(text) end)
     safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
     safe(function() card.BP_PalTextBlock_Category:SetText(FText(category)) end)
-    local it = own and D.items[r.id]
-    local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
-    local tex = mine and techIcon(mine) or icon(kind, card)
     if tex then safe(function() card.Image_Icon:SetBrushFromTexture(tex, false) end) end
+    labelled[key] = { tech = tech, sig = sig, name = name, tex = texAddr, clickable = clickable }
 end
 
-local function refreshCards()
+local cardPasses = 0
+local lastCards = nil         -- this update's cards (the Ctrl+F9 old-load replay relabels them again)
+local function refreshCards(full)
     local cards = FindAllOf("WBP_MainMenu_Technology_Content_C")
-    if not cards then return end
+    lastCards = cards
+    if not cards then labelled = {}; return end
+    cardPasses = cardPasses + 1
+    full = full or cardPasses % 10 == 0
+    local current = {}
     for _, card in ipairs(cards) do
         if card:IsValid() then
-            local ok, err = pcall(relabel, card)
+            local key = safe(function() return tostring(card:GetAddress()) end) or card
+            current[#current + 1] = key
+            local ok, err = pcall(relabel, card, key, full)
             if not ok then once("relabel", "relabel error: " .. tostring(err)) end
         end
     end
+    local kept = {}           -- cards gone are forgotten
+    for _, key in ipairs(current) do kept[key] = labelled[key] end
+    labelled = kept
 end
 
 local function refreshTree()
     local tree = FindFirstOf("WBP_MainMenu_Technology_00_C")
     if tree and tree:IsValid() then safe(function() tree:UpdateAllTechnologyButton() end) end
-    refreshCards()
+    refreshCards(true)
 end
 
 local CONTENT = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content.WBP_MainMenu_Technology_Content_C"
@@ -408,6 +541,7 @@ end
 local lazyHooks = {
     -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
     { class = CONTENT, fn = CONTENT .. ":IsUnlocked", cb = function(self, out)
+        if not ap.shown then return end        -- no shop card yet (shopCard is false for all): the game's answer
         local tech = self:get().BindedTechnologyName:ToString()
         if not shopCard(tech) then return end
         pcall(function() out:set(bought(tech)) end)
@@ -536,16 +670,22 @@ local function techArg(...)
         end
     end
 end
+-- The tech menu asks this (and the next hook) about 25 times for each card it builds or refreshes, and twice for all
+-- 588 techs on a filter (hooks review, 2026-11-04). The early returns give exactly what the full check gives in that
+-- case (nothing is a shop card before ap.shown; the next hook answers only for the hovered card), and the checks are
+-- module-level functions, so no closure is made per call.
+local function unlockableCheck(self, ...)
+    local tech = techArg(...)
+    if not tech or not shopCard(tech) then return nil end
+    local r = slotUnlockable(self:get(), tech)
+    if r ~= nil and not reported.unlockable then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
+    if tech == hoveredTech and not reported["ask1" .. tech] then once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r)) end
+    return r
+end
 local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,
     function(self, ...)
-        local ok, v = pcall(function(...)
-            local tech = techArg(...)
-            if not tech or not shopCard(tech) then return nil end
-            local r = slotUnlockable(self:get(), tech)
-            if r ~= nil then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
-            if tech == hoveredTech then once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r)) end
-            return r
-        end, ...)
+        if not ap.shown then return nil end
+        local ok, v = pcall(unlockableCheck, self, ...)
         if not ok then once("unlockableErr", "research check error: " .. tostring(v)); return nil end
         return v
     end)
@@ -554,15 +694,17 @@ log(oku and "hooked research checks" or ("could not hook research checks: " .. t
 -- The click also asks whether the tech is already researched, and stops if it is. For an unbought slot whose tech you
 -- own, that one question is answered "not yet" while the pointer is on its card; everywhere else (crafting, building)
 -- the game's answer stands.
+local function researchedCheck(...)
+    local tech = techArg(...)
+    if not tech or tech ~= hoveredTech or not shopCard(tech) then return nil end
+    if bought(tech) or not ap.techs[tech] then return nil end
+    once("ask2" .. tech, "click check on " .. tech .. ": already researched -> answered not yet")
+    return false
+end
 local okr, errr = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology", function() end,
     function(self, ...)
-        local ok, v = pcall(function(...)
-            local tech = techArg(...)
-            if not tech or tech ~= hoveredTech or not shopCard(tech) then return nil end
-            if bought(tech) or not ap.techs[tech] then return nil end
-            once("ask2" .. tech, "click check on " .. tech .. ": already researched -> answered not yet")
-            return false
-        end, ...)
+        if hoveredTech == nil then return nil end      -- answers only for the card under the pointer
+        local ok, v = pcall(researchedCheck, ...)
         if not ok then once("researchedErr", "researched check error: " .. tostring(v)); return nil end
         return v
     end)
@@ -578,6 +720,9 @@ local death = { on = false, wasDead = false, incoming = nil, caused = nil }
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
 local SETTLE = 17
+-- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
+-- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
+local areaLocks = false
 
 -- Archipelago events (see cppmod/APConnector/src/ap_bridge.hpp for the line format).
 local function split(line)
@@ -591,6 +736,7 @@ local function receive(f)
     local name, from = f[7], f[8]
     if ap.items[index] == id then return end
     ap.items[index] = id
+    techsVersion = techsVersion + 1
     local it = D.items[id]
     if not it then log("unknown item " .. id .. " (" .. tostring(name) .. ")"); return end
     if it.kind == "tech" then
@@ -613,6 +759,7 @@ local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
     MAIL.reset()
+    techsVersion = techsVersion + 1
     hints.known, hints.shown, hints.offer = {}, {}, nil
     techScan.sent = false
     log("a different seed or slot: progress of the last one forgotten")
@@ -640,6 +787,8 @@ local function onEvent(line)
             AP_Scout(table.concat(locs, ","))
             ap.sent = {}
             if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
+            local locks = AP_SlotData("options.area_locks")
+            areaLocks = locks == "1" or locks == "true"
             local dl = AP_SlotData("options.death_link")
             death.on = (dl == "1" or dl == "true") and AP_SetTags ~= nil
             if death.on then AP_SetTags("AP,DeathLink"); log("Death Link on") end
@@ -822,17 +971,23 @@ local function sendRemovedSlots()
     end
 end
 
-local function update()
+local function update(ctx)
     tick = tick + 1
+    P.start("poll")
     for line in AP_Poll():gmatch("[^\n]+") do
         local ok, err = pcall(onEvent, line)
         if not ok then log("event error: " .. tostring(err) .. " in " .. line) end
     end
+    P.stop("poll")
     registerLazyHooks()
-    local okm, errm = pcall(MENU.update)
-    if not okm then once("menu" .. tostring(errm), "menu error: " .. tostring(errm)) end
-    local okx, errx = pcall(MAIL.update)
-    if not okx then once("mail" .. tostring(errx), "mailbox error: " .. tostring(errx)) end
+    P.start("menu")
+    local okm, errm = pcall(MENU.update, ctx)
+    P.stop("menu")
+    if not okm then onceErr("menu", errm, "menu error: " .. tostring(errm)) end
+    P.start("mail")
+    local okx, errx = pcall(MAIL.update, ctx)
+    P.stop("mail")
+    if not okx then onceErr("mail", errx, "mailbox error: " .. tostring(errx)) end
     -- The first batch of items arrives just after the connection; wait a moment before locking anything.
     if ap.status == "connected" and not ap.ready and tick - ap.connectedTick >= 5 then
         ap.ready = true
@@ -854,10 +1009,14 @@ local function update()
             end
         end)
     end
+    P.start("cards")
     refreshCards()
+    P.stop("cards")
     if not techScan.report and techScan.tries < 40 and tick % 7 == 1 then
+        P.start("scan")
         local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
         if td and safe(function() return td:IsValid() end) then scanTechs(td) end
+        P.stop("scan")
     end
     if ap.ready and techScan.report and not techScan.sent then sendRemovedSlots() end
     -- Area locks: walls on the borders of areas whose pass has not arrived (only in a seed with area locks on). After a
@@ -871,16 +1030,24 @@ local function update()
         end
         worldTicks = worldTicks + 1
         if world and worldTicks >= SETTLE then
-            local on = AP_SlotData("options.area_locks")
-            local ok, err = pcall(WALLS.update, on == "1" or on == "true", ap.passes, pawn)
-            if not ok then once("walls" .. tostring(err), "walls error: " .. tostring(err)) end
-            ok, err = pcall(WALLS.updateMap, on == "1" or on == "true", ap.passes, pawn)
-            if not ok then once("map" .. tostring(err), "map error: " .. tostring(err)) end
+            local on = areaLocks
+            -- Ctrl+F6 (perf test tools) can hold the walls in a test state: nothing is raised, lowered or checked then.
+            local held = P.walls ~= "full"
+            P.start("walls")
+            if not held then
+                local ok, err = pcall(WALLS.update, on, ap.passes, pawn)
+                if not ok then onceErr("walls", err, "walls error: " .. tostring(err)) end
+            end
+            P.stop("walls")
+            P.start("map")
+            local ok, err = pcall(WALLS.updateMap, on, ap.passes, pawn)
+            P.stop("map")
+            if not ok then onceErr("map", err, "map error: " .. tostring(err)) end
             local up, all = WALLS.count()
             if up > 0 and not wallsLogged then wallsLogged = true; log("area locks: raising walls (" .. all .. " border pieces)") end
             -- Walking up to a wall: chat names the pass it needs and where it is if a hint said so, or offers to buy that
             -- hint with the hint key (once per area every 2 minutes).
-            if (on == "1" or on == "true") and tick % 7 == 5 then
+            if on and tick % 7 == 5 then
                 local okn, area = pcall(function()
                     local loc = pawn:K2_GetActorLocation()
                     return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
@@ -890,8 +1057,9 @@ local function update()
                     notify(wallNotice(area))
                 end
             end
-            -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area.
-            if (on == "1" or on == "true") and tick % 7 == 3 then
+            -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area. Not while
+            -- Ctrl+F6 holds the walls without collision or removed: a player could drift across a border then.
+            if on and tick % 7 == 3 and not held then
                 local okl, where = pcall(function()
                     local loc = pawn:K2_GetActorLocation()
                     return WALLS.lockedAround(loc.X, loc.Y, ap.passes)
@@ -909,22 +1077,76 @@ local function update()
             end
         end
     end
-    if tick % 7 == 0 and ap.ready then
+    -- The work of every 7th update, in two phases so no one frame carries all of it (6dd356e did it all in one: an
+    -- estimated 2-12 ms, unmeasured): the records on one update, the techs, items and Death Link two updates later.
+    if tick % 7 == 2 and ap.ready then
         local ps = playerState()
         if ps then
-            if syncTechs(ps) then refreshTree() end
+            P.start("e7")
+            P.start("techs")
+            local changed = syncTechs(ps)
+            P.stop("techs")
+            if changed then refreshTree() end
             applyItems(ps)
-            pollRecords(ps)
             local okdl, errdl = pcall(deathLink, ps)
-            if not okdl then once("death" .. tostring(errdl), "death link error: " .. tostring(errdl)) end
+            if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
+            P.stop("e7")
+        end
+    elseif tick % 7 == 0 and ap.ready then
+        local ps = playerState()
+        if ps then
+            P.start("e7")
+            P.start("rec")
+            pollRecords(ps)
+            P.stop("rec")
+            P.stop("e7")
+            P.records(ps)
         end
     end
 end
 
+-- Ctrl+F9 (perf test tools): after each update, the per-update load 6dd356e had and this build no longer has, so one
+-- session can compare old and new. Results are thrown away; the game sees nothing it did not see in 6dd356e (the cards
+-- are labelled again with the same text). An approximate replay of the cost, not the old code:
+local function oldLoad(ctx)
+    P.start("legacy")
+    FindFirstOf("PalPlayerController")                   -- the menu's own controller lookup
+    if ctx.pawn then FindAllOf("WBP_TitleMenu_C") end    -- the title menu, looked for in a world too
+    if ap.ready and tick % 7 == 0 then FindAllOf("PalPlayerState") end     -- a second player-state walk
+    if MAIL.viewOpen() then                              -- the chest view's own player and window lookups
+        FindFirstOf("PalPlayerController")
+        FindAllOf("PalPlayerState")
+        FindAllOf("WBP_ItemChest_C")
+    end
+    if WALLS.mapShown() then FindFirstOf("PalGameInstance") end
+    AP_SlotData("options.area_locks")
+    WALLS.oldSweep()                                     -- every raised piece checked every update
+    for _, card in ipairs(lastCards or {}) do            -- every card labelled every update
+        if card:IsValid() then
+            local key = safe(function() return tostring(card:GetAddress()) end) or card
+            pcall(relabel, card, key, true)
+        end
+    end
+    if ap.ready and tick % 7 == 2 then writeSave(true) end   -- the save written whether or not it changed
+    P.stop("legacy")
+end
+
 LoopAsync(300, function()
     ExecuteInGameThread(function()
-        local ok, err = pcall(update)
-        if not ok then once("update" .. tostring(err), "update error: " .. tostring(err)) end
+        local okc, ctx = pcall(playerContext)
+        if not okc then onceErr("context", ctx, "player lookup error: " .. tostring(ctx)); ctx = nil end
+        ctx = ctx or { playerState = findPlayerState }
+        frame = ctx
+        P.frameBegin(ctx)
+        local ran = not P.paused                         -- Ctrl+F7 (perf test tools) pauses the whole update
+        if ran then
+            local ok, err = pcall(update, ctx)
+            if not ok then onceErr("update", err, "update error: " .. tostring(err)) end
+            if P.legacy then pcall(oldLoad, ctx) end
+            P.world(ctx)
+        end
+        frame = nil
+        P.frameEnd(ran)
     end)
     return false
 end)

@@ -1,5 +1,5 @@
 -- Test tools, only with test_tools=1 in config.txt: probes for features that need the game itself to answer. Every step
--- is logged as a "[test]" line. No probes in this build.
+-- is logged as a "[test]" line. This build's probes are the performance probe's (perf.lua).
 -- What the earlier ones answered, for giving Pals from Lua (all failed; it needs the C++ connector or a LogicMod):
 --  * RequestSpawnMonsterForPlayer: a stubbed cheat, spawns nothing (v0.10.x).
 --  * A1 drop and pick up, A5 CreateIndividual (Ctrl+F9, Ctrl+F8): crashed the game, UE4SS overruns its stack passing a
@@ -10,7 +10,7 @@ local T = {}
 local function log(msg) print("[PalworldAP] [test] " .. msg .. "\n") end
 
 function T.install()
-    log("test tools on: no probes in this build")
+    log("test tools on: the performance probe's hotkeys, with perf_log=1 (perf.lua)")
 end
 
 return T

@@ -1,15 +1,25 @@
 -- Runs the mod's Lua against stand-ins for UE4SS, the game and the APConnector, to catch runtime mistakes before an
 -- in-game test. Not a test of the game itself: only of the mod's own logic and wiring.
 --     tools/lua_harness.sh      (copies the mod to a temp folder and runs this there)
-local MOD = assert(arg[1], "usage: lua harness.lua <mod folder copy>")
+local MOD = assert(arg[1], "usage: lua harness.lua <mod folder copy> [plain|perf]")
+-- perf: config.txt has perf_log=1 and test_tools=1 (tools/lua_harness.sh): every test runs with the probe on, and the
+-- probe's own tests run at the end.
+local PERF = arg[2] == "perf"
 local failures = 0
 local function expect(cond, what)
     if cond then print("  ok   " .. what) else failures = failures + 1; print("  FAIL " .. what) end
 end
 
--- Windows paths -> this machine's.
+-- Windows paths -> this machine's. Writes of the mod's save file are counted.
 local realOpen = io.open
-io.open = function(p, m) return realOpen((p:gsub("\\", "/")), m) end
+saveWrites = 0
+io.open = function(p, m)
+    if (m or ""):find("w", 1, true) and p:find("save%-[^\\/]*%.txt$") then saveWrites = saveWrites + 1 end
+    return realOpen((p:gsub("\\", "/")), m)
+end
+-- The probe's clock (os.clock) and the engine's frame counter move with the updates: 0.3 s and 20 frames each.
+local clock, frameCount = 0, 0
+if PERF then os.clock = function() return clock end end
 package.path = MOD .. "/Scripts/?.lua;" .. package.path
 
 -- Unreal values.
@@ -20,12 +30,13 @@ local function TArray(list)
     local a = { list = list }
     function a:ForEach(fn) for i, v in ipairs(self.list) do fn(i, { get = function() return v end }) end end
     function a:Empty() self.list = {} end
+    function a:GetArrayNum() return #self.list end
     return setmetatable(a, { __newindex = function(t, i, v) rawget(t, "list")[i] = v end })
 end
 local function FastArray(pairsList)
     local items = {}
     for _, kv in ipairs(pairsList) do items[#items + 1] = { Key = FNameOf(kv[1]), Value = kv[2] } end
-    return { Items = TArray(items) }
+    return { Items = TArray(items), ArrayReplicationKey = 1 }
 end
 
 -- The player.
@@ -66,6 +77,7 @@ local playerController = { IsValid = function() return true end, SelfKillPlayer 
 local ps = {
     IsValid = function() return true end,
     IsPlayerDead = function() return playerDead end,
+    GetAddress = function() return 2048 end,
     GetTechnologyData = function() return td end,
     GetInventoryData = function() return inv end,
     GetRecordData = function() return record end,
@@ -75,6 +87,8 @@ local ftActor = { IsValid = function() return true end, FastTravelPointID = FNam
                   LevelObjectInstanceId = { A = 0x6E03F846, B = 0x4BAD9E45, C = 0x8B843AA3, D = 0x0BE1CC8F } }
 local announced = {}
 local util = { IsValid = function() return true end, SendSystemAnnounce = function(_, _, text) announced[#announced + 1] = text end }
+util.GetLocalPlayerController = function() return playerController end
+util.GetLocalPlayerState = function() return ps end
 
 -- UE4SS.
 local hooks, postHooks, loop, extraLoops = {}, {}, nil, {}
@@ -86,13 +100,17 @@ local function Card(tech)
     end
     c.RichText_TechnologyName_Lock, c.RichText_TechnologyName_Unlock = text("name"), text("name")
     c.BP_PalTextBlock_Category = text("category")
-    c.Image_Icon = { SetBrushFromTexture = function(_, t) c.shown.icon = t.path end }
-    c.WBP_PalInvisibleButton = { SetIsInteractionEnabled = function(_, on) c.shown.clickable = on end }
+    c.Image_Icon = { Brush = {}, SetBrushFromTexture = function(self, t) c.shown.icon = t.path; self.Brush.ResourceObject = t end }
+    c.WBP_PalInvisibleButton = { SetIsInteractionEnabled = function(_, on) c.shown.clickable = on end,
+                                 IsInteractionEnabled = function() return c.shown.clickable ~= false end }
+    local setText = c.RichText_TechnologyName_Lock.SetText
+    c.RichText_TechnologyName_Lock.SetText = function(self, t) cardSets = cardSets + 1; return setText(self, t) end
     return c
 end
+cardSets = 0                                                 -- name texts the mod set on cards
 local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade_01"), Card("Workbench") }
 cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
-local function Texture(path) return { IsValid = function() return true end, path = path } end
+local function Texture(path) return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end } end
 local kept = {}
 local gameInstance = { IsValid = function() return true end, ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
                                                          { __newindex = function(_, i, v) kept[i] = v end }) }
@@ -124,7 +142,9 @@ local mapBody = { IsValid = function() return true end, GetAddress = function() 
                                         GetAddress = function() return 8 end,                               -- opens it
                                         GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
                                     SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
+lookups = {}                                                 -- class -> FindAllOf / FindFirstOf calls
 FindAllOf = function(class)
+    lookups[class] = (lookups[class] or 0) + 1
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     if class == "WBP_TitleMenu_C" then return titleOpen and { titleMenu } or {} end
     if class == "WBP_Title_MenuButton_C" then return titleOpen and { gameTitleButton } or {} end
@@ -147,6 +167,7 @@ FindAllOf = function(class)
     return nil
 end
 FindFirstOf = function(class)
+    lookups["first:" .. class] = (lookups["first:" .. class] or 0) + 1
     if class == "PalGameInstance" then return gameInstance end
     if class == "PalMasterDataTables" then return { technologyDataSet = { recipeUnlockDataTable = techTable } } end
     if class == "PalPlayerController" then return playerController end
@@ -164,6 +185,11 @@ local renderLib = { IsValid = function() return true end,
                     BeginDrawCanvasToRenderTarget = function(_, _, rt, canvasOut, contextOut)
                         canvasOut.Canvas = canvas; contextOut.RenderTarget = rt end,
                     EndDrawCanvasToRenderTarget = function() end }
+systemLib = { IsValid = function() return true end, GetFrameCount = function() return frameCount end,
+              GetConsoleVariableFloatValue = function(_, name) return name == "r.ShadowQuality" and 3 or 1 end }
+-- UE4SS: NotifyOnNewObject (docs/lua-api: a full class path and a callback given the new object).
+notifies = {}
+NotifyOnNewObject = function(path, cb) notifies[path] = cb end
 local wallsUp = {}
 lastGone = nil
 mapArt = 40                                                  -- the map picture the game shows (its fingerprint)
@@ -173,10 +199,12 @@ local gameplay = { IsValid = function() return true end,
                        local a = { IsValid = function(self) return not self.gone end, t = t }
                        function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
                        function a:SetActorEnableCollision(on) self.collision = on end
+                       function a:SetActorHiddenInGame(on) self.hidden = on end
                        function a:K2_SetActorLocation(loc) self.sankTo = loc.Z end
                        return a
                    end,
                    FinishSpawningActor = function(_, a) wallsUp[a] = true end,
+                   GetWorldDeltaSeconds = function() return 0.016 end,
                    SpawnObject = function() return Widget() end }
 local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
@@ -195,6 +223,7 @@ StaticFindObject = function(path)
     if path == "/Script/UMG.SizeBox" then return Widget() end
     if path:find("KismetMaterialLibrary") then return materialLib end
     if path:find("KismetRenderingLibrary") then return renderLib end
+    if path:find("KismetSystemLibrary") then return systemLib end
     if path:find("^/Game/") then return Texture(path) end
     return nil
 end
@@ -304,7 +333,10 @@ AP_Bounce = function(json, tags) bounces[#bounces + 1] = { json = json, tags = t
 AP_Say = function(text) said[#said + 1] = text end
 AP_HintPoints = function() return hintPoints end
 Key = setmetatable({}, { __index = function(_, k) return "key:" .. k end })
-RegisterKeyBind = function(key, a, b) keyBinds[key] = b or a end
+ModifierKey = { CONTROL = "ctrl" }
+RegisterKeyBind = function(key, a, b)            -- (key, fn) or (key, { modifiers }, fn), as UE4SS takes them
+    if type(a) == "table" then keyBinds[a[1] .. "+" .. key] = b else keyBinds[key] = a end
+end
 AP_GreyscalePNG = function(_, out) local f = io.open(out, "w"); f:write("grey"); f:close(); return "" end
 local composeJob, composeState, composeJobs = nil, "", {}
 AP_ComposeMap = function(colour, labels, locked, out)
@@ -325,6 +357,7 @@ end
 local function push(...) events[#events + 1] = table.concat({ ... }, "\t") end
 local function run(ticks)
     for _ = 1, ticks do
+        clock, frameCount = clock + 0.3, frameCount + 20
         loop()
         for i = #extraLoops, 1, -1 do                     -- other loops (the walls sinking) end by returning true
             for _ = 1, 10 do if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end end
@@ -339,8 +372,18 @@ local function logged(pattern) for _, l in ipairs(printed) do if l:find(pattern)
 local itemId = {}
 for id, it in pairs(D.items) do itemId[it.name] = id end
 
+local harnessGlobals = { FindAllOf = FindAllOf, FindFirstOf = FindFirstOf, RegisterHook = RegisterHook }
 print("loading the mod")
 dofile(MOD .. "/Scripts/main.lua")
+if PERF then
+    expect(FindAllOf ~= harnessGlobals.FindAllOf and RegisterHook ~= harnessGlobals.RegisterHook, "perf_log=1: the probe counts lookups and hooks")
+else
+    expect(FindAllOf == harnessGlobals.FindAllOf and FindFirstOf == harnessGlobals.FindFirstOf
+           and RegisterHook == harnessGlobals.RegisterHook, "without perf_log: nothing is wrapped")
+    local ctrl = false
+    for k in pairs(keyBinds) do if tostring(k):find("^ctrl%+") then ctrl = true end end
+    expect(not ctrl and not logged("%[perf%]"), "and no test keys are bound, no probe lines")
+end
 expect(loop ~= nil, "update loop registered")
 expect(hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"] ~= nil, "research hook registered")
 
@@ -426,6 +469,18 @@ cards[#cards + 1] = passCard
 run(1)
 expect(passCard.shown.icon == "area-pass", "your Area Pass shows the ticket icon: " .. tostring(passCard.shown.icon))
 
+print("cards are labelled again only when needed")
+local sets = cardSets
+run(9)
+expect(cardSets - sets <= 4, "a quiet menu: no card relabelled on every update (one full pass in 10): "
+       .. (cardSets - sets) .. " name texts set in 9 updates")
+cards[1].shown.name = "Repair Bench"                         -- the game set the pooled card up again
+cards[3].Image_Icon:SetBrushFromTexture(Texture("T_icon_vanilla"))
+run(1)
+expect(cards[1].shown.name == "Friend's Map Width (ChecksFinder)" and cards[3].shown.icon == "filler",
+       "a card the game set up again is labelled again on the next update: " .. tostring(cards[1].shown.name)
+       .. ", " .. tostring(cards[3].shown.icon))
+
 print("tooltips")
 local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"
 local setupHook = hooks[INFO .. ":Setup by Technology Name"]
@@ -492,6 +547,9 @@ end
 local open = { ["Open sea"] = true, [WD.start] = true }
 run(40)
 expect(wallCount() == expected(open) and wallCount() > 100, "walls raised on every locked border: " .. wallCount())
+next(wallsUp):K2_DestroyActor()                              -- the game removed a piece
+run(15)
+expect(wallCount() == expected(open), "a piece the game removed is noticed (a share checked each update) and raised again")
 local WALLS = dofile(MOD .. "/Scripts/walls.lua")
 expect(WALLS.areaAt(-304485, 240071) == "Bamboo Groves" and WALLS.areaAt(-342035, 236885) == WD.start,
        "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: " .. tostring(WALLS.areaAt(-304485, 240071)))
@@ -672,6 +730,39 @@ expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent:
 local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
 expect(f and f:read("*a"):match("given=7"), "save file records items applied")
 
+print("the save file is written only when it changes")
+local writes = saveWrites
+run(14)
+expect(saveWrites == writes, "nothing changed: not written again: " .. (saveWrites - writes) .. " write(s)")
+local MB = require("mailbox")
+MB.add("Stone", 1)                                           -- mail alone changes (no item index moves)
+run(7)
+expect(saveWrites == writes + 1 and io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("Stone:1", 1, true),
+       "mail that arrives is still saved")
+table.remove(MB.queue)
+run(7)
+
+print("the tech list is compared only when it may have changed")
+local reads, forEachTechs = 0, unlocked.ForEach
+unlocked.ForEach = function(self, fn) reads = reads + 1; return forEachTechs(self, fn) end
+run(14)
+expect(reads <= 1, "nothing changed: the list is not read on every poll: " .. reads .. " read(s) in 2 polls")
+unlocked.list[#unlocked.list + 1] = FNameOf("PalBox")      -- the game unlocks a shop tech by itself
+run(7)
+local relocked = true
+for _, n in ipairs(unlocked.list) do if n:ToString() == "PalBox" then relocked = false end end
+expect(relocked, "a tech the game added is still locked again at the next poll")
+unlocked.ForEach = forEachTechs
+
+print("an error every update is logged once")
+local mailUpdate, boom = MB.update, 0
+MB.update = function() boom = boom + 1; error(string.format("boom at 0x%x (try %d)", 4096 + boom, boom)) end
+run(5)
+MB.update = mailUpdate
+local boomLines = 0
+for _, l in ipairs(printed) do if l:find("mailbox error: ", 1, true) and l:find("boom at", 1, true) then boomLines = boomLines + 1 end end
+expect(boom == 5 and boomLines == 1, "an error naming a different address each time: one line, not " .. boom .. ": " .. boomLines)
+
 local UI = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
 local CLICK = UI .. "WBP_Title_MenuButton.WBP_Title_MenuButton_C:BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
 local ESC_CLICK = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Button_S.WBP_MenuESC_Button_S_C:BndEvt__WBP_MenuESC_Button_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
@@ -760,7 +851,11 @@ local mapObjects = { RequestSpawnMapObjectByPlayer_Server = function(_, id, at)
     local slots = {}
     for i = 1, chestTemplates[1].SlotNum do slots[i] = Slot(i - 1) end
     local c = { Num = function() return #slots end, Get = function(_, i) return slots[i + 1] end, slots = slots,
-                Permission = Permission(), OnRep_Permission = function() end }
+                Permission = Permission(), OnRep_Permission = function() end,
+                GetLastNotEmptyIndex = function()
+                    for i = #slots, 1, -1 do if not slots[i]:IsEmpty() then return i - 1 end end
+                    return -1
+                end }
     local model = { DeteriorationDamage = 0.15, DamagableType = 0 }
     chests[#chests + 1] = { IsValid = function() return true end, at = at, c = c, model = model,
         GetTransform = function(self) return { Translation = self.at } end,
@@ -825,6 +920,17 @@ expect(chests[1].c.Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_
 run(1)
 expect(hudWindows["chest1"].WBP_IngameMenu_Chest.Text_TargetContainerName.text == "Archipelago Mailbox"
        and logged("heading was 'Advanced Chest'"), "the window is headed Archipelago Mailbox")
+local l0 = { ps = lookups.PalPlayerState or 0, pc = lookups.PalPlayerController or 0,
+             ffo = lookups["first:PalPlayerController"] or 0, chest = lookups.WBP_ItemChest_C or 0,
+             title = lookups.WBP_TitleMenu_C or 0 }
+run(10)
+expect((lookups.PalPlayerController or 0) - l0.pc == 10 and (lookups.PalPlayerState or 0) - l0.ps <= 10
+       and (lookups["first:PalPlayerController"] or 0) == l0.ffo,
+       "with the chest open: one controller and at most one player-state lookup per update: "
+       .. ((lookups.PalPlayerController or 0) - l0.pc) .. ", " .. ((lookups.PalPlayerState or 0) - l0.ps))
+expect((lookups.WBP_ItemChest_C or 0) == l0.chest, "the chest widget is not looked for while the HUD's id says it is open")
+expect((lookups.WBP_TitleMenu_C or 0) - l0.title <= 1, "in a world the title menu is looked for every 10th update only: "
+       .. ((lookups.WBP_TitleMenu_C or 0) - l0.title))
 slots[1].StackCount = 20                                   -- the player takes 30 Wood
 run(1)
 local bagWood = bagHas.Wood or 0
@@ -839,6 +945,16 @@ expect(table.concat(announced, "|"):find("The mailbox only hands items out: Wood
 push("item", "8", tostring(itemId["Stone Bundle"]), "9", "2", "0", "Stone Bundle", "Friend")   -- arrives meanwhile
 run(8)                                                     -- (bundles are applied every 7th update)
 expect(slots[2].ItemId.StaticId:ToString() == "Stone" and slots[2].StackCount == 50, "what arrives while it is open shows at once")
+-- Gear put into the first empty slot goes back by the game's move, and an item arrives in the same update: it takes
+-- the slot the move just emptied, as 6dd356e's refill over every slot did.
+slots[3].ItemId = { StaticId = FNameOf("Sword"), DynamicId = { LocalIdInCreatedWorld = { A = 9, B = 0, C = 0, D = 0 } } }
+slots[3].StackCount = 1
+MB.add("Wood", 5)
+run(1)
+expect(slots[3].ItemId.StaticId:ToString() == "Wood" and slots[3].StackCount == 5 and slots[4]:IsEmpty(),
+       "an item arriving takes the slot a returned deposit just left: " .. slots[3].ItemId.StaticId:ToString())
+slots[3].ItemId, slots[3].StackCount = { StaticId = FNameOf("None"), DynamicId = slots[3].ItemId.DynamicId }, 0   -- taken out
+run(1)
 movesWork = false                                          -- a move that does nothing: by hand after a few updates
 slots[2].StackCount = 53
 local givenBefore = #given
@@ -995,6 +1111,12 @@ run(1)
 local forgot = false
 for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1, true) then forgot = true end end
 expect(forgot and connectBtn.Test_Content.text == "Archipelago: connected as Other", "a different seed starts afresh")
+-- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
+-- 10 updates, logged, and looked for every update again.
+playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end
+run(10)
+expect(logged("a title menu was found with the player's pawn in a world"), "a title menu seen in a world is logged")
+playerController.K2_GetPawn, playerController.GetAddress = nil, nil
 titleOpen = false
 
 print("the other goals")
@@ -1028,6 +1150,112 @@ local towerList = record.TowerBossDefeatFlag.Items.list
 towerList[#towerList + 1] = { Key = FNameOf("EPalBossType::WorldTreeBoss"), Value = true }
 run(14)
 expect(goals == before + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
+if PERF then
+    print("the performance probe (perf_log=1, test_tools=1)")
+    local function count(pattern)
+        local n = 0
+        for _, l in ipairs(printed) do if l:find(pattern) then n = n + 1 end end
+        return n
+    end
+    expect(logged("%[perf%] on %(perf%-1%)") and logged("%[perf%] probe perf%-1 start cvars r%.DistanceFieldAO=1 .* r%.ShadowQuality=3"),
+           "the probe says it is on, and logs the engine settings")
+    expect(logged("%[perf%] 30s win=30") and logged("fps=66%.7 ft=15%.0 dt=16%.0/16%.0") and logged("| hk=H1:%d+,H2:%d+")
+           and logged("st=world:"), "a line every 30 s, with the engine's frame rate and frame time")
+    expect(logged("hk=H1:%d+,H2:%d+,H3:%d+,H4:%d+,H5:%d+,H6:[1-9]"), "hook callbacks counted (and their answers kept: the hook tests above passed through the counter)")
+    expect(logged("n=cards:%d+/[1-9]"), "cards skipped are counted")
+    expect(logged("%[perf%] getters world=1 pc=ok ps=ok pawn=ok same_pc=1 same_ps=1"), "the game's player getters compared with the mod's lookups")
+    expect(logged("%[perf%] fa poll=1 PalCaptureCount=2/1 "), "record arrays: size and replication key")
+    expect(logged("%[perf%] notify check .*WBP_MenuESC_C=0/0/0") and logged("%(set/findall/fired%) ok"), "the notify sets checked against FindAllOf")
+    local ESC_PATH = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC.WBP_MenuESC_C"
+    expect(notifies[ESC_PATH] ~= nil, "NotifyOnNewObject watches the Esc menu by its full class path")
+    notifies[ESC_PATH](escMenu)
+    run(1)
+    expect(logged("%[perf%] notify WBP_MenuESC_C first fire %(seeded 0 by FindAllOf%)"), "its first fire is logged")
+    notifies[ESC_PATH](Widget({ GetFullName = function() return "WBP_MenuESC_C /Engine/Transient.WBP_MenuESC_C_2" end }))
+    run(100)
+    expect(logged("WBP_MenuESC_C=1/0/2") and logged("MISMATCH"), "an object in the set that FindAllOf does not find is a mismatch")
+
+    keyBinds["ctrl+key:F5"]()
+    expect(logged("%[perf%] mark 1") and logged("%[perf%] mark1 win="), "Ctrl+F5 marks the moment, with the window so far")
+
+    -- Ctrl+F6: the walls' test states. The pawn waits deep inside a locked area: nobody is sent home while the walls
+    -- are held, and the check is back once they are full again.
+    local W3 = dofile(MOD .. "/Scripts/walls.lua")
+    local deep
+    for x = -500000, 300000, 10000 do
+        for y = -400000, 700000, 10000 do
+            if not deep and W3.lockedAround(x, y, {}) then deep = { X = x, Y = y, Z = 0 } end
+        end
+    end
+    -- (wallsUp also holds the pieces of the worlds left earlier, which the game would have removed: counted by state)
+    local WM = require("walls")
+    local full = WM.count()
+    local function inState(hidden, collision)
+        local n = 0
+        for a in pairs(wallsUp) do if (a.hidden == true) == hidden and (a.collision ~= false) == collision then n = n + 1 end end
+        return n
+    end
+    keyBinds["ctrl+key:F6"]()
+    expect(full > 100 and inState(true, true) == full and logged("%[perf%] walls hidden"),
+           "Ctrl+F6 hidden: every raised piece hidden, collision kept: " .. inState(true, true) .. " of " .. full)
+    run(45)
+    expect(logged("%[perf%] ab walls full%->hidden: before fps=66%.7 ft=15%.0 lua=[%d.]+ | after fps=66%.7"), "and the before/after line by itself")
+    keyBinds["ctrl+key:F6"]()
+    expect(inState(false, false) == full and inState(true, true) == 0, "nocoll: shown again, collision off")
+    teleported, pawnAt = nil, deep
+    run(21)
+    expect(deep and teleported == nil, "nobody is sent home while the walls are held")
+    keyBinds["ctrl+key:F6"]()
+    expect(WM.count() == 0 and inState(false, false) == 0 and logged("ab walls hidden%->nocoll interrupted"),
+           "none: every piece removed at once (a switch within 13 s says so)")
+    run(21)
+    expect(WM.count() == 0 and teleported == nil, "and nothing is raised again while held")
+    keyBinds["ctrl+key:F6"]()
+    run(60)
+    expect(WM.count() == full and logged("%[perf%] walls full again: " .. full .. " raised"), "full: every piece raised again by the normal path: " .. WM.count())
+    run(21)
+    expect(teleported ~= nil, "and the send-home check is back")
+    teleported = nil
+
+    keyBinds["ctrl+key:F7"]()
+    push("message", "while paused", "Chat")
+    run(3)
+    expect(logged("update paused") and not logged("AP: while paused"), "Ctrl+F7 pauses the update (events wait)")
+    keyBinds["ctrl+key:F7"]()
+    run(1)
+    expect(logged("AP: while paused"), "and resumes it")
+
+    local isUnlocked = hooks["/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content.WBP_MainMenu_Technology_Content_C:IsUnlocked"]
+    local function cardUnlocked() return isUnlocked({ get = function() return cards[1] end }, { set = function() end }) end
+    local before = cardUnlocked()
+    keyBinds["ctrl+key:F8"]()
+    expect(before == false and cardUnlocked() == nil, "Ctrl+F8: the check hooks answer nothing (the game's answer stands)")
+    req.v = FNameOf("RepairBench"); research(nil, req)
+    expect(req.v:ToString() == "AP_ShopSlot", "but research requests are still rewritten (nothing unlocks for real)")
+    keyBinds["ctrl+key:F8"]()
+    expect(cardUnlocked() == true, "and back to the mod's answer (the slot now bought)")
+
+    local ffo = lookups["first:PalPlayerController"] or 0
+    keyBinds["ctrl+key:F9"]()
+    run(5)
+    keyBinds["ctrl+key:F9"]()
+    expect((lookups["first:PalPlayerController"] or 0) - ffo == 5 and not logged("update error"), "Ctrl+F9 replays the old per-update lookups")
+    run(100)
+    expect(logged("legacy=[%d.]+/"), "and times them")
+
+    -- perf_no_bp_hooks=1 (a restart test): Blueprint hooks are not registered, native ones are.
+    local saved = { RegisterHook = RegisterHook, FindAllOf = FindAllOf, FindFirstOf = FindFirstOf }
+    local registered = {}
+    RegisterHook = function(path) registered[#registered + 1] = path; return 1, 2 end
+    local P2 = dofile(MOD .. "/Scripts/perf.lua")
+    P2.install({ perf_log = "1", perf_no_bp_hooks = "1" }, {})
+    local a, b = RegisterHook("/Game/Pal/Blueprint/X.X_C:Fn", function() end)
+    RegisterHook("/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology", function() end, function() end)
+    expect(#registered == 1 and registered[1]:find("^/Script/") and a == 0 and logged("Blueprint hook skipped %(perf_no_bp_hooks=1%)"),
+           "perf_no_bp_hooks=1 skips the Blueprint hooks only")
+    RegisterHook, FindAllOf, FindFirstOf = saved.RegisterHook, saved.FindAllOf, saved.FindFirstOf
+    expect(count("update error") == 0, "no update errors with the probe on")
+end
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

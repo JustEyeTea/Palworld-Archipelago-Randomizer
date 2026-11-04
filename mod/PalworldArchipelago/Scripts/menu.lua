@@ -402,12 +402,35 @@ local function updateEsc()
     end
 end
 
--- Called from the mod's update loop (game thread).
-function M.update()
-    if not surveyed then
-        local inWorld = false
+-- The title menu is looked for every update at the title, but in a world (the player's pawn there) only every 10th
+-- update: 6dd356e walked the object array for it every update in a world, where it never is (an estimated 2-15 ms a
+-- walk, unmeasured). If one is ever found in a world all the same, the in-world test is wrong for this game: it is
+-- logged and the menu is looked for every update again.
+local titleLooks, titleInWorld = 0, false
+local function titleMenus(ctx, inWorld)
+    titleLooks = titleLooks + 1
+    if ctx and ctx.pawn and not titleInWorld and titleLooks % 10 ~= 0 then return {} end
+    local found = FindAllOf("WBP_TitleMenu_C") or {}
+    if ctx and ctx.pawn and #found > 0 and not titleInWorld then
+        titleInWorld = true
+        log("menu: a title menu was found with the player's pawn in a world; looking for it every update again")
+    end
+    return found
+end
+
+-- Called from the mod's update loop (game thread). ctx: this update's player (main.lua): ctx.pc, the first live
+-- controller, as FindFirstOf("PalPlayerController") found it; ctx.hasPawn, what its K2_GetPawn gave (an object).
+function M.update(ctx)
+    -- In a world: a live controller whose pawn lookup answered (6dd356e's test, now from the shared lookup).
+    local inWorld = false
+    if ctx then
+        inWorld = ctx.pc ~= nil and ctx.hasPawn == true
+    else
         pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
-        local found = #(FindAllOf("WBP_TitleMenu_C") or {}) > 0
+    end
+    local titles = titleMenus(ctx, inWorld)            -- one lookup for both uses below
+    if not surveyed then
+        local found = #titles > 0
         if not inWorld and not added then titleTicks = titleTicks + 1 else titleTicks = 0 end
         if added then
             surveyed = true
@@ -419,8 +442,6 @@ function M.update()
             if not ok then log("menu survey error: " .. tostring(err)) end
         end
     end
-    local inWorld = false
-    pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
     if inWorld and api.mailboxLabel then
         local oke, erre = pcall(updateEsc)
         if not oke then once("esc" .. tostring(erre), "menu: Esc menu error: " .. tostring(erre)) end
@@ -430,7 +451,7 @@ function M.update()
         hookOnce(ESC_CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
     end
     hookOnce(WINDOW_OK, function() local ok, err = pcall(okPressed); if not ok then log("menu OK error: " .. tostring(err)) end end)
-    for _, menu in ipairs(FindAllOf("WBP_TitleMenu_C") or {}) do
+    for _, menu in ipairs(titles) do
         local okb, list = pcall(buttonList, menu)
         if menu:IsValid() and okb and list then
             local key = tostring(menu:GetAddress())

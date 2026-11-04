@@ -10,6 +10,7 @@
 --    it is open appear in it.
 -- config.txt: mailbox=0 gives items straight to the bag as before; mailbox_view=chest skips the LogicMod's window.
 local M = {}
+local P = require("perf")
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -45,7 +46,11 @@ local function find(path)
     o = StaticFindObject(path)
     return o and o:IsValid() and o or nil
 end
+local frame = nil               -- this update's player from main.lua (M.update), or nil outside an update
 local function player()
+    -- In an update, the player main.lua already looked up (the same choice: the first live controller's pawn, the
+    -- first valid player state), instead of two more object-array walks every update while the chest is open.
+    if frame then return frame.pawn, frame.playerState() end
     local pc = FindFirstOf("PalPlayerController")
     local pawn = pc and pc:IsValid() and pc:K2_GetPawn() or nil
     local ps
@@ -384,12 +389,16 @@ local function harden(chest, pawn)
     end)
 end
 
-local function isPlain(slot)          -- no per-item data (gear, eggs and the like have it)
-    local ok, plain = pcall(function()
-        local d = slot:GetItemId().DynamicId.LocalIdInCreatedWorld
-        return d.A == 0 and d.B == 0 and d.C == 0 and d.D == 0
-    end)
-    return ok and plain
+local function plainId(itemId)        -- no per-item data (gear, eggs and the like have it)
+    local d = itemId.DynamicId.LocalIdInCreatedWorld
+    return d.A == 0 and d.B == 0 and d.C == 0 and d.D == 0
+end
+local function getItemId(slot) return slot:GetItemId() end
+local function isPlain(slot)
+    local ok, itemId = pcall(getItemId, slot)
+    if not ok then return false end
+    local okp, plain = pcall(plainId, itemId)
+    return okp and plain
 end
 
 local function put(slot, id, n)
@@ -542,21 +551,35 @@ local function heading()
     once("heading", "mailbox: chest window heading was '" .. tostring(okr and now or "?") .. "'; set to ours")
 end
 
+-- Cheaper than 6dd356e with the same result (estimated, unmeasured: about 2.5 ms an update saved while items wait
+-- behind a full chest, and about a third of the per-slot cost): each slot's item id is read once, not twice, and the
+-- refill for items waiting behind only visits slots that can be empty (those seen empty, those the deposit handling
+-- below touched, and those past the last filled one), instead of all 300 every update.
 local function sweep(pawn)
     local c = container(view.chest)
     local okl, last = pcall(function() return c:GetLastNotEmptyIndex() end)
     last = (okl and type(last) == "number") and last or (c:Num() - 1)
     local count, where, gear = {}, {}, {}
+    local open, index, acted = {}, {}, {}                -- slots that may take an item waiting behind; slot -> index
+    P.count("sweep", last + 1)
     for i = 0, last do
         local slot = c:Get(i)
-        if slot and slot:IsValid() and not slot:IsEmpty() then
-            if isPlain(slot) then
-                local id = slot:GetItemId().StaticId:ToString()
-                count[id] = (count[id] or 0) + slot:GetStackCount()
-                where[id] = where[id] or {}
-                where[id][#where[id] + 1] = slot
+        if slot and slot:IsValid() then
+            if slot:IsEmpty() then
+                open[#open + 1] = i
             else
-                gear[#gear + 1] = { slot = slot, i = i }
+                local okI, itemId = pcall(getItemId, slot)
+                local okP, plain = false, false
+                if okI then okP, plain = pcall(plainId, itemId) end
+                if okP and plain then
+                    local id = itemId.StaticId:ToString()
+                    count[id] = (count[id] or 0) + slot:GetStackCount()
+                    where[id] = where[id] or {}
+                    where[id][#where[id] + 1] = slot
+                    index[slot] = i
+                else
+                    gear[#gear + 1] = { slot = slot, i = i }
+                end
             end
         end
     end
@@ -570,6 +593,7 @@ local function sweep(pawn)
             if tries > 0 then once("moved", "mailbox: a deposit went back to the bag by the game's move") end
             view.tries[id] = nil
         else
+            acted[id] = true
             once("deposit", "mailbox: a deposit got into the chest (" .. extra .. " " .. id .. "): returning it")
             if tries == 0 then
                 local left = extra
@@ -616,8 +640,19 @@ local function sweep(pawn)
         view.gearTries[g.i] = tries + 1
     end
     if #view.held > 0 then                                 -- received while open: into empty slots
-        for i = 0, c:Num() - 1 do
+        -- Slots the deposit handling above emptied or changed (by the game's move or by hand) may be empty now too.
+        for id in pairs(acted) do
+            for _, slot in ipairs(where[id]) do open[#open + 1] = index[slot] end
+        end
+        for _, g in ipairs(gear) do open[#open + 1] = g.i end
+        for i = last + 1, c:Num() - 1 do open[#open + 1] = i end
+        table.sort(open)
+        local seen = {}
+        for _, i in ipairs(open) do
             if #view.held == 0 then break end
+            if seen[i] then goto continue end
+            seen[i] = true
+            P.count("refill")
             local slot = c:Get(i)
             if slot and slot:IsValid() and slot:IsEmpty() then
                 local e = view.held[1]
@@ -627,6 +662,7 @@ local function sweep(pawn)
                 e.n = e.n - k
                 if e.n <= 0 then table.remove(view.held, 1) end
             end
+            ::continue::
         end
     end
 end
@@ -695,10 +731,11 @@ local function worldKey()
     return nil
 end
 
-function M.update()
+local function step()
     -- A new world (or the title): views and requests belong to the old one. A chest view not yet settled leaves copies
     -- in the chest, which the next fill removes.
-    local w = worldKey()
+    local w
+    if frame then w = frame.worldKey else w = worldKey() end
     if w ~= world then
         if world and (view or win or want or spawning) then
             log("mailbox: the world changed; " .. (view and "the open chest view is settled on the next open" or "dropped what was open"))
@@ -728,7 +765,11 @@ function M.update()
             local oks, errs = pcall(sweep, (player()))
             if not oks then once("sweep" .. tostring(errs), "mailbox: sweep error: " .. tostring(errs)) end
         end
-        local byId, byWidget = chestOpenById(), chestWindowShown()
+        -- The chest widget is only looked for (an object-array walk) when its answer is used: the id says it is not
+        -- open, or the view is followed by the widget. With the id saying open, 6dd356e's walk changed nothing.
+        local byId = chestOpenById()
+        local byWidget = false
+        if not byId or view.how == "widget" then byWidget = chestWindowShown() end
         if byId or byWidget then pcall(heading) end           -- (not while it closes: no heading then)
         if not view.how then
             if byId then view.how = "id"
@@ -780,6 +821,18 @@ function M.update()
         end
     end
 end
+
+-- Called from the mod's update loop (game thread). ctx: this update's player from main.lua ({ pc, pawn, worldKey,
+-- playerState() }); kept only for this one update.
+function M.update(ctx)
+    frame = ctx
+    local ok, err = pcall(step)
+    frame = nil
+    if not ok then error(err, 0) end
+end
+
+-- The chest view is open (for the perf probe's state field).
+function M.viewOpen() return view ~= nil end
 
 -- env: { notify = fn(text), save = fn(), cfg = config table, connected = fn() -> bool }
 function M.install(e)
