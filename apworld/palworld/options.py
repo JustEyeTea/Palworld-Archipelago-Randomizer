@@ -53,8 +53,8 @@ class RelicsNeeded(Range):
 class CheckLevel(Range):
     """The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,
     alphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.
-    0 (auto) sets it from the goal: the level of the last tower you need, the level by which you can register enough
-    Pals, 30 for a Relic Hunt, and no limit for the World Tree."""
+    0 (auto) sets it from the goal: 8 levels past the last tower you need, 5 levels past the level by which you can
+    register enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2."""
     display_name = "Check Level Cap"
     range_start = 0
     range_end = 80
@@ -88,7 +88,8 @@ class CaptureChecks(DefaultOnToggle):
 
 
 class AlphaChecks(DefaultOnToggle):
-    """A check for beating each field alpha (90)."""
+    """A check for beating each field alpha (89). Untested in game so far: if beating an alpha sends nothing, turn this
+    off for your next game."""
     display_name = "Alpha Checks"
 
 
@@ -98,7 +99,8 @@ class FastTravelChecks(DefaultOnToggle):
 
 
 class LevelChecks(Choice):
-    """A check for reaching player levels: every level (79 checks), every 5, every 10, or none."""
+    """A check for reaching player levels: every level (79 checks), every 5 (levels 5, 10, 15...), every 10 (levels
+    10, 20, 30...), or none."""
     display_name = "Level Checks"
     option_off = 0
     option_every_level = 1
@@ -133,8 +135,8 @@ option_groups = [
 
 
 # Ready-made sets for the options page and the Launcher's template generator. Measured check counts (AP 0.6.8,
-# 2026-11-03): Short Sync 205, Sync 264, Long Sync 541, Relic Hunt Sync 339, Paldeck Sync 247, Async 731, Full Game
-# 1,149. A typical Archipelago game has about 180.
+# 2026-11-04): Short Sync 206, Sync 264, Long Sync 541, Relic Hunt Sync 339, Paldeck Sync 247, Async 731, Full Game
+# 1,148. A typical Archipelago game has about 180.
 options_presets = {
     "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False},
     "Sync": {"goal": "towers", "tower_count": 1},

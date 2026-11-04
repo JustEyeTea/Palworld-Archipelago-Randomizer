@@ -1,8 +1,11 @@
 """Item and location tables for the Palworld APWorld, built from game_data. IDs are stable: each kind has its own
-block, and a game update that adds rows appends to the end of its block."""
+block, and an id is a row's position in its game_data table (the Paldeck in its own order). tools/gen_apworld_data.py
+keeps the rows of the last game_data.py where they were and appends new ones, so a game update adds ids at the end of
+each block and never moves one; test/test_ids.py holds the 1.0.5 ids to it."""
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .game_data import ALPHAS, AREA_LIST, AREAS, BORDERS, FAST_TRAVEL, PALDECK, PIECES, START_AREA, TECHS, TOWERS
+from .game_data import (ALPHA_KEYS, ALPHAS, AREA_LIST, AREAS, BORDERS, FAST_TRAVEL, MOUNTS, PALDECK, PIECES, START_AREA,
+                        TECHS, TOWERS)
 
 BASE = 0x50A1_0000
 
@@ -13,8 +16,24 @@ TECH_BY_ID = {t[0]: t for t in TECHS}
 SPHERE_TECHS = sorted((t for t in TECHS if t[0].startswith('Special_PalSphere_Grade_')), key=lambda t: t[0])
 BREEDING_TECH = 'BreedFarm'
 LAB_TECH = 'Lab'
-# Techs another tech, a lab research or a capture depends on: these are progression items.
-PREREQ_TECHS = {t[5] for t in TECHS if t[5]} | {BREEDING_TECH, LAB_TECH} | {t[0] for t in SPHERE_TECHS}
+# What crafting each sphere needs besides the sphere tech (DT_ItemRecipeDataTable): Mega, Giga and Hyper take Copper
+# Ingots (Primitive Furnace), Ultra Iron Ingots (Improved Furnace), Legendary Refined Ingots (Electric Furnace), and
+# Ultimate Refined Ingots and Plastic, made from Crude Oil.
+SPHERE_NEEDS = {
+    'Special_PalSphere_Grade_02': ('Product_Ingot_Grade_01_Copper',),
+    'Special_PalSphere_Grade_03': ('Product_Ingot_Grade_01_Copper',),
+    'Special_PalSphere_Grade_04': ('Product_Ingot_Grade_01_Copper',),
+    'Special_PalSphere_Grade_05': ('Product_Ingot_Grade_02_Iron',),
+    'Special_PalSphere_Grade_06': ('Product_Ingot_Grade_03_Steal',),
+    'Special_PalSphere_Grade_07': ('Product_Ingot_Grade_03_Steal', 'Plastic', 'OilPump'),
+}
+# Mounts that cross the open sea (flying or swimming) and those that fly (the only way up to the Sky Islands): saddle
+# tech -> the Pal it is for.
+SEA_MOUNTS = {tech: entry for tech, (kind, entry) in MOUNTS.items() if kind in ('fly', 'swim')}
+FLYING_MOUNTS = {tech: entry for tech, (kind, entry) in MOUNTS.items() if kind == 'fly'}
+# Techs another tech, a lab research, a capture or a journey depends on: these are progression items.
+PREREQ_TECHS = ({t[5] for t in TECHS if t[5]} | {BREEDING_TECH, LAB_TECH} | {t[0] for t in SPHERE_TECHS}
+                | {n for needs in SPHERE_NEEDS.values() for n in needs} | set(SEA_MOUNTS))
 # Décor: furniture, flag, faux-foliage and statue sets, signs, the tombstone and lights. With tech_checks no_decor these
 # are normal research (no check, no item). Chosen by hand from the build categories; décor-looking techs that do
 # something (work-speed boosters such as the Silo or Stump, fridges, flea markets, the pylon) are not in it. None of
@@ -98,7 +117,7 @@ def _locations() -> List[LocationDef]:
     out = [LocationDef(shop_location(t), BASE + 1000 + i, "shop", None, t[0])
            for i, t in enumerate(TECHS) if t[2] > STARTER_LEVEL]
     out += [LocationDef(CAPTURE_NAMES[e], BASE + 2000 + i, "capture", None, e)
-            for i, e in enumerate(sorted(PALDECK)) if e in CATCHABLE]
+            for i, e in enumerate(PALDECK) if e in CATCHABLE]
     out += [LocationDef(name, BASE + 3000 + i, "alpha", area, (entry, level))
             for i, (name, entry, level, area) in enumerate(ALPHAS)]
     out += [LocationDef(name, BASE + 4000 + i, "fast_travel", area, fid)
@@ -111,10 +130,16 @@ def _locations() -> List[LocationDef]:
 
 LOCATIONS = _locations()
 LOCATION_NAME_TO_ID: Dict[str, int] = {l.name: l.id for l in LOCATIONS}
+# Alphas the game records under the same keys as a lower-level one (one spawner id placed twice, as Dualith's in the
+# Desiccated Dunes and the World Tree): beating either records both, so only the lower one is ever a check.
+SHARED_ALPHAS = frozenset(name for name, _, level, _ in ALPHAS
+                          if any(ALPHA_KEYS[other] == ALPHA_KEYS[name] and (lv, other) < (level, name)
+                                 for other, _, lv, _ in ALPHAS))
 
 assert len(ITEM_NAME_TO_ID) == len(ITEMS), "duplicate item names"
 assert len(LOCATION_NAME_TO_ID) == len(LOCATIONS), "duplicate location names"
 assert DECOR_TECHS <= {t[0] for t in SHOP_TECHS} and not DECOR_TECHS & PREREQ_TECHS, "décor techs must be plain shop techs"
+assert PREREQ_TECHS <= set(TECH_BY_ID), "progression techs must be techs"
 
 
 # --- groups (for hints, start_inventory and the like) -----------------------------------------------------------

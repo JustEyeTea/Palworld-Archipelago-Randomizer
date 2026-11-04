@@ -74,6 +74,21 @@ local function setResearch(list)
     for _ in pairs(D.research) do n = n + 1 end
     if n > 0 then log(n .. " tech(s) are normal research in this seed (not checks)") end
 end
+-- The last seed's list is kept in research.txt, so its normal-research techs can be researched before the first
+-- connection of a session too (the server down, or playing before connecting).
+local function keepResearch(list)
+    local f = io.open(modDir .. "\\research.txt", "w")
+    if not f then log("could not write research.txt"); return end
+    f:write((list or "") .. "\n")
+    f:close()
+end
+do
+    local f = io.open(modDir .. "\\research.txt", "r")
+    if f then
+        setResearch(f:read("l"))
+        f:close()
+    end
+end
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Archipelago state. The server is the truth: on every connection it sends all items received so far and every
@@ -634,7 +649,9 @@ local function onEvent(line)
                 ap.seed, ap.slotName = seed, cfg.slot
                 loadSave()
             end
-            setResearch(AP_SlotData("research_techs"))
+            local research = AP_SlotData("research_techs")
+            setResearch(research)
+            keepResearch(research)
             local locs = {}
             for loc in pairs(SLOT_TECH) do locs[#locs + 1] = tostring(loc) end
             AP_Scout(table.concat(locs, ","))

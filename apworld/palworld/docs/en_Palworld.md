@@ -13,14 +13,14 @@ fast-travel points, levels and towers are further checks.
 
 ## How many checks
 
-Checks stop at a level that fits the goal (the Check Level Cap, automatic by default): the level of the last tower
-you need, the level by which you can register enough Pals, 30 for a Relic Hunt, or no limit for the World Tree. Shop
-slots for techs above it stay normal research. Ready-made presets (approximate check counts; a typical Archipelago
+Checks stop at a level that fits the goal (the Check Level Cap, automatic by default): 8 levels past the last tower
+you need, 5 levels past the level by which you can register enough Pals, 30 for a Relic Hunt, or no limit for the
+World Tree. Shop slots for techs above it stay normal research. Ready-made presets (approximate check counts; a typical Archipelago
 game has about 180):
 
 | Preset | Goal | Checks |
 |---|---|---|
-| Short Sync | 1 tower, level checks every 5, no fast-travel checks | ~205 |
+| Short Sync | 1 tower, level checks every 5 (5, 10, 15, 20), no fast-travel checks | ~205 |
 | Sync | 1 tower | ~265 |
 | Long Sync | 2 towers | ~540 |
 | Relic Hunt Sync | 15 of 20 relics, checks up to level 25 | ~340 |
@@ -30,6 +30,16 @@ game has about 180):
 
 Shop slots cost their usual tech points. Long goals ask for more points than levelling gives: Technical Manuals from
 dungeons, treasure chests and the Bounty shop make up the rest.
+
+Alpha checks are untested in game so far: if beating an alpha sends nothing, turn Alpha Checks off for your next
+game.
+
+## What the logic expects
+
+Levels climb area by area: an area counts for levelling once you can catch its Pals (spheres good enough for them,
+and the furnace their recipe needs) and are no more than 8 levels below them. Towers and alphas also need spheres for
+their level. Crossing the open sea needs a mount that swims or flies (its saddle and the Pal), and the Sky Islands a
+flying one.
 
 By default the décor techs (furniture, flag and foliage sets, statues, signs and lights) stay normal research, bought
 with tech points as usual; the Tech Checks option can make them checks too.

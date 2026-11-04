@@ -340,9 +340,17 @@ local itemId = {}
 for id, it in pairs(D.items) do itemId[it.name] = id end
 
 print("loading the mod")
+local rf = io.open(MOD .. "/research.txt", "w")          -- the last seed's research list, from an earlier session
+rf:write("Torch,Lamp\n"); rf:close()
 dofile(MOD .. "/Scripts/main.lua")
 expect(loop ~= nil, "update loop registered")
 expect(hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"] ~= nil, "research hook registered")
+expect(D.research.Torch and D.research.Lamp and not D.shop.Lamp, "before connecting, the last seed's research techs stay research")
+local early = { v = FNameOf("Lamp") }
+early.get = function(self) return self.v end
+early.set = function(self, v) self.v = v end
+hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"](nil, early)
+expect(early.v:ToString() == "Lamp" and not logged("Not connected"), "and can be researched as usual")
 
 print("connect and receive")
 push("status", "connected", "Tester")
@@ -378,6 +386,9 @@ expect(D.research.Torch and D.research.WallTorch and not D.shop.Torch, "research
 expect(not ("," .. scoutAsked .. ","):find("," .. D.research.Torch.loc .. ",", 1, true)
        and ("," .. scoutAsked .. ","):find("," .. D.shop.PalBox.loc .. ",", 1, true), "their slots are not scouted; shop slots are")
 expect(logged("2 tech%(s%) are normal research in this seed"), "the log says how many")
+expect(D.shop.Lamp and not D.research.Lamp, "the seed's own list replaces the last one")
+local rf2 = io.open(MOD .. "/research.txt")
+expect(rf2 and rf2:read("a") == "Torch,WallTorch\n", "and is kept in research.txt for the next session")
 
 print("other mods' techs")
 expect(logged("tech table: %d+ techs; 1 added by mods, 1 vanilla changed, 1 vanilla removed"), "the live tech table compared with vanilla")

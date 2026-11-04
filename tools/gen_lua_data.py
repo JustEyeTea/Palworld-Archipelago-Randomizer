@@ -48,7 +48,8 @@ def table(name, rows):
 TOWER_BOSS = {'Starting Zone Tower': 'GrassBoss', 'Volcano Tower': 'ElectricBoss', 'Forest Tower': 'ForestBoss',
               'Snow Tower': 'SnowBoss', 'Desert Tower': 'DesertBoss', 'Sakurajima Tower': 'SakurajimaBoss',
               'Feybreak Tower': 'VikingBoss', 'Sky Islands Tower': 'SorajimaBoss'}
-alphas = [l for l in data.LOCATIONS if l.kind == 'alpha']
+# An alpha recorded under another's keys is never a check (data.SHARED_ALPHAS): its keys send only that one.
+alphas = [l for l in data.LOCATIONS if l.kind == 'alpha' and l.name not in data.SHARED_ALPHAS]
 
 
 

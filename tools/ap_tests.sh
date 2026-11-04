@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Runs Archipelago's own test suites (general, options, multiworld, programs, webhost) for this world:
-# the checks every world is expected to pass (ids, names and groups, fill, manifest, docs pages...).
+# Runs Archipelago's own test suites (general, options, multiworld, programs, webhost) for this world: the checks
+# every world is expected to pass (ids, names and groups, fill, manifest, docs pages...). Then the world's own tests
+# (apworld/palworld/test: logic, options, frozen ids).
 # Needs pytest, pytest-subtests and WebHostLib/requirements.txt in the Archipelago venv.
 #   tools/ap_tests.sh
 set -euo pipefail
@@ -12,4 +13,4 @@ trap 'rm -rf "$ap/worlds/palworld"; [ -f "$installed.bak" ] && mv "$installed.ba
 [ -f "$installed" ] && mv "$installed" "$installed.bak"
 rm -rf "$ap/worlds/palworld" && cp -r apworld/palworld "$ap/worlds/" && rm -rf "$ap/worlds/palworld/__pycache__"
 cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 AP_TEST_WORLDS=palworld .venv/bin/python -m pytest \
-  test/general test/options test/multiworld test/programs test/webhost -q -p no:cacheprovider --continue-on-collection-errors
+  test/general test/options test/multiworld test/programs test/webhost worlds/palworld/test -q -p no:cacheprovider --continue-on-collection-errors
