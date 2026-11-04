@@ -1049,6 +1049,11 @@ util.GetOtomoHolderComponent = function(_, who)
     return { GetOtomoCount = function() return partySize end }
 end
 local TT = require("test_tools")
+local realKeyBind = RegisterKeyBind
+RegisterKeyBind = nil                                     -- a UE4SS without key binds
+TT.install()
+expect(logged("give Pal: no RegisterKeyBind/Key/ModifierKey; no Pal hotkeys"), "no key binds: the log says why")
+RegisterKeyBind = realKeyBind
 AP_GivePal, AP_GivePalPoll = nil, nil                    -- an APConnector older than this build
 TT.install()
 local anyBound = false
@@ -1065,11 +1070,12 @@ AP_GivePal = function(species, level, route, options)
 end
 AP_GivePalPoll = function()
     pollCalls = pollCalls + 1
-    if not onGameThread then return "result: fail not on the game thread (call inside ExecuteInGameThread)" end
+    if not onGameThread then return "poll: not on the game thread (call inside ExecuteInGameThread); the gift is kept\nresult: pending" end
     return table.remove(pollReplies, 1) or ""
 end
 local loopsBefore = #extraLoops
 TT.install()
+local pollLoop = extraLoops[#extraLoops]
 expect(#extraLoops == loopsBefore + 1, "a poll loop for pending gifts")
 local allCtrl = true
 for _, k in ipairs({ "F5", "F6", "F7", "F8", "F9" }) do
@@ -1118,6 +1124,28 @@ pollReplies = {}
 press("key:F5")
 run(2)
 expect(pollCalls == 5 and logged("give Pal party_debug: the connector has no pending gift"), "an empty poll ends it")
+-- The connector holds a gift this side isn't polling (the Lua mod restarted, the DLL didn't): busy starts the polls.
+giveReply = "route=party_plain\nresult: busy"
+pollReplies = { "poll 20 route=palbox\ncheck: palbox slot 7 handle=null\nresult: fail timeout (palbox slot 7 handle=null)" }
+press("key:F6")
+run(1)
+expect(pollCalls == 6 and logged("give Pal party_plain: the connector holds a gift from before; polling it to its end")
+       and logged("give Pal earlier: result: fail timeout"), "busy with nothing pending here polls the connector's gift to its end")
+run(1)
+expect(pollCalls == 6, "and then no more polls")
+-- The game thread stalls past 250 ms: two polls are queued, and the second runs after the first ended the gift.
+giveReply = "route=palbox\nresult: pending"
+pollReplies = { "poll 1 route=palbox\nresult: ok palbox" }
+press("key:F8")
+local queued = {}
+local runNow = ExecuteInGameThread
+ExecuteInGameThread = function(fn) queued[#queued + 1] = fn end
+pollLoop(); pollLoop()
+ExecuteInGameThread = runNow
+for _, fn in ipairs(queued) do runNow(fn) end
+expect(#queued == 2 and pollCalls == 7 and logged("give Pal palbox: result: ok palbox") and not logged("poll error"),
+       "a second queued poll after the gift ended does nothing: " .. pollCalls .. " poll(s)")
+giveReply = nil
 -- An error from the connector is logged, and the next key still works.
 giveReply = "throw"
 press("key:F6")

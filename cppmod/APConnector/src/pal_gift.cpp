@@ -294,13 +294,16 @@ namespace pal_gift_unreal
         p.util = UObjectGlobals::StaticFindObject<UObject*>(nullptr, nullptr, STR("/Script/Pal.Default__PalUtility"));
         if (!p.util) throw Fail{"no Default__PalUtility"};
         // Any live controller to start from (FindAllOf as UE4SSProgram.cpp's get_player_controller; class defaults
-        // skipped by their flags as USMapGenerator/Generator.cpp does).
+        // skipped by their flags as USMapGenerator/Generator.cpp does). After a return to title or a world load the old
+        // world's controller can stay in the object array, unreachable, until garbage collection runs; it is skipped by
+        // the test UE4SS's Lua IsValid makes (LuaType/LuaUObject.hpp), as the Lua side checks IsValid (menu.lua).
         std::vector<UObject*> controllers;
         UObjectGlobals::FindAllOf(STR("PalPlayerController"), controllers);
         UObject* any = nullptr;
         for (UObject* o : controllers)
         {
-            if (o && (static_cast<uint32_t>(o->GetObjectFlags()) & (RF_ClassDefaultObject | RF_ArchetypeObject)) == 0)
+            if (o && (static_cast<uint32_t>(o->GetObjectFlags()) & (RF_ClassDefaultObject | RF_ArchetypeObject)) == 0 &&
+                !o->IsUnreachable())
             {
                 any = o;
                 break;
@@ -310,12 +313,16 @@ namespace pal_gift_unreal
         constexpr auto ctx = STR("WorldContextObject");
         p.pc = call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPalPlayerController"), ctx, any);
         if (!p.pc) throw Fail{"no local player controller"};
+        if (p.pc->IsUnreachable()) throw Fail{"local player controller unreachable (world loading?)"};
         p.pawn = call_object(p.util, STR("/Script/Pal.PalUtility:GetPlayerCharacter"), ctx, p.pc);
         if (!p.pawn) throw Fail{"no player character"};
+        if (p.pawn->IsUnreachable()) throw Fail{"player character unreachable (world loading?)"};
         p.ps = call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPlayerState"), ctx, p.pc);
         if (!p.ps) throw Fail{"no player state"};
+        if (p.ps->IsUnreachable()) throw Fail{"player state unreachable (world loading?)"};
         p.holder = call_object(p.util, STR("/Script/Pal.PalUtility:GetOtomoHolderComponent"), ctx, p.pawn);
         if (!p.holder) throw Fail{"no party holder (GetOtomoHolderComponent)"};
+        if (p.holder->IsUnreachable()) throw Fail{"party holder unreachable (world loading?)"};
         p.cm = call_object(p.util, STR("/Script/Pal.PalUtility:GetCharacterManager"), ctx, p.pawn);
         if (!p.cm) throw Fail{"no character manager"};
 
@@ -500,7 +507,7 @@ namespace pal_gift_unreal
         std::memcpy(g.id_player, id.player, 16);
         std::memcpy(g.id_instance, id.instance, 16);
         g.count_before = p.count;
-        g.pawn = reinterpret_cast<uintptr_t>(p.pawn);
+        g.controller = reinterpret_cast<uintptr_t>(p.pc);
         g_pending = g;
         return "pending";
     }
@@ -541,7 +548,7 @@ namespace pal_gift_unreal
         g.route = Route::Palbox;
         g.slot_index = index;
         g.count_before = p.count;
-        g.pawn = reinterpret_cast<uintptr_t>(p.pawn);
+        g.controller = reinterpret_cast<uintptr_t>(p.pc);
         g_pending = g;
         return "pending";
     }
@@ -553,8 +560,11 @@ namespace pal_gift_unreal
         try
         {
             r.line("route=" + route + " species=" + species + " level=" + level + " options=" + options);
-            if (!on_game_thread()) return r.finish("fail not on the game thread (call inside ExecuteInGameThread)");
+            // Busy before anything else: Lua takes a fail as the end of a gift, and the earlier one is still pending
+            // here. Lua answers busy by polling the earlier gift to its end (test_tools.lua), which also drains one left
+            // from before a Lua mod restart (this DLL outlives one).
             if (g_pending) return r.finish("busy");
+            if (!on_game_thread()) return r.finish("fail not on the game thread (call inside ExecuteInGameThread)");
             Request q;
             if (auto bad = pal_gift::parse_request(species, level, route, options, q); !bad.empty()) return r.finish("fail " + bad);
 
@@ -579,7 +589,12 @@ namespace pal_gift_unreal
         Report r(mirror);
         try
         {
-            if (!on_game_thread()) return r.finish("fail not on the game thread (call inside ExecuteInGameThread)");
+            // Not a fail: Lua takes every fail as the end of the gift, and the gift is kept. Not counted as a poll.
+            if (!on_game_thread())
+            {
+                r.line("poll: not on the game thread (call inside ExecuteInGameThread); the gift is kept");
+                return r.finish("pending");
+            }
             PendingGift& g = *g_pending;
             r.line("poll " + std::to_string(g.polls + 1) + " route=" + pal_gift::route_name(g.route));
             Player p;
@@ -590,12 +605,14 @@ namespace pal_gift_unreal
             catch (const Fail& f)
             {
                 g_pending.reset();
-                return r.finish("fail world changed, gift dropped (" + f.reason + ")");
+                return r.finish("fail player not found, gift dropped (" + f.reason + ")");
             }
-            if (reinterpret_cast<uintptr_t>(p.pawn) != g.pawn)
+            // The controller, not the pawn: a player who dies gets a new pawn in the same world, where the game can
+            // still finish the gift; a world load makes a new controller.
+            if (reinterpret_cast<uintptr_t>(p.pc) != g.controller)
             {
                 g_pending.reset();
-                return r.finish("fail world changed, gift dropped");
+                return r.finish("fail world changed (another player controller), gift dropped");
             }
 
             bool seen = false;

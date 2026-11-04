@@ -8,7 +8,8 @@
 --   Ctrl+F8   palbox       Kitsunebi Lv 14   the Global Palbox import into an empty Palbox slot
 --   Ctrl+F9   auto         Anubis Lv 50      party_debug while the party has room, else palbox
 -- Each logs the connector's report line by line and the party count before and after. A gift the game hasn't finished
--- ("result: pending") is polled with AP_GivePalPoll every 250 ms until "result: ok ..." or "result: fail ...". With an
+-- ("result: pending") is polled with AP_GivePalPoll every 250 ms until "result: ok ..." or "result: fail ...". While one
+-- is pending the connector answers "result: busy"; if this side wasn't polling it (a Lua mod restart), it starts. With an
 -- older connector (no AP_GivePal) nothing is bound and the log says so.
 -- What the earlier ones answered, for giving Pals from Lua (all failed; it needs the C++ connector or a LogicMod):
 --  * RequestSpawnMonsterForPlayer: a stubbed cheat, spawns nothing (v0.10.x).
@@ -64,10 +65,23 @@ local function give(g)
     if not ok then log("give Pal " .. g.route .. ": error " .. tostring(report)); return end
     local last = logReport(g.route, report)
     log("give Pal " .. g.route .. ": party after " .. partyCount())
-    if last == "result: pending" then pending = g.route elseif last ~= "result: busy" then pending = nil end
+    if last == "result: pending" then
+        pending = g.route
+    elseif last == "result: busy" then
+        -- The connector still holds an earlier gift. If this side isn't polling it (the Lua mod was restarted, the DLL
+        -- wasn't), poll it now, so it ends by arriving or by timeout instead of answering busy until the game restarts.
+        if not pending then
+            log("give Pal " .. g.route .. ": the connector holds a gift from before; polling it to its end")
+            pending = "earlier"
+        end
+    else
+        pending = nil
+    end
 end
 
 local function poll()
+    -- A poll queued twice (the game thread stalled past 250 ms) may run after the first one ended the gift.
+    if not pending then return end
     local route = pending
     local ok, report = pcall(AP_GivePalPoll)
     if not ok then
@@ -84,7 +98,10 @@ local function poll()
 end
 
 function T.install()
-    if not RegisterKeyBind or not Key or not ModifierKey then return end
+    if not RegisterKeyBind or not Key or not ModifierKey then
+        log("test tools on: give Pal: no RegisterKeyBind/Key/ModifierKey; no Pal hotkeys")
+        return
+    end
     if type(AP_GivePal) ~= "function" or type(AP_GivePalPoll) ~= "function" then
         log("test tools on: give Pal: AP_GivePal missing (APConnector older than this build); no Pal hotkeys")
         return

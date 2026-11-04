@@ -76,7 +76,8 @@ namespace pal_gift
         uint8_t id_instance[16]{};     // FPalInstanceID.InstanceId
         int slot_index{-1};            // palbox: the slot the import was sent to
         int count_before{};            // the party count before the create
-        uintptr_t pawn{};              // the player's pawn then: another pawn means the world changed
+        uintptr_t controller{};        // the local player controller then: another one means the world changed (a
+                                       // respawn makes a new pawn but keeps the controller)
         int polls{};
     };
 
