@@ -6,7 +6,8 @@
 --    pick a row to take it, or Take all;
 --  * otherwise the game's own chest window on a hidden chest: a big chest (mailbox_slots, default 300) built once per
 --    world far outside the map and deep underground, kept from decaying, filled from the list as it opens and emptied
---    back into it as it closes. Gear the player puts in stays in the chest (the list holds plain items only).
+--    back into it as it closes. It only gives: what the player puts in goes back to the bag, and items received while
+--    it is open appear in it.
 -- config.txt: mailbox=0 gives items straight to the bag as before; mailbox_view=chest skips the LogicMod's window.
 local M = {}
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
@@ -410,7 +411,7 @@ local function container(chest) return chest:GetItemContainerModule():GetContain
 
 local function fill(chest)
     local c = container(chest)
-    local held = {}
+    local held, shown = {}, {}
     for _, e in ipairs(M.queue) do held[#held + 1] = { id = e.id, n = e.n } end
     local slots, placed = c:Num(), 0
     for i = 0, slots - 1 do
@@ -424,41 +425,221 @@ local function fill(chest)
                 local k = math.min(e.n, maxStack(e.id))
                 put(slot, e.id, k)
                 placed = placed + 1
+                shown[e.id] = (shown[e.id] or 0) + k
                 e.n = e.n - k
                 if e.n <= 0 then table.remove(held, 1) end
             end
         end
     end
     M.stale = false
-    return held, slots, placed
+    return held, slots, placed, shown
 end
 
--- The chest's plain items back into the list (ahead of what never fitted), the chest emptied.
+-- The chest's plain items back into the list (ahead of what never fitted), the chest emptied. No more of an item than
+-- the mailbox put in goes back in the list: more is a deposit the sweep had not returned yet, and goes to the bag
+-- (what the bag refuses stays in the list, so nothing is lost).
 -- The list is set before any slot is cleared: a slot left uncleared is a copy, which the next fill removes.
 local function absorb()
     assert(view.chest:IsValid(), "the chest is gone")
-    local got, plain = {}, {}
+    local inChest, plain = {}, {}
     local c = container(view.chest)
     for i = 0, c:Num() - 1 do
         local slot = c:Get(i)
         if slot and slot:IsValid() and not slot:IsEmpty() and isPlain(slot) then
             local id, n = slot:GetItemId().StaticId:ToString(), slot:GetStackCount()
-            if n > 0 then merge(got, id, n); plain[#plain + 1] = slot end
+            if n > 0 then merge(inChest, id, n); plain[#plain + 1] = slot end
         end
+    end
+    local got, extra = {}, {}
+    for _, e in ipairs(inChest) do
+        local keep = view.shown and math.min(e.n, view.shown[e.id] or 0) or e.n
+        if keep > 0 then merge(got, e.id, keep) end
+        if e.n > keep then extra[#extra + 1] = { id = e.id, n = e.n - keep } end
     end
     for _, e in ipairs(view.held) do merge(got, e.id, e.n) end
     M.queue = got
     for _, slot in ipairs(plain) do clear(slot) end
+    for _, e in ipairs(extra) do
+        local back = toBag(e.id, e.n)
+        if back < e.n then merge(M.queue, e.id, e.n - back) end
+        log("mailbox: " .. e.n .. " " .. e.id .. " put in at the last moment went back to the bag (" .. back .. " fitted)")
+    end
+end
+
+------------------------------------------------------------------------------------------------------------------------
+-- While the chest window is open (every update): deposits go back to the bag, items received meanwhile go in, and the
+-- heading names the mailbox.
+-- Deposits are refused first by the game's own rule for what a container accepts (FPalItemPermission: a list of item
+-- types and ids; ours names one id no item has). Untested: the log says whether a deposit still got through. Whatever
+-- does is found by comparing the chest with what the mailbox put in (view.shown), and goes back by the game's own
+-- move to the bag (keeps gear's data and food's freshness); if that does nothing in RETRY updates, plain items are
+-- taken out and given to the bag directly, and gear is left for the player with a note.
+local NO_DEPOSITS = "AP_MailboxGivesOnly"
+local RETRY = 3
+local TITLE = "Archipelago Mailbox"
+
+local function lockPermission(c)
+    local function lock(p)
+        p.PermissionTypeA:Empty()
+        p.PermissionTypeB:Empty()
+        p.PermissionItemStaticIds:Empty()
+        p.PermissionItemStaticIds[1] = FName(NO_DEPOSITS)
+    end
+    local okc, errc = pcall(function() lock(c.Permission) end)
+    pcall(function() c:OnRep_Permission() end)
+    local n = 0
+    for i = 0, c:Num() - 1 do
+        local slot = c:Get(i)
+        if slot and pcall(function() lock(slot.Permission) end) then
+            n = n + 1
+            pcall(function() slot:OnRep_Permission() end)
+        end
+    end
+    once("permission", "mailbox: deposits refused by permission: container " .. (okc and "set" or ("not set (" .. tostring(errc) .. ")"))
+        .. ", " .. n .. " slot(s)")
+end
+
+local function guidOf(g) return { A = g.A, B = g.B, C = g.C, D = g.D } end
+local function newGuid()
+    local ok, g = pcall(function() return guidOf(StaticFindObject("/Script/Engine.Default__KismetGuidLibrary"):NewGuid()) end)
+    if ok and g and g.A then return g end
+    return { A = math.random(1, 0x7FFFFFFF), B = math.random(1, 0x7FFFFFFF), C = math.random(1, 0x7FFFFFFF), D = math.random(1, 0x7FFFFFFF) }
+end
+
+local function moveToBag(pawn, slot, n)
+    local _, ps = player()
+    local bag = guidOf(ps:GetInventoryData().MyInventoryInfo.CommonContainerId.ID)
+    local sid = slot:GetSlotId()
+    local from = { SlotId = { ContainerId = { ID = guidOf(sid.ContainerId.ID) }, SlotIndex = sid.SlotIndex }, Num = n }
+    local t = util():GetNetworkTransmitter(pawn)
+    local item = t.Item
+    if not item or not item:IsValid() then item = t:GetItem() end
+    item:RequestMoveToContainer_ToServer(newGuid(), { ID = bag }, { from })
+end
+
+local function told(what)
+    if view.told then return end
+    view.told = true
+    env.notify("The mailbox only hands items out: " .. what .. " went back to your bag.")
+end
+
+local function heading()
+    local t
+    pcall(function() t = view.hud:GetWidget(view.id).WBP_IngameMenu_Chest.Text_TargetContainerName end)
+    if not t or not select(2, pcall(function() return t:IsValid() end)) then
+        t = nil
+        for _, w in ipairs(FindAllOf("WBP_IngameMenu_Chest_C") or {}) do
+            local ok, h = pcall(function() return w:IsValid() and w:IsVisible() and w.Text_TargetContainerName end)
+            if ok and h then t = h; break end
+        end
+    end
+    if not t then once("noheading", "mailbox: no chest window heading found"); return end
+    local okr, now = pcall(function() return t:GetText():ToString() end)
+    if okr and now == TITLE then return end
+    pcall(function() t.IsAutoTextSetWhenWidgetRebuilt = false end)
+    pcall(function() t.BindTextDatatableHandle.RowName = FName("None") end)
+    pcall(function() t:SetText(FText(TITLE)) end)
+    once("heading", "mailbox: chest window heading was '" .. tostring(okr and now or "?") .. "'; set to ours")
+end
+
+local function sweep(pawn)
+    local c = container(view.chest)
+    local okl, last = pcall(function() return c:GetLastNotEmptyIndex() end)
+    last = (okl and type(last) == "number") and last or (c:Num() - 1)
+    local count, where, gear = {}, {}, {}
+    for i = 0, last do
+        local slot = c:Get(i)
+        if slot and slot:IsValid() and not slot:IsEmpty() then
+            if isPlain(slot) then
+                local id = slot:GetItemId().StaticId:ToString()
+                count[id] = (count[id] or 0) + slot:GetStackCount()
+                where[id] = where[id] or {}
+                where[id][#where[id] + 1] = slot
+            else
+                gear[#gear + 1] = { slot = slot, i = i }
+            end
+        end
+    end
+    for id, n in pairs(view.shown) do                    -- taken out: the chest may hold that much less
+        if (count[id] or 0) < n then view.shown[id] = count[id] or 0 end
+    end
+    for id, n in pairs(count) do
+        local extra = n - (view.shown[id] or 0)
+        local tries = view.tries[id] or 0
+        if extra <= 0 then
+            if tries > 0 then once("moved", "mailbox: a deposit went back to the bag by the game's move") end
+            view.tries[id] = nil
+        else
+            once("deposit", "mailbox: a deposit got into the chest (" .. extra .. " " .. id .. "): returning it")
+            if tries == 0 then
+                local left = extra
+                for k = #where[id], 1, -1 do                   -- the newest stacks are the last ones
+                    if left <= 0 then break end
+                    local m = math.min(left, where[id][k]:GetStackCount())
+                    local ok, err = pcall(moveToBag, pawn, where[id][k], m)
+                    if not ok then once("moveerr", "mailbox: the move to the bag failed: " .. tostring(err)); break end
+                    left = left - m
+                end
+                told(itemName(id))
+            end
+            view.tries[id] = tries + 1
+            if tries + 1 > RETRY then                          -- the move did nothing: by hand
+                once("byhand", "mailbox: the move to the bag did nothing; deposits are returned by hand")
+                local back = toBag(id, extra)
+                local left = back
+                for k = #where[id], 1, -1 do
+                    if left <= 0 then break end
+                    local slot = where[id][k]
+                    local have = slot:GetStackCount()
+                    local m = math.min(left, have)
+                    if m == have then clear(slot) else put(slot, id, have - m) end
+                    left = left - m
+                end
+                if back < extra then                           -- the bag is full: the rest stays as mailbox items
+                    view.shown[id] = (view.shown[id] or 0) + (extra - back)
+                    env.notify("Your bag is full: " .. itemName(id) .. " stays in the mailbox.")
+                end
+                view.tries[id] = nil
+            end
+        end
+    end
+    for _, g in ipairs(gear) do                            -- gear can only go back by the game's move
+        local tries = view.gearTries[g.i] or 0
+        if tries == 0 then
+            once("geardeposit", "mailbox: gear got into the chest: returning it")
+            local ok, err = pcall(moveToBag, pawn, g.slot, g.slot:GetStackCount())
+            if not ok then once("moveerr", "mailbox: the move to the bag failed: " .. tostring(err)) end
+            told("your " .. itemName(g.slot:GetItemId().StaticId:ToString()))
+        elseif tries == RETRY then
+            env.notify("Take your " .. itemName(g.slot:GetItemId().StaticId:ToString()) .. " back out of the mailbox: it can't return it.")
+        end
+        view.gearTries[g.i] = tries + 1
+    end
+    if #view.held > 0 then                                 -- received while open: into empty slots
+        for i = 0, c:Num() - 1 do
+            if #view.held == 0 then break end
+            local slot = c:Get(i)
+            if slot and slot:IsValid() and slot:IsEmpty() then
+                local e = view.held[1]
+                local k = math.min(e.n, maxStack(e.id))
+                put(slot, e.id, k)
+                view.shown[e.id] = (view.shown[e.id] or 0) + k
+                e.n = e.n - k
+                if e.n <= 0 then table.remove(view.held, 1) end
+            end
+        end
+    end
 end
 
 local function openChest(chest, pawn)
     harden(chest, pawn)
-    local held, slots, placed = fill(chest)
+    pcall(lockPermission, container(chest))
+    local held, slots, placed, shown = fill(chest)
     local hud = util():GetHUDService(pawn)
     local param = hud:CreateDispatchParameterForK2Node(pawn, StaticFindObject("/Script/Pal.PalHUDDispatchParameter_MapObject"))
     param.MapObjectConcreteModel = chest
     local id = hud:ShowCommonUI(7, param)                -- EPalWidgetBlueprintType ItemChest
-    view = { id = id, hud = hud, chest = chest, held = held, ticks = 0 }
+    view = { id = id, hud = hud, chest = chest, held = held, shown = shown, tries = {}, gearTries = {}, ticks = 0 }
     env.save()                                           -- mailview=1 until it closes
     log("mailbox: chest view open (" .. slots .. " slots, " .. placed .. " filled, " .. #held .. " kind(s) waiting behind)")
     if #held > 0 then env.notify("The mailbox shows " .. placed .. " stacks at a time: take some to see the rest.") end
@@ -497,7 +678,7 @@ end
 function M.open(ctx)
     if not M.on() then env.notify("The mailbox is off (mailbox=0 in config.txt): items go straight to your bag."); return end
     if not env.connected() and #M.queue == 0 then env.notify("Connect to Archipelago to see your mailbox."); return end
-    want, wait = ctx or true, 1
+    want, wait = ctx or true, 2
 end
 
 -- The live player controller's address (FindFirstOf can return the class default object, which never changes).
@@ -543,7 +724,12 @@ function M.update()
         view.ticks = view.ticks + 1
         -- How to tell it closed: the HUD's id for it, else the chest window widget itself; if neither shows it open in
         -- the first 2 s, it is never emptied early: the next open settles it first.
+        if view.chest:IsValid() then
+            local oks, errs = pcall(sweep, (player()))
+            if not oks then once("sweep" .. tostring(errs), "mailbox: sweep error: " .. tostring(errs)) end
+        end
         local byId, byWidget = chestOpenById(), chestWindowShown()
+        if byId or byWidget then pcall(heading) end           -- (not while it closes: no heading then)
         if not view.how then
             if byId then view.how = "id"
             elseif byWidget then view.how = "widget"

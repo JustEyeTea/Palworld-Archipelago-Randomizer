@@ -45,6 +45,7 @@ local inv = { AddItem_ServerInternal = function(_, name, n)
     bagHas[name:ToString()] = (bagHas[name:ToString()] or 0) + n
     return 0
 end }
+inv.MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 } } }
 local record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
     PaldeckUnlockFlag = FastArray({ { "Blueplatypus", true } }),
@@ -141,7 +142,8 @@ FindAllOf = function(class)
     if class == "PalMapObjectItemChestParameterComponent" then
         return loaded["/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"] and chestTemplates or {}
     end
-    if class == "UserWidget" then return escOpen and { escMenu } or {} end
+    if class == "WBP_MenuESC_C" then return escOpen and { escMenu } or {} end
+    if class == "UserWidget" then return escOpen and { taskList, escMenu } or {} end   -- the HUD's mission list too
     return nil
 end
 FindFirstOf = function(class)
@@ -251,15 +253,29 @@ local buttonBox = Widget({ GetClass = function() return classed("VerticalBox") e
                            GetFName = function() return FNameOf("VerticalBox_Menu") end,
                            AddChild = function(_, box)
                                menuChildren[#menuChildren + 1] = box
-                               return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
+                               return { SetPadding = function(_, p) box.padding = p end, SetHorizontalAlignment = function() end } end,
+                           RemoveChild = function(_, box)
+                               for i, c in ipairs(menuChildren) do if c == box then table.remove(menuChildren, i); return true end end
+                               return false end })
 local gameButtonWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end })
 gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
+-- Quit Game, last in the list until our buttons go in (v0.11.2 playtest: ours sat below it).
+local quitWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end,
+                          Slot = { Padding = { Left = 0, Top = 0, Right = 0, Bottom = 7 }, HorizontalAlignment = 2 } })
+menuChildren[1] = quitWrap
 titleMenu = Widget({ WBP_Title_MenuButton_StartLocalGame = gameTitleButton,
+                     WBP_Title_MenuButton_ExitGame = Widget({ GetParent = function() return quitWrap end }),
                      VerticalBox_0 = Widget({ AddChild = function() error("buttons belong with the game's") end }) })
 titleOpen = false
 wbl = { IsValid = function() return true end,   -- global: StaticFindObject above returns it
-              Create = function() return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
-                                                  SetVisibility = function(self, v) self.visibility = v end }) end }
+              Create = function(_, _, cls)
+                  if cls and tostring(cls.path):find("WBP_MenuESC_Button_S", 1, true) then   -- the Esc menu's small button
+                      return Widget({ GetClass = function() return { GetFName = function() return FNameOf("WBP_MenuESC_Button_S_C") end } end,
+                                      Text_Main = { IsValid = function() return true end, BindTextDatatableHandle = {},
+                                                    SetText = function(self, t) self.text = t.text end } })
+                  end
+                  return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
+                                  SetVisibility = function(self, v) self.visibility = v end }) end }
 StaticConstructObject = function()
     local box = Widget({ SetWidthOverride = function() end, SetHeightOverride = function() end })
     function box:AddChild(c) self.child = c end
@@ -658,41 +674,78 @@ expect(f and f:read("*a"):match("given=7"), "save file records items applied")
 
 local UI = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
 local CLICK = UI .. "WBP_Title_MenuButton.WBP_Title_MenuButton_C:BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
+local ESC_CLICK = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Button_S.WBP_MenuESC_Button_S_C:BndEvt__WBP_MenuESC_Button_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
 
 print("the mailbox")
 local kinds, items = require("mailbox").count()
 expect(kinds == 1 and items == 50, "the Wood Bundle waits in the mailbox: " .. items)
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\nmailview=0", 1, true), "kept in the save file")
 expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox", 1, true), "the player is told where it is")
--- The Esc menu (the client's): a vertical box of three buttons of one class, each in a size box.
+-- The Esc menu (the client's WBP_MenuESC_C, from kdump): Canvas_Buttons holds vertical boxes of WBP_MenuESC_Button_C.
+-- Its WidgetTree has RootWidget but no GetAllWidgets (C++ only in the game; calling it errors).
 playerController.K2_GetPawn = function() return pawn end
 playerController.GetAddress = function() return 998 end
 local escChildren = {}
 local function escButton()
-    local b = Widget({ GetClass = function() return classed("WBP_EscMenu_Button_C") end })
+    local b = Widget({ GetClass = function() return classed("WBP_MenuESC_Button_C") end })
     return Widget({ GetClass = function() return classed("SizeBox") end, GetChildAt = function() return b end })
 end
 for i = 1, 3 do escChildren[i] = escButton() end
 local escBox = Widget({ GetClass = function() return classed("VerticalBox") end, GetFName = function() return FNameOf("VerticalBox_Esc") end,
                         GetChildrenCount = function() return #escChildren end, GetChildAt = function(_, i) return escChildren[i + 1] end,
                         AddChild = function(_, box) escChildren[#escChildren + 1] = box
-                                       return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
-escMenu = Widget({ GetClass = function() return classed("WBP_EscMenu_C") end,
-                   WidgetTree = { GetAllWidgets = function() return { escBox } end },
-                   Close = function(self) self.closed = true end })
+                                       return { SetPadding = function(_, p) box.padding = p end, SetHorizontalAlignment = function() end } end })
+local function panel(name, kids)
+    return Widget({ GetClass = function() return classed(name) end, GetChildrenCount = function() return #kids end,
+                    GetChildAt = function(_, i) return kids[i + 1] end })
+end
+local escRoot = panel("CanvasPanel", { panel("CanvasPanel", {}), panel("CanvasPanel", { escBox }) })
+-- Its Close shuts only its tab of the main menu; CloseAction closes the main menu (v0.11.3 playtest).
+escMenu = Widget({ GetClass = function() return classed("WBP_MenuESC_C") end,
+                   WidgetTree = { RootWidget = escRoot },
+                   Close = function(self) self.tabOnly = true end,
+                   CloseAction = function(self) self.closed = true end })
+-- v0.11.2 playtest: the HUD's mission list (its name holds "gamemenu") has a box of buttons too, and got ours.
+local taskChildren = {}
+for i = 1, 3 do taskChildren[i] = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_Simple_Button_C") end }) end
+local taskBox = Widget({ GetClass = function() return classed("HorizontalBox") end,
+                         GetChildrenCount = function() return #taskChildren end, GetChildAt = function(_, i) return taskChildren[i + 1] end,
+                         AddChild = function(_, box) taskChildren[#taskChildren + 1] = box
+                                        return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
+taskList = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_SimpleList_C") end,
+                    WidgetTree = { RootWidget = panel("CanvasPanel", { taskBox }) } })
 escOpen = true
-run(4)
-local mailBtn = escChildren[4] and escChildren[4].child
-expect(mailBtn and mailBtn.Test_Content.text == "Archipelago Mailbox (50)", "the Esc menu has a mailbox button with the count: "
-       .. tostring(mailBtn and mailBtn.Test_Content.text))
-expect(logged("the Esc menu is WBP_EscMenu_C"), "found the Esc menu by its buttons")
+run(1)                                                     -- the button is there on the first update (v0.11.4: ~1 s)
+expect(#taskChildren == 3, "the HUD's mission list gets no button: " .. #taskChildren)
+local mailBtn = escChildren[4]
+expect(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text == "Archipelago Mailbox (50)",
+       "the Esc menu has a mailbox button in its own small style, with the count: " .. tostring(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text))
+expect(mailBtn and mailBtn.MenuType == 0 and mailBtn.padding and mailBtn.padding.Top == 10, "spaced as the game's, and harmless if bound")
+expect(logged("the Esc menu is WBP_MenuESC_C"), "found the Esc menu by its buttons")
+expect(hooks[ESC_CLICK], "its click is hooked")
 run(4)
 expect(#escChildren == 4, "added once")
+-- The game makes a new Esc menu each time it opens: the old one is forgotten, the new one gets a button, quietly.
+local oldEsc = escMenu
+oldEsc.gone = true
+escChildren[4] = nil
+escMenu = Widget({ GetClass = oldEsc.GetClass, WidgetTree = oldEsc.WidgetTree, Close = oldEsc.Close, CloseAction = oldEsc.CloseAction })
+run(4)
+mailBtn = escChildren[4]
+local addLines = 0
+for _, l in ipairs(printed) do if l:find("Mailbox button added", 1, true) then addLines = addLines + 1 end end
+expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (50)" and addLines == 1, "a new Esc menu gets its button; logged once: " .. addLines)
 -- No LogicMod: the hidden chest. It is made on first use, 300 slots, with the chest template put back after.
 chests, chestTemplates = {}, { { SlotNum = 54, GetFullName = function()
     return "PalMapObjectItemChestParameterComponent /Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04.BP_BuildObject_ItemChest_04_C:ItemChestParameter_GEN_VARIABLE" end } }
-local function Slot()
-    local slot = { ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }, StackCount = 0 }
+local function Permission()
+    return { PermissionTypeA = TArray({}), PermissionTypeB = TArray({}), PermissionItemStaticIds = TArray({}) }
+end
+local function Slot(index)
+    local slot = { ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }, StackCount = 0,
+                   Permission = Permission() }
+    function slot:GetSlotId() return { ContainerId = { ID = { A = 9, B = 9, C = 9, D = 9 } }, SlotIndex = index } end
+    function slot:OnRep_Permission() end
     function slot:IsValid() return true end
     function slot:IsEmpty() return self.StackCount == 0 or self.ItemId.StaticId:ToString() == "None" end
     function slot:GetItemId() return self.ItemId end
@@ -705,8 +758,9 @@ local spawnAsked = nil
 local mapObjects = { RequestSpawnMapObjectByPlayer_Server = function(_, id, at)
     spawnAsked = id:ToString()
     local slots = {}
-    for i = 1, chestTemplates[1].SlotNum do slots[i] = Slot() end
-    local c = { Num = function() return #slots end, Get = function(_, i) return slots[i + 1] end, slots = slots }
+    for i = 1, chestTemplates[1].SlotNum do slots[i] = Slot(i - 1) end
+    local c = { Num = function() return #slots end, Get = function(_, i) return slots[i + 1] end, slots = slots,
+                Permission = Permission(), OnRep_Permission = function() end }
     local model = { DeteriorationDamage = 0.15, DamagableType = 0 }
     chests[#chests + 1] = { IsValid = function() return true end, at = at, c = c, model = model,
         GetTransform = function(self) return { Translation = self.at } end,
@@ -724,15 +778,37 @@ hud.CreateDispatchParameterForK2Node = function() return {} end
 hud.ShowCommonUI = function(_, kind, param)
     local id = "chest" .. (#shown + 1)
     shown[#shown + 1] = { kind = kind, param = param }
-    hudWindows[id] = Widget()
+    local head = { IsValid = function() return true end, text = "Advanced Chest", BindTextDatatableHandle = {} }
+    function head:SetText(t) self.text = t.text end
+    function head:GetText() local t = self.text; return { ToString = function() return t end } end
+    hudWindows[id] = Widget({ WBP_IngameMenu_Chest = { Text_TargetContainerName = head } })
     return id end
+-- The game's move from a chest slot to the bag (the Item part of the player's network transmitter).
+movesWork, moves = true, {}
+util.GetNetworkTransmitter = function() return { Item = { IsValid = function() return true end,
+    RequestMoveToContainer_ToServer = function(_, guid, to, froms)
+        for _, f in ipairs(froms) do
+            moves[#moves + 1] = { to = to.ID.A, index = f.SlotId.SlotIndex, n = f.Num }
+            if movesWork then
+                local slot = chests[1].c.slots[f.SlotId.SlotIndex + 1]
+                local id = slot.ItemId.StaticId:ToString()
+                bagHas[id] = (bagHas[id] or 0) + f.Num
+                slot.StackCount = slot.StackCount - f.Num
+                if slot.StackCount <= 0 then                -- an emptied slot holds no item at all
+                    slot.ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }
+                    slot.StackCount = 0
+                end
+            end
+        end
+    end } } end
 hud.Close = function(_, id) if hudWindows[id] then hudWindows[id].gone = true end end
 ps.PlayerUId = { A = 1, B = 2, C = 3, D = 4 }
-hooks[CLICK]({ get = function() return mailBtn end })
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
 expect(not escMenu.closed, "nothing is closed inside the click's hook")
 run(1)
-expect(escMenu.closed and logged("Esc menu closed for the mailbox %(Close%)"), "the mailbox button closes the Esc menu on the next update")
-run(2)
+expect(escMenu.closed and not escMenu.tabOnly and logged("Esc menu closed for the mailbox %(CloseAction%)"),
+       "the mailbox button closes the whole menu on the next update")
+run(3)
 expect(spawnAsked == "ItemChest_04" and chests[1] and #chests[1].c.slots == 300, "a 300-slot chest is made: " .. tostring(chests[1] and #chests[1].c.slots))
 expect(chestTemplates[1].SlotNum == 54, "the chests players build keep their size")
 expect(chests[1].at.X == -1050000 and chests[1].at.Z == -40000, "far outside the map, under the ground")
@@ -743,38 +819,64 @@ expect(#shown == 1 and shown[1].kind == 7 and shown[1].param.MapObjectConcreteMo
 expect(slots[1].ItemId.StaticId:ToString() == "Wood" and slots[1].StackCount == 50, "filled from the mailbox")
 expect(chests[1].model.DeteriorationDamage == 0 and chests[1].model.DamagableType == 2 and chests[1].locked, "kept from decay and locked")
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview=1", 1, true), "the save knows a view is open")
+expect(chests[1].c.Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
+       and slots[7].Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
+       and logged("deposits refused by permission: container set, 300 slot%(s%)"), "the chest accepts nothing (the game's own rule)")
+run(1)
+expect(hudWindows["chest1"].WBP_IngameMenu_Chest.Text_TargetContainerName.text == "Archipelago Mailbox"
+       and logged("heading was 'Advanced Chest'"), "the window is headed Archipelago Mailbox")
 slots[1].StackCount = 20                                   -- the player takes 30 Wood
-slots[2].ItemId.StaticId, slots[2].StackCount = FNameOf("Sword"), 1    -- and leaves a sword (gear: has per-item data)
+run(1)
+local bagWood = bagHas.Wood or 0
+slots[1].StackCount = 25                                   -- and puts 5 back
+slots[2].ItemId.StaticId, slots[2].StackCount = FNameOf("Sword"), 1    -- and a sword (gear: has per-item data)
 slots[2].ItemId.DynamicId.LocalIdInCreatedWorld.A = 7
+run(1)
+expect(slots[1].StackCount == 20 and (bagHas.Wood or 0) == bagWood + 5 and moves[1].to == 5 and moves[1].index == 0 and moves[1].n == 5,
+       "a deposit goes back to the bag by the game's move: " .. slots[1].StackCount)
+expect(slots[2]:IsEmpty() and bagHas.Sword == 1, "gear too")
+expect(table.concat(announced, "|"):find("The mailbox only hands items out: Wood went back to your bag.", 1, true), "and the player is told")
 push("item", "8", tostring(itemId["Stone Bundle"]), "9", "2", "0", "Stone Bundle", "Friend")   -- arrives meanwhile
-run(7)
+run(8)                                                     -- (bundles are applied every 7th update)
+expect(slots[2].ItemId.StaticId:ToString() == "Stone" and slots[2].StackCount == 50, "what arrives while it is open shows at once")
+movesWork = false                                          -- a move that does nothing: by hand after a few updates
+slots[2].StackCount = 53
+local givenBefore = #given
+run(5)
+expect(slots[2].StackCount == 50 and given[#given] == "Stone x3" and #given == givenBefore + 1 and logged("did nothing; deposits are returned by hand"),
+       "a deposit the move left is returned by hand, once: " .. slots[2].StackCount)
+slots[1].StackCount = 21                                   -- put in just before closing (the move does nothing)
 hudWindows["chest1"].gone = true                           -- the player closes it
 run(1)
+movesWork = true
 kinds, items = require("mailbox").count()
 expect(kinds == 2 and items == 70, "closed: what is left goes back into the mailbox, with what arrived meanwhile: " .. items)
-expect(slots[1]:IsEmpty() and not slots[2]:IsEmpty(), "the chest is emptied, gear stays in it")
+expect(given[#given] == "Wood x1" and logged("put in at the last moment went back to the bag"), "a last-moment deposit goes to the bag")
+expect(slots[1]:IsEmpty() and slots[2]:IsEmpty(), "the chest is emptied")
+expect(not logged("no chest window heading found"), "the heading is not looked for as the window closes")
 local saved = io.open(MOD .. "/save-12345-Tester.txt"):read("*a")
 expect(saved:find("mail=Wood:20,Stone:50\nmailview=0", 1, true), "saved: " .. saved)
 -- Open again: the chest is found, not made again. A plain stack left in it (a world save older than the mod's save,
 -- after a crash) is a copy: it goes before filling.
 slots[5].ItemId.StaticId, slots[5].StackCount = FNameOf("Wood"), 20
-hooks[CLICK]({ get = function() return mailBtn end })
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
-expect(#chests == 1 and #shown == 2 and slots[1].ItemId.StaticId:ToString() == "Wood" and slots[3].ItemId.StaticId:ToString() == "Stone",
-       "found again by its place and filled around the gear")
+expect(#chests == 1 and #shown == 2 and slots[1].ItemId.StaticId:ToString() == "Wood" and slots[2].ItemId.StaticId:ToString() == "Stone",
+       "found again by its place and filled")
 expect(slots[5]:IsEmpty(), "a leftover copy is cleared, not counted twice")
+run(1)
 hudWindows["chest2"].gone = true
 run(2)
 -- A chest window the mod can't follow (no widget for its id, no chest widget found): never emptied early; the next
 -- open settles it first.
 local showPlain = hud.ShowCommonUI
 hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
-hooks[CLICK]({ get = function() return mailBtn end })
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(11)
 expect(logged("followed by unknown") and slots[1].StackCount == 20, "a window it can't follow is left alone")
 slots[1].StackCount = 5                                    -- the player takes 15 Wood
 hud.ShowCommonUI = showPlain
-hooks[CLICK]({ get = function() return mailBtn end })
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
 kinds, items = require("mailbox").count()
 expect(items == 55 and slots[1].StackCount == 5 and logged("followed by id"), "the next open settles it first: " .. items)
@@ -782,17 +884,18 @@ hudWindows["chest" .. #shown].gone = true
 run(2)
 -- The world changes while a view the mod can't follow is open: it is dropped, and the next open fills afresh.
 hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
-hooks[CLICK]({ get = function() return mailBtn end })
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(11)
 slots[1].StackCount = 1                                    -- the copy left in the chest
 playerController.GetAddress = function() return 999 end    -- a new world
 run(1)
 hud.ShowCommonUI = showPlain
 expect(logged("the world changed; the open chest view is settled on the next open"), "a world change drops the view")
-hooks[CLICK]({ get = function() return mailBtn end })
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
 kinds, items = require("mailbox").count()
 expect(items == 55 and slots[1].StackCount == 5, "the next open fills from the list, not the copy: " .. slots[1].StackCount)
+run(1)
 hudWindows["chest" .. #shown].gone = true
 run(2)
 -- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
@@ -813,8 +916,8 @@ hud.Push = function(self, cls, param)
 end
 local wblCreate = wbl.Create
 wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end return wblCreate() end
-hooks[CLICK]({ get = function() return mailBtn end })
-run(2)
+hooks[ESC_CLICK]({ get = function() return mailBtn end })
+run(3)
 local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
 expect(#winRows == 2 and winRows[1].Label.text == "Wood  x5" and winRows[2].Label.text == "Stone  x50",
        "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
@@ -847,8 +950,10 @@ run(1)
 local connectBtn, disconnectBtn = menuChildren[1] and menuChildren[1].child, menuChildren[2] and menuChildren[2].child
 expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as Tester" and disconnectBtn.visibility == 0,
        "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
+expect(menuChildren[3] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+       "Quit Game moved back to the end, with its padding")
 run(3)
-expect(#menuChildren == 2, "added once")
+expect(#menuChildren == 3, "added once")
 expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
