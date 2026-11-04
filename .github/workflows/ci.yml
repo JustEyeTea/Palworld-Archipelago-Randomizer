@@ -48,6 +48,11 @@ jobs:
           cd palworld-archipelago/cppmod/APConnector
           g++ -std=c++17 -O1 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp -o "$RUNNER_TEMP/image_test"
           "$RUNNER_TEMP/image_test"
+      - name: The C++ part's Pal-gift logic (the half that needs no Unreal headers)
+        run: |
+          cd palworld-archipelago/cppmod/APConnector
+          g++ -std=c++17 -O1 -Isrc test/pal_gift_test.cpp src/pal_gift_logic.cpp -o "$RUNNER_TEMP/pal_gift_test"
+          "$RUNNER_TEMP/pal_gift_test"
       - name: Archipelago's test suites
         run: AP_DIR="$GITHUB_WORKSPACE/archipelago" palworld-archipelago/tools/ap_tests.sh
       - name: Test generations

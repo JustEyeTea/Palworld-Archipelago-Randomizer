@@ -1028,6 +1028,105 @@ local towerList = record.TowerBossDefeatFlag.Items.list
 towerList[#towerList + 1] = { Key = FNameOf("EPalBossType::WorldTreeBoss"), Value = true }
 run(14)
 expect(goals == before + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
+
+print("test tools: giving a Pal through the connector")
+-- As UE4SS: key binds take modifiers; the connector refuses game calls off the game thread (pal_gift.cpp), and only
+-- ExecuteInGameThread is on it.
+ModifierKey = { CONTROL = "ctrl" }
+local keyMods = {}
+RegisterKeyBind = function(key, a, b) keyBinds[key] = b or a; keyMods[key] = b and a or nil end
+local onGameThread = false
+ExecuteInGameThread = function(fn)
+    onGameThread = true
+    local ok, err = pcall(fn)
+    onGameThread = false
+    if not ok then error(err, 0) end
+end
+local function press(key) if keyBinds[key] then keyBinds[key]() end end
+local partySize = 3
+util.GetOtomoHolderComponent = function(_, who)
+    assert(who == pawn, "the party of the player's pawn")
+    return { GetOtomoCount = function() return partySize end }
+end
+local TT = require("test_tools")
+AP_GivePal, AP_GivePalPoll = nil, nil                    -- an APConnector older than this build
+TT.install()
+local anyBound = false
+for _, k in ipairs({ "F5", "F6", "F7", "F8", "F9" }) do anyBound = anyBound or keyBinds["key:" .. k] ~= nil end
+expect(logged("give Pal: AP_GivePal missing %(APConnector older than this build%); no Pal hotkeys") and not anyBound,
+       "an older connector: no Pal hotkeys, and the log says why")
+-- The connector, shaped like its report: lines of "step: detail", the last one the result.
+local gifts, giveReply, pollReplies, pollCalls = {}, nil, {}, 0
+AP_GivePal = function(species, level, route, options)
+    if not onGameThread then return "result: fail not on the game thread (call inside ExecuteInGameThread)" end
+    gifts[#gifts + 1] = { species, level, route, options }
+    if giveReply == "throw" then error("boom") end
+    return giveReply or ("route=" .. route .. "\nparty: 3/5\ncreate: handle=PalIndividualCharacterHandle_1\nresult: ok party")
+end
+AP_GivePalPoll = function()
+    pollCalls = pollCalls + 1
+    if not onGameThread then return "result: fail not on the game thread (call inside ExecuteInGameThread)" end
+    return table.remove(pollReplies, 1) or ""
+end
+local loopsBefore = #extraLoops
+TT.install()
+expect(#extraLoops == loopsBefore + 1, "a poll loop for pending gifts")
+local allCtrl = true
+for _, k in ipairs({ "F5", "F6", "F7", "F8", "F9" }) do
+    local m = keyMods["key:" .. k]
+    allCtrl = allCtrl and keyBinds["key:" .. k] ~= nil and m ~= nil and m[1] == "ctrl"
+end
+expect(allCtrl, "Ctrl+F5 to Ctrl+F9 bound")
+press("key:F5")
+local g1 = gifts[1]
+expect(g1 and g1[1] == "SheepBall" and g1[2] == "11" and g1[3] == "party_debug" and g1[4] == "",
+       "Ctrl+F5 gives SheepBall Lv 11 by party_debug, on the game thread")
+expect(logged("%[test%] give Pal party_debug: create: handle=PalIndividualCharacterHandle_1")
+       and logged("%[test%] give Pal party_debug: result: ok party")
+       and logged("give Pal party_debug: party before 3") and logged("give Pal party_debug: party after 3"),
+       "every report line is logged, with the party count before and after")
+for i, want in ipairs({ { "F6", "ChickenPal", "12", "party_plain" }, { "F7", "PinkCat", "13", "handle" },
+                        { "F8", "Kitsunebi", "14", "palbox" }, { "F9", "Anubis", "50", "auto" } }) do
+    press("key:" .. want[1])
+    local g = gifts[1 + i]
+    expect(g and g[1] == want[2] and g[2] == want[3] and g[3] == want[4], "Ctrl+" .. want[1] .. " gives " .. want[2] .. " by " .. want[4])
+end
+expect(pollCalls == 0, "nothing pending, so no polls")
+-- A gift the game hasn't finished: polled until it arrives, then not again.
+giveReply = "route=palbox species=Kitsunebi\nimport: calling\nresult: pending"
+pollReplies = { "poll 1 route=palbox\ncheck: palbox slot 7 handle=null\nresult: pending",
+                "poll 2 route=palbox\ncheck: palbox slot 7 handle=PalIndividualCharacterHandle_2\nresult: ok palbox" }
+press("key:F8")
+run(1)
+expect(pollCalls == 2 and logged("give Pal palbox: check: palbox slot 7 handle=PalIndividualCharacterHandle_2")
+       and logged("give Pal palbox: result: ok palbox") and logged("give Pal palbox: party now 3"),
+       "a pending gift is polled until it arrives: " .. pollCalls .. " poll(s)")
+run(2)
+expect(pollCalls == 2, "and then no more polls")
+-- Another key while one is pending: the connector answers busy, and the first gift is still polled.
+pollReplies = { "poll 1 route=palbox\nresult: pending" }
+press("key:F8")
+giveReply = "route=auto\nresult: busy"
+press("key:F9")
+pollReplies[#pollReplies + 1] = "poll 2 route=palbox\nresult: fail timeout (palbox slot 7 handle=null)"
+run(1)
+expect(logged("give Pal auto: result: busy") and pollCalls == 4 and logged("give Pal palbox: result: fail timeout"),
+       "busy keeps the pending gift, which is polled to its end: " .. pollCalls .. " poll(s)")
+-- The connector forgets the gift (reloaded): the probe stops polling.
+giveReply = "route=party_debug\nresult: pending"
+pollReplies = {}
+press("key:F5")
+run(2)
+expect(pollCalls == 5 and logged("give Pal party_debug: the connector has no pending gift"), "an empty poll ends it")
+-- An error from the connector is logged, and the next key still works.
+giveReply = "throw"
+press("key:F6")
+expect(logged("give Pal party_plain: error .*boom"), "a connector error is logged")
+giveReply = nil
+local n = #gifts
+press("key:F7")
+run(1)
+expect(#gifts == n + 1 and gifts[#gifts][3] == "handle", "and the next key still gives")
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

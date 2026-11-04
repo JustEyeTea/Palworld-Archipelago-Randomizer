@@ -16,6 +16,11 @@
 //   AP_ComposeMap(colour, labels, "3,7", out, gamma) -> string   starts composing the world map (locked areas grey) in
 //                                        the background: "" started, "busy", or an error
 //   AP_ComposeStatus() -> string         "busy", "done" (once, when finished), "error: ..." or ""
+//   AP_GivePal(species, level, route, options) -> string   gives the player a Pal ("Anubis", "50", "auto", ""); a report,
+//                                        one step per line, the last "result: ok party|ok palbox|pending|busy|fail ..."
+//                                        (see pal_gift.cpp; game thread only, so call it inside ExecuteInGameThread)
+//   AP_GivePalPoll() -> string           while a gift is pending, a report ending like AP_GivePal's; else ""
+//   (AP_GivePal and AP_GivePalPoll are untested in game.)
 #include <Windows.h>
 
 #include <cstdio>
@@ -30,6 +35,7 @@
 
 #include "ap_bridge.hpp"
 #include "image_tools.hpp"
+#include "pal_gift.hpp"
 
 using namespace RC;
 
@@ -176,6 +182,15 @@ namespace
             double g = 1.0;
             try { g = std::stod(gamma); } catch (...) {}
             l.set_string(greyscale_png(in, out, g));
+            return 1;
+        });
+        lua.register_function("AP_GivePal", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto species = arg(l), level = arg(l), route = arg(l), options = arg(l);
+            l.set_string(give_pal(species, level, route, options));
+            return 1;
+        });
+        lua.register_function("AP_GivePalPoll", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(give_pal_poll());
             return 1;
         });
     }

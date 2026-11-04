@@ -131,6 +131,11 @@ To go back to the chest window without removing the pak, set `mailbox_view=chest
 
 - **Giving Pals:** no Lua route works. Two crashed the game in the v0.11.3 playtest (drop and pick up, and the
   character manager: UE4SS can't pass a Pal's save parameter struct from Lua); the captured cage makes a Pal handle
-  but never a Pal in the world, so nothing can be captured (v0.11.3, v0.11.4). A Blueprint function here can build the save parameter itself, call `CreateIndividual` with a real callback
-  and put the Pal in the party or the Palbox; so can the C++ connector.
+  but never a Pal in the world, so nothing can be captured (v0.11.3, v0.11.4). The C++ connector now has a try at
+  it: `AP_GivePal` (cppmod/APConnector/src/pal_gift.cpp) builds the save data and calls `CreateIndividual` with the
+  party's own callback bound, or imports the Pal into the Palbox, in heap memory of the right size. **It is untested in
+  game and unbuilt until CI runs**; `test_tools=1` gives one hotkey per route (Ctrl+F5 to Ctrl+F9, see
+  `Scripts/test_tools.lua`). Like the game's own create, it works only where the game has authority: single player or
+  a listen-server host, not a client of a dedicated server. A Blueprint function here remains the fallback if every
+  route fails: it can build the save parameter itself and call `CreateIndividual` with a real callback.
 - **Wall look:** the red grid is the accepted look. A custom material can go here if that changes.
