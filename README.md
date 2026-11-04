@@ -9,6 +9,15 @@ progression. It runs as a UE4SS mod inside the player's own game: a Lua core plu
 Archipelago server. Targets Palworld 1.0.5 and Archipelago 0.6.8. To install and connect, follow the setup guide,
 `apworld/palworld/docs/setup_en.md` (also the Setup Guide on an Archipelago site's Palworld page).
 
+<picture>
+  <source srcset="art/readme/install-diagram-dark.svg" media="(prefers-color-scheme: dark)">
+  <img src="art/readme/install-diagram-light.svg" alt="How it fits together: Palworld with UE4SS and the mod on your PC, the options page making your YAML, the host generating the multiworld, and the Archipelago server connecting everyone" width="800">
+</picture>
+
+<img src="art/readme/feature-shop.png" alt="The Technology tree becomes an Archipelago shop" width="800">
+<img src="art/readme/feature-passes.png" alt="Areas open with Area Passes" width="800">
+<img src="art/readme/feature-walls.png" alt="Locked areas are walled off until their pass arrives" width="800">
+
 `apworld/palworld/` is the APWorld: options, items, locations and logic, with `game_data.py` generated from the game's
 tables by `tools/gen_apworld_data.py`. `mod/PalworldArchipelago/` is the UE4SS Lua mod (its `Scripts/ap_data.lua` is
 generated from the APWorld by `tools/gen_lua_data.py`), and `mod/test/` its test harness (`tools/lua_harness.sh`).
@@ -56,7 +65,9 @@ serve the folder (`python3 -m http.server -d docs`) and open http://localhost:80
 
 CC0 1.0 Universal (see LICENSE). The artwork in `art/` (the logo and the shop card icons) is CC0 too and was made
 by Claude (Opus 5.5) at JustEyeTee's direction. The wordmark's letters are outlines of the Lilita One typeface by Juan
-Montoreano, under the SIL Open Font License 1.1 (`art/FONT-LICENSE-LilitaOne-OFL.txt`).
+Montoreano, under the SIL Open Font License 1.1 (`art/FONT-LICENSE-LilitaOne-OFL.txt`); the options page ships the
+font file itself (`docs/options/LilitaOne-Regular.ttf`, with its licence in `docs/options/LilitaOne-OFL.txt`). The
+README graphics in `art/readme/` and the options page's header and styling were made by Claude (Opus 5.5) too.
 
 Palworld Archipelago is an unofficial fan project. It is not affiliated with or endorsed by Pocketpair, Inc. or the
 Archipelago project. Palworld is a trademark of Pocketpair, Inc.

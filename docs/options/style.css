@@ -1,27 +1,40 @@
-/* Plain and readable in light and dark mode, one column that fits a phone. */
+/* Palworld Archipelago options page: house style (sea teal, navy, sand, the four island colours).
+   Same selectors and layout as the original style.css; only colours, headings, panels and buttons change.
+   Light and dark follow prefers-color-scheme. One column that fits a phone.
+   Headings use Lilita One (SIL OFL 1.1) from LilitaOne-Regular.ttf next to this file, with a system fallback. */
+@font-face {
+  font-family: "Lilita One";
+  src: url("LilitaOne-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
 :root {
-  --bg: #f6f7f9;
+  --bg: #eef5f6;
   --panel: #ffffff;
-  --text: #1c2128;
-  --muted: #57606a;
-  --border: #d0d7de;
-  --accent: #0b6bcb;
+  --text: #17324d;
+  --muted: #4f6475;
+  --border: #cfe0e3;
+  --accent: #1e6e75;
+  --accent-hover: #185c62;
   --accent-text: #ffffff;
   --error: #b42318;
-  --code-bg: #eef1f4;
+  --code-bg: #e4eff1;
+  --sand: #ecbe6e;
+  --coral: #ef6a5b; --leaf: #4db06a; --sky: #3a97da; --violet: #8b6fd6;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #12161b;
-    --panel: #1b2027;
-    --text: #e6e9ed;
-    --muted: #a3acb6;
-    --border: #39414b;
-    --accent: #5aa7f2;
-    --accent-text: #0b1220;
+    --bg: #0f1e2c;
+    --panel: #17283a;
+    --text: #f2f5f8;
+    --muted: #a3b1c0;
+    --border: #2f4a60;
+    --accent: #7fd3cf;
+    --accent-hover: #9fe0dc;
+    --accent-text: #0e2236;
     --error: #ff8a80;
-    --code-bg: #232a33;
+    --code-bg: #1e3348;
     color-scheme: dark;
   }
 }
@@ -34,21 +47,35 @@ body {
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
-h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; }
-h2, legend { font-size: 1.15rem; font-weight: 650; }
+
+/* header art: a <picture> with the light/dark lockup, then the page's own h1 and intro */
+.page-art { display: block; margin: 0 0 1rem; }
+.page-art img { display: block; width: 100%; height: auto; }
+
+h1, h2, legend { font-family: "Lilita One", system-ui, sans-serif; font-weight: 400; letter-spacing: .01em; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; color: var(--accent); }
+h2, legend { font-size: 1.35rem; }
 h2 { margin: 0 0 .75rem; }
 a { color: var(--accent); }
 code { background: var(--code-bg); padding: 0 .25em; border-radius: 4px; }
 
 .panel {
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1rem;
+  border-radius: 14px;
+  padding: 1rem 1rem 1.2rem;
   margin: 0 0 1rem;
   min-width: 0;  /* lets a fieldset shrink to a phone's width */
+  overflow: hidden;
 }
-fieldset.panel { padding-top: .25rem; }
+/* a thin four-colour band along the bottom of each panel (the top edge holds a fieldset legend) */
+.panel::before {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0; height: 5px;
+  background: linear-gradient(90deg, var(--coral) 0 25%, var(--leaf) 25% 50%, var(--sky) 50% 75%, var(--violet) 75%);
+}
+fieldset.panel { padding-top: .5rem; }
 legend { padding: 0 .4rem; margin-left: -.4rem; }
 
 .field { margin: 0 0 1.1rem; }
@@ -64,7 +91,7 @@ input[type=text], input[type=number], select {
   color: inherit;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: .45rem .6rem;
   width: 100%;
   max-width: 22rem;
@@ -73,7 +100,7 @@ input[type=number] { width: 6.5rem; flex: none; }
 .range { display: flex; gap: .75rem; align-items: center; max-width: 30rem; }
 .range input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
 input[type=checkbox] { accent-color: var(--accent); }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--sand); outline-offset: 2px; }
 [aria-invalid=true] { border-color: var(--error); }
 
 .help { color: var(--muted); font-size: .92rem; margin: .3rem 0 0; }
@@ -87,19 +114,21 @@ details summary { cursor: pointer; color: var(--accent); margin-top: .25rem; }
 .file-options dd { margin: 0; color: var(--muted); font-size: .92rem; }
 
 button {
-  font: inherit;
-  font-weight: 650;
+  font: 1.15rem "Lilita One", system-ui, sans-serif;
+  letter-spacing: .02em;
   background: var(--accent);
   color: var(--accent-text);
   border: 0;
-  border-radius: 8px;
-  padding: .65rem 1.3rem;
+  border-radius: 999px;
+  padding: .6rem 1.6rem;
   cursor: pointer;
+  box-shadow: 0 3px 0 rgba(14, 34, 54, .35);
 }
-button:hover { filter: brightness(1.08); }
+button:hover { background: var(--accent-hover); }
+button:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(14, 34, 54, .35); }
 pre {
   background: var(--code-bg);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: .75rem;
   overflow: auto;
   max-height: 28rem;
