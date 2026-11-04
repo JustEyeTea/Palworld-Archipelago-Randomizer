@@ -15,6 +15,7 @@ generated from the APWorld by `tools/gen_lua_data.py`), and `mod/test/` its test
 `cppmod/APConnector/` is the UE4SS C++ mod that connects to the Archipelago server; CI builds it on Windows and
 packages it with the Lua mod.
 
+`mod/PERF-PROBE.md` explains the test builds' performance probe (`perf_log=1`) and how to read its log lines.
 `logicmod/` holds the optional PalworldArchipelagoUI Blueprint pak (the Archipelago Mailbox's own window), built in
 the community Palworld Modding Kit; its README has the steps. `spike/` holds the feasibility probes (a server-side probe and the client tech-shop probe). `tools/` reads Palworld's
 own data through the probe and turns it into the facts the randomizer needs; `data/` holds those facts (areas, where

@@ -134,7 +134,7 @@ To go back to the chest window without removing the pak, set `mailbox_view=chest
   but never a Pal in the world, so nothing can be captured (v0.11.3, v0.11.4). The C++ connector now has a try at
   it: `AP_GivePal` (cppmod/APConnector/src/pal_gift.cpp) builds the save data and calls `CreateIndividual` with the
   party's own callback bound, or imports the Pal into the Palbox, in heap memory of the right size. **It is untested in
-  game and unbuilt until CI runs**; `test_tools=1` gives one hotkey per route (Ctrl+F5 to Ctrl+F9, see
+  game and unbuilt until CI runs**; `test_tools=1` gives one hotkey per route (Ctrl+1 to Ctrl+5, see
   `Scripts/test_tools.lua`). Like the game's own create, it works only where the game has authority: single player or
   a listen-server host, not a client of a dedicated server. A Blueprint function here remains the fallback if every
   route fails: it can build the save parameter itself and call `CreateIndividual` with a real callback.

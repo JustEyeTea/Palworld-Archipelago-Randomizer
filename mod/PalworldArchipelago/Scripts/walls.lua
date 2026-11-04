@@ -7,6 +7,7 @@ local MAP = require("area_map")
 local SHAPES = require("area_shapes")
 
 local W = {}
+local P = require("perf")
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -21,7 +22,14 @@ local PER_TICK = 30           -- pieces raised or taken down per update, to spre
 local SINK_STEPS = 60         -- an opened wall sinks into the ground over 60 steps of 33 ms (2 s), then goes
 
 local raised = {}             -- piece index -> wall actor
+local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
 local cls, gs = nil, nil
+-- Each piece's direction, worked out once (lockedNear did it for every raised piece every 7th update).
+local trig = {}
+for i, w in ipairs(DATA.walls) do
+    local yaw = math.rad(w[4])
+    trig[i] = { math.cos(yaw), math.sin(yaw) }
+end
 
 local function isOpen(area, passes)
     return area == SEA or area == START or passes[area] == true
@@ -46,7 +54,7 @@ end
 function W.reset()
     for i, a in pairs(raised) do
         local ok, valid = pcall(function() return a:IsValid() end)
-        if not (ok and valid) then raised[i] = nil end
+        if not (ok and valid) then raised[i], nRaised = nil, nRaised - 1 end
     end
 end
 
@@ -60,6 +68,7 @@ local function raise(i, context)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
     raised[i] = a
+    nRaised = nRaised + 1
     return true
 end
 
@@ -99,20 +108,39 @@ if LoopAsync then
         return false
     end)
 end
+local function forget(i)
+    if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
+end
 local function lower(i)
     local a = raised[i]
-    raised[i] = nil
+    forget(i)
     if not (a and a:IsValid()) then return end
     local w = DATA.walls[i]
     sinking[#sinking + 1] = { a, w[1], w[2], 0 }
 end
 
+-- Walls the game removed (back to the title, another world) are noticed by checking a share of the pieces each
+-- update, all of them every 14 updates (4 s): 6dd356e checked all 818 every update (an estimated 0.3-0.5 ms,
+-- unmeasured). A new world is noticed at once anyway: main.lua resets on a new pawn.
+local CHECK_PER_TICK = 60
+local checkAt = 0
+local function checkSome()
+    local n = #DATA.walls
+    for _ = 1, math.min(CHECK_PER_TICK, n) do
+        checkAt = checkAt % n + 1
+        local a = raised[checkAt]
+        if a and not a:IsValid() then forget(checkAt) end
+    end
+end
+function W.oldSweep()                 -- 6dd356e's check of every piece (only for the perf probe's Ctrl+0 replay)
+    for _, a in pairs(raised) do a:IsValid() end
+end
+
 -- Brings the walls in line with the passes held: raises missing pieces of locked borders, takes down pieces whose
 -- areas are both open (a few per call).
+local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
 function W.update(enabled, passes, context)
-    for i, a in pairs(raised) do                      -- walls the game removed (back to the title, another world)
-        if not a:IsValid() then raised[i] = nil end
-    end
+    checkSome()
     if not ready() then return end
     local budget = PER_TICK
     for i, w in ipairs(DATA.walls) do
@@ -120,13 +148,41 @@ function W.update(enabled, passes, context)
         local up = enabled and not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes))
         if up and not raised[i] then
             local ok, err = pcall(raise, i, context)
-            if not ok then log("could not raise wall " .. i .. ": " .. tostring(err)); return end
+            if not ok then
+                -- Once per kind of error: a raise that fails fails again on every update (three lines a second).
+                once("raise" .. tostring(err):gsub("0x%x+", ""):gsub("%d+", "#"), "could not raise wall " .. i .. ": " .. tostring(err))
+                return
+            end
             budget = budget - 1
         elseif not up and raised[i] then
             lower(i)
             budget = budget - 1
         end
     end
+    if catchingUp and budget == PER_TICK then
+        catchingUp = false
+        P.wallsCaughtUp(nRaised)
+    end
+end
+
+-- The perf probe's Ctrl+7 test states (test_tools=1 only): hidden (collision kept), nocoll (shown, no collision),
+-- none (every raised piece removed at once, no sinking), full (as normal; the update raises what is missing).
+-- While the state is not full, main.lua neither raises nor lowers pieces nor sends anyone home.
+function W.perfMode(mode)
+    if mode == "none" then
+        for _, a in pairs(raised) do
+            if a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
+        end
+        raised, nRaised = {}, 0
+        return
+    end
+    for _, a in pairs(raised) do
+        if a:IsValid() then
+            pcall(function() a:SetActorHiddenInGame(mode == "hidden") end)
+            pcall(function() a:SetActorEnableCollision(mode ~= "nocoll") end)
+        end
+    end
+    if mode == "full" then catchingUp = true end
 end
 
 -- Which area a spot is in (nil off the main map: the World Tree's own map). The map's rows are decoded when first used.
@@ -181,10 +237,10 @@ function W.lockedNear(x, y, passes)
     local best, bestD = nil, NEAR
     for i, a in pairs(raised) do
         local w = DATA.walls[i]
-        local yaw = math.rad(w[4])
+        local cos, sin = trig[i][1], trig[i][2]
         local dx, dy = x - w[1], y - w[2]
-        local along = dx * math.cos(yaw) + dy * math.sin(yaw)
-        local across = -dx * math.sin(yaw) + dy * math.cos(yaw)
+        local along = dx * cos + dy * sin
+        local across = -dx * sin + dy * cos
         local over = math.max(0, math.abs(along) - w[3] / 2)
         local d = math.sqrt(over * over + across * across)
         if d < bestD then
@@ -216,9 +272,14 @@ local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' t
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
 local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at all)
 W.dir = "."
+-- The game instance lives all session (skill: GameInstance-owned objects); kept, and looked up again only if it is
+-- no longer valid. 6dd356e looked it up on every update while a map screen existed.
+local ownerGi = nil
 local function owner()
+    if ownerGi and ownerGi:IsValid() then return ownerGi end
     local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
-    return gi and gi:IsValid() and gi or nil
+    ownerGi = gi and gi:IsValid() and gi or nil
+    return ownerGi
 end
 local function greyscaleMap(krl, tex)
     if greyTex and greyTex:IsValid() then return greyTex end
@@ -389,6 +450,10 @@ end
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
 -- composing it failed.
 local function composeMap(ctx, passes, key)
+    if not composing then                    -- the usual case: nothing to do, nothing to look up
+        if composedKey == key then return true end
+        if failedKey == key then return "failed" end
+    end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local gi = owner()
     if not gi then return false end
@@ -414,8 +479,6 @@ local function composeMap(ctx, passes, key)
         composedKey = done
         return done == key
     end
-    if composedKey == key then return true end
-    if failedKey == key then return "failed" end
     pcall(LoadAsset, MAP_TEXTURE)
     local tex = StaticFindObject(MAP_TEXTURE)
     if not tex or not tex:IsValid() then return false end
@@ -426,7 +489,10 @@ local function composeMap(ctx, passes, key)
     return false
 end
 
+local mapShownAt = 0           -- map screens with a map image found on the last update (for the perf probe's replay)
+function W.mapShown() return mapShownAt > 0 end
 function W.updateMap(enabled, passes, ctx)
+    mapShownAt = 0
     if not enabled then return end
     -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
     -- more than one real one (different menus), and a map screen sets its own picture again when it opens, so every
@@ -436,6 +502,7 @@ function W.updateMap(enabled, passes, ctx)
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
         if b:IsValid() and ok and img then images[#images + 1] = img end
     end
+    mapShownAt = #images
     if #images == 0 then return end
     local locked = {}
     for _, name in ipairs(DATA.areas) do
@@ -487,9 +554,7 @@ function W.updateMap(enabled, passes, ctx)
 end
 
 function W.count()
-    local n = 0
-    for _ in pairs(raised) do n = n + 1 end
-    return n, #DATA.walls
+    return nRaised, #DATA.walls
 end
 
 return W

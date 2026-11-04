@@ -617,12 +617,35 @@ local function menusUp()
     return esc, inventoryPages(mains)
 end
 
--- Called from the mod's update loop (game thread).
-function M.update()
-    if not surveyed then
-        local inWorld = false
+-- The title menu is looked for every update at the title, but in a world (the player's pawn there) only every 10th
+-- update: 6dd356e walked the object array for it every update in a world, where it never is (an estimated 2-15 ms a
+-- walk, unmeasured). If one is ever found in a world all the same, the in-world test is wrong for this game: it is
+-- logged and the menu is looked for every update again.
+local titleLooks, titleInWorld = 0, false
+local function titleMenus(ctx, inWorld)
+    titleLooks = titleLooks + 1
+    if ctx and ctx.pawn and not titleInWorld and titleLooks % 10 ~= 0 then return nil end   -- not looked this update
+    local found = FindAllOf("WBP_TitleMenu_C") or {}
+    if ctx and ctx.pawn and #found > 0 and not titleInWorld then
+        titleInWorld = true
+        log("menu: a title menu was found with the player's pawn in a world; looking for it every update again")
+    end
+    return found
+end
+
+-- Called from the mod's update loop (game thread). ctx: this update's player (main.lua): ctx.pc, the first live
+-- controller, as FindFirstOf("PalPlayerController") found it; ctx.hasPawn, what its K2_GetPawn gave (an object).
+function M.update(ctx)
+    -- In a world: a live controller whose pawn lookup answered (6dd356e's test, now from the shared lookup).
+    local inWorld = false
+    if ctx then
+        inWorld = ctx.pc ~= nil and ctx.hasPawn == true
+    else
         pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
-        local found = #(FindAllOf("WBP_TitleMenu_C") or {}) > 0
+    end
+    local titles = titleMenus(ctx, inWorld)            -- one lookup for both uses below (nil: not looked this update)
+    if not surveyed then
+        local found = titles ~= nil and #titles > 0
         if not inWorld and not added then titleTicks = titleTicks + 1 else titleTicks = 0 end
         if added then
             surveyed = true
@@ -634,8 +657,6 @@ function M.update()
             if not ok then log("menu survey error: " .. tostring(err)) end
         end
     end
-    local inWorld = false
-    pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
     if api.mailboxLabel then
         local escFound, invFound = {}, {}
         if inWorld then
@@ -661,18 +682,21 @@ function M.update()
     end
     hookOnce(WINDOW_OK, function() local ok, err = pcall(okPressed); if not ok then log("menu OK error: " .. tostring(err)) end end)
     -- Title menus gone (into a world) or rebuilt: forget them and their buttons' addresses, as with the Esc menu. A
-    -- game title button made later at a freed address of ours would otherwise connect or disconnect when clicked.
-    local titleMenus = FindAllOf("WBP_TitleMenu_C") or {}
-    local live = {}
-    for _, menu in ipairs(titleMenus) do pcall(function() live[tostring(menu:GetAddress())] = menu:IsValid() end) end
-    for key, m in pairs(menus) do
-        local okv, valid = pcall(function() return m.connect:IsValid() and m.disconnect:IsValid() end)
-        if not live[key] or not (okv and valid) then
-            for _, k in ipairs(m.keys) do ours[k] = nil end
-            menus[key] = nil
+    -- game title button made later at a freed address of ours would otherwise connect or disconnect when clicked. Only
+    -- on an update that looked for them: one that did not (in a world, 9 in 10) knows nothing about them, and forgetting
+    -- a menu still there would add its buttons a second time when it is next seen.
+    if titles then
+        local live = {}
+        for _, menu in ipairs(titles) do pcall(function() live[tostring(menu:GetAddress())] = menu:IsValid() end) end
+        for key, m in pairs(menus) do
+            local okv, valid = pcall(function() return m.connect:IsValid() and m.disconnect:IsValid() end)
+            if not live[key] or not (okv and valid) then
+                for _, k in ipairs(m.keys) do ours[k] = nil end
+                menus[key] = nil
+            end
         end
     end
-    for _, menu in ipairs(titleMenus) do
+    for _, menu in ipairs(titles or {}) do
         local okb, list = pcall(buttonList, menu)
         if menu:IsValid() and okb and list then
             local key = tostring(menu:GetAddress())

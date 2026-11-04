@@ -34,11 +34,15 @@ function R.notify(text, ps)
     end
 end
 
+local P = require("perf")
 local function each(fastArray, fn)
+    local n = 0
     fastArray.Items:ForEach(function(_, e)
         local it = e:get()
+        n = n + 1
         fn(it.Key:ToString(), it.Value)
     end)
+    P.count("rec", n)
 end
 
 local warned = {}
@@ -107,17 +111,19 @@ function R.progress(ps, D, now)
         end
     end)
 
-    local unlockedNow, missing = {}, false
+    -- One pass over the fast-travel flags (6dd356e walked them twice): the keys not mapped yet are kept and checked
+    -- again after the scan, which gives the same warnings.
+    local unlockedNow, unmapped = {}, {}
     each(rec.FastTravelPointUnlockFlag, function(k, v)
         if not v then return end
         local id = ftKeys[k:upper()]
-        if id then add(D.fast_travel[id]) else missing = true end
+        if id then add(D.fast_travel[id]) else unmapped[#unmapped + 1] = k end
     end)
-    if missing then scanFastTravel(now, unlockedNow) end
+    if #unmapped > 0 then scanFastTravel(now, unlockedNow) end
     for _, id in ipairs(unlockedNow) do add(D.fast_travel[id]) end
-    each(rec.FastTravelPointUnlockFlag, function(k, v)
-        if v and not ftKeys[k:upper()] then warnOnce("ft" .. k, "fast-travel record key not mapped yet: " .. k) end
-    end)
+    for _, k in ipairs(unmapped) do
+        if not ftKeys[k:upper()] then warnOnce("ft" .. k, "fast-travel record key not mapped yet: " .. k) end
+    end
     return { locations = out, towers = towers, beaten = beaten, level = lv, pals = pals }
 end
 

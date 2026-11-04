@@ -1,5 +1,5 @@
 -- Test tools, only with test_tools=1 in config.txt: probes for features that need the game itself to answer. Every step
--- is logged as a "[test]" line.
+-- is logged as a "[test]" line. The performance probe has its own hotkeys (Ctrl+6 .. Ctrl+0, perf.lua).
 --   Ctrl+F5 .. Ctrl+F8   a Slow, Hunger, Teleport or Fool Trap now (through the trap queue's gates, without its pacing)
 --   Ctrl+F9              Exhaustion probe: stamina to 0 (SetSP), only while on the ground
 --   Ctrl+F10             Nightfall probe: the clock to 22:00 (SetGameTime_FixDay)
@@ -179,6 +179,7 @@ local function poll()
 end
 
 function T.install()
+    log("test tools on: the performance probe's hotkeys, with perf_log=1 (perf.lua)")
     if not RegisterKeyBind or not Key or not ModifierKey then
         log("test tools on: no RegisterKeyBind/Key/ModifierKey; no hotkeys")
         return
