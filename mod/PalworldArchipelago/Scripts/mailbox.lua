@@ -70,7 +70,9 @@ function M.count()
 end
 
 -- The mailbox is open or opening (its window, the chest view, or the hidden chest still being made): traps wait.
-function M.busy() return (view or win or want or spawning) and true or false end
+-- A chest view that could not be followed (how "unknown") does not count: it stays set until the next open, which
+-- could hold every trap back for the rest of the session.
+function M.busy() return (win or want or spawning or (view and view.how ~= "unknown")) and true or false end
 
 function M.label()
     local _, items = M.count()

@@ -953,9 +953,13 @@ local function update()
             end
         end
     end
-    if tick % 7 == 0 and ap.ready then
+    if tick % 7 == 0 then
         local ps = playerState()
-        if ps then
+        local pawn = ps and safe(function() return ps:GetPawn() end)
+        -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
+        local okk, errk = pcall(TRAPS.tick, { tick = tick, pawn = pawn })
+        if not okk then once("trapsk" .. tostring(errk), "traps error: " .. tostring(errk)) end
+        if ps and ap.ready then
             if syncTechs(ps) then refreshTree() end
             applyItems(ps)
             pollRecords(ps)
@@ -963,7 +967,6 @@ local function update()
             if not okdl then once("death" .. tostring(errdl), "death link error: " .. tostring(errdl)) end
             -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.
             local okt, errt = pcall(function()
-                local pawn = safe(function() return ps:GetPawn() end)
                 local okd, dead = pcall(function() return ps:IsPlayerDead() end)
                 TRAPS.update({ tick = tick, ps = ps, pawn = pawn, settled = wallsWorld ~= nil and worldTicks >= SETTLE,
                                dead = not okd or dead, busy = MAIL.busy() })

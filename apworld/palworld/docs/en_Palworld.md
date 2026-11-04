@@ -43,7 +43,7 @@ Off by default. Trap Chance replaces that share of the filler items (bundles and
 the trap weights. None of them can make you faint:
 
 - **Slow Trap**: half walking speed for a minute.
-- **Hunger Trap**: you lose half your satiety, but never drop below a quarter (so it never starts starving damage).
+- **Hunger Trap**: your stomach loses half a full meter of satiety, but never drops below a quarter (so it never starts starving damage).
 - **Teleport Trap**: back to the starting area. It waits while you are in a dungeon.
 - **Fool Trap**: an alarming notice, then "just kidding" a few seconds later. Nothing happens.
 

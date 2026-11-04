@@ -1,11 +1,13 @@
 -- Traps (the seed's Trap Chance): received items that do something mildly bad. None of them can make the player faint.
 --  * Slow Trap      half walking speed for a minute (a named walk-speed multiplier, set back to 1 after)
---  * Hunger Trap    half the player's satiety gone, never below a quarter (so it never starts starving damage)
+--  * Hunger Trap    the stomach loses half a full meter of satiety, never going below a quarter (so it never starts
+--                   starving damage)
 --  * Teleport Trap  back to the starting area, as the area locks do (waits while the player is in a dungeon)
 --  * Fool Trap      an alarming notice, then "just kidding" 8 s later
 -- Like bundles, each trap is applied once per item index: main.lua queues it as it applies items, and the queue is kept
 -- in the per-seed save file (traps=Slow Trap|12,...), so a trap received just before quitting still fires next time.
 -- They fire at most one every 15 s, and wait while the player is fainted, the world is loading or the mailbox is open.
+-- Firing waits for the connection; a Slow Trap or Fool Trap already running ends on time without it (T.tick).
 -- UNTESTED IN GAME (only Teleport's K2_TeleportTo and the notices are calls verified before): every trap logs what it
 -- read and what came back, and a trap that fails says "<name> fizzled." in chat and is never retried.
 local T = {}
@@ -25,6 +27,8 @@ local lastFire = -1e9
 local dropped = 0
 local slow = nil            -- { untilTick, pawn = address, comps = { { comp, label, address } } }: a Slow Trap running
 local fool = nil            -- { at = tick, text }: a Fool Trap's punchline
+local heldSince, heldLogged = nil, false  -- the tick the mailbox started holding back waiting traps; logged after 30 s
+local HELD_LOG = 100        -- ticks (30 s)
 
 local function addr(o) return tostring(o:GetAddress()) end
 local function valid(o) return o ~= nil and o:IsValid() end
@@ -53,13 +57,14 @@ local function needPawn(c)
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- The traps. wait(c) says why a trap can't fire yet (and how many ticks it may wait), or nil; run(c, e) does it and
+-- The traps. A missing component comes back from UE4SS as an invalid object, not nil: valid() checks both.
+-- wait(c) says why a trap can't fire yet (and how many ticks it may wait), or nil; run(c, e) does it and
 -- returns what it found (for the log) and the chat notice. run raising an error makes the trap fizzle.
 local TRAPS = {}
 
 TRAPS["Slow Trap"] = {
     wait = function(c)
-        return needPawn(c) or (not c.pawn:GetPalCharacterMovementComponent() and "no movement component yet") or nil
+        return needPawn(c) or (not valid(c.pawn:GetPalCharacterMovementComponent()) and "no movement component yet") or nil
     end,
     run = function(c, e)
         -- A second Slow Trap while one runs restarts the minute; the factor does not stack (same multiplier name).
@@ -89,7 +94,11 @@ TRAPS["Slow Trap"] = {
 
 TRAPS["Hunger Trap"] = {
     wait = function(c)
-        return needPawn(c) or (not c.pawn:GetCharacterParameterComponent() and "no parameter component yet") or nil
+        local why = needPawn(c)
+        if why then return why end
+        local cp = c.pawn:GetCharacterParameterComponent()
+        if not valid(cp) then return "no parameter component yet" end
+        if not valid(cp:GetIndividualParameter()) then return "no individual parameter yet" end
     end,
     run = function(c, e)
         -- Only the satiety float's own setter: never the save-parameter struct it lives in (that crashed UE4SS).
@@ -224,17 +233,32 @@ local function fizzle(e, why)
     env.notify(e.name .. " fizzled.")
 end
 
--- Called every 7 ticks once connected. c: { tick, ps, pawn, settled (the world has loaded), dead, busy (the mailbox
--- is open) }.
-function T.update(c)
+-- Called every 7 ticks, connected or not: a running Slow Trap or Fool Trap ends on time even if the connection drops
+-- (otherwise the player could stay at half speed until reconnecting). c: { tick, pawn (or nil) }.
+function T.tick(c)
     if fool and c.tick >= fool.at then
         env.notify(fool.text)
         fool = nil
     end
     if slow and c.tick >= slow.untilTick then endSlow(c) end
+end
+
+-- Called every 7 ticks once connected, after T.tick. c: { tick, ps, pawn, settled (the world has loaded), dead,
+-- busy (the mailbox is open) }.
+function T.update(c)
     if dropped > 0 then
         env.notify(dropped .. " trap(s) skipped: at most " .. CAP .. " wait at a time.")
         dropped = 0
+    end
+    -- The mailbox gate logs once when it has held traps back for 30 s, so a gate that never opens shows in the log.
+    if c.busy and #T.queue > 0 then
+        heldSince = heldSince or c.tick
+        if not heldLogged and c.tick - heldSince >= HELD_LOG then
+            heldLogged = true
+            log("trap: " .. #T.queue .. " trap(s) held back for 30 s while the mailbox is open")
+        end
+    else
+        heldSince, heldLogged = nil, false
     end
     if #T.queue == 0 or not c.settled or c.dead or c.busy or c.tick - lastFire < GAP then return end
     for i, e in ipairs(T.queue) do

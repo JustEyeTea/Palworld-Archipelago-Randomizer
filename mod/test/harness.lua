@@ -970,6 +970,13 @@ local function ticksUntil(pattern, max)
         if logged(pattern) then return n end
     end
 end
+local function ticksUntilAgain(pattern, max)                   -- a line already logged earlier, logged once more
+    local before = count(pattern)
+    for n = 1, max or 400 do
+        run(1)
+        if count(pattern) > before then return n end
+    end
+end
 local function told(text) return table.concat(announced, "|"):find(text, 1, true) ~= nil end
 
 print("traps")
@@ -986,12 +993,21 @@ local function Movement(address)
 end
 local movement = Movement(5150)
 pawn.GetPalCharacterMovementComponent = function() return movement end
-local stomach = { cur = 80, max = 100 }
-local individual = { GetFullStomach = function() return stomach.cur end, GetMaxFullStomach = function() return stomach.max end,
-                     SetFullStomach = function(_, v) stomach.cur = v end }
-pawn.GetCharacterParameterComponent = function()
-    return { GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end }
+-- What UE4SS returns for a null object: a wrapper that is not nil, whose IsValid is false and whose calls fail.
+local function NullObject()
+    return setmetatable({ IsValid = function() return false end }, { __index = function()
+        return function() error("Tried calling a member function but the UObject instance is nullptr") end
+    end })
 end
+local stomach = { cur = 80, max = 100 }
+local individual = { IsValid = function() return true end,
+                     GetFullStomach = function() return stomach.cur end, GetMaxFullStomach = function() return stomach.max end,
+                     SetFullStomach = function(_, v) stomach.cur = v end }
+local function ParamComponent()
+    return { IsValid = function() return true end, GetLevel = function() return playerLevel end,
+             GetIndividualParameter = function() return individual end }
+end
+pawn.GetCharacterParameterComponent = ParamComponent
 local inStage = false
 ps.IsInStage = function() return inStage end
 playerController.GetControlPalCharacter = function() return pawn end
@@ -1061,8 +1077,9 @@ require("mailbox").open(pawn)
 run(4)
 expect(require("mailbox").busy(), "(the mailbox's chest window is open)")
 trap("Fool Trap", "Friend")
-run(80)
+run(110)
 expect(not logged("trap #17 "), "no trap while the mailbox is open")
+expect(count("trap: 1 trap%(s%) held back for 30 s while the mailbox is open") == 1, "held back 30 s: logged once")
 hudWindows["chest" .. #shown].gone = true
 expect(ticksUntil("trap #17 Fool Trap", 20), "and it comes once the mailbox closes")
 playerController.K2_GetPawn, playerController.GetAddress = nil, nil
@@ -1073,10 +1090,11 @@ expect(ticksUntil("trap #18 Hunger Trap from Friend fizzled: .*nullptr", 80) and
 run(120)
 expect(count("trap #18 ") == 1 and not logged("traps error"), "once, without an update error")
 individual.GetFullStomach = function() return stomach.cur end
--- Missing game objects: it waits a minute, then fizzles.
-pawn.GetPalCharacterMovementComponent = function() return nil end
+-- Missing game objects (UE4SS hands back an invalid object, not nil): it waits a minute, then fizzles.
+pawn.GetPalCharacterMovementComponent = function() return NullObject() end
 trap("Slow Trap", "Friend")
 expect(ticksUntil("trap #19 Slow Trap waits: no movement component yet", 80), "a trap waits for what is missing")
+expect(not logged("trap #19 Slow Trap from Friend fizzled: .*nullptr"), "rather than calling into it")
 expect(ticksUntil("trap #19 Slow Trap from Friend fizzled: waited too long", 260), "then fizzles after a minute")
 pawn.GetPalCharacterMovementComponent = function() return movement end
 -- Riding: the mount is slowed and set back too.
@@ -1121,6 +1139,36 @@ expect(told("2 trap(s) skipped: at most 10 wait at a time.") and logged("trap #2
        "more than 10 traps at once: the oldest extras are skipped")
 run(700)
 expect(count("trap #3[0-5] Fool Trap from Friend: fake") == 6 and not logged("trap #2[45] Fool Trap from"), "the other ten fire")
+-- The connection drops while a Slow Trap and a Fool Trap run: both still end on time.
+trap("Slow Trap", "Friend")
+expect(ticksUntil("trap #36 Slow Trap from Friend: player multiplier", 80), "(a Slow Trap fires)")
+trap("Fool Trap", "Friend")
+expect(ticksUntil("trap #37 Fool Trap from Friend: fake notice", 80), "(then a Fool Trap)")
+push("status", "disconnected")
+expect(ticksUntilAgain("Just kidding%. Fool Trap from Friend%.", 40), "disconnected: the Fool Trap's punchline still comes")
+expect(movement:GetWalkSpeedMultiplier() == 0.5, "(the Slow Trap is still running)")
+expect(ticksUntilAgain("Slow Trap ended; multiplier now player 1%.0", 220) and movement:GetWalkSpeedMultiplier() == 1.0,
+       "and the Slow Trap still ends: walking speed is back")
+push("status", "connected", "Tester")
+for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+run(20)
+-- A chest view that can't be followed (neither the HUD id nor a WBP_ItemChest_C shows it): traps are not held back.
+playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 999 end
+local getWidget = hud.GetWidget
+hud.GetWidget = function() return nil end
+run(1)                                                         -- (the mailbox notes the controller first)
+require("mailbox").open(pawn)
+expect(ticksUntilAgain("mailbox: chest window followed by unknown", 20), "(the chest view could not be followed)")
+expect(not require("mailbox").busy(), "an unfollowable view does not count as the mailbox being open")
+trap("Fool Trap", "Friend")
+expect(ticksUntil("trap #38 Fool Trap from Friend: fake notice", 80), "so a trap still fires")
+hud.GetWidget = getWidget
+require("mailbox").open(pawn)                                  -- the next open settles the old view
+run(4)
+hudWindows["chest" .. #shown].gone = true
+run(4)
+expect(not require("mailbox").busy(), "(the mailbox is closed again)")
+playerController.K2_GetPawn, playerController.GetAddress = nil, nil
 
 print("death link amnesty")
 slotData["options.death_link_amnesty"] = "2"
@@ -1152,7 +1200,7 @@ slotData["options.death_link_amnesty"] = nil
 print("test tools")
 ModifierKey = { CONTROL = "ctrl" }
 local sp = { Value = 900000 }
-local cpStub = { GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end,
+local cpStub = { IsValid = function() return true end, GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end,
                  GetSP = function() return sp end, GetMaxSP = function() return { Value = 1000000 } end,
                  SetSP = function(_, v) sp = { Value = v.Value } end, GetHPRate = function() return 0.9 end }
 pawn.GetCharacterParameterComponent = function() return cpStub end
@@ -1162,7 +1210,10 @@ util.GetTimeManager = function() return { GetCurrentPalWorldTime_Hour = function
                                            SetGameTime_FixDay = function(_, h) hour = h end } end
 local statuses = {}
 pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
-                         GetExecutionStatus = function(_, id) return statuses[id] and "BP_Status" or nil end,
+                         GetExecutionStatus = function(_, id)            -- not running: an invalid object, not nil
+                             if not statuses[id] then return NullObject() end
+                             return { IsValid = function() return true end, GetFullName = function() return "BP_Status" end }
+                         end,
                          RemoveStatus = function(_, id) statuses[id] = nil end }
 require("test_tools").install()
 expect(logged("%[test%] test tools on: Ctrl%+F5%-F8"), "test tools bind their keys")
@@ -1173,14 +1224,13 @@ expect(sp.Value == 0 and logged("exhaustion: stamina 900000 of 1000000 %-> 0"), 
 keyBinds["key:F10"]()
 expect(hour == 22 and logged("nightfall: hour 9 %-> 22"), "Ctrl+F10: nightfall probe logs the hour")
 keyBinds["key:F11"]()
-expect(logged("status LowGravity: running right after: BP_Status") and logged("RemoveStatus%(LowGravity%): ok"),
+expect(logged("status LowGravity: running right after: BP_Status") and logged("RemoveStatus%(LowGravity%): ok")
+       and logged("status LowGravity: running after removal: not running"),
        "Ctrl+F11: a status is added, checked and removed")
 pawn.StatusComponent = nil
 keyBinds["key:F11"]()
 expect(logged("AddStatus%(Wetness 20%): FAILED"), "a failing probe is logged, not raised")
-pawn.GetCharacterParameterComponent = function()
-    return { GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end }
-end
+pawn.GetCharacterParameterComponent = ParamComponent
 
 print("the title menu's Archipelago buttons")
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"

@@ -135,7 +135,8 @@ class SlowTrapWeight(Range):
 
 
 class HungerTrapWeight(Range):
-    """How often a trap is a Hunger Trap: you lose half your satiety, but never drop below a quarter."""
+    """How often a trap is a Hunger Trap: your stomach loses half a full meter of satiety, but never drops below
+    a quarter."""
     display_name = "Hunger Trap Weight"
     range_start = 0
     range_end = 100

@@ -65,6 +65,11 @@ end
 -- EPalStatusID values (LuaTypes/Pal_enums.lua): the safe ones first.
 local STATUSES = { { 47, "LowGravity" }, { 20, "Wetness" }, { 5, "Poison" } }
 local nextStatus = 1
+-- A status that isn't running comes back as an invalid object, not nil: name the object, or say it isn't there.
+local function running(sc, id)
+    local s = sc:GetExecutionStatus(id)
+    return (s and s:IsValid()) and s:GetFullName() or "not running"
+end
 local function status()
     local p = assert(pawn(), "no player character")
     local s = STATUSES[nextStatus]
@@ -76,11 +81,11 @@ local function status()
     end
     local sc = p.StatusComponent
     try("AddStatus(" .. name .. " " .. id .. ")", function() sc:AddStatus(id) end)
-    log("status " .. name .. ": running right after: " .. tostring(try("GetExecutionStatus", function() return sc:GetExecutionStatus(id) end)))
-    later(2000, function() log("status " .. name .. ": running 2 s later: " .. tostring(sc:GetExecutionStatus(id))) end)
+    log("status " .. name .. ": running right after: " .. tostring(try("GetExecutionStatus", function() return running(sc, id) end)))
+    later(2000, function() log("status " .. name .. ": running 2 s later: " .. running(sc, id)) end)
     later(10000, function()
         try("RemoveStatus(" .. name .. ")", function() sc:RemoveStatus(id) end)
-        log("status " .. name .. ": running after removal: " .. tostring(sc:GetExecutionStatus(id)))
+        log("status " .. name .. ": running after removal: " .. running(sc, id))
     end)
 end
 
