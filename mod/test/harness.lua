@@ -124,6 +124,7 @@ local mapBody = { IsValid = function() return true end, GetAddress = function() 
                                         GetAddress = function() return 8 end,                               -- opens it
                                         GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
                                     SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
+scans = {}                     -- global: FindAllOf calls per class, for the menus' scan count
 FindAllOf = function(class)
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     if class == "WBP_TitleMenu_C" then return titleOpen and { titleMenu } or {} end
@@ -142,10 +143,13 @@ FindAllOf = function(class)
     if class == "PalMapObjectItemChestParameterComponent" then
         return loaded["/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"] and chestTemplates or {}
     end
-    if class == "WBP_MenuESC_C" then return escOpen and { escMenu } or {} end
+    if class == "WBP_MenuESC_C" then scans[class] = (scans[class] or 0) + 1; return escOpen and { escMenu } or {} end
     if class == "UserWidget" then return escOpen and { taskList, escMenu } or {} end   -- the HUD's mission list too
-    if class == "WBP_InGameMainMenu_C" then return mainMenuOpen and { defaultMainMenu, mainMenu } or {} end
-    if class == "WBP_InventoryEquipment_ForDisplay_C" then return forDisplayList or {} end
+    if class == "WBP_InGameMainMenu_C" then                   -- the Esc menu shows as the main menu's Options tab
+        scans[class] = (scans[class] or 0) + 1
+        local up = mainMenuOpen and mainMenu or (escOpen and not escNoMain and escMain) or nil
+        return up and { defaultMainMenu, up } or {}
+    end
     if class == "CommonInputSubsystem" then return inputSubsystems or {} end
     return nil
 end
@@ -696,8 +700,9 @@ print("the mailbox")
 local kinds, items = require("mailbox").count()
 expect(kinds == 1 and items == 50, "the Wood Bundle waits in the mailbox: " .. items)
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\nmailview=0", 1, true), "kept in the save file")
-expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox, or its button at the right of your name on the Inventory page", 1, true),
-       "the player is told where it is: the Esc menu and the Inventory page")
+expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox.", 1, true)
+       and not table.concat(announced, "|"):find("Inventory", 1, true),
+       "the player is told where it is: the Esc menu (the Inventory button is not named until a playtest has seen it)")
 -- The Esc menu (the client's WBP_MenuESC_C, from kdump): Canvas_Buttons holds vertical boxes of WBP_MenuESC_Button_C.
 -- Its WidgetTree has RootWidget but no GetAllWidgets (C++ only in the game; calling it errors).
 playerController.K2_GetPawn = function() return pawn end
@@ -731,8 +736,21 @@ local taskBox = Widget({ GetClass = function() return classed("HorizontalBox") e
                                         return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
 taskList = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_SimpleList_C") end,
                     WidgetTree = { RootWidget = panel("CanvasPanel", { taskBox }) } })
-escOpen = true
-run(1)                                                     -- the button is there on the first update (v0.11.4: ~1 s)
+-- The in-game main menu (WBP_InGameMainMenu_C; the client has it, 2026-11-03 log): the Esc menu is its Options tab,
+-- its CurrentContentWidget. Its class default object is found too.
+defaultMainMenu = Widget({ GetClass = function() return classed("WBP_InGameMainMenu_C") end,
+    GetFullName = function() return "WBP_InGameMainMenu_C /Game/Pal/Blueprint/UI/InGameMainMenu/WBP_InGameMainMenu.Default__WBP_InGameMainMenu_C" end })
+escMain = setmetatable(Widget({ GetClass = function() return classed("WBP_InGameMainMenu_C") end, CurrentTabType = 7,
+    GetFullName = function() return "WBP_InGameMainMenu_C /Engine/Transient.GameEngine_0:PalGameInstance_0.WBP_InGameMainMenu_C_0" end,
+    IsVisible = function() return not escMenu.closed end, IsInViewport = function() return not escMenu.closed end }),
+    { __index = function(_, k) if k == "CurrentContentWidget" then return escMenu end end })
+-- First a client where no main menu is found by that class: the Esc menu is still looked for by its own, every 4th
+-- update (a fallback that costs a scan; v0.11.4 showed every 4th update is a second late, not never).
+escOpen, escNoMain = true, true
+run(4)
+expect(escChildren[4] and logged("the Esc menu is up but no WBP_InGameMainMenu_C was found"), "no main menu: the Esc menu still gets its button")
+escNoMain = false                                          -- the usual client from here
+run(1)
 expect(#taskChildren == 3, "the HUD's mission list gets no button: " .. #taskChildren)
 local mailBtn = escChildren[4]
 expect(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text == "Archipelago Mailbox (50)",
@@ -747,7 +765,9 @@ local oldEsc = escMenu
 oldEsc.gone = true
 escChildren[4] = nil
 escMenu = Widget({ GetClass = oldEsc.GetClass, WidgetTree = oldEsc.WidgetTree, Close = oldEsc.Close, CloseAction = oldEsc.CloseAction })
-run(4)
+run(1)                                                     -- the button is there on the first update (v0.11.4: ~1 s)
+expect(escChildren[4], "a new Esc menu gets its button on the first update")
+run(3)
 mailBtn = escChildren[4]
 local addLines = 0
 for _, l in ipairs(printed) do if l:find("Mailbox button added", 1, true) then addLines = addLines + 1 end end
@@ -1011,40 +1031,44 @@ local function MainMenu(tab, tabType)
         Close = function(self) self.closed = true; self.CurrentContentWidget = nil end,
         IsVisible = function(self) return not self.closed end, IsInViewport = function(self) return not self.closed end })
 end
-defaultMainMenu = named("Default__WBP_InGameMainMenu_C", "WBP_InGameMainMenu_C", {
-    GetFullName = function() return "WBP_InGameMainMenu_C /Game/Pal/Blueprint/UI/InGameMainMenu/WBP_InGameMainMenu.Default__WBP_InGameMainMenu_C" end })
 local function linesWith(text) local n = 0; for _, l in ipairs(printed) do if l:find(text, 1, true) then n = n + 1 end end; return n end
 local function closeChest() run(1); hudWindows["chest" .. #shown].gone = true; run(2) end   -- followed first, then closed
 escOpen = false
 require("mailbox").add("Wood", 5)                          -- something to count on the button
 run(1)
--- First, a client whose main menu is not found by that class: the wrapper that hangs in a panel. The wrapper's
--- template (a designer child, no "Default__" in its name) and the class default have no parent and get nothing.
+-- Menus closed: one object scan per update, for the main menu only (open-questions: the FPS drop and FindAllOf).
+local escScans, mainScans = scans.WBP_MenuESC_C or 0, scans.WBP_InGameMainMenu_C or 0
+run(10)
+expect((scans.WBP_MenuESC_C or 0) == escScans and (scans.WBP_InGameMainMenu_C or 0) == mainScans + 10,
+       "with the menus closed, only the main menu is looked for: " .. (scans.WBP_MenuESC_C or 0) - escScans .. " Esc scans")
+-- Each tab widget the main menu shows is logged once, with the tab, so a missing button has a reason in the log.
+mainMenu = MainMenu(named("WBP_MainMenu_Pal_C_1", "WBP_MainMenu_Pal_C"), 2)
+mainMenuOpen = true
+run(3)
+expect(linesWith("main menu content is WBP_MainMenu_Pal_C (tab 2)") == 1, "another tab: its widget class is logged once")
+mainMenu = MainMenu(inventoryTab(nil), 8)                  -- the Inventory tab's wrapper, but no page in it
+run(3)
+expect(linesWith("main menu content is WBP_InventoryEquipment_ForDisplay_C (tab 8)") == 1
+       and linesWith("the main menu's WBP_InventoryEquipment_ForDisplay_C has no valid WBP_InventoryEquipment; no mailbox button there") == 1,
+       "an Inventory tab without its page: said once")
+-- A main menu whose Close fails: the HUD closes the button's owner instead.
 local fbPage, fbKids = inventoryPage()
-local tmplPage, tmplKids = inventoryPage()
-forDisplayList = {
-    inventoryTab(tmplPage, { GetFullName = function() return "WBP_InventoryEquipment_ForDisplay_C /Game/X.WBP_X_C:WidgetTree.WBP_InventoryEquipment_ForDisplay" end }),
-    inventoryTab(inventoryPage(), { GetFullName = function() return "WBP_InventoryEquipment_ForDisplay_C /Game/X.Default__WBP_InventoryEquipment_ForDisplay_C" end,
-                                    GetParent = function() return Widget() end }),
-    inventoryTab(fbPage, { GetParent = function() return named("CanvasPanel_106", "CanvasPanel") end }),
-}
+mainMenu = MainMenu(inventoryTab(fbPage), 8)
+mainMenu.Close = function() error("no Close") end
 run(1)
 local fbBtn = fbKids[1] and fbKids[1].child
-expect(#fbKids == 1 and #tmplKids == 0 and fbBtn and fbBtn.Text_Main and fbBtn.Text_Main.text == "Archipelago Mailbox (5)",
-       "no main menu: the shown wrapper's page gets the button, its template none: " .. #fbKids .. "/" .. #tmplKids)
-expect(logged("the inventory page is WBP_InventoryEquipment_C %(via WBP_InventoryEquipment_ForDisplay_C"), "and says how it found the page")
 local ownerClosed = nil
-hud.CloseOwnerStackableUI = function(_, w) ownerClosed = w end
+hud.CloseOwnerStackableUI = function(_, w) ownerClosed = w; mainMenu.closed = true end
 local shownBefore = #shown
 commonClick(fbBtn)
 run(1)
-expect(ownerClosed == fbBtn and logged("main menu closed for the mailbox from the inventory %(CloseOwnerStackableUI%)"),
-       "without the main menu, the HUD closes the button's owner")
+expect(fbBtn and ownerClosed == fbBtn and logged("main menu closed for the mailbox from the inventory %(CloseOwnerStackableUI%)"),
+       "if the main menu's Close fails, the HUD closes the button's owner")
 run(2)
 expect(#shown == shownBefore + 1 and shown[#shown].kind == 7, "and the mailbox opens: " .. #shown - shownBefore)
 expect(logged("in%-game main menu after closing from the inventory: gone"), "then looks whether the main menu went")
 closeChest()
-forDisplayList = nil
+mainMenuOpen = false
 -- The main menu on its Inventory tab.
 local page, barKids, editName = inventoryPage()
 mainMenu = MainMenu(inventoryTab(page), 8)
@@ -1122,6 +1146,20 @@ run(3)
 expect(linesWith("the inventory page has no name bar (no SizeBox_NameEdit; no Text_CharacterName)") == 1
        and linesWith("menu survey: inventory page | 0:?:CanvasPanel, 1:?:CanvasPanel") == 1, "no bar: said once, with the page's widgets")
 expect(not logged("inventory page error") and not logged("could not add the inventory"), "and no error")
+-- The world ends with the page up (a kick, a disconnect): its button's address must not stay ours. The click hook on
+-- WBP_CommonButton_C stays and fires at the title too (the connect window's OK is one), at a reused address.
+local lastPage, lastKids = inventoryPage()
+mainMenu = MainMenu(inventoryTab(lastPage), 8)
+run(1)
+local lastBtn = lastKids[1] and lastKids[1].child
+playerController.K2_GetPawn = function() return nil end
+run(1)
+local closeLines = linesWith("main menu closed for the mailbox")
+shownBefore = #shown
+commonClick(lastBtn)
+run(3)
+expect(lastBtn and not mainMenu.closed and linesWith("main menu closed for the mailbox") == closeLines and #shown == shownBefore,
+       "out of a world, a click at an old button's address does nothing")
 mainMenuOpen, inputSubsystems = false, nil
 escOpen = false
 playerController.K2_GetPawn, playerController.GetAddress = nil, nil

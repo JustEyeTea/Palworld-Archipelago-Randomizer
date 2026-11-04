@@ -379,13 +379,13 @@ local function findEscMenus()
     end
     return out
 end
--- Every update, so the button is there as the menu opens (v0.11.4 playtest: every 4th update took about a second); a
--- menu's tree is only walked when it is new, and the label only set when it changes.
+-- Every update the main menu is up, so the button is there as the menu opens (v0.11.4 playtest: every 4th update
+-- took about a second); a menu's tree is only walked when it is new, and the label only set when it changes. found is
+-- the Esc menus up now (empty when no main menu is: then every entry is dropped).
 local escAdds = 0
-local function updateEsc()
+local function updateEsc(found)
     -- The game makes a new Esc menu each time it opens: forget the ones gone (v0.11.3 log: one per visit).
     local live = {}
-    local found = findEscMenus()
     for _, menu in ipairs(found) do live[tostring(menu:GetAddress())] = true end
     for key, m in pairs(escMenus) do
         if not live[key] or not m.menu:IsValid() then
@@ -425,54 +425,39 @@ end
 -- picked (SelectInventoryEquipmentTab) and keeps it in CurrentContentWidget; the page itself is its
 -- WBP_InventoryEquipment. Never FindAllOf("WBP_InventoryEquipment_C"): the page is a designer child of that wrapper,
 -- so the wrapper's template has one with no "Default__" in its name (the WBP_Map_Body_C trap). A tab the menu let go
--- stays valid until collected, so only a menu's current one counts.
-local mainMenuSeen = false     -- once a WBP_InGameMainMenu_C was seen, the fallback below is never needed
-local pageLogged = {}          -- each way of finding the page is logged once
+-- stays valid until collected, so only a menu's current one counts. No fallback by the wrapper's class: the client's
+-- main menu is WBP_InGameMainMenu_C (2026-11-03 log, "in-world widget class WBP_InGameMainMenu_C" as it opened).
 local function notDefault(o)
     local okd, full = pcall(function() return o:GetFullName() end)
     return o:IsValid() and not (okd and tostring(full):find("Default__", 1, true))
 end
-local function inventoryPages()
-    local out, menus = {}, 0
-    for _, mm in ipairs(FindAllOf(MAIN_MENU) or {}) do
-        if notDefault(mm) then
-            menus = menus + 1
-            local ok, page = pcall(function()
-                local tab = mm.CurrentContentWidget
-                if tab and tab:IsValid() and className(tab) == INVENTORY_TAB then
-                    local p = tab.WBP_InventoryEquipment
-                    return p and p:IsValid() and p or nil
-                end
-            end)
-            if ok and page then
-                out[#out + 1] = { page = page, main = mm }
-                if not pageLogged.menu then
-                    pageLogged.menu = true
-                    local okt, tab = pcall(function() return mm.CurrentTabType end)
-                    log("menu: the inventory page is " .. className(page) .. " (via the main menu's CurrentContentWidget, tab "
-                        .. tostring(okt and tab or "?") .. ")")
-                end
-            end
+local pageLogged = false
+local function inventoryPages(mains)
+    local out = {}
+    for _, mm in ipairs(mains) do
+        local ok, page, tabClass, why = pcall(function()
+            local tab = mm.CurrentContentWidget
+            if not tab or not tab:IsValid() then return nil, "nothing" end
+            local cn = className(tab)
+            if cn ~= INVENTORY_TAB then return nil, cn end
+            local p = tab.WBP_InventoryEquipment
+            if p and p:IsValid() then return p, cn end
+            return nil, cn, "has no valid WBP_InventoryEquipment"
+        end)
+        local okt, tabType = pcall(function() return mm.CurrentTabType end)
+        tabType = tostring(okt and tabType or "?")
+        -- Which tab widgets the client's main menu shows, once each, so a missing button has a reason in the log.
+        if not ok then
+            once("mmerr", "menu: could not read the main menu's tab: " .. tostring(page))
+        else
+            once("mmtab" .. tabClass, "menu: main menu content is " .. tabClass .. " (tab " .. tabType .. ")")
+            if why then once("invnopage", "menu: the main menu's " .. tabClass .. " " .. why .. "; no mailbox button there") end
         end
-    end
-    if menus > 0 then mainMenuSeen = true end
-    -- Only while no main menu was ever seen (the client may name it differently): the wrapper that hangs in a panel
-    -- (the menu's CanvasPanel_106); one the menu removed has no parent. Without the menu, closing uses the HUD.
-    if menus == 0 and not mainMenuSeen then
-        for _, fd in ipairs(FindAllOf(INVENTORY_TAB) or {}) do
-            local ok, page = pcall(function()
-                if not notDefault(fd) then return nil end
-                local parent = fd:GetParent()
-                if not parent or not parent:IsValid() then return nil end
-                local p = fd.WBP_InventoryEquipment
-                return p and p:IsValid() and p or nil
-            end)
-            if ok and page then
-                out[#out + 1] = { page = page }
-                if not pageLogged.tab then
-                    pageLogged.tab = true
-                    log("menu: the inventory page is " .. className(page) .. " (via " .. INVENTORY_TAB .. "; no " .. MAIN_MENU .. " found)")
-                end
+        if ok and page then
+            out[#out + 1] = { page = page, main = mm }
+            if not pageLogged then
+                pageLogged = true
+                log("menu: the inventory page is " .. className(page) .. " (via the main menu's CurrentContentWidget, tab " .. tabType .. ")")
             end
         end
     end
@@ -543,13 +528,13 @@ local function inputType()
     return "unknown"
 end
 
--- Every update, as the Esc menu: a page is new each visit, so key by its address and forget the ones gone.
+-- Every update, as the Esc menu: a page is new each visit, so key by its address and forget the ones gone. found is
+-- the pages up now (empty when no main menu is).
 local invAdds = 0
 local invFailed = {}           -- page addresses where adding the button failed
 local focusLogged = {}
-local function updateInventory()
+local function updateInventory(found)
     local live = {}
-    local found = inventoryPages()
     for _, e in ipairs(found) do live[tostring(e.page:GetAddress())] = true end
     for key, m in pairs(invPages) do
         if not live[key] or not m.page:IsValid() then
@@ -557,6 +542,7 @@ local function updateInventory()
             invPages[key] = nil
         end
     end
+    for key in pairs(invFailed) do if not live[key] then invFailed[key] = nil end end   -- a later page may reuse the address
     for _, e in ipairs(found) do
         local key = tostring(e.page:GetAddress())
         local m = invPages[key]
@@ -604,6 +590,33 @@ local function updateInventory()
     end
 end
 
+-- One object scan per update while the main menu is closed (UE4SS's FindAllOf walks the whole object array, and the
+-- 2026-11-03 FPS drop is still unexplained): look for WBP_InGameMainMenu_C, and only while one is up for the Esc menu
+-- (it shows as the main menu's Options tab) and the Inventory page (its CurrentContentWidget, no scan of its own).
+-- Until a main menu was ever seen, the Esc menu is also looked for by its class every 4th update, in case the client
+-- names the main menu differently: the Esc button would then come up to a second late, not never.
+local mainMenuSeen, fallbackTicks = false, 0
+local function menusUp()
+    local mains = {}
+    for _, mm in ipairs(FindAllOf(MAIN_MENU) or {}) do
+        if notDefault(mm) then mains[#mains + 1] = mm end
+    end
+    if mains[1] then mainMenuSeen = true end
+    local esc = {}                                         -- nil: not looked this update, keep what we have
+    if mains[1] then
+        esc = findEscMenus()
+    elseif not mainMenuSeen then
+        fallbackTicks = fallbackTicks + 1
+        if fallbackTicks % 4 == 1 then
+            esc = findEscMenus()
+            if esc[1] then once("escnomain", "menu: the Esc menu is up but no " .. MAIN_MENU .. " was found (looking by its class every 4th update)") end
+        else
+            esc = nil
+        end
+    end
+    return esc, inventoryPages(mains)
+end
+
 -- Called from the mod's update loop (game thread).
 function M.update()
     if not surveyed then
@@ -623,10 +636,21 @@ function M.update()
     end
     local inWorld = false
     pcall(function() local pc = FindFirstOf("PalPlayerController"); inWorld = pc and pc:IsValid() and pc:K2_GetPawn() ~= nil end)
-    if inWorld and api.mailboxLabel then
-        local oke, erre = pcall(updateEsc)
-        if not oke then once("esc" .. tostring(erre), "menu: Esc menu error: " .. tostring(erre)) end
-        local oki, erri = pcall(updateInventory)
+    if api.mailboxLabel then
+        local escFound, invFound = {}, {}
+        if inWorld then
+            local okf, err = pcall(function() escFound, invFound = menusUp() end)
+            if not okf then once("mm" .. tostring(err), "menu: main menu error: " .. tostring(err)) end
+        else
+            -- Out of a world, nothing of ours is up: drop it all (below, with nothing found), so a stale address can't
+            -- match a new button at the title (the WBP_CommonButton click hook stays and fires there too).
+            closing = nil
+        end
+        if escFound then
+            local oke, erre = pcall(updateEsc, escFound)
+            if not oke then once("esc" .. tostring(erre), "menu: Esc menu error: " .. tostring(erre)) end
+        end
+        local oki, erri = pcall(updateInventory, invFound)
         if not oki then once("inv" .. tostring(erri), "menu: inventory page error: " .. tostring(erri)) end
     end
     hookOnce(CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)

@@ -82,7 +82,8 @@ function M.add(id, n)
     if view then merge(view.held, id, n) end
     if not tipped then
         tipped = true
-        env.notify("Items you receive wait in your Archipelago Mailbox: Esc menu > Archipelago Mailbox, or its button at the right of your name on the Inventory page.")
+        -- Only the Esc route, which is verified in game; name the Inventory page's button once a playtest has seen it.
+        env.notify("Items you receive wait in your Archipelago Mailbox: Esc menu > Archipelago Mailbox.")
     end
 end
 
