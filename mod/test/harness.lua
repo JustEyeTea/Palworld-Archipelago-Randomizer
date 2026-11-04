@@ -349,6 +349,7 @@ StaticConstructObject = function(cls)
                          SetBrushFromTexture = function(self, t) self.texture = t end,
                          SetFont = function(self, f) self.fontSize = f.Size end,
                          SetColorAndOpacity = function(self, c) self.colour = c end,
+                         SetRenderTransformPivot = function(self, v) self.pivot = v end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
         self.child = c
@@ -1755,6 +1756,38 @@ pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
                          RemoveStatus = function(_, id) statuses[id] = nil end }
 require("test_tools").install()
 expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools bind Ctrl+F3 to the wall skins")
+;(function()  -- Ctrl+F4, the HUD probe (a function: the main chunk is at Lua's 200-local limit)
+    local canvasKids, angles, removed = {}, {}, false
+    local root = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("Canvas_Root") end,
+                          GetChildrenCount = function() return #canvasKids end, GetChildAt = function(_, i) return canvasKids[i + 1] end })
+    function root:AddChildToCanvas(w)
+        canvasKids[#canvasKids + 1] = w
+        w.RemoveFromParent = function() removed = true end
+        local slot = {}
+        for _, f in ipairs({ "SetAnchors", "SetAlignment", "SetPosition", "SetAutoSize", "SetZOrder" }) do slot[f] = function() end end
+        return slot
+    end
+    local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = root } })
+    local savedFAO = FindAllOf
+    FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
+    keyBinds["key:F4"]()
+    local img = canvasKids[1] and canvasKids[1].child
+    if img then
+        img.SetRenderTransformPivot = function() end
+        img.SetRenderTransformAngle = function(_, a) angles[#angles + 1] = a end
+    end
+    run(20)
+    FindAllOf = savedFAO
+    expect(logged("HUD probe: 1 WBP_PalHUDLayout_C, one visible") and logged("HUD probe: root Canvas_Root:CanvasPanel with 0 children")
+           and img and img.texture and img.texture.path == "ap-hint-icon-128",
+           "Ctrl+F4 puts the hint icon on the HUD layout's canvas, logging what it found")
+    local goal = canvasKids[2]
+    expect(goal and goal.width == 600 and goal.child and goal.child.children[1].texture.path == "ap-goal-banner"
+           and goal.child.children[2].text == "All 14 areas open | 2,431 checks | 12h 08m" and logged("HUD probe: goal banner added"),
+           "and the goal banner, centred, with a sample line in its pill")
+    expect(#angles == 180 and angles[180] == 1080 and removed and logged("HUD probe: spun 180 steps; removed"),
+           "spins it for 6 s, then takes it away: " .. #angles)
+end)()
 expect(logged("%[test%] test tools on: Ctrl%+F5%-F8"), "test tools bind their keys")
 keyBinds["key:F8"]()
 expect(ticksUntil("trap #%-1 Fool Trap: fake notice", 20), "Ctrl+F8 fires a Fool Trap through the queue")
@@ -1975,7 +2008,7 @@ end
 local loopsBefore = #extraLoops
 TT.install()
 local pollLoop = extraLoops[#extraLoops]
-expect(#extraLoops == loopsBefore + 1, "a poll loop for pending gifts")
+expect(#extraLoops == loopsBefore + 2, "a poll loop for pending gifts (after the HUD probe's)")
 local allCtrl = true
 for _, k in ipairs({ "ONE", "TWO", "THREE", "FOUR", "FIVE" }) do
     local m = keyMods["key:" .. k]

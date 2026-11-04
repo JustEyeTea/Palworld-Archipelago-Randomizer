@@ -178,6 +178,84 @@ local function poll()
     settle(route, logReport(route, report))
 end
 
+-- Ctrl+F4, the HUD probe (round-2 art, 2026-11-04): can the mod draw on the in-game HUD, and animate what it draws?
+-- The hint icon and the goal banner need both. It finds the HUD layout (WBP_PalHUDLayout_C), logs its root and the
+-- root's children, and if the root is a canvas puts the hint icon (art/ap-hint-icon-128.png) at the top right,
+-- spins it for 6 s (SetRenderTransformAngle every 33 ms) and takes it away, with the goal banner
+-- (art/ap-goal-banner.png, 600x150, a sample line in its pill) centred in the upper third for the same 6 s, for a
+-- screenshot to fit it by. Every step is logged.
+local hudProbe = nil   -- { box, img, steps, goal }
+local function nameAndClass(w)
+    local okn, n = pcall(function() return w:GetFName():ToString() end)
+    local okc, c = pcall(function() return w:GetClass():GetFName():ToString() end)
+    return (okn and n or "?") .. ":" .. (okc and c or "?")
+end
+local function hudProbeStart()
+    if hudProbe then log("HUD probe: already running"); return end
+    local layouts = FindAllOf("WBP_PalHUDLayout_C") or {}
+    local layout
+    for _, l in ipairs(layouts) do
+        local ok, vis = pcall(function() return l:IsValid() and l:IsVisible() end)
+        if ok and vis then layout = l; break end
+    end
+    log("HUD probe: " .. #layouts .. " WBP_PalHUDLayout_C, " .. (layout and "one visible" or "none visible"))
+    layout = layout or layouts[#layouts]
+    if not layout then return end
+    local root = layout.WidgetTree.RootWidget
+    if not (root and root:IsValid()) then log("HUD probe: the layout has no root widget"); return end
+    local kids = {}
+    local okn, n = pcall(function() return root:GetChildrenCount() end)
+    for i = 0, math.min((okn and n or 0) - 1, 24) do
+        local okk, k = pcall(function() return root:GetChildAt(i) end)
+        if okk and k then kids[#kids + 1] = nameAndClass(k) end
+    end
+    log("HUD probe: root " .. nameAndClass(root) .. " with " .. tostring(okn and n or "?") .. " children: " .. table.concat(kids, ", "))
+    if not nameAndClass(root):find(":CanvasPanel$") then log("HUD probe: the root is not a canvas; nothing added"); return end
+    local box, img = require("art").box(layout, "ap-hint-icon-128", 64, 64)
+    if not box then log("HUD probe: no hint icon file"); return end
+    local slot = root:AddChildToCanvas(box)
+    try("HUD probe: anchors", function() slot:SetAnchors({ Minimum = { X = 1, Y = 0 }, Maximum = { X = 1, Y = 0 } }) end)
+    try("HUD probe: alignment", function() slot:SetAlignment({ X = 1, Y = 0 }) end)
+    try("HUD probe: position", function() slot:SetPosition({ X = -48, Y = 240 }) end)
+    try("HUD probe: size", function() slot:SetAutoSize(true) end)
+    try("HUD probe: z order", function() slot:SetZOrder(1000) end)
+    try("HUD probe: pivot", function() img:SetRenderTransformPivot({ X = 0.5, Y = 0.5 }) end)
+    hudProbe = { box = box, img = img, steps = 0 }
+    log("HUD probe: hint icon added at the top right, 240 down; spinning for 6 s")
+    local goal, banner = require("art").box(layout, "ap-goal-banner", 600, 150)
+    if not goal then log("HUD probe: no goal banner file"); return end
+    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
+    goal:RemoveChild(banner)
+    goal:AddChild(over)
+    over:AddChild(banner)
+    local text = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), layout)
+    try("HUD probe: goal text size", function() local f = text.Font; f.Size = 13; text:SetFont(f) end)
+    try("HUD probe: goal text colour", function() text:SetColorAndOpacity({ SpecifiedColor = { R = 0.807, G = 0.905, B = 0.888, A = 1 }, ColorUseRule = 0 }) end)
+    text:SetText(FText("All 14 areas open | 2,431 checks | 12h 08m"))
+    local ts = over:AddChild(text)
+    try("HUD probe: goal text place", function() ts:SetHorizontalAlignment(1); ts:SetVerticalAlignment(1); ts:SetPadding({ Left = 155, Top = 111, Right = 24, Bottom = 0 }) end)
+    local gs = root:AddChildToCanvas(goal)
+    try("HUD probe: goal anchors", function() gs:SetAnchors({ Minimum = { X = 0.5, Y = 0 }, Maximum = { X = 0.5, Y = 0 } }) end)
+    try("HUD probe: goal alignment", function() gs:SetAlignment({ X = 0.5, Y = 0 }) end)
+    try("HUD probe: goal position", function() gs:SetPosition({ X = 0, Y = 180 }) end)
+    try("HUD probe: goal size", function() gs:SetAutoSize(true) end)
+    try("HUD probe: goal z order", function() gs:SetZOrder(1000) end)
+    hudProbe.goal = goal
+    log("HUD probe: goal banner added, centred, 180 down, for 6 s")
+end
+local function hudProbeStep()
+    local p = hudProbe
+    p.steps = p.steps + 1
+    local ok = pcall(function() p.img:SetRenderTransformAngle(p.steps * 6) end)
+    if not ok then log("HUD probe: SetRenderTransformAngle failed"); p.steps = 180 end
+    if p.steps >= 180 then
+        hudProbe = nil
+        if p.goal then pcall(function() p.goal:RemoveFromParent() end) end
+        local okr = pcall(function() p.box:RemoveFromParent() end)
+        log("HUD probe: spun " .. p.steps .. " steps; " .. (okr and "removed" or "could not remove it"))
+    end
+end
+
 function T.install()
     log("test tools on: the performance probe's hotkeys, with perf_log=1 (perf.lua)")
     if not RegisterKeyBind or not Key or not ModifierKey then
@@ -208,6 +286,23 @@ function T.install()
         log("--- wall skin " .. tostring(name) .. " (on at the next update)")
     end)
     log("test tools on: Ctrl+F3 wall skin (red, a, b)")
+    RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function()
+        ExecuteInGameThread(function()
+            log("--- HUD probe")
+            local ok, err = pcall(hudProbeStart)
+            if not ok then log("HUD probe: error " .. tostring(err)); hudProbe = nil end
+        end)
+    end)
+    LoopAsync(33, function()                                   -- made here, at module load
+        if hudProbe then
+            ExecuteInGameThread(function()
+                local ok, err = pcall(hudProbeStep)
+                if not ok then log("HUD probe: step error " .. tostring(err)); hudProbe = nil end
+            end)
+        end
+        return false
+    end)
+    log("test tools on: Ctrl+F4 HUD probe")
     if type(AP_GivePal) ~= "function" or type(AP_GivePalPoll) ~= "function" then
         log("test tools on: give Pal: AP_GivePal missing (APConnector older than this build); no Pal hotkeys")
         return

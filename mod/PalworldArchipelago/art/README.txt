@@ -11,6 +11,8 @@ Round 2 (2026-11-04):
                               icons/area-pass.png when missing).
   ap-map-stamp-<area>.png     256x256, each locked area's own stamp on the map (walls.lua; ap-map-stamp.png when
                               missing).
-  ap-hint-icon-64/128.png     the hint prompt's icon; not drawn yet (needs a place on the in-game HUD).
+  ap-hint-icon-64/128.png     the hint prompt's icon; not drawn in play yet (needs a place on the in-game HUD).
+  ap-goal-banner.png          1200x300, the goal-complete banner (shown at 600x150); not drawn in play yet.
+  Both appear for 6 s with test_tools=1 and Ctrl+F4 (the HUD probe), to see whether and where the HUD takes them.
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).
