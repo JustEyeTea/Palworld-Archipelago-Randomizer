@@ -67,6 +67,7 @@ local function raise(i, context)
     local a = gs:BeginDeferredActorSpawnFromClass(context, cls, t, 1, nil)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
+    W.skinNew(a)
     raised[i] = a
     nRaised = nRaised + 1
     return true
@@ -159,6 +160,7 @@ function W.update(enabled, passes, context)
             budget = budget - 1
         end
     end
+    W.skinTick()
     if catchingUp and budget == PER_TICK then
         catchingUp = false
         P.wallsCaughtUp(nRaised)
@@ -281,6 +283,112 @@ local function owner()
     ownerGi = gi and gi:IsValid() and gi or nil
     return ownerGi
 end
+
+-- Wall skins (test builds: wall_skin=a or b in config.txt, or Ctrl+F3 with test_tools=1 to cycle red, a, b): the Art &
+-- Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
+-- dynamic copy of the walls' own material (MI_AirBlock_v2) per skin, owned by the game instance like the map's render
+-- targets, set on each piece's mesh; the game's own barriers keep the shared red material. The material's parameters
+-- (from the server pak): MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the
+-- engine's blue noise for the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day);
+-- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0. Untested in game (2026-11-04).
+local SKINS = { "red", "a", "b" }
+local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
+local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
+local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
+W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
+local function meshOf(a)
+    local ok, m = pcall(function() return a.Cube end)
+    if ok and m and m:IsValid() then return m end
+    local smc = StaticFindObject("/Script/Engine.StaticMeshComponent")
+    ok, m = pcall(function() return a:GetComponentByClass(smc) end)
+    if ok and m and m:IsValid() then return m end
+end
+local function skinMaterial(name)
+    local mid = skin.mids[name]
+    if mid and mid:IsValid() then return mid end
+    if skin.failed[name] then return nil end
+    skin.failed[name] = true                                   -- one try per skin per session; cleared on success
+    local gi = owner()
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
+    if not (gi and skin.base and skin.base:IsValid() and krl and krl:IsValid() and kml and kml:IsValid()) then
+        log("wall skin " .. name .. ": no game instance, wall material or material library yet")
+        skin.failed[name] = nil
+        return nil
+    end
+    local path = W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png"
+    local tex = krl:ImportFileAsTexture2D(gi, path)
+    if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
+    local srgb = pcall(function() tex.SRGB = false; tex:UpdateResource() end)   -- the game's pattern is linear
+    W.keep(tex)
+    mid = kml:CreateDynamicMaterialInstance(gi, skin.base, FName("None"), 0)
+    if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
+    W.keep(mid)
+    mid:SetTextureParameterValue(FName("MainTexture01"), tex)
+    local night = { R = TEAL.R * NIGHT, G = TEAL.G * NIGHT, B = TEAL.B * NIGHT, A = 1 }
+    for k, c in pairs({ Color = TEAL, DayColor = TEAL, NightColor = night }) do mid:SetVectorParameterValue(FName(k), c) end
+    if W.tiling then
+        mid:SetScalarParameterValue(FName("TilingU_01"), W.tiling[1])
+        mid:SetScalarParameterValue(FName("TilingV_01"), W.tiling[2])
+    end
+    if W.scroll then
+        mid:SetScalarParameterValue(FName("ScrollingU_01"), W.scroll[1])
+        mid:SetScalarParameterValue(FName("ScrollingV_01"), W.scroll[2])
+    end
+    skin.mids[name], skin.failed[name] = mid, nil
+    log("wall skin " .. name .. ": material made (" .. tex:GetSurfaceWidth() .. "x" .. tex:GetSurfaceHeight()
+        .. (srgb and ", linear" or ", sRGB: could not change") .. ", tiling "
+        .. (W.tiling and (W.tiling[1] .. "x" .. W.tiling[2]) or "the material's") .. ")")
+    return mid
+end
+-- Puts the current skin on one piece (a new piece, or every raised one when the skin changes).
+local function dress(a, mid)
+    local m = meshOf(a)
+    if not m then return false end
+    if not skin.base then skin.base = m:GetMaterial(0); W.keep(skin.base) end   -- the red original, before any change
+    m:SetMaterial(0, mid or skin.base)
+    return true
+end
+function W.skinNew(a)
+    if skin.now ~= "red" then pcall(dress, a, skin.mids[skin.now]) end
+end
+function W.setSkin(name)
+    if name == "" or name == nil then name = "red" end
+    for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
+    log("wall skin " .. tostring(name) .. ": unknown (red, a or b)")
+end
+function W.cycleSkin()
+    for k, s in ipairs(SKINS) do
+        if s == skin.want then skin.want = SKINS[k % #SKINS + 1]; return skin.want end
+    end
+end
+-- On the game thread (from W.update): the skin wanted, once the wall material is known (from the first piece raised).
+function W.skinTick()
+    if skin.want == skin.now then return end
+    if not skin.base then
+        local _, a = next(raised)
+        if not a then return end
+        local m = meshOf(a)
+        skin.base = m and m:GetMaterial(0)
+        if not skin.base then return end
+        W.keep(skin.base)
+    end
+    local mid = nil
+    if skin.want ~= "red" then
+        mid = skinMaterial(skin.want)
+        if not mid then skin.want = skin.now; return end
+    end
+    local n, bad = 0, 0
+    for _, a in pairs(raised) do
+        if a:IsValid() then
+            local ok, done = pcall(dress, a, mid)
+            if ok and done then n = n + 1 else bad = bad + 1 end
+        end
+    end
+    skin.now = skin.want
+    log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " without a mesh") or ""))
+end
+
 local function greyscaleMap(krl, tex)
     if greyTex and greyTex:IsValid() then return greyTex end
     if greyTried or not AP_GreyscalePNG then return nil end

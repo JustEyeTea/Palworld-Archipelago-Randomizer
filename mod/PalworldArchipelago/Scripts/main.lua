@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.13.0"
+local VERSION = "0.13.1"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -66,7 +66,7 @@ local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
     for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-                         "test_tools", "perf_log", "perf_no_bp_hooks" }) do
+                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -474,6 +474,14 @@ local function keep(obj)
 end
 WALLS.keep = keep
 WALLS.dir = modDir
+do      -- wall skins (test builds; walls.lua): wall_skin=a|b, wall_tiling=U,V and wall_scroll=U,V in config.txt
+    local function pair(s)
+        local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
+        return u and { tonumber(u), tonumber(v) } or nil
+    end
+    WALLS.tiling, WALLS.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
+    WALLS.setSkin(cfg.wall_skin)
+end
 
 local textures = {}
 local function icon(kind, ctx)

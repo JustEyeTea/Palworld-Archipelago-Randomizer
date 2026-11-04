@@ -115,7 +115,9 @@ end
 cardSets = 0                                                 -- name texts the mod set on cards
 local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade_01"), Card("Workbench") }
 cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
-local function Texture(path) return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end } end
+local function Texture(path) return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end,
+                                       SRGB = true, UpdateResource = function(self) self.updated = true end,
+                                       GetSurfaceWidth = function() return 512 end, GetSurfaceHeight = function() return 512 end } end
 local kept = {}
 worldDir = "AP_WORLD"                                        -- the loaded world's save folder
 local gameInstance = { IsValid = function() return true end,
@@ -140,10 +142,15 @@ local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes 
                      end
                      assert(tex and tris[1].V2_UV and tris[1].V0_Pos.X, "triangles carry the map, positions and UVs")
                      greyBoxes = greyBoxes + #tris end }
-local materialLib = { IsValid = function() return true end, CreateDynamicMaterialInstance = function()
-    return { IsValid = function() return true end,
-             SetTextureParameterValue = function(self, name, t) if name:ToString() == "Texture" then self.texture = t end end,
-             SetScalarParameterValue = function(self, name, v) if name:ToString() == "Saturation" then self.saturation = v end end } end }
+local materialLib = { IsValid = function() return true end, CreateDynamicMaterialInstance = function(_, _, parent)
+    return { IsValid = function() return true end, parent = parent, textures = {}, scalars = {}, vectors = {},
+             SetTextureParameterValue = function(self, name, t)
+                 self.textures[name:ToString()] = t
+                 if name:ToString() == "Texture" then self.texture = t end end,
+             SetScalarParameterValue = function(self, name, v)
+                 self.scalars[name:ToString()] = v
+                 if name:ToString() == "Saturation" then self.saturation = v end end,
+             SetVectorParameterValue = function(self, name, c) self.vectors[name:ToString()] = c end } end }
 local mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
                   Image_MapBody = { IsValid = function() return true end,
                                     Brush = { ResourceObject = { IsValid = function() return true end,      -- as the game
@@ -204,12 +211,15 @@ systemLib = { IsValid = function() return true end, GetFrameCount = function() r
 notifies = {}
 NotifyOnNewObject = function(path, cb) notifies[path] = cb end
 local wallsUp = {}
+wallRed = { IsValid = function() return true end, name = "MI_AirBlock_v2" }   -- the walls' shared red material
 lastGone = nil
 mapArt = 40                                                  -- the map picture the game shows (its fingerprint)
 local gameplay = { IsValid = function() return true end,
                    BeginDeferredActorSpawnFromClass = function(_, _, _, t)
                        spawned = (spawned or 0) + 1
                        local a = { IsValid = function(self) return not self.gone end, t = t }
+                       a.Cube = { IsValid = function() return true end, GetMaterial = function(self) return self.mat or wallRed end,
+                                  SetMaterial = function(self, _, m) self.mat = m end }      -- the wall's mesh
                        function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
                        function a:SetActorEnableCollision(on) self.collision = on end
                        function a:SetActorHiddenInGame(on) self.hidden = on end
@@ -610,6 +620,28 @@ expect(wallCount() == expected(open) and wallCount() > 100, "walls raised on eve
 next(wallsUp):K2_DestroyActor()                              -- the game removed a piece
 run(15)
 expect(wallCount() == expected(open), "a piece the game removed is noticed (a share checked each update) and raised again")
+do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their material with the Art lane's pattern
+    local W = require("walls")
+    local a = next(wallsUp)
+    W.setSkin("a"); run(1)
+    local mid = a.Cube.mat
+    expect(logged("wall skin a: on %d+ pieces") and mid and mid ~= wallRed and mid.parent == wallRed
+           and mid.textures.MainTexture01 and mid.textures.MainTexture01.path == "ap-wall-pattern-a"
+           and mid.textures.MainTexture01.SRGB == false and mid.textures.MainTexture02 == nil
+           and mid.vectors.DayColor.G > 0.7 and math.abs(mid.vectors.NightColor.G - 0.745 * 0.421875) < 1e-6,
+           "wall skin a: a teal material with pattern a (linear) on the AP walls; the dither noise left alone")
+    next(wallsUp):K2_DestroyActor(); run(3)
+    local fresh = 0
+    for w in pairs(wallsUp) do if w.Cube.mat == mid then fresh = fresh + 1 end end
+    expect(fresh == wallCount(), "pieces raised later wear the skin too")
+    a = next(wallsUp)                         -- (the piece removed above may have been a)
+    W.cycleSkin(); run(1)                      -- what Ctrl+F3 does (test_tools: bound below)
+    expect(a.Cube.mat ~= mid and a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b", "the next skin is b")
+    W.cycleSkin(); run(1)
+    expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
+    W.setSkin("c")
+    expect(logged("wall skin c: unknown"), "an unknown skin is refused")
+end
 local WALLS = dofile(MOD .. "/Scripts/walls.lua")
 expect(WALLS.areaAt(-304485, 240071) == "Bamboo Groves" and WALLS.areaAt(-342035, 236885) == WD.start,
        "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: " .. tostring(WALLS.areaAt(-304485, 240071)))
@@ -1694,6 +1726,7 @@ pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
                          end,
                          RemoveStatus = function(_, id) statuses[id] = nil end }
 require("test_tools").install()
+expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools bind Ctrl+F3 to the wall skins")
 expect(logged("%[test%] test tools on: Ctrl%+F5%-F8"), "test tools bind their keys")
 keyBinds["key:F8"]()
 expect(ticksUntil("trap #%-1 Fool Trap: fake notice", 20), "Ctrl+F8 fires a Fool Trap through the queue")

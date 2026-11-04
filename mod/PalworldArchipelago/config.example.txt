@@ -23,6 +23,12 @@ perf_log=
 # test_tools=1: the probe's A/B hotkeys (Ctrl+6 mark, Ctrl+7 walls, Ctrl+8 pause, Ctrl+9 hook bypass, Ctrl+0 old
 # load) and the probes that need the game to answer. For playtests only.
 test_tools=
+# Test builds: the Archipelago wall patterns (walls/ap-wall-pattern-a.png, -b.png) in teal on the area walls instead of
+# the game's red grid. wall_skin=a or b (empty: red); with test_tools=1, Ctrl+F3 cycles red, a, b. wall_tiling=U,V
+# (the material's own is 5,3) and wall_scroll=U,V (0,0) change the pattern's size and drift.
+wall_skin=
+wall_tiling=
+wall_scroll=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=

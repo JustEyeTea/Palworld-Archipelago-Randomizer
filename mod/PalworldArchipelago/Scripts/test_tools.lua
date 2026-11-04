@@ -202,6 +202,12 @@ function T.install()
         end)
     end
     log("test tools on: Ctrl+F5-F8 Slow/Hunger/Teleport/Fool Trap, Ctrl+F9 exhaustion, Ctrl+F10 nightfall, Ctrl+F11 status")
+    -- Ctrl+F3: the next wall skin (red, a, b; walls.lua), put on at the next update.
+    RegisterKeyBind(Key.F3, { ModifierKey.CONTROL }, function()
+        local name = require("walls").cycleSkin()
+        log("--- wall skin " .. tostring(name) .. " (on at the next update)")
+    end)
+    log("test tools on: Ctrl+F3 wall skin (red, a, b)")
     if type(AP_GivePal) ~= "function" or type(AP_GivePalPoll) ~= "function" then
         log("test tools on: give Pal: AP_GivePal missing (APConnector older than this build); no Pal hotkeys")
         return
