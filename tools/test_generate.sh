@@ -9,7 +9,8 @@ seeds=${1:-3}
 ap=${AP_DIR:-$(cd .. && pwd)/archipelago-0.6.8}
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 mkdir -p "$ap/custom_worlds" "$work/players" "$work/out"
-(cd apworld && rm -f "$work/palworld.apworld" && find palworld -name __pycache__ -prune -o -type f -print | zip -q "$work/palworld.apworld" -@)
+# Packed as players get it (tools/build_apworld.py), so the world loads with its own version.
+AP_DIR="$ap" "$ap/.venv/bin/python" tools/build_apworld.py "$work/palworld.apworld" > /dev/null
 cp "$work/palworld.apworld" "$ap/custom_worlds/palworld.apworld"
 { printf 'name: Tester\ngame: Palworld\nPalworld:\n  progression_balancing: 50\n'
   [ -n "${EXTRA_OPTIONS:-}" ] && printf '  %s\n' "$EXTRA_OPTIONS"; } > "$work/players/test.yaml"

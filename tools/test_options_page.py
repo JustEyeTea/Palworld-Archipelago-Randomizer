@@ -7,7 +7,7 @@ It checks that
   2. the page's own JavaScript (build-yaml.js, run in QuickJS) writes, for the defaults and for every preset, the
      same text as Archipelago's template generator (Options.generate_yaml_templates) does;
   3. each of those YAMLs, with a real player name, generates a seed with Archipelago whose playthrough reaches the
-     goal.
+     goal, with the APWorld packed by tools/build_apworld.py as players get it.
 QUICKJS_PYTHON is a python that has the `quickjs` wheel (pip install quickjs, in a throwaway venv); it defaults to
 this python. Exit status 0 when everything passes.
 """
@@ -22,6 +22,7 @@ import zipfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import gen_options_page  # noqa: E402  (it loads the world from this repo, so it comes after the path change)
+import build_apworld  # noqa: E402
 
 ROOT = gen_options_page.ROOT
 AP = gen_options_page.AP
@@ -70,28 +71,6 @@ def template_texts(work):
     for path in (folder / 'Presets').glob('Palworld - *.yaml'):
         texts[path.stem[len('Palworld - '):]] = path.read_text(encoding='utf-8-sig')
     return texts
-
-
-def build_apworld(target):
-    """The .apworld as Archipelago's own "Build APWorlds" makes it: the apworld/palworld folder without __pycache__,
-    with Archipelago's container fields (compatible_version, version) added to archipelago.json. Without them
-    Archipelago 0.6.8 can't read the manifest, loads the world as version 0.0.0 and refuses every YAML whose
-    `requires` names the world's version, as its own templates and this page's do."""
-    from worlds.Files import APWorldContainer
-    folder = ROOT / 'apworld' / 'palworld'
-    manifest = json.loads((folder / 'archipelago.json').read_text(encoding='utf-8'))
-    if 'compatible_version' not in manifest:
-        print('note: apworld/palworld/archipelago.json has no compatible_version, so an .apworld zipped straight '
-              'from the folder loads as version 0.0.0; packing it as Build APWorlds does')
-    container = APWorldContainer(str(target))
-    container.game = manifest['game']
-    manifest.update(container.get_manifest())
-    with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as apworld:
-        for path in sorted(folder.rglob('*')):
-            if not path.is_file() or '__pycache__' in path.parts or path.name == 'archipelago.json':
-                continue
-            apworld.write(path, path.relative_to(folder.parent))
-        apworld.writestr('palworld/archipelago.json', json.dumps(manifest, indent=4))
 
 
 def generate(work, text, expected):
@@ -181,7 +160,13 @@ def main():
         if installed.exists():
             installed.rename(backup)
         installed.parent.mkdir(exist_ok=True)
-        build_apworld(installed)
+        # Packed by the same tool as every other .apworld from this repo, and loaded as Archipelago will: a world
+        # that loads as another version (0.0.0 when the manifest can't be read) would refuse these YAMLs.
+        build_apworld.build(installed)
+        loaded = build_apworld.world_version(installed)
+        if loaded != data['world_version']:
+            print(f'apworld: LOADS AS VERSION {loaded}, not {data["world_version"]}')
+            failures += 1
         runs = [(preset or 'Defaults', data['presets'].get(preset, {}), yamls[f'{preset}|{PLAYER}']) for preset in presets]
         runs.append(('Custom', CUSTOM, yamls['custom']))
         for label, options, text in runs:

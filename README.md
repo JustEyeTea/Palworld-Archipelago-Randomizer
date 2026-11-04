@@ -26,6 +26,14 @@ GitHub Pages serves the `docs` folder of `main`, it is at
 https://justeyetee.github.io/Palworld-Archipelago-Randomizer/options/. The YAML it writes is the one Archipelago's
 template generator writes for the same choices.
 
+Its YAML (like Archipelago's templates) requires the world's version, so the host's `.apworld` must be built with
+`tools/build_apworld.py`, which adds the manifest fields Archipelago reads the version from:
+
+    AP_DIR=../archipelago-0.6.8 ../archipelago-0.6.8/.venv/bin/python tools/build_apworld.py palworld.apworld
+
+A plain zip of `apworld/palworld` loads as version 0.0.0 and Archipelago refuses the page's files. The test scripts
+build their `.apworld` with it too.
+
 The page reads `docs/options/options.json`, which is written from the APWorld's options, groups and presets. After
 changing `apworld/palworld/options.py` (or the world version), regenerate it with the Archipelago venv:
 

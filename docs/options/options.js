@@ -24,7 +24,8 @@
 
   // Docstrings are wrapped at the code's line width; the YAML keeps that, but on the page a wrapped line is joined
   // back up. A line counts as wrapped when it is long and doesn't end a sentence, so the Goal option's one-line
-  // entries stay on their own lines. Blank lines make paragraphs and **text** is bold, as Archipelago's docs write.
+  // entries stay on their own lines. Blank lines make paragraphs, **text** is bold and ``text`` is code, as the
+  // docstrings' reStructuredText writes them (the YAML keeps the marks as they are).
   function fillHelp(node, text) {
     text.split(/\n\s*\n/).forEach(function (paragraph, index) {
       var lines = paragraph.split('\n');
@@ -38,7 +39,10 @@
       joined.forEach(function (line, n) {
         if (n || index) node.appendChild(document.createElement('br'));
         line.split(/\*\*(.+?)\*\*/).forEach(function (part, odd) {
-          node.appendChild(odd % 2 ? element('strong', {}, part) : document.createTextNode(part));
+          if (odd % 2) { node.appendChild(element('strong', {}, part)); return; }
+          part.split(/``(.+?)``/).forEach(function (piece, code) {
+            node.appendChild(code % 2 ? element('code', {}, piece) : document.createTextNode(piece));
+          });
         });
       });
     });
@@ -78,6 +82,14 @@
       field.appendChild(select);
     } else {
       field.appendChild(element('label', { 'for': id }, option.name));
+      // The allowed numbers and the named values, read out with the number box (so it is built before the box).
+      var range = 'From ' + option.min + ' to ' + option.max + '.';
+      var named = Object.keys(option.named_values || {}).map(function (name) {
+        return option.named_values[name] + ' is ' + name;
+      });
+      if (named.length) range += ' ' + named.join(', ') + '.';
+      var note = element('p', { 'class': 'help range-note', id: id + '-range' }, range);
+      describedBy.unshift(note.id);
       var row = element('div', { 'class': 'range' });
       // The slider is a quicker way to set the same number; the number box is the labelled control.
       var slider = element('input', { type: 'range', min: option.min, max: option.max, step: 1,
@@ -92,12 +104,7 @@
       row.appendChild(slider);
       row.appendChild(number);
       field.appendChild(row);
-      var range = 'From ' + option.min + ' to ' + option.max + '.';
-      var named = Object.keys(option.named_values || {}).map(function (name) {
-        return option.named_values[name] + ' is ' + name;
-      });
-      if (named.length) range += ' ' + named.join(', ') + '.';
-      field.appendChild(element('p', { 'class': 'help range-note' }, range));
+      field.appendChild(note);
     }
     if (help) field.appendChild(help);
     field.appendChild(error);
@@ -145,6 +152,15 @@
 
   function control(key) { return document.getElementById('option-' + key); }
 
+  // Shows a field's problem (or none). The error text is a live region, so it is only rewritten when it changes:
+  // otherwise screen readers could announce it again on every keystroke anywhere in the form.
+  function showProblem(input, errorId, problem) {
+    var error = document.getElementById(errorId);
+    if (error.textContent !== problem) error.textContent = problem;
+    var invalid = problem ? 'true' : 'false';
+    if (input.getAttribute('aria-invalid') !== invalid) input.setAttribute('aria-invalid', invalid);
+  }
+
   function setValues(values) {
     allOptions(data).filter(hasControl).forEach(function (option) {
       var input = control(option.key);
@@ -173,14 +189,12 @@
   function check(values) {
     var first = null;
     var nameError = nameProblem(nameInput.value);
-    document.getElementById('player-name-error').textContent = nameError;
-    nameInput.setAttribute('aria-invalid', nameError ? 'true' : 'false');
+    showProblem(nameInput, 'player-name-error', nameError);
     if (nameError) first = nameInput;
     allOptions(data).filter(isRange).forEach(function (option) {
       var problem = valueProblem(option, values[option.key]);
       var input = control(option.key);
-      document.getElementById('option-' + option.key + '-error').textContent = problem;
-      input.setAttribute('aria-invalid', problem ? 'true' : 'false');
+      showProblem(input, 'option-' + option.key + '-error', problem);
       if (problem && !first) first = input;
     });
     return first;
@@ -196,8 +210,7 @@
     var problems = false;
     allOptions(data).filter(isRange).forEach(function (option) {
       var problem = valueProblem(option, values[option.key]);
-      document.getElementById('option-' + option.key + '-error').textContent = problem;
-      control(option.key).setAttribute('aria-invalid', problem ? 'true' : 'false');
+      showProblem(control(option.key), 'option-' + option.key + '-error', problem);
       if (problem) problems = true;
     });
     document.getElementById('preview').textContent = problems ? 'Fix the options marked above to see the YAML.' :

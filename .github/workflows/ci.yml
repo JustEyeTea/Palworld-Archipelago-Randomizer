@@ -58,6 +58,13 @@ jobs:
           tools/test_generate.sh 3
           EXTRA_OPTIONS='tower_count: 8' tools/test_generate.sh 2
           EXTRA_OPTIONS=$'area_locks: false\n  progressive_spheres: false\n  level_checks: every_10' tools/test_generate.sh 2
+      # The options page's YAMLs, built by its own JavaScript (in QuickJS), against the .apworld as players get it.
+      - name: Options page
+        env:
+          AP_DIR: ${{ github.workspace }}/archipelago
+        run: |
+          archipelago/.venv/bin/pip install -q quickjs
+          archipelago/.venv/bin/python palworld-archipelago/tools/test_options_page.py
 
   # The mod's C++ part (APConnector), built on Windows against the UE4SS the game runs: Okaetsu's Palworld build,
   # release 2281fa31. UE4SS's Unreal headers live in a private repository that only Epic-linked GitHub accounts can
