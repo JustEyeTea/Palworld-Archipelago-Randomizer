@@ -63,6 +63,8 @@ LEVELS = list(range(2, 81))
 # --- filler ----------------------------------------------------------------------------------------------------
 FILLER = ["Tech Points +2", "Ancient Tech Points +1", "Wood Bundle", "Stone Bundle", "Paldium Bundle",
           "Ingot Bundle", "Sphere Bundle", "Food Bundle"]
+# Traps (Trap Chance): received items that do something mildly bad in game. None can make the player faint.
+TRAPS = ["Slow Trap", "Hunger Trap", "Teleport Trap", "Fool Trap"]
 PROGRESSIVE_SPHERE = "Progressive Sphere"
 RELIC = "Palpagos Relic"                           # the Relic Hunt goal's item
 
@@ -70,7 +72,7 @@ RELIC = "Palpagos Relic"                           # the Relic Hunt goal's item
 class ItemDef(NamedTuple):
     name: str
     id: int
-    kind: str                      # "pass", "tech", "progressive", "relic", "filler"
+    kind: str                      # "pass", "tech", "progressive", "relic", "filler", "trap"
 
 
 def _items() -> List[ItemDef]:
@@ -79,6 +81,7 @@ def _items() -> List[ItemDef]:
     out.append(ItemDef(PROGRESSIVE_SPHERE, BASE + 900, "progressive"))
     out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
+    out += [ItemDef(n, BASE + 970 + i, "trap") for i, n in enumerate(TRAPS)]      # 958-969 stay free for filler
     return out
 
 
@@ -113,6 +116,7 @@ LOCATIONS = _locations()
 LOCATION_NAME_TO_ID: Dict[str, int] = {l.name: l.id for l in LOCATIONS}
 
 assert len(ITEM_NAME_TO_ID) == len(ITEMS), "duplicate item names"
+assert len({i.id for i in ITEMS}) == len(ITEMS), "duplicate item ids"
 assert len(LOCATION_NAME_TO_ID) == len(LOCATIONS), "duplicate location names"
 assert DECOR_TECHS <= {t[0] for t in SHOP_TECHS} and not DECOR_TECHS & PREREQ_TECHS, "décor techs must be plain shop techs"
 
@@ -124,6 +128,7 @@ ITEM_GROUPS = {
     "Spheres": {tech_item(t[0]) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
     "Bundles": {n for n in FILLER if n.endswith(" Bundle")},
     "Tech Points": {"Tech Points +2", "Ancient Tech Points +1"},
+    "Traps": set(TRAPS),
 }
 LOCATION_GROUPS = {
     "Shop": {l.name for l in LOCATIONS if l.kind == "shop"},

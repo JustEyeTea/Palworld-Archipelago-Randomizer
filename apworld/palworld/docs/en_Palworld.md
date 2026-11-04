@@ -37,5 +37,26 @@ with tech points as usual; the Tech Checks option can make them checks too.
 Items you receive (material bundles and the like) wait in your Archipelago Mailbox until you take them, so nothing
 lands in your bag mid-fight. Open it from the Esc menu's Archipelago Mailbox button; it has no size limit.
 
+## Traps
+
+Off by default. Trap Chance replaces that share of the filler items (bundles and tech points) with traps, picked by
+the trap weights. None of them can make you faint:
+
+- **Slow Trap**: half walking speed for a minute.
+- **Hunger Trap**: you lose half your satiety, but never drop below a quarter (so it never starts starving damage).
+- **Teleport Trap**: back to the starting area. It waits while you are in a dungeon.
+- **Fool Trap**: an alarming notice, then "just kidding" a few seconds later. Nothing happens.
+
+Traps arrive at most one every 15 seconds, and wait while you are fainted, while the world is loading and while the
+mailbox is open. A chat line names each trap and who sent it. Traps are untested in game so far: if one can't do its
+job, chat says "<trap> fizzled" and nothing else happens.
+
+## Death Link
+
+With Death Link on, fainting sends a death to everyone linked, and a death from them faints you (through the game's
+own faint). Death Link Amnesty forgives that many of your own faints before one is sent: with 2, every third faint is
+sent. Chat says when a faint is forgiven and how many are left. The count is kept with the seed's save, so quitting
+doesn't reset it. Deaths other players send you never count. Amnesty is untested in game so far.
+
 Most of this world's code, tools and documentation were written by Claude, an AI model made by Anthropic, at
 JustEyeTee's direction.

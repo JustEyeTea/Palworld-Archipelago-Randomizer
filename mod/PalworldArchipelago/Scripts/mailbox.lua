@@ -69,6 +69,9 @@ function M.count()
     return kinds, items
 end
 
+-- The mailbox is open or opening (its window, the chest view, or the hidden chest still being made): traps wait.
+function M.busy() return (view or win or want or spawning) and true or false end
+
 function M.label()
     local _, items = M.count()
     return "Archipelago Mailbox" .. (items > 0 and (" (" .. items .. ")") or "")

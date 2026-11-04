@@ -322,7 +322,11 @@ AP_ComposeStatus = function()
     elseif s ~= "" then composeState = "" end
     return s
 end
-local function push(...) events[#events + 1] = table.concat({ ... }, "\t") end
+local itemHistory = {}                                       -- every item sent, as the server sends them all again
+local function push(...)
+    events[#events + 1] = table.concat({ ... }, "\t")
+    if select(1, ...) == "item" then itemHistory[#itemHistory + 1] = events[#events] end
+end
 local function run(ticks)
     for _ = 1, ticks do
         loop()
@@ -942,6 +946,241 @@ run(1)
 hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false
 escOpen = false
 playerController.K2_GetPawn, playerController.GetAddress = nil, nil
+
+-- Quitting and starting again: the mod's state for seed 12345 comes back from its save file only (another seed is
+-- connected in between, which forgets everything), and the server sends every item again.
+local function reload()
+    slotData.seed = "99999"
+    push("status", "connected", "Tester")
+    run(1)
+    slotData.seed = "12345"
+    push("status", "connected", "Tester")
+    for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+    run(1)
+end
+local function saveText() return io.open(MOD .. "/save-12345-Tester.txt"):read("*a") end
+local function count(pattern)
+    local n = 0
+    for _, l in ipairs(printed) do if l:find(pattern) then n = n + 1 end end
+    return n
+end
+local function ticksUntil(pattern, max)
+    for n = 1, max or 400 do
+        run(1)
+        if logged(pattern) then return n end
+    end
+end
+local function told(text) return table.concat(announced, "|"):find(text, 1, true) ~= nil end
+
+print("traps")
+-- The game's side, limited to what LuaTypes lists: the movement component's named walk-speed multipliers (the game
+-- multiplies them), the individual parameter's satiety, the player state's IsInStage, the controller's controlled
+-- character. GetLastInsideRegionNameID is left out: its out-parameter's shape is unknown, so it fails here.
+local function Movement(address)
+    local m = { mult = {} }
+    function m:IsValid() return true end
+    function m:GetAddress() return address end
+    function m:SetWalkSpeedMultiplier(name, v) self.mult[name:ToString()] = v end
+    function m:GetWalkSpeedMultiplier() local p = 1.0; for _, v in pairs(self.mult) do p = p * v end; return p end
+    return m
+end
+local movement = Movement(5150)
+pawn.GetPalCharacterMovementComponent = function() return movement end
+local stomach = { cur = 80, max = 100 }
+local individual = { GetFullStomach = function() return stomach.cur end, GetMaxFullStomach = function() return stomach.max end,
+                     SetFullStomach = function(_, v) stomach.cur = v end }
+pawn.GetCharacterParameterComponent = function()
+    return { GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end }
+end
+local inStage = false
+ps.IsInStage = function() return inStage end
+playerController.GetControlPalCharacter = function() return pawn end
+local trapAt = 9                                               -- items 0-8 are in; traps follow
+local function trap(name, sender)
+    push("item", tostring(trapAt), tostring(itemId[name]), "1", sender and "2" or "1", "4", name, sender or "Tester")
+    trapAt = trapAt + 1
+    return trapAt - 1
+end
+expect(not require("mailbox").busy(), "the mailbox is closed")
+local said0 = #announced
+trap("Slow Trap", "Friend")
+local t = ticksUntil("trap #9 Slow Trap from Friend: player multiplier 1%.0 %-> 0%.5", 20)
+expect(t and movement:GetWalkSpeedMultiplier() == 0.5, "a Slow Trap halves walking speed: " .. movement:GetWalkSpeedMultiplier())
+expect(told("Slow Trap from Friend: your legs feel heavy (1 minute).") and not told("Received Slow Trap"),
+       "chat names the trap and its sender, with no 'Received' line")
+expect(saveText():find("given=9\ndeaths=0\ntraps=\n", 1, true), "applied: the save has it given and nothing waiting: " .. saveText())
+-- Two at once: 15 s apart.
+trap("Hunger Trap", "Friend")
+trap("Fool Trap", "Friend")
+local h = ticksUntil("trap #10 Hunger Trap from Friend", 100)
+expect(h and h >= 50 and h <= 57, "the next trap waits 15 s: " .. tostring(h) .. " ticks")
+expect(stomach.cur == 30 and logged("satiety 80%.0 of 100%.0, set to 30%.0, reads back 30"), "a Hunger Trap takes half the satiety: " .. stomach.cur)
+local f = ticksUntil("trap #11 Fool Trap from Friend: fake notice", 100)
+expect(f and f >= 50, "and the one after it 15 s later again: " .. tostring(f))
+local fake
+for _, a in ipairs(announced) do if a:find("broke free and ran off!", 1, true) then fake = a end end
+expect(fake and not fake:find("Archipelago", 1, true), "a Fool Trap shows a plain-looking scare: " .. tostring(fake))
+expect(not told("Just kidding"), "with no punchline yet")
+expect(ticksUntil("Just kidding%. Fool Trap from Friend%.", 40), "then 8 s later: just kidding")
+expect(ticksUntil("Slow Trap ended; multiplier now player 1%.0", 200) and movement:GetWalkSpeedMultiplier() == 1.0
+       and told("Your legs feel normal again."), "a minute after the Slow Trap, walking speed is back")
+-- Hunger never goes below a quarter.
+trap("Hunger Trap", "Friend")
+ticksUntil("trap #12 Hunger Trap", 100)
+expect(stomach.cur == 25, "a Hunger Trap stops at a quarter: " .. stomach.cur)
+trap("Hunger Trap", "Friend")
+ticksUntil("trap #13 Hunger Trap", 100)
+expect(stomach.cur == 25 and told("your stomach growls, but you were already starving"), "and leaves a quarter alone")
+-- Teleport waits in a dungeon; a later trap goes meanwhile.
+local WALLS = require("walls")
+pawnAt = { X = -340000, Y = 236000, Z = -1500 }
+expect(WALLS.areaAt(pawnAt.X, pawnAt.Y) == WD.start, "(the player stands in the starting area, away from its spot)")
+teleported = nil
+inStage = true
+trap("Teleport Trap")
+trap("Fool Trap", "Friend")
+run(120)
+expect(teleported == nil and logged("trap #14 Teleport Trap waits: the player is in a dungeon"), "a Teleport Trap waits in a dungeon")
+expect(logged("trap #15 Fool Trap from Friend: fake notice"), "and a trap after it goes meanwhile")
+inStage = false
+expect(ticksUntil("trap #14 Teleport Trap: from %-340000, 236000, %-1500 %(region unreadable", 100) and teleported
+       and teleported.X == WALLS.home[1] and teleported.Y == WALLS.home[2], "out of the dungeon, it sends the player home")
+expect(told("Teleport Trap: whisked back to " .. WD.start .. "."), "your own trap names no sender")
+-- Waiting while fainted. (Death Link sends this faint: amnesty is 0 here.)
+local bounced = #bounces
+playerDead = true
+trap("Fool Trap", "Friend")
+run(80)
+expect(not logged("trap #16 "), "no trap while the player is fainted")
+playerDead = false
+expect(ticksUntil("trap #16 Fool Trap", 20) and #bounces == bounced + 1, "and it comes after reviving")
+-- Waiting while the mailbox is open.
+playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 999 end
+run(1)                                                         -- (the mailbox notes the controller first)
+require("mailbox").open(pawn)
+run(4)
+expect(require("mailbox").busy(), "(the mailbox's chest window is open)")
+trap("Fool Trap", "Friend")
+run(80)
+expect(not logged("trap #17 "), "no trap while the mailbox is open")
+hudWindows["chest" .. #shown].gone = true
+expect(ticksUntil("trap #17 Fool Trap", 20), "and it comes once the mailbox closes")
+playerController.K2_GetPawn, playerController.GetAddress = nil, nil
+-- A failure: the trap fizzles, says so, and is not retried.
+individual.GetFullStomach = function() error("Tried calling a member function but the UObject instance is nullptr") end
+trap("Hunger Trap", "Friend")
+expect(ticksUntil("trap #18 Hunger Trap from Friend fizzled: .*nullptr", 80) and told("Hunger Trap fizzled."), "a failing trap fizzles, logged")
+run(120)
+expect(count("trap #18 ") == 1 and not logged("traps error"), "once, without an update error")
+individual.GetFullStomach = function() return stomach.cur end
+-- Missing game objects: it waits a minute, then fizzles.
+pawn.GetPalCharacterMovementComponent = function() return nil end
+trap("Slow Trap", "Friend")
+expect(ticksUntil("trap #19 Slow Trap waits: no movement component yet", 80), "a trap waits for what is missing")
+expect(ticksUntil("trap #19 Slow Trap from Friend fizzled: waited too long", 260), "then fizzles after a minute")
+pawn.GetPalCharacterMovementComponent = function() return movement end
+-- Riding: the mount is slowed and set back too.
+local mountMovement = Movement(6160)
+local mountPal = { IsValid = function() return true end, GetAddress = function() return 7777 end,
+                   GetPalCharacterMovementComponent = function() return mountMovement end }
+playerController.GetControlPalCharacter = function() return mountPal end
+trap("Slow Trap", "Friend")
+expect(ticksUntil("trap #20 Slow Trap from Friend: player multiplier 1%.0 %-> 0%.5, mount multiplier 1%.0 %-> 0%.5", 80),
+       "riding, the mount is slowed too")
+expect(ticksUntil("Slow Trap ended; multiplier now player 1%.0, mount 1%.0", 220) and mountMovement:GetWalkSpeedMultiplier() == 1.0,
+       "and both are set back")
+playerController.GetControlPalCharacter = function() return pawn end
+-- The player character changes (fainted, world reloaded) during a Slow Trap: nothing to set back on the new one.
+trap("Slow Trap", "Friend")
+ticksUntil("trap #21 Slow Trap", 80)
+pawnAddress = 12288
+expect(ticksUntil("Slow Trap ended; the player character changed, nothing to restore", 220), "a new character is left alone")
+movement.mult = {}
+-- Queued when the game quits: it is in the save file, and fires once after loading.
+trap("Fool Trap", "Friend")
+trap("Hunger Trap", "Friend")
+ticksUntil("trap #22 Fool Trap", 80)
+run(7)
+expect(saveText():find("traps=Hunger Trap|23\n", 1, true), "a waiting trap is in the save file: " .. saveText():match("traps=[^\n]*"))
+reload()
+expect(logged("1 trap%(s%) waiting"), "loaded with the save")
+expect(ticksUntil("trap #23 Hunger Trap from Friend", 80), "and it fires after loading, with its sender")
+run(200)
+expect(count("trap #23 ") == 1 and count("trap #22 ") == 1, "each trap fired once")
+-- A reconnect sends every item again: no trap fires twice.
+local fired = count("^%[PalworldAP%] trap #")
+push("status", "disconnected")
+push("status", "connected", "Tester")
+for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+run(200)
+expect(count("^%[PalworldAP%] trap #") == fired, "after a reconnect no trap fires again")
+-- A mass release: at most 10 wait.
+for _ = 1, 12 do trap("Fool Trap", "Friend") end
+run(7)
+expect(told("2 trap(s) skipped: at most 10 wait at a time.") and logged("trap #24 Fool Trap dropped") and logged("trap #25 Fool Trap dropped"),
+       "more than 10 traps at once: the oldest extras are skipped")
+run(700)
+expect(count("trap #3[0-5] Fool Trap from Friend: fake") == 6 and not logged("trap #2[45] Fool Trap from"), "the other ten fire")
+
+print("death link amnesty")
+slotData["options.death_link_amnesty"] = "2"
+local function faint() playerDead = true; run(7); playerDead = false; run(7) end
+bounced = #bounces
+faint()
+faint()
+expect(#bounces == bounced and told("Death Link: faint forgiven (1 more before one is sent).")
+       and told("Death Link: faint forgiven. The next one is sent to the multiworld."), "amnesty 2: two faints are forgiven")
+expect(saveText():find("deaths=2\n", 1, true), "the count is in the save file")
+reload()
+expect(logged("2 faint%(s%) forgiven"), "and comes back after loading")
+run(14)                                                        -- (ready again)
+push("bounce", "DeathLink", '{"cause":"Ash fell off a cliff.","source":"Ash","time":3}')
+run(7)
+expect(playerDead, "a linked death still faints the player")
+run(7)
+playerDead = false
+run(56)                                                        -- (a faint soon after a linked one counts as the link's)
+expect(#bounces == bounced and saveText():find("deaths=2\n", 1, true), "and neither counts nor resets the amnesty")
+faint()
+expect(#bounces == bounced + 1 and told("Death Link: your death was sent to the multiworld."), "the third faint is sent")
+expect(saveText():find("deaths=0\n", 1, true), "and the count starts again")
+faint()
+expect(#bounces == bounced + 1, "the next one is forgiven again")
+slotData["options.death_link_amnesty"] = nil
+
+-- Test tools: the trap hotkeys go through the queue; the probes log what they read.
+print("test tools")
+ModifierKey = { CONTROL = "ctrl" }
+local sp = { Value = 900000 }
+local cpStub = { GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end,
+                 GetSP = function() return sp end, GetMaxSP = function() return { Value = 1000000 } end,
+                 SetSP = function(_, v) sp = { Value = v.Value } end, GetHPRate = function() return 0.9 end }
+pawn.GetCharacterParameterComponent = function() return cpStub end
+movement.IsMovingOnGround = function() return true end
+local hour = 9
+util.GetTimeManager = function() return { GetCurrentPalWorldTime_Hour = function() return hour end,
+                                           SetGameTime_FixDay = function(_, h) hour = h end } end
+local statuses = {}
+pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
+                         GetExecutionStatus = function(_, id) return statuses[id] and "BP_Status" or nil end,
+                         RemoveStatus = function(_, id) statuses[id] = nil end }
+require("test_tools").install()
+expect(logged("%[test%] test tools on: Ctrl%+F5%-F8"), "test tools bind their keys")
+keyBinds["key:F8"]()
+expect(ticksUntil("trap #%-1 Fool Trap: fake notice", 20), "Ctrl+F8 fires a Fool Trap through the queue")
+keyBinds["key:F9"]()
+expect(sp.Value == 0 and logged("exhaustion: stamina 900000 of 1000000 %-> 0"), "Ctrl+F9: stamina probe logs before and after")
+keyBinds["key:F10"]()
+expect(hour == 22 and logged("nightfall: hour 9 %-> 22"), "Ctrl+F10: nightfall probe logs the hour")
+keyBinds["key:F11"]()
+expect(logged("status LowGravity: running right after: BP_Status") and logged("RemoveStatus%(LowGravity%): ok"),
+       "Ctrl+F11: a status is added, checked and removed")
+pawn.StatusComponent = nil
+keyBinds["key:F11"]()
+expect(logged("AddStatus%(Wetness 20%): FAILED"), "a failing probe is logged, not raised")
+pawn.GetCharacterParameterComponent = function()
+    return { GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end }
+end
 
 print("the title menu's Archipelago buttons")
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"

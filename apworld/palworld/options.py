@@ -107,6 +107,57 @@ class LevelChecks(Choice):
     default = 1
 
 
+class DeathLinkAmnesty(Range):
+    """Death Link: how many of your own faints are forgiven before one is sent to the multiworld. 0 sends every
+    faint; 2 sends every third. Deaths other players send you never count."""
+    display_name = "Death Link Amnesty"
+    range_start = 0
+    range_end = 20
+    default = 0
+
+
+class TrapChance(Range):
+    """The percentage of filler items (bundles and tech points) replaced by traps: received items that do something
+    mildly bad. None of them can make you faint. 0 means no traps, and seeds come out exactly as without this option.
+    Traps are untested in game so far."""
+    display_name = "Trap Chance"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class SlowTrapWeight(Range):
+    """How often a trap is a Slow Trap: half walking speed for a minute."""
+    display_name = "Slow Trap Weight"
+    range_start = 0
+    range_end = 100
+    default = 40
+
+
+class HungerTrapWeight(Range):
+    """How often a trap is a Hunger Trap: you lose half your satiety, but never drop below a quarter."""
+    display_name = "Hunger Trap Weight"
+    range_start = 0
+    range_end = 100
+    default = 40
+
+
+class TeleportTrapWeight(Range):
+    """How often a trap is a Teleport Trap: back to the starting area (it waits while you are in a dungeon)."""
+    display_name = "Teleport Trap Weight"
+    range_start = 0
+    range_end = 100
+    default = 15
+
+
+class FoolTrapWeight(Range):
+    """How often a trap is a Fool Trap: an alarming notice that turns out to be a joke. Nothing happens."""
+    display_name = "Fool Trap Weight"
+    range_start = 0
+    range_end = 100
+    default = 25
+
+
 @dataclass
 class PalworldOptions(PerGameCommonOptions):
     goal: Goal
@@ -123,12 +174,20 @@ class PalworldOptions(PerGameCommonOptions):
     fast_travel_checks: FastTravelChecks
     level_checks: LevelChecks
     death_link: DeathLink
+    death_link_amnesty: DeathLinkAmnesty
+    trap_chance: TrapChance
+    slow_trap_weight: SlowTrapWeight
+    hunger_trap_weight: HungerTrapWeight
+    teleport_trap_weight: TeleportTrapWeight
+    fool_trap_weight: FoolTrapWeight
 
 
 option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
     OptionGroup("Progression", [AreaLocks, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
+    OptionGroup("Traps", [TrapChance, SlowTrapWeight, HungerTrapWeight, TeleportTrapWeight, FoolTrapWeight]),
+    OptionGroup("Death Link", [DeathLink, DeathLinkAmnesty]),
 ]
 
 
