@@ -1,11 +1,14 @@
 # On every push and pull request: the APWorld against the Archipelago version it targets (Archipelago's own test
 # suites and test generations), and the mod's C++ part built on Windows, packaged with the Lua mod as an artifact.
+# A version tag (v0.14.0, matching the mod's VERSION) also makes a DRAFT release with the mod zip, palworld.apworld and
+# their checksums; a person reads it and publishes it.
 name: CI
 
 on:
   push:
     # build/<name>: push a feature branch under this name to get its Windows build without a pull request
     branches: [main, 'build/**']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -64,6 +67,17 @@ jobs:
           tools/test_generate.sh 3
           EXTRA_OPTIONS='tower_count: 8' tools/test_generate.sh 2
           EXTRA_OPTIONS=$'area_locks: false\n  progressive_spheres: false\n  level_checks: every_10' tools/test_generate.sh 2
+      # The .apworld as players get it (tools/build_apworld.py, as Archipelago's "Build APWorlds" makes it).
+      - name: Build palworld.apworld
+        env:
+          AP_DIR: ${{ github.workspace }}/archipelago
+        run: |
+          mkdir -p apworld-out
+          archipelago/.venv/bin/python palworld-archipelago/tools/build_apworld.py apworld-out/palworld.apworld
+      - uses: actions/upload-artifact@v6
+        with:
+          name: palworld-apworld-${{ github.sha }}
+          path: apworld-out/palworld.apworld
       # The options page's YAMLs, built by its own JavaScript (in QuickJS), against the .apworld as players get it.
       - name: Options page
         env:
@@ -151,3 +165,44 @@ jobs:
         with:
           name: PalworldArchipelago-mod-${{ github.sha }}
           path: package
+
+  # A version tag: a draft release with both builds. Its notes are a starting point; publishing is a person's call.
+  release:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [apworld, cppmod]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: The tag matches the mod's version
+        run: |
+          ver=$(sed -n 's/^local VERSION = "\(.*\)"/\1/p' mod/PalworldArchipelago/Scripts/main.lua)
+          [ "v$ver" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME but the mod says $ver"; exit 1; }
+      - uses: actions/download-artifact@v7
+        with:
+          name: PalworldArchipelago-mod-${{ github.sha }}
+          path: mod-package
+      - uses: actions/download-artifact@v7
+        with:
+          name: palworld-apworld-${{ github.sha }}
+          path: dist
+      - name: Assemble
+        run: |
+          (cd mod-package && zip -qr "../dist/PalworldArchipelago-$GITHUB_REF_NAME.zip" ue4ss)
+          (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          cat > notes.md <<EOF
+          Palworld Archipelago $GITHUB_REF_NAME (draft: edit these notes before publishing).
+
+          - \`PalworldArchipelago-$GITHUB_REF_NAME.zip\`: the mod. Its \`ue4ss\` folder goes over \`Pal/Binaries/Win64/ue4ss\`.
+          - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago 0.6.8 or newer).
+          - Setup: [setup guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/apworld/palworld/docs/setup_en.md).
+
+          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction.
+          Unofficial fan project; not affiliated with Pocketpair or the Archipelago project.
+          EOF
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag --title "Palworld Archipelago $GITHUB_REF_NAME" --notes-file notes.md
