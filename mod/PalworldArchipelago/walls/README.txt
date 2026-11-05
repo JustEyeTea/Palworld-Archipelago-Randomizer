@@ -9,5 +9,7 @@ colour-paws, colour-routes, colour-grid; one tile is 3 m of wall):
   ap-wall-colour-paws.png    logo paws, sand pads with coral, leaf, sky and violet toes
   ap-wall-colour-routes.png  one-colour paws on a lattice, dotted routes blending between them
   ap-wall-colour-grid.png    a fine cream grid (25 cm cells) with small paws in the five colours
+  ap-wall-colour-rainbow.png the logo pawprint in cream on a see-through rainbow (skins colour-rainbow, and
+                             colour-rainbow-flow, which drifts it sideways)
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).
