@@ -46,6 +46,7 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           # a pull request's own head, not the merge commit with main the checkout holds
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_BRANCH: ${{ github.base_ref }}
         run: |
           build() { echo "cpp=true" >> "$GITHUB_OUTPUT"; echo "Windows build: yes ($1)"; exit 0; }
           case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
@@ -54,16 +55,24 @@ jobs:
             push:refs/heads/main) build "main" ;;
           esac
           api="repos/$GITHUB_REPOSITORY/actions"
-          runs=$(gh api "$api/workflows/ci.yml/runs?branch=$BRANCH&status=completed&per_page=30" --jq '.workflow_runs[].id') \
-            || build "could not list earlier runs"
-          base=""
-          for run in $runs; do
-            ok=$(gh api "$api/runs/$run/jobs" \
-                   --jq '[.jobs[] | select(.name == "C++ mod (Windows)" and .conclusion == "success")] | length') \
-              || build "could not read run $run"
-            if [ "$ok" -gt 0 ]; then base=$(gh api "$api/runs/$run" --jq .head_sha); break; fi
-          done
-          [ -n "$base" ] || build "no earlier Windows build of $BRANCH found"
+          # The newest commit of a branch whose Windows build passed and that this commit builds on (an ancestor).
+          last_built() {
+            local runs run ok sha
+            runs=$(gh api "$api/workflows/ci.yml/runs?branch=$1&status=completed&per_page=30" --jq '.workflow_runs[].id') \
+              || build "could not list earlier runs of $1"
+            for run in $runs; do
+              ok=$(gh api "$api/runs/$run/jobs" \
+                     --jq '[.jobs[] | select(.name == "C++ mod (Windows)" and .conclusion == "success")] | length') \
+                || build "could not read run $run"
+              [ "$ok" -gt 0 ] || continue
+              sha=$(gh api "$api/runs/$run" --jq .head_sha)
+              if git merge-base --is-ancestor "$sha" "$HEAD_SHA" 2>/dev/null; then echo "$sha"; return; fi
+            done
+          }
+          base=$(last_built "$BRANCH")
+          # A new branch has no build of its own yet: the pull request's base branch's (next for a feature branch).
+          [ -n "$base" ] || [ -z "$BASE_BRANCH" ] || base=$(last_built "$BASE_BRANCH")
+          [ -n "$base" ] || build "no earlier Windows build of $BRANCH${BASE_BRANCH:+ or $BASE_BRANCH} found"
           git cat-file -e "$base^{commit}" 2>/dev/null || build "the last built commit ${base:0:7} is gone (history rewritten?)"
           changed=$(git diff --name-only "$base" "$HEAD_SHA" -- cppmod .github/workflows/ci.yml) \
             || build "could not compare ${base:0:7}"
@@ -178,7 +187,8 @@ jobs:
           fetch wswrap black-sliver/wswrap "$WSWRAP_COMMIT"
           fetch ap-soeclient black-sliver/ap-soeclient "$SOECLIENT_COMMIT"
       # vcpkg's binary cache, kept between runs: OpenSSL is built from source once per vcpkg version (about 7 minutes),
-      # then restored from the cache in seconds.
+      # then restored from the cache in seconds. GitHub shares a cache saved on main with every branch, one saved on a
+      # pull request only with that pull request: the first build on main fills it for all.
       - name: vcpkg version
         id: vcpkg
         shell: bash
