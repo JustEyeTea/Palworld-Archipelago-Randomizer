@@ -24,7 +24,8 @@ perf_log=
 # load), Ctrl+F3 wall skins, Ctrl+F4 HUD probe (hint icon and goal banner for 6 s) and the probes that need the game
 # to answer. For playtests only.
 test_tools=
-# The area walls' look: empty (or area) is the hex lattice in the colour of the locked area behind each wall (its pass
+# The area walls' look: empty (or area) is a wall with see-through paw-shaped holes (the hex lattice until that
+# pattern file is installed) in the colour of the locked area behind each wall (its pass
 # ticket's colour; areas beyond the seed's goal in slate grey); a is the lattice in teal everywhere; red is the game's
 # own red grid. Test builds can try others: b, a3d, b3d, a3d-dense, b3d-dense, and with the PalworldArchipelagoArt pak
 # colour-paws, colour-routes,

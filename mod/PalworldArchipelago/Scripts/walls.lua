@@ -314,8 +314,9 @@ end
 -- PalworldArchipelagoArt pak (logicmod/make_wall_material.py; the user, 2026-11-05: the game's material can show one
 -- colour per piece, they want multicolour). Without the pak (or the file) such a skin is refused, logged, and skipped
 -- by Ctrl+F3. colour-<x>-flow: that tile drifting sideways (FLOW tiles a second; the user's rainbow, 2026-11-05).
--- area (the default): the hex lattice (pattern a) in the colour of the locked area each piece keeps you out of (the
--- user, 2026-11-05: "the region/area colored walls make WAAAAY more sense"), the colour of that area's pass ticket
+-- area (the default): walls/ap-wall-pattern-pawholes.png (the user, 2026-11-05: "an area-coloured wall with see-through
+-- paw-shaped holes"; the hex lattice, pattern a, until that file exists) in the colour of the locked area each piece
+-- keeps you out of (the user: "the region/area colored walls make WAAAAY more sense"), the colour of that area's pass ticket
 -- (Art & Assets lane, area_shapes.COLOURS); a region wears its area's (area_parents_regions.lua). A piece between two
 -- locked areas wears the one that isn't beyond the goal. Areas beyond the seed's goal (sealed for good) wear
 -- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour
@@ -356,6 +357,12 @@ local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, t
 local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
 local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
 local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
+local areaFile = nil           -- "pawholes" when walls/ap-wall-pattern-pawholes.png exists, else "a" (checked once)
+local function patternOr(name)
+    local f = io.open(W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png", "rb")
+    if f then f:close(); return name end
+    return "a"
+end
 W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
 local function meshOf(a)
     local ok, m = pcall(function() return a.Cube end)
@@ -408,13 +415,12 @@ local function skinMaterial(name)
     local tint, file = TEAL, name:match("^(.-)%-dense$")
     local tiling = file and DENSE or W.tiling
     local hex = name:match("^area:(%x%x%x%x%x%x)$")
-    if hex then tint, file = linearOf(hex), "a" end
+    if hex then
+        areaFile = areaFile or patternOr("pawholes")
+        tint, file = linearOf(hex), areaFile
+    end
     if name == "sealed" then
-        if not sealedFile then
-            local f = io.open(W.dir .. "\\walls\\ap-wall-pattern-sealed.png", "rb")
-            if f then f:close() end
-            sealedFile = f and "sealed" or "a"
-        end
+        sealedFile = sealedFile or patternOr("sealed")
         tint, file = SEALED, sealedFile
     end
     local path = W.dir .. "\\walls\\ap-wall-pattern-" .. (file or name) .. ".png"
