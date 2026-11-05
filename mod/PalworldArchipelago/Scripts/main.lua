@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.3"
+local VERSION = "0.14.0-dev.4"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -18,6 +18,7 @@ local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local R = require("records")
 local WALLS = require("walls")
 local POPUP = require("hint_popup")
+local CRATES = require("crates")
 local MENU = require("menu")
 local TECHSCAN = require("techscan")
 local MAIL = require("mailbox")
@@ -173,10 +174,10 @@ local function loadSave()
         if n then ap.given = tonumber(n)
         elseif w then ap.world = w
         elseif d then ap.forgiven = tonumber(d)
-        elseif not TRAPS.load(line) then MAIL.load(line) end
+        elseif not TRAPS.load(line) and not CRATES.load(line) then MAIL.load(line) end
     end
     local kinds, items = MAIL.count()
-    log("save " .. path .. ": items applied up to index " .. ap.given .. "; mailbox " .. items .. " item(s) of " .. kinds
+    log("save " .. path .. ": items applied up to index " .. ap.given .. "; " .. CRATES.count() .. " crate(s); mailbox " .. items .. " item(s) of " .. kinds
         .. " kind(s); " .. #TRAPS.queue .. " trap(s) waiting; " .. ap.forgiven .. " faint(s) forgiven; world " .. tostring(ap.world))
 end
 -- Written only when its text changed (it was rewritten every 7th update, 2.1 s, even when nothing had changed: an
@@ -189,7 +190,7 @@ local function writeSave(always)
     if not path then return end
     -- One write holds everything that must agree: what was applied, and the traps and mailbox items it left.
     local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "")
-        .. "deaths=" .. ap.forgiven .. "\n" .. TRAPS.serialize() .. MAIL.serialize() .. "end\n"
+        .. "deaths=" .. ap.forgiven .. "\n" .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. "end\n"
     if not always and lastSave == path .. "\n" .. text then return end
     P.start("save")
     local f = io.open(path .. ".tmp", "w")
@@ -349,9 +350,16 @@ end
 
 -- One-off effects of items, in index order; each is applied once per seed. False when it could not be applied yet (a
 -- bundle the bag refused, with the mailbox off): it is tried again later.
-local function giveOneOff(ps, id)
+local function giveOneOff(ps, id, index)
     local it = D.items[id]
     if not it then return true end
+    if it.name == "Palworld Crate" then
+        local weights = {}
+        for _, k in ipairs(CRATES.KINDS) do weights[k] = tonumber(AP_SlotData("options." .. CRATES.WEIGHT_KEYS[k])) end
+        local kind = CRATES.receive(ap.seed, index, weights)
+        notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
+        return true
+    end
     local td = ps:GetTechnologyData()
     if it.name == "Tech Points +2" then
         td.TechnologyPoint = td.TechnologyPoint + 2
@@ -386,12 +394,54 @@ local function relicCount(upto)
 end
 
 local waiting = nil           -- the index of a bundle the bag had no room for (mailbox off): given once there is room
+
+-- Gear and accessories from a crate go straight to the bag (the mailbox chest can't hold per-item data); what the
+-- bag refused is tried again here, every applying update.
+local function givePending()
+    while CRATES.pending[1] do
+        local e = CRATES.pending[1]
+        local okg, got = pcall(MAIL.give, e[1], e[2])
+        got = okg and got or 0
+        if got <= 0 then return end
+        e[2] = e[2] - got
+        if e[2] <= 0 then table.remove(CRATES.pending, 1) end
+        notify("Your bag had room: " .. MAIL.nameOf(e[1]) .. " from a crate is in it now.")
+    end
+end
+
+-- The Inventory page's Open button (menu.lua): the next crate's contents, rolled from the player's level now.
+local function openCrate()
+    local ps = playerState()
+    if not (ps and ps:IsValid()) then notify("Open crates in your world."); return end
+    local lv = R.level(ps) or ap.level or 1
+    local kind, out = CRATES.openNext(lv)
+    if not kind then return end
+    local parts = {}
+    for _, r in ipairs(out) do
+        local name = MAIL.nameOf(r.id)
+        if r.bag or not MAIL.on() then
+            local okg, got = pcall(MAIL.give, r.id, r.n)
+            got = okg and got or 0
+            if got < r.n then CRATES.pending[#CRATES.pending + 1] = { r.id, r.n - got } end
+            parts[#parts + 1] = (r.n > 1 and (r.n .. " x ") or "") .. name .. (got < r.n and " (waits for room in your bag)" or " (in your bag)")
+        else
+            MAIL.add(r.id, r.n)
+            parts[#parts + 1] = r.n .. " x " .. name
+        end
+    end
+    log("crate: opened a " .. CRATES.NAMES[kind] .. " at level " .. lv .. ": " .. table.concat(parts, ", ")
+        .. "; " .. CRATES.count() .. " left")
+    notify("Opened a " .. CRATES.NAMES[kind] .. ": " .. table.concat(parts, ", ") .. ".")
+    writeSave()
+end
+
 local function applyItems(ps)
+    givePending()
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
         local it = D.items[id]
-        if it and it.kind == "filler" and not giveOneOff(ps, id) then
+        if it and it.kind == "filler" and not giveOneOff(ps, id, i) then
             if waiting ~= i then
                 waiting = i
                 notify("Your bag is full: " .. it.name .. " waits until there is room.")
@@ -900,6 +950,7 @@ local techScan = { report = nil, tries = 0, sent = false }   -- other mods' tech
 
 local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
+    CRATES.reset()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
     ap.world, seedWorld = nil, nil
     ap.from, ap.forgiven = {}, 0
@@ -1021,6 +1072,8 @@ MENU.install({
         notify("Disconnected from Archipelago.")
     end,
     mailboxLabel = MAIL.label,
+    crateLabel = CRATES.label,
+    openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
     openMailbox = function(context) MAIL.open(context) end,
 })
 MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end })

@@ -1490,7 +1490,7 @@ local emblemBox = barKids[2]                               -- the mailbox emblem
 expect(emblemBox and emblemBox.child and emblemBox.child.texture and emblemBox.child.texture.path == "ap-mailbox-emblem-64"
        and emblemBox.width == 24 and emblemBox.halign == 3 and emblemBox.padding and emblemBox.padding.Right == 236,
        "with the mailbox emblem just left of it, 24 high")
-expect(#barKids == 2 and invBox.width == 230 and invBox.height == 28 and invBtn and invBtn.Text_Main
+expect(#barKids == 3 and invBox.width == 230 and invBox.height == 28 and invBtn and invBtn.Text_Main
        and invBtn.Text_Main.text == "Archipelago Mailbox (5)",
        "the name bar gets the game's button, 230x28, with the count: " .. tostring(invBtn and invBtn.Text_Main and invBtn.Text_Main.text))
 expect(invBox and invBox.halign == 3 and invBox.valign == 0, "at the bar's right end, as tall as the Edit Name row")
@@ -1500,7 +1500,9 @@ expect(logged("Mailbox button added to the inventory page %(WBP_CommonButton_C%)
        "logged where it went, once")
 expect(hooks[COMMON_CLICK], "its click is hooked")
 run(4)
-expect(#barKids == 2, "added once")
+expect(#barKids == 3, "added once (the mailbox button, its emblem, the crate button)")
+expect(barKids[3] and barKids[3].vis == 1 and barKids[3].padding and barKids[3].padding.Right == 268,
+       "the crate button waits, collapsed, left of the emblem until there is a crate")
 -- Focus probes: which of the bar's buttons a player reached, and with what input.
 inputSubsystems = { named("CommonInputSubsystem_0", "CommonInputSubsystem", { GetCurrentInputType = function() return 1 end }) }
 editName.WBP_PalInvisibleButton.focused = true
@@ -1520,8 +1522,28 @@ local page2, barKids2 = inventoryPage()
 mainMenu.CurrentContentWidget = inventoryTab(page2)
 run(1)
 local invBtn2 = barKids2[1] and barKids2[1].child
-expect(#barKids2 == 2 and #barKids == 2 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (5)"
+expect(#barKids2 == 3 and #barKids == 3 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (5)"
        and linesWith("Mailbox button added to the inventory page") == 1, "a new page gets its button, quietly; the old one none again")
+-- Palworld Crates: with a crate waiting, the page's Open button shows it, and a click opens it on the next update.
+;(function()   -- (a function: the main chunk is at Lua's 200-local limit)
+    local CR, MB = require("crates"), require("mailbox")
+    local saved, mailSaved = CR.list, {}
+    for _, e in ipairs(MB.queue) do mailSaved[#mailSaved + 1] = { id = e.id, n = e.n } end
+    CR.list = { "sphere" }
+    run(1)
+    local crateBox = barKids2[3]
+    local crateBtn = crateBox and crateBox.child
+    expect(crateBox and crateBox.vis == 0 and crateBtn and crateBtn.Text_Main and crateBtn.Text_Main.text == "Open: Sphere Crate",
+           "the Inventory page shows Open with the next crate: " .. tostring(crateBtn and crateBtn.Text_Main and crateBtn.Text_Main.text))
+    if crateBtn then commonClick(crateBtn) end
+    expect(#CR.list == 1, "nothing opens inside the click's hook")
+    run(1)
+    expect(#CR.list == 0 and logged("crate: opened a Sphere Crate at level %d+: %d+ x ") and table.concat(announced, "|"):find("Opened a Sphere Crate: ", 1, true),
+           "the next update opens it into the mailbox and says what was inside")
+    run(1)
+    expect(crateBox and crateBox.vis == 1, "with no crate left the button folds away")
+    CR.list, MB.queue = saved, mailSaved               -- as it was, for the tests below
+end)()
 commonClick(invBtn)                                        -- the old page's button: no longer ours
 run(1)
 expect(not mainMenu.closed, "a button on a page the menu let go of does nothing")
@@ -2499,6 +2521,33 @@ end
            and not between.gone, "a piece between " .. tostring(a1) .. " and " .. tostring(a2) .. " turns to "
            .. tostring(a2) .. "'s colour when " .. tostring(a1) .. " opens")
     FindAllOf = savedFAO
+end)()
+;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time
+    local CR = require("crates")
+    slotData.seed = "70200"                     -- a seed of its own (as newSeed in the goals tests)
+    push("status", "connected", "Other")
+    run(14)
+    local before = CR.count()
+    push("item", "0", tostring(itemId["Palworld Crate"]), "1", "1", "1", "Palworld Crate", "Friend")
+    run(20)
+    expect(CR.count() == before + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
+           "a Palworld Crate arrives as one of the five crates, and says which")
+    expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS), "the same seed and index roll the same crate")
+    local n = {}
+    for i = 1, 10000 do local k = CR.kindFor("seed", i, CR.DEFAULT_WEIGHTS); n[k] = (n[k] or 0) + 1 end
+    expect(math.abs(n.sphere - 3000) < 300 and math.abs(n.food - 2500) < 300 and math.abs(n.rare - 1200) < 200
+           and math.abs(n.jackpot - 300) < 120, string.format("over 10,000 the chances hold: %d %d %d %d %d",
+           n.sphere, n.food, n.common, n.rare, n.jackpot))
+    expect(CR.kindFor("x", 1, { sphere = 0, food = 0, common = 0, rare = 0, jackpot = 5 }) == "jackpot", "the slot's weights are used")
+    local ok = true
+    for _, kind in ipairs(CR.KINDS) do
+        for _, lv in ipairs({ 1, 20, 50 }) do
+            CR.list = { kind }
+            local k, out = CR.openNext(lv)
+            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then ok = false; print("  bad roll", kind, lv) end
+        end
+    end
+    expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")

@@ -169,6 +169,8 @@ local function itemName(id)
     return name
 end
 
+M.nameOf = itemName
+
 local function bagCount(ps, id)
     local ok, n = pcall(function()
         return StaticFindObject("/Script/Pal.Default__PalItemUtility"):CountLocalPlayerInventoryItemNum64(ps, FName(id))

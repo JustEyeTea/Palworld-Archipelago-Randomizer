@@ -33,6 +33,8 @@ local menus = {}               -- title menu address -> { connect = button, disc
 local escMenus = {}            -- Esc menu address -> { mailbox = button, menu = the Esc menu }
 local invPages = {}            -- Inventory page address -> { mailbox = button, page = the page, main = its main menu }
 local ours = {}                -- our button address -> "connect" | "disconnect" | "mailbox" | "inventory"
+local crateWanted = false      -- the Inventory page's Open (crate) button was pressed: opened on the next update
+local lastCrate = nil          -- the crate button addInventoryButton made last
 local closing = nil            -- a mailbox button was pressed: { from = "esc" | "inventory", menu or main, button },
                                -- handled on the next update
 local mainMenuLook = nil       -- updates until the mod looks whether the main menu closed (a diagnostic)
@@ -331,6 +333,10 @@ local function clicked(button)
         closing = { from = "esc", menu = menu, button = button }
         return
     end
+    if kind == "crate" then
+        crateWanted = true                     -- opened on the next update, outside this click's hook
+        return
+    end
     if kind == "inventory" then
         -- The same for the Inventory page's button: only noted here; the main menu closes on the next update.
         local main
@@ -609,6 +615,23 @@ local function addInventoryButton(page, bar)
         pcall(function() es:SetPadding({ Left = 0, Top = 0, Right = 236, Bottom = 0 }) end)
     end
     ours[tostring(button:GetAddress())] = "inventory"
+    -- Palworld Crates (crates.lua): the same button left of the emblem, shown while there is a crate to open.
+    lastCrate = nil
+    local okc = pcall(function()
+        local crate = wbl:Create(page, class, nil)
+        local cbox = StaticConstructObject(sizeClass, page)
+        cbox:SetWidthOverride(230)
+        cbox:SetHeightOverride(28)
+        cbox:AddChild(crate)
+        local cs = bar:AddChild(cbox)
+        pcall(function() cs:SetHorizontalAlignment(3) end)
+        pcall(function() cs:SetVerticalAlignment(0) end)
+        pcall(function() cs:SetPadding({ Left = 0, Top = 0, Right = 268, Bottom = 0 }) end)
+        pcall(function() cbox:SetVisibility(1) end)              -- collapsed until there is a crate
+        ours[tostring(crate:GetAddress())] = "crate"
+        lastCrate = { button = crate, box = cbox }
+    end)
+    if not okc then once("cratebtn", "menu: could not add the crate button to the inventory page") end
     return button
 end
 
@@ -640,6 +663,7 @@ local function updateInventory(found)
     for key, m in pairs(invPages) do
         if not live[key] or not m.page:IsValid() then
             pcall(function() ours[tostring(m.mailbox:GetAddress())] = nil end)
+            if m.crate then pcall(function() ours[tostring(m.crate.button:GetAddress())] = nil end) end
             invPages[key] = nil
         end
     end
@@ -652,7 +676,7 @@ local function updateInventory(found)
             if bar then
                 local okc, b, err = pcall(addInventoryButton, e.page, bar)
                 if okc and b then
-                    m = { mailbox = b, page = e.page }
+                    m = { mailbox = b, page = e.page, crate = lastCrate }
                     invPages[key] = m
                     invAdds = invAdds + 1
                     if invAdds == 1 then
@@ -675,6 +699,14 @@ local function updateInventory(found)
             m.main = e.main                                    -- kept fresh: the close goes to the menu showing it
             local text = api.mailboxLabel()
             if m.label ~= text then m.label = text; setText(m.mailbox, text) end
+            if m.crate and api.crateLabel then
+                local ct = api.crateLabel()
+                if m.crateText ~= ct then
+                    m.crateText = ct
+                    pcall(function() m.crate.box:SetVisibility(ct and 0 or 1) end)
+                    if ct then setText(m.crate.button, ct) end
+                end
+            end
             -- Can a controller reach it? A mouse click focuses too, so the input type tells them apart (untested).
             if not focusLogged.ours and focused(m.mailbox) then
                 focusLogged.ours = true
@@ -737,6 +769,10 @@ end
 -- Called from the mod's update loop (game thread). ctx: this update's player (main.lua): ctx.pc, the first live
 -- controller, as FindFirstOf("PalPlayerController") found it; ctx.hasPawn, what its K2_GetPawn gave (an object).
 function M.update(ctx)
+    if crateWanted then
+        crateWanted = false
+        if api.openCrate then api.openCrate() end
+    end
     -- In a world: a live controller whose pawn lookup answered (6dd356e's test, now from the shared lookup).
     local inWorld = false
     if ctx then
