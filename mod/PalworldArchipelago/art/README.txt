@@ -21,5 +21,12 @@ Round 3 (2026-11-05):
                               at 380x84 in the middle of the screen, a little transparent).
   ap-hint-plate-short.png     the same without enough points.
   ap-hint-icon-short-64/128.png  the hint icon without enough points.
+Round 4 (2026-11-05, interim drafts until the user picks):
+  ap-crate-palworld.png       256x256, the Palworld Crate (a slot holding one shows it on the Technology cards).
+  ap-crate-sphere/-food/-supply-common/-supply-rare/-supply-jackpot.png  256x256, the five crates (crate_window.lua).
+  ap-mailbox-window.png       1600x1000, the crate window's plate (shown at 800x500 over the mailbox's chest window).
+  ap-mailbox-row.png, ap-mailbox-row-selected.png  720x96, a crate kind's row in the list.
+  ap-mailbox-cell.png         120x120, one item of the last crate opened.
+  ap-mailbox-reveal.png       512x512 white glow behind the chosen crate, tinted per kind.
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).

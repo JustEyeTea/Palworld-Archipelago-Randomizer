@@ -34,6 +34,7 @@ local escMenus = {}            -- Esc menu address -> { mailbox = button, menu =
 local invPages = {}            -- Inventory page address -> { mailbox = button, page = the page, main = its main menu }
 local ours = {}                -- our button address -> "connect" | "disconnect" | "mailbox" | "inventory"
 local crateWanted = false      -- the Inventory page's Open (crate) button was pressed: opened on the next update
+local cwAction = nil           -- a crate window button was pressed (crate_window.lua): its action, run on the next update
 local lastCrate = nil          -- the crate button addInventoryButton made last
 local closing = nil            -- a mailbox button was pressed: { from = "esc" | "inventory", menu or main, button },
                                -- handled on the next update
@@ -337,6 +338,8 @@ local function clicked(button)
         crateWanted = true                     -- opened on the next update, outside this click's hook
         return
     end
+    local cw = kind:match("^cw:(.+)$")
+    if cw then cwAction = cw; return end
     if kind == "inventory" then
         -- The same for the Inventory page's button: only noted here; the main menu closes on the next update.
         local main
@@ -768,10 +771,19 @@ end
 
 -- Called from the mod's update loop (game thread). ctx: this update's player (main.lua): ctx.pc, the first live
 -- controller, as FindFirstOf("PalPlayerController") found it; ctx.hasPawn, what its K2_GetPawn gave (an object).
+-- Buttons other modules make (crate_window.lua): their clicks come here like ours, as cw:<action>.
+function M.claim(button, action) ours[tostring(button:GetAddress())] = "cw:" .. action end
+function M.unclaim(button) ours[tostring(button:GetAddress())] = nil end
+
 function M.update(ctx)
     if crateWanted then
         crateWanted = false
         if api.openCrate then api.openCrate() end
+    end
+    if cwAction then
+        local a = cwAction
+        cwAction = nil
+        if api.crateWindow then api.crateWindow(a) end
     end
     -- In a world: a live controller whose pawn lookup answered (6dd356e's test, now from the shared lookup).
     local inWorld = false

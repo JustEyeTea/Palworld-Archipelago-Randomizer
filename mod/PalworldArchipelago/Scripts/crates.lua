@@ -144,6 +144,17 @@ function C.label()
 end
 
 function C.count() return #C.list end
+-- How many of each kind wait: kind -> n.
+function C.counts()
+    local n = {}
+    for _, k in ipairs(C.list) do n[k] = (n[k] or 0) + 1 end
+    return n
+end
+C.ICONS = { sphere = "ap-crate-sphere", food = "ap-crate-food", common = "ap-crate-supply-common",
+            rare = "ap-crate-supply-rare", jackpot = "ap-crate-supply-jackpot" }
+C.ABOUT = { sphere = "Spheres of your tier: more as you level.", food = "Dishes for your level.",
+            common = "Gold, medicine, Training Manuals or keys.", rare = "Skill Fruits, accessories, gear or keys.",
+            jackpot = "Stat fruits, Elixirs, top gear or high spheres." }
 
 -- The save file: crates=rare,sphere,... and cratebag=id:n,... (gear the bag refused).
 function C.serialize()
@@ -182,9 +193,16 @@ local function pick(list, ok)
 end
 local function between(a, b) return a + math.random() * (b - a) end
 
--- Opens the next crate: its kind and a list of { id, n, bag = true for gear }. `level`: the player's level now.
-function C.openNext(level)
-    local kind = table.remove(C.list, 1)
+-- Opens the next crate (of `want`'s kind, if given): its kind and a list of { id, n, bag = true for gear }.
+-- `level`: the player's level now.
+function C.openNext(level, want)
+    local at = 1
+    if want then
+        at = nil
+        for i, k in ipairs(C.list) do if k == want then at = i; break end end
+        if not at then return nil end
+    end
+    local kind = table.remove(C.list, at)
     if not kind then return nil end
     level = math.max(1, tonumber(level) or 1)
     local out = {}

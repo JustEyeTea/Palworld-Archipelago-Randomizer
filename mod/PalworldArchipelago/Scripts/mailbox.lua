@@ -908,6 +908,12 @@ end
 
 -- The chest view is open (for the perf probe's state field).
 function M.viewOpen() return view ~= nil end
+-- The chest window the mailbox has open (crate_window.lua draws over it), or nil.
+function M.chestWidget()
+    if not view then return nil end
+    local ok, w = pcall(function() return view.hud:GetWidget(view.id) end)
+    return ok and w or nil
+end
 
 -- env: { notify = fn(text), save = fn(), cfg = config table, connected = fn() -> bool }
 function M.install(e)

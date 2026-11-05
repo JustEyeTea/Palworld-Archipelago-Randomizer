@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.4"
+local VERSION = "0.14.0-dev.5"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -19,6 +19,7 @@ local R = require("records")
 local WALLS = require("walls")
 local POPUP = require("hint_popup")
 local CRATES = require("crates")
+local CWIN = require("crate_window")
 local MENU = require("menu")
 local TECHSCAN = require("techscan")
 local MAIL = require("mailbox")
@@ -409,12 +410,14 @@ local function givePending()
     end
 end
 
--- The Inventory page's Open button (menu.lua): the next crate's contents, rolled from the player's level now.
-local function openCrate()
+-- Opening a crate (the Inventory page's Open button: the next one; the crate window's: one of `kind`), its contents
+-- rolled from the player's level now. Returns the kind and the contents.
+local function openCrate(kind)
     local ps = playerState()
     if not (ps and ps:IsValid()) then notify("Open crates in your world."); return end
     local lv = R.level(ps) or ap.level or 1
-    local kind, out = CRATES.openNext(lv)
+    local out
+    kind, out = CRATES.openNext(lv, kind)
     if not kind then return end
     local parts = {}
     for _, r in ipairs(out) do
@@ -433,6 +436,7 @@ local function openCrate()
         .. "; " .. CRATES.count() .. " left")
     notify("Opened a " .. CRATES.NAMES[kind] .. ": " .. table.concat(parts, ", ") .. ".")
     writeSave()
+    return kind, out
 end
 
 local function applyItems(ps)
@@ -655,6 +659,7 @@ local function relabel(card, key, full)
     -- area's, else the Region Pass ticket (ap-pass-region.png); else the shared one.
     local ART = require("art")
     local tex = mine and techIcon(mine)
+        or (it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld"))
         or (kind == "area-pass" and (ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
                                      or (it.name:find("^Region Pass") and ART.texture("ap-pass-region"))))
         or icon(kind, card)
@@ -1074,9 +1079,16 @@ MENU.install({
     mailboxLabel = MAIL.label,
     crateLabel = CRATES.label,
     openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
+    crateWindow = function(action) local ok, err = pcall(CWIN.action, action); if not ok then log("crate window error: " .. tostring(err)) end end,
     openMailbox = function(context) MAIL.open(context) end,
 })
 MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end })
+CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, nameOf = function(id) return MAIL.nameOf(id) end, claim = MENU.claim, unclaim = MENU.unclaim,
+               openCrate = function(kind)
+                   local ok, k, out = pcall(openCrate, kind)
+                   if not ok then log("crate error: " .. tostring(k)); return nil end
+                   return k, out
+               end })
 TRAPS.install({ notify = notify, save = writeSave,
                 announce = function(text) log(text); R.notify(text, playerState()) end,
                 sender = function(index) return ap.from[index] end,
@@ -1245,6 +1257,8 @@ local function update(ctx)
     if not okm then onceErr("menu", errm, "menu error: " .. tostring(errm)) end
     P.start("mail")
     local okx, errx = pcall(MAIL.update, ctx)
+    local okw, errw = pcall(CWIN.update)
+    if not okw then once("cwin" .. tostring(errw), "crate window error: " .. tostring(errw)) end
     P.stop("mail")
     if not okx then onceErr("mail", errx, "mailbox error: " .. tostring(errx)) end
     -- The first batch of items arrives just after the connection; wait a moment before locking anything.
