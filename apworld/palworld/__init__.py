@@ -8,19 +8,19 @@ from BaseClasses import CollectionState, Item, ItemClassification, Location, Reg
 from Options import OptionError
 from worlds.AutoWorld import WebWorld, World
 
-from .data import (AREAS, BREEDING_TECH, CATCHABLE, DECOR_TECHS, DIRECT, FILLER, FLYING_MOUNTS, ITEM_GROUPS,
-                   ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS, PASS_AREAS,
-                   PREREQ_TECHS, PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS, SPHERE_NEEDS,
-                   SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, area_pass, tech_item)
-from .game_data import BORDERS, PALDECK, PIECES, START_AREA, TOWERS
+from .data import (BREEDING_TECH, CATCHABLE, DECOR_TECHS, DIRECT, FILLER, FLYING_MOUNTS, ITEM_GROUPS, ITEM_NAME_TO_ID,
+                   ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS, PREREQ_TECHS,
+                   PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS, SPHERE_NEEDS, SPHERE_TECHS,
+                   STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, Layout, tech_item)
+from .game_data import TOWERS
 from .options import PalworldOptions, option_groups, options_presets
 
 LOCATION_LEVEL = {loc.name: TECH_BY_ID[loc.key][2] for loc in LOCATIONS if loc.kind == "shop"}
 
 
-def piece_level(piece: str) -> int:
+def piece_level(layout: Layout, piece: str) -> int:
     """A piece's typical Pal level; a piece with no Pals of its own takes its area's."""
-    return int(AREAS.get(piece) or AREAS.get(PIECES[piece]) or 0)
+    return int(layout.levels.get(piece) or layout.levels.get(layout.pieces.get(piece, piece)) or 0)
 FREE_LEVEL = 15              # levels anyone reaches in the starting zone
 LEVEL_SLACK = 8              # an area lets you level about this far past its typical Pal level
 SPHERE_STEP = 10             # each sphere tier catches Pals about this many levels higher
@@ -28,38 +28,40 @@ TOWER_MARGIN = 8             # levels a player passes the last tower they need (
 PALDECK_MARGIN = 5           # the same for the Pal that completes a Paldeck goal
 RELIC_LEVEL = 30             # the Relic Hunt goal's check level when left on auto
 MAX_LEVEL = 80
-SKY_ISLANDS = "Sky Islands"
-WORLD_TREE = "World Tree"
 WORLD_TREE_EVENT = "World Tree Boss Defeated"
 
 
-def tower_level(area: str) -> int:
-    """The level a tower's boss asks for (as the logic has it)."""
-    return piece_level(area) + LEVEL_SLACK // 2
+class Levels:
+    """The levels a layout (the area_size option) gives: towers' bosses, techs behind them, and the first level each Pal
+    can be had at."""
+    def __init__(self, layout: Layout):
+        self.layout = layout
+        self.tower = {name: self.boss(piece) for name, piece in layout.towers.items()}
+        self.pal = {e: self._pal(e) for e in CATCHABLE}
+
+    def boss(self, piece: str) -> int:
+        """The level a boss in this piece asks for (as the logic has it)."""
+        return piece_level(self.layout, piece) + LEVEL_SLACK // 2
+
+    def tech(self, tech) -> int:
+        """The level from which a tech can be had: its own, or its tower's if it needs one."""
+        return max(tech[2], self.tower[tech[6]] if tech[6] else 0)
+
+    def _pal(self, entry: str) -> int:
+        """The lowest level at which a Pal can be had: where it is caught, or for a bred-only Pal, its parents' level
+        and the Breeding Farm's."""
+        sources = self.layout.sources
+        best = MAX_LEVEL + 1
+        for source in sources[entry]:
+            if source[0] in ("wild", "alpha", "dungeon"):
+                best = min(best, int(source[2]))
+            elif source[0] == "breed" and all(p in DIRECT for p in source[1]):
+                parents = max(min(int(s[2]) for s in sources[p] if s[0] in ("wild", "alpha", "dungeon")) for p in source[1])
+                best = min(best, max(parents, self.tech(TECH_BY_ID[BREEDING_TECH])))
+        return best
 
 
-TOWER_LEVEL = {name: tower_level(area) for name, area in TOWERS}
-
-
-def tech_level(tech) -> int:
-    """The level from which a tech can be had: its own, or its tower's if it needs one."""
-    return max(tech[2], TOWER_LEVEL[tech[6]] if tech[6] else 0)
-
-
-def _pal_level(entry: str) -> int:
-    """The lowest level at which a Pal can be had: where it is caught, or for a bred-only Pal, its parents' level and
-    the Breeding Farm's."""
-    best = MAX_LEVEL + 1
-    for source in PALDECK[entry][1]:
-        if source[0] in ("wild", "alpha", "dungeon"):
-            best = min(best, int(source[2]))
-        elif source[0] == "breed" and all(p in DIRECT for p in source[1]):
-            parents = max(min(int(s[2]) for s in PALDECK[p][1] if s[0] in ("wild", "alpha", "dungeon")) for p in source[1])
-            best = min(best, max(parents, tech_level(TECH_BY_ID[BREEDING_TECH])))
-    return best
-
-
-PAL_LEVEL = {e: _pal_level(e) for e in CATCHABLE}
+LEVELS = {name: Levels(layout) for name, layout in LAYOUTS.items()}
 
 
 class PalworldItem(Item):
@@ -93,6 +95,8 @@ class PalworldWorld(World):
 
     def generate_early(self) -> None:
         o = self.options
+        self.layout = LAYOUTS["regions" if o.area_size == o.area_size.option_regions else "areas"]
+        self.lv = LEVELS["regions" if o.area_size == o.area_size.option_regions else "areas"]
         if 0 < o.check_level.value <= STARTER_LEVEL:    # nothing to buy below level 2, not even the first sphere
             raise OptionError(f"Palworld ({self.player_name}): the Check Level Cap must be 0 (auto) or at least "
                               f"{STARTER_LEVEL + 1}.")
@@ -101,22 +105,22 @@ class PalworldWorld(World):
         if o.check_level.value:
             self.cap = o.check_level.value
         elif o.goal == o.goal.option_towers:
-            self.cap = min(MAX_LEVEL, sorted(TOWER_LEVEL.values())[o.tower_count.value - 1] + TOWER_MARGIN)
+            self.cap = min(MAX_LEVEL, sorted(self.lv.tower.values())[o.tower_count.value - 1] + TOWER_MARGIN)
         elif o.goal == o.goal.option_paldeck:
-            self.cap = min(MAX_LEVEL, sorted(PAL_LEVEL.values())[o.paldeck_count.value - 1] + PALDECK_MARGIN)
+            self.cap = min(MAX_LEVEL, sorted(self.lv.pal.values())[o.paldeck_count.value - 1] + PALDECK_MARGIN)
         elif o.goal == o.goal.option_relic_hunt:
             self.cap = RELIC_LEVEL
         else:
             self.cap = MAX_LEVEL
         if o.goal == o.goal.option_paldeck:     # the goal must fit under the cap the player chose
-            reachable = sum(1 for lv in PAL_LEVEL.values() if lv <= self.cap)
+            reachable = sum(1 for lv in self.lv.pal.values() if lv <= self.cap)
             if reachable < o.paldeck_count.value:
                 raise OptionError(f"Palworld ({self.player_name}): only {reachable} Pals can be registered by level "
                                 f"{self.cap}; lower Pals to Register or raise the Check Level Cap.")
         # Every item needs a location: the passes and techs alone can outnumber the checks when most kinds are off.
         relic_hunt = o.goal == o.goal.option_relic_hunt
         locations = sum(1 for loc in LOCATIONS if self.wanted(loc))
-        items = (len(PASS_AREAS) if o.area_locks else 0) + sum(1 for t in SHOP_TECHS if t[0] not in self.research())
+        items = (len(self.layout.passes) if o.area_locks else 0) + sum(1 for t in SHOP_TECHS if t[0] not in self.research())
         if locations - items < relic_hunt:
             raise OptionError(f"Palworld ({self.player_name}): {locations} checks for {items} items"
                               + (" and at least one relic" if relic_hunt else "")
@@ -130,12 +134,13 @@ class PalworldWorld(World):
     def can_enter(self, state: CollectionState, piece: str) -> bool:
         """Crossing a border into a piece needs its area's pass (the start and open sea need none), a mount that crosses
         water to go out on the open sea, and one that flies to go up to the Sky Islands."""
-        area = PIECES[piece]
+        area = self.layout.pieces[piece]
         if area == SEA:
             return self.can_ride(state, SEA_MOUNTS)
-        if area == SKY_ISLANDS and not self.can_ride(state, FLYING_MOUNTS):
+        if area in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
             return False
-        return area == START_AREA or not self.options.area_locks or state.has(area_pass(area), self.player)
+        return (area == self.layout.start or not self.options.area_locks
+                or state.has(self.layout.passes[area], self.player))
 
     def can_ride(self, state: CollectionState, mounts: Dict[str, str]) -> bool:
         """One of these mounts: its saddle tech and its Pal."""
@@ -149,11 +154,12 @@ class PalworldWorld(World):
         """How far the player can level. An area takes you LEVEL_SLACK past its Pals' level once you can catch them and
         are no more than LEVEL_SLACK below them, so levels climb area by area from the starting zone."""
         top = FREE_LEVEL
-        for a in sorted(AREAS, key=AREAS.get):
-            if AREAS[a] - LEVEL_SLACK > top:
+        levels = self.layout.levels
+        for a in sorted(levels, key=levels.get):
+            if levels[a] - LEVEL_SLACK > top:
                 break
-            if self.area_open(state, a) and self.can_catch_at(state, AREAS[a], top):
-                top = max(top, int(AREAS[a]) + LEVEL_SLACK)
+            if self.area_open(state, a) and self.can_catch_at(state, levels[a], top):
+                top = max(top, int(levels[a]) + LEVEL_SLACK)
         return top
 
     def level_ok(self, state: CollectionState, level: int) -> bool:
@@ -189,7 +195,7 @@ class PalworldWorld(World):
         return state.has(tech_item(tech_id), self.player)
 
     def can_get_pal(self, state: CollectionState, entry: str, breed: bool = True) -> bool:
-        for source in PALDECK[entry][1]:
+        for source in self.layout.sources[entry]:
             kind = source[0]
             if kind in ("wild", "alpha", "dungeon"):
                 _, area, level = source
@@ -217,17 +223,17 @@ class PalworldWorld(World):
         level cap."""
         if not hasattr(self, "_research"):
             decor = DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
-            self._research = decor | {t[0] for t in SHOP_TECHS if tech_level(t) > self.cap}
+            self._research = decor | {t[0] for t in SHOP_TECHS if self.lv.tech(t) > self.cap}
         return self._research
 
     def loc_level(self, loc) -> int:
         """The level from which a location can be checked, for the check level cap."""
-        if loc.kind == "shop": return tech_level(TECH_BY_ID[loc.key])
-        if loc.kind == "capture": return PAL_LEVEL[loc.key]
+        if loc.kind == "shop": return self.lv.tech(TECH_BY_ID[loc.key])
+        if loc.kind == "capture": return self.lv.pal[loc.key]
         if loc.kind == "alpha": return loc.key[1]
-        if loc.kind == "fast_travel": return piece_level(loc.area)
+        if loc.kind == "fast_travel": return piece_level(self.layout, self.layout.location_piece[loc.name])
         if loc.kind == "level": return loc.key
-        if loc.kind == "tower": return TOWER_LEVEL[loc.key]
+        if loc.kind == "tower": return self.lv.tower[loc.key]
         return 0
 
     def wanted(self, loc) -> bool:
@@ -245,31 +251,35 @@ class PalworldWorld(World):
         menu = Region("Menu", self.player, self.multiworld)
         self.multiworld.regions.append(menu)
         regions = {}
-        for piece in PIECES:
+        layout = self.layout
+        for piece in layout.pieces:
             region = Region(piece, self.player, self.multiworld)
             self.multiworld.regions.append(region)
             regions[piece] = region
-        menu.connect(regions[START_AREA], "Start")
-        for a, b in BORDERS:                     # the walls in game: each way needs the entered piece's pass
+        menu.connect(regions[layout.start], "Start")
+        for a, b in layout.borders:              # the walls in game: each way needs the entered piece's pass
             for src, dst in ((a, b), (b, a)):
                 entrance = regions[src].connect(regions[dst], f"{src} -> {dst}",
                                                 lambda state, p=dst: self.can_enter(state, p))
-                if PIECES[dst] in (SEA, SKY_ISLANDS):    # its mount rule catches Pals and levels anywhere
+                if layout.pieces[dst] == SEA or layout.pieces[dst] in layout.sky:   # its mount rule catches Pals and levels anywhere
                     for region in regions.values():
                         self.multiworld.register_indirect_condition(region, entrance)
         for loc in LOCATIONS:
             if not self.wanted(loc):
                 continue
-            region = regions[loc.area] if loc.area else menu
+            piece = layout.location_piece[loc.name]
+            region = regions[piece] if piece else menu
             region.locations.append(PalworldLocation(self.player, loc.name, loc.id, region))
-        for name, area in TOWERS:
-            event = PalworldLocation(self.player, TOWER_EVENTS[name], None, regions[area])
+        for name, _ in TOWERS:
+            region = regions[layout.towers[name]]
+            event = PalworldLocation(self.player, TOWER_EVENTS[name], None, region)
             event.place_locked_item(PalworldItem(TOWER_EVENTS[name], ItemClassification.progression, None, self.player))
-            regions[area].locations.append(event)
+            region.locations.append(event)
         if self.options.goal == self.options.goal.option_world_tree:
-            event = PalworldLocation(self.player, WORLD_TREE_EVENT, None, regions[WORLD_TREE])
+            region = regions[layout.world_tree]
+            event = PalworldLocation(self.player, WORLD_TREE_EVENT, None, region)
             event.place_locked_item(PalworldItem(WORLD_TREE_EVENT, ItemClassification.progression, None, self.player))
-            regions[WORLD_TREE].locations.append(event)
+            region.locations.append(event)
         goal = PalworldLocation(self.player, "Goal Complete", None, menu)
         goal.place_locked_item(PalworldItem("Victory", ItemClassification.progression, None, self.player))
         menu.locations.append(goal)
@@ -290,7 +300,7 @@ class PalworldWorld(World):
     def create_items(self) -> None:
         pool = []
         if self.options.area_locks:
-            pool += [self.create_item(area_pass(a)) for a in PASS_AREAS]
+            pool += [self.create_item(p) for p in self.layout.passes.values()]
         for tech in SHOP_TECHS:
             if tech[0] in self.research():
                 continue
@@ -350,19 +360,19 @@ class PalworldWorld(World):
             elif loc.kind == "level":
                 location.access_rule = lambda state, n=loc.key: self.level_ok(state, n)
             elif loc.kind == "tower":
-                location.access_rule = lambda state, a=loc.area: self.can_fight_at(state, tower_level(a))
-        for name, area in TOWERS:
-            get(TOWER_EVENTS[name]).access_rule = lambda state, a=area: self.can_fight_at(state, tower_level(a))
+                location.access_rule = lambda state, lv=self.lv.tower[loc.key]: self.can_fight_at(state, lv)
+        for name, _ in TOWERS:
+            get(TOWER_EVENTS[name]).access_rule = lambda state, lv=self.lv.tower[name]: self.can_fight_at(state, lv)
         o = self.options
         if o.goal == o.goal.option_relic_hunt:
             get("Goal Complete").access_rule = lambda state: state.count(RELIC, self.player) >= self.relics_needed
         elif o.goal == o.goal.option_paldeck:
-            in_reach = [e for e, lv in PAL_LEVEL.items() if lv <= self.cap]
+            in_reach = [e for e, lv in self.lv.pal.items() if lv <= self.cap]
             get("Goal Complete").access_rule = lambda state: self.pals_in_logic(state, in_reach) >= o.paldeck_count.value
         elif o.goal == o.goal.option_world_tree:
             # The end of the game: the logic also asks for every tower, as the game's story leads there last.
             get(WORLD_TREE_EVENT).access_rule = lambda state: (
-                self.can_fight_at(state, tower_level(WORLD_TREE))
+                self.can_fight_at(state, self.lv.boss(self.layout.world_tree))
                 and all(state.has(e, self.player) for e in TOWER_EVENTS.values()))
             get("Goal Complete").access_rule = lambda state: state.has(WORLD_TREE_EVENT, self.player)
         else:
@@ -371,7 +381,8 @@ class PalworldWorld(World):
         self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)
 
     def fill_slot_data(self) -> Dict[str, Any]:
-        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "progressive_spheres",
+        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "area_size",
+                                                "progressive_spheres",
                                                 "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks",
                                                 "level_checks", "death_link", "death_link_amnesty", "trap_chance"),
                 "relics": self.relics, "relics_needed": self.relics_needed,

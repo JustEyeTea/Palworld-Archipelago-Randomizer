@@ -67,6 +67,18 @@ class AreaLocks(DefaultOnToggle):
     display_name = "Area Locks"
 
 
+class AreaSize(Choice):
+    """How finely the map is cut into locked parts (with Area Locks on).
+    Areas: 15 areas, each a group of the game's regions, opened by Area Passes. The game starts in Windswept Island and
+    its two nearby isles.
+    Regions: every named region of the game on its own (75), opened by Region Passes. The game starts in the
+    Windswept Island region alone, where the first tower stands: a cramped start, and many small unlocks."""
+    display_name = "Area Size"
+    option_areas = 0
+    option_regions = 1
+    default = 0
+
+
 class ProgressiveSpheres(DefaultOnToggle):
     """Sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on) instead of separately."""
     display_name = "Progressive Spheres"
@@ -170,6 +182,7 @@ class PalworldOptions(PerGameCommonOptions):
     relics_needed: RelicsNeeded
     check_level: CheckLevel
     area_locks: AreaLocks
+    area_size: AreaSize
     progressive_spheres: ProgressiveSpheres
     tech_checks: TechChecks
     capture_checks: CaptureChecks
@@ -187,7 +200,7 @@ class PalworldOptions(PerGameCommonOptions):
 
 option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
-    OptionGroup("Progression", [AreaLocks, ProgressiveSpheres]),
+    OptionGroup("Progression", [AreaLocks, AreaSize, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
     OptionGroup("Traps", [TrapChance, SlowTrapWeight, HungerTrapWeight, TeleportTrapWeight, FoolTrapWeight]),
     OptionGroup("Death Link", [DeathLink, DeathLinkAmnesty]),

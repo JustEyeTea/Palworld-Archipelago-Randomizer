@@ -4,8 +4,8 @@ keeps the rows of the last game_data.py where they were and appends new ones, so
 each block and never moves one; test/test_ids.py holds the 1.0.5 ids to it."""
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .game_data import (ALPHA_KEYS, ALPHAS, AREA_LIST, AREAS, BORDERS, FAST_TRAVEL, MOUNTS, PALDECK, PIECES, START_AREA,
-                        TECHS, TOWERS)
+from .game_data import (ALPHA_KEYS, ALPHAS, AREA_LIST, AREAS, BORDERS, FAST_TRAVEL, MOUNTS, PALDECK, PIECES,
+                        REGION_MODE, START_AREA, TECHS, TOWERS)
 
 BASE = 0x50A1_0000
 
@@ -76,6 +76,14 @@ def area_pass(area: str) -> str:
     return f"Area Pass: {area}"
 
 
+# The per-region set (area_size: regions): each named region of the game its own, with a Region Pass.
+REGION_PASS_AREAS = [r for r in REGION_MODE['AREA_LIST'] if r != REGION_MODE['START']]
+
+
+def region_pass(region: str) -> str:
+    return f"Region Pass: {region}"
+
+
 TOWER_EVENTS = {name: f"{name} Defeated" for name, _ in TOWERS}
 LEVELS = list(range(2, 81))
 
@@ -101,6 +109,7 @@ def _items() -> List[ItemDef]:
     out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
     out += [ItemDef(n, BASE + 970 + i, "trap") for i, n in enumerate(TRAPS)]      # 958-969 stay free for filler
+    out += [ItemDef(region_pass(r), BASE + 7000 + i, "pass") for i, r in enumerate(REGION_PASS_AREAS)]
     return out
 
 
@@ -139,6 +148,41 @@ SHARED_ALPHAS = frozenset(name for name, _, level, _ in ALPHAS
                           if any(ALPHA_KEYS[other] == ALPHA_KEYS[name] and (lv, other) < (level, name)
                                  for other, _, lv, _ in ALPHAS))
 
+
+
+class Layout(NamedTuple):
+    """One way of cutting the map into lockable parts (the area_size option): what the logic reads about the map."""
+    start: str                     # the area or region a game starts in (no pass)
+    passes: Dict[str, str]         # area or region -> its pass item
+    pieces: Dict[str, str]         # piece (the logic's region) -> its area or region; "Open sea" needs no pass
+    borders: List[Tuple[str, str]]
+    levels: Dict[str, float]       # piece or area -> typical Pal level
+    sources: Dict[str, tuple]      # Paldeck entry -> its sources (as in PALDECK)
+    location_piece: Dict[str, Optional[str]]   # location name -> the piece it sits in (None: anywhere)
+    towers: Dict[str, str]         # tower name -> its piece
+    sky: frozenset                 # areas or regions up in the sky: a flying mount to get there
+    world_tree: str                # the World Tree's piece
+
+
+def _regions_location_piece() -> Dict[str, Optional[str]]:
+    out = {}
+    for loc in LOCATIONS:
+        if loc.kind == "alpha": out[loc.name] = REGION_MODE['ALPHAS'][loc.name]
+        elif loc.kind == "fast_travel": out[loc.name] = REGION_MODE['FAST_TRAVEL'][loc.key]
+        elif loc.kind == "tower": out[loc.name] = REGION_MODE['TOWERS'][loc.key]
+        else: out[loc.name] = None
+    return out
+
+
+LAYOUTS = {
+    "areas": Layout(START_AREA, {a: area_pass(a) for a in PASS_AREAS}, PIECES, BORDERS, AREAS,
+                    {e: v[1] for e, v in PALDECK.items()}, {l.name: l.area for l in LOCATIONS}, dict(TOWERS),
+                    frozenset({"Sky Islands"}), "World Tree"),
+    "regions": Layout(REGION_MODE['START'], {r: region_pass(r) for r in REGION_PASS_AREAS}, REGION_MODE['PIECES'],
+                      REGION_MODE['BORDERS'], REGION_MODE['AREAS'], REGION_MODE['SOURCES'], _regions_location_piece(),
+                      REGION_MODE['TOWERS'], frozenset(REGION_MODE['SKY']), REGION_MODE['WORLD_TREE']),
+}
+
 assert len(ITEM_NAME_TO_ID) == len(ITEMS), "duplicate item names"
 assert len({i.id for i in ITEMS}) == len(ITEMS), "duplicate item ids"
 assert len(LOCATION_NAME_TO_ID) == len(LOCATIONS), "duplicate location names"
@@ -148,7 +192,8 @@ assert PREREQ_TECHS <= set(TECH_BY_ID), "progression techs must be techs"
 
 # --- groups (for hints, start_inventory and the like) -----------------------------------------------------------
 ITEM_GROUPS = {
-    "Area Passes": {i.name for i in ITEMS if i.kind == "pass"},
+    "Area Passes": {i.name for i in ITEMS if i.kind == "pass" and i.name.startswith("Area Pass")},
+    "Region Passes": {i.name for i in ITEMS if i.kind == "pass" and i.name.startswith("Region Pass")},
     "Techs": {i.name for i in ITEMS if i.kind == "tech"},
     "Spheres": {tech_item(t[0]) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
     "Bundles": {n for n in FILLER if n.endswith(" Bundle")},

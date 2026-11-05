@@ -150,6 +150,25 @@
      "default": "true"
     },
     {
+     "key": "area_size",
+     "name": "Area Size",
+     "type": "Choice",
+     "help": "How finely the map is cut into locked parts (with Area Locks on).\nAreas: 15 areas, each a group of the game's regions, opened by Area Passes. The game starts in Windswept Island and\nits two nearby isles.\nRegions: every named region of the game on its own (75), opened by Region Passes. The game starts in the\nWindswept Island region alone, where the first tower stands: a cramped start, and many small unlocks.",
+     "choices": [
+      {
+       "name": "areas",
+       "value": 0,
+       "yaml": "areas"
+      },
+      {
+       "name": "regions",
+       "value": 1,
+       "yaml": "regions"
+      }
+     ],
+     "default": "areas"
+    },
+    {
      "key": "progressive_spheres",
      "name": "Progressive Spheres",
      "type": "DefaultOnToggle",
