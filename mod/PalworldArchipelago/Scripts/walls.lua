@@ -284,14 +284,14 @@ local function owner()
     return ownerGi
 end
 
--- Wall skins (test builds: wall_skin=a or b in config.txt, or Ctrl+F3 with test_tools=1 to cycle red, a, b): the Art &
+-- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the Art &
 -- Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
 -- dynamic copy of the walls' own material (MI_AirBlock_v2) per skin, owned by the game instance like the map's render
 -- targets, set on each piece's mesh; the game's own barriers keep the shared red material. The material's parameters
 -- (from the server pak): MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the
 -- engine's blue noise for the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day);
 -- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0. Untested in game (2026-11-04).
-local SKINS = { "red", "a", "b" }
+local SKINS = { "red", "a", "b", "a3d", "b3d" }   -- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat)
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
 local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
 local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
