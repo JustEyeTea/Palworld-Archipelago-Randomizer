@@ -80,7 +80,7 @@ local function raise(i, context)
     local a = gs:BeginDeferredActorSpawnFromClass(context, cls, t, 1, nil)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
-    W.skinNew(a)
+    W.skinNew(a, i)
     raised[i] = a
     nRaised = nRaised + 1
     return true
@@ -122,8 +122,10 @@ if LoopAsync then
         return false
     end)
 end
+local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
 local function forget(i)
     if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
+    dressedAs[i] = nil
 end
 local function lower(i)
     local a = raised[i]
@@ -155,6 +157,7 @@ end
 local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
 function W.update(enabled, passes, context)
     checkSome()
+    W.lastPasses = passes
     if not ready() then return end
     local budget = PER_TICK
     for i, w in ipairs(DATA.walls) do
@@ -174,6 +177,7 @@ function W.update(enabled, passes, context)
         end
     end
     W.skinTick()
+    W.recolour(passes)
     if catchingUp and budget == PER_TICK then
         catchingUp = false
         P.wallsCaughtUp(nRaised)
@@ -310,8 +314,40 @@ end
 -- PalworldArchipelagoArt pak (logicmod/make_wall_material.py; the user, 2026-11-05: the game's material can show one
 -- colour per piece, they want multicolour). Without the pak (or the file) such a skin is refused, logged, and skipped
 -- by Ctrl+F3. colour-<x>-flow: that tile drifting sideways (FLOW tiles a second; the user's rainbow, 2026-11-05).
+-- area (the default): the hex lattice (pattern a) in the colour of the locked area each piece keeps you out of (the
+-- user, 2026-11-05: "the region/area colored walls make WAAAAY more sense"), the colour of that area's pass ticket
+-- (Art & Assets lane, area_shapes.COLOURS); a region wears its area's (area_parents_regions.lua). A piece between two
+-- locked areas wears the one that isn't beyond the goal. Areas beyond the seed's goal (sealed for good) wear
+-- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour
+-- when the area it wore opens and the other side is still locked.
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
-                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense" }
+                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area" }
+local AREA_COLOURS = {
+    ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
+    ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
+    ["Mount Obsidian"] = "D2453F", ["Verdant Stream"] = "2FB3A0", ["Desiccated Dunes"] = "E3B860",
+    ["Astral Mountains"] = "A8E0F0", ["Sakurajima"] = "F28FB5", ["Feybreak"] = "B266D9",
+    ["Sky Islands"] = "5B9BF0", ["World Tree"] = "2E8B57",
+}
+local SEALED = { R = 0.3231, G = 0.3663, B = 0.4564, A = 1 }  -- slate grey #9AA3B5 (Art lane's suggestion; the user may pick)
+W.beyond = {}                                                  -- areas beyond the seed's goal (main.lua, slot data)
+local PARENTS = nil                                            -- region -> area (regions layout only)
+function W.parentOf(area)
+    if W.layout ~= "regions" then return area end
+    PARENTS = PARENTS or require("area_parents_regions")
+    return PARENTS[area] or area
+end
+-- An sRGB #RRGGBB as the linear colour the material's tint parameters take.
+local function linearOf(hex)
+    local c = {}
+    for k, at in pairs({ R = 1, G = 3, B = 5 }) do
+        local v = tonumber(hex:sub(at, at + 1), 16) / 255
+        c[k] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
+    end
+    c.A = 1
+    return c
+end
+W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS
 local FLOW = 0.05
 local AP_WALL = "/Game/Mods/PalworldArchipelagoArt/M_APWall.M_APWall"
 local apWall = nil                                             -- M_APWall once loaded
@@ -319,6 +355,7 @@ local DENSE = { 10, 6 }
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
 local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
 local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
+local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
 W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
 local function meshOf(a)
     local ok, m = pcall(function() return a.Cube end)
@@ -368,8 +405,18 @@ local function skinMaterial(name)
         return nil
     end
     if name:find("^colour%-") then return colourMaterial(name, gi, krl, kml) end
-    local file = name:match("^(.-)%-dense$")
+    local tint, file = TEAL, name:match("^(.-)%-dense$")
     local tiling = file and DENSE or W.tiling
+    local hex = name:match("^area:(%x%x%x%x%x%x)$")
+    if hex then tint, file = linearOf(hex), "a" end
+    if name == "sealed" then
+        if not sealedFile then
+            local f = io.open(W.dir .. "\\walls\\ap-wall-pattern-sealed.png", "rb")
+            if f then f:close() end
+            sealedFile = f and "sealed" or "a"
+        end
+        tint, file = SEALED, sealedFile
+    end
     local path = W.dir .. "\\walls\\ap-wall-pattern-" .. (file or name) .. ".png"
     local tex = krl:ImportFileAsTexture2D(gi, path)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
@@ -379,8 +426,8 @@ local function skinMaterial(name)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("MainTexture01"), tex)
-    local night = { R = TEAL.R * NIGHT, G = TEAL.G * NIGHT, B = TEAL.B * NIGHT, A = 1 }
-    for k, c in pairs({ Color = TEAL, DayColor = TEAL, NightColor = night }) do mid:SetVectorParameterValue(FName(k), c) end
+    local night = { R = tint.R * NIGHT, G = tint.G * NIGHT, B = tint.B * NIGHT, A = 1 }
+    for k, c in pairs({ Color = tint, DayColor = tint, NightColor = night }) do mid:SetVectorParameterValue(FName(k), c) end
     if tiling then
         mid:SetScalarParameterValue(FName("TilingU_01"), tiling[1])
         mid:SetScalarParameterValue(FName("TilingV_01"), tiling[2])
@@ -405,12 +452,64 @@ local function dress(a, mid)
     m:SetMaterial(0, mid or skin.base)
     return true
 end
-function W.skinNew(a)
-    if skin.now ~= "red" then pcall(dress, a, skin.mids[skin.now]) end
+-- The material a piece wears with the area skin, by name (see SKINS).
+local function pieceSkin(i, passes)
+    local w = DATA.walls[i]
+    local a1, a2 = DATA.areas[w[5] + 1], DATA.areas[w[6] + 1]
+    local l1, l2 = not isOpen(a1, passes), not isOpen(a2, passes)
+    local area = (l1 and not l2) and a1 or (l2 and not l1) and a2 or (W.beyond[a1] and a2 or a1)
+    if W.beyond[area] then return "sealed" end
+    local hex = AREA_COLOURS[W.parentOf(area)]
+    return hex and ("area:" .. hex) or "a"
+end
+W.pieceSkin = pieceSkin
+-- With the area skin: that piece's own material (made on first use; the teal lattice if it can't be made).
+local function areaDress(a, i, passes)
+    local name = pieceSkin(i, passes or {})
+    local mid = skinMaterial(name)
+    if not mid and name ~= "a" then name, mid = "a", skinMaterial("a") end
+    if mid and dress(a, mid) then dressedAs[i] = name end
+end
+function W.skinNew(a, i)
+    if skin.now == "area" then
+        if i then pcall(areaDress, a, i, W.lastPasses) end
+    elseif skin.now ~= "red" then
+        pcall(dress, a, skin.mids[skin.now])
+    end
+end
+-- A pass that opens one side of a piece still up turns it to the other side's colour; so does the list of areas
+-- beyond the goal arriving. A few pieces an update (RECOLOUR), only after something changed.
+local RECOLOUR = 40
+local recolourAt, passSig = nil, nil
+function W.recolour(passes)
+    if skin.now ~= "area" then return end
+    local n = 0
+    for _ in pairs(passes) do n = n + 1 end
+    local sig = n .. "/" .. (W.beyondSig or "")
+    if sig ~= passSig then passSig, recolourAt = sig, 1 end
+    if not recolourAt then return end
+    local budget = RECOLOUR
+    while recolourAt <= #DATA.walls and budget > 0 do
+        local i, a = recolourAt, raised[recolourAt]
+        if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes) then
+            pcall(areaDress, a, i, passes)
+            budget = budget - 1
+        end
+        recolourAt = recolourAt + 1
+    end
+    if recolourAt > #DATA.walls then recolourAt = nil end
+end
+-- Areas beyond the seed's goal (a set of names; main.lua at connect): their walls wear the sealed look.
+function W.setBeyond(set)
+    W.beyond = set or {}
+    local names = {}
+    for a in pairs(W.beyond) do names[#names + 1] = a end
+    table.sort(names)
+    W.beyondSig = table.concat(names, "|")
 end
 -- Empty or unset: the teal hex lattice, a (the user, 2026-11-05: "stick with the hex layout"); wall_skin=red for the
 -- game's own red grid.
-W.DEFAULT_SKIN = "a"
+W.DEFAULT_SKIN = "area"
 function W.setSkin(name)
     if name == "" or name == nil then name = W.DEFAULT_SKIN end
     for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
@@ -440,18 +539,33 @@ function W.skinTick()
         W.keep(skin.base)
     end
     local mid = nil
-    if skin.want ~= "red" then
+    if skin.want ~= "red" and skin.want ~= "area" then
         mid = skinMaterial(skin.want)
         if not mid then skin.want = skin.now; return end
     end
     local n, bad = 0, 0
-    for _, a in pairs(raised) do
+    for i, a in pairs(raised) do
         if a:IsValid() then
-            local ok, done = pcall(dress, a, mid)
+            local ok, done
+            if skin.want == "area" then
+                ok = pcall(areaDress, a, i, W.lastPasses)
+                done = dressedAs[i] ~= nil
+            else
+                ok, done = pcall(dress, a, mid)
+                dressedAs[i] = nil
+            end
             if ok and done then n = n + 1 else bad = bad + 1 end
         end
     end
     skin.now = skin.want
+    if skin.now == "area" then
+        local kinds = {}
+        for _, name in pairs(dressedAs) do kinds[name] = true end
+        local list = {}
+        for name in pairs(kinds) do list[#list + 1] = name end
+        table.sort(list)
+        log("wall skin area: colours " .. table.concat(list, ", "))
+    end
     log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " without a mesh") or ""))
 end
 
@@ -475,8 +589,9 @@ local function drawStamps(canvas, krl, gi, locked)
     local n = 0
     for _, k in ipairs(locked) do
         local c, name = CENTRES[k], DATA.areas[k + 1]
-        -- per-area stamps exist for the 15 areas only; a region takes the shared one
-        local tex = c and name and ((W.layout == "areas" and ART.texture("ap-map-stamp-" .. slugOf(name)))
+        -- an area beyond the goal: the sealed stamp; a region: its area's; the shared one when there is none
+        local tex = c and name and ((W.beyond[name] and ART.texture("ap-map-stamp-sealed"))
+                                    or (not W.beyond[name] and ART.texture("ap-map-stamp-" .. slugOf(W.parentOf(name))))
                                     or ART.texture("ap-map-stamp"))
         if tex then
             local u, v = c[3] or c[1], c[4] or c[2]
@@ -721,7 +836,7 @@ function W.updateMap(enabled, passes, ctx)
     for _, name in ipairs(DATA.areas) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
     end
-    local key = table.concat(locked, "|")
+    local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "")   -- the stamps differ for areas beyond the goal
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then
@@ -778,7 +893,7 @@ function W.setLayout(name)
     name = name == "regions" and "regions" or "areas"
     if name == W.layout then return false end
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
-    raised, nRaised, sinking = {}, 0, {}
+    raised, nRaised, sinking, dressedAs = {}, 0, {}, {}
     SUFFIX = name == "regions" and "_regions" or ""
     DATA, MAP, SHAPES = require("area_walls" .. SUFFIX), require("area_map" .. SUFFIX), nil
     CENTRES = require("area_centres" .. SUFFIX)

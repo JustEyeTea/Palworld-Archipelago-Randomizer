@@ -14,5 +14,12 @@ Round 2 (2026-11-04):
   ap-hint-icon-64/128.png     the hint prompt's icon; not drawn in play yet (needs a place on the in-game HUD).
   ap-goal-banner.png          1200x300, the goal-complete banner (shown at 600x150); not drawn in play yet.
   Both appear for 6 s with test_tools=1 and Ctrl+F4 (the HUD probe), to see whether and where the HUD takes them.
+Round 3 (2026-11-05):
+  ap-map-stamp-sealed.png     256x256, the stamp of an area beyond the seed's goal (sealed for good; a no-entry sign).
+  ap-pass-region.png          256x256, a Region Pass's ticket on the Technology cards when its area has none.
+  ap-hint-plate-ready.png     760x168, the hint pop-up at a locked wall with enough hint points (hint_popup.lua; shown
+                              at 380x84 in the middle of the screen, a little transparent).
+  ap-hint-plate-short.png     the same without enough points.
+  ap-hint-icon-short-64/128.png  the hint icon without enough points.
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).

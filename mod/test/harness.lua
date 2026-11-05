@@ -372,6 +372,7 @@ StaticConstructObject = function(cls)
                          SetBrushFromTexture = function(self, t) self.texture = t end,
                          SetFont = function(self, f) self.fontSize = f.Size end,
                          SetColorAndOpacity = function(self, c) self.colour = c end,
+                         SetRenderOpacity = function(self, o) self.opacity = o end, SetVisibility = function(self, v) self.vis = v end,
                          SetRenderTransformPivot = function(self, v) self.pivot = v end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
@@ -691,6 +692,8 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
            and logged("wall skin a3d%-dense: material made %(512x512, linear, tiling 10x6%)"), "then a3d tiled 10x6")
     W.cycleSkin(); run(1)
     expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d" and a.Cube.mat.scalars.TilingU_01 == 10, "then b3d tiled 10x6")
+    W.cycleSkin(); run(1)
+    expect(logged("wall skin area: colours ") and a.Cube.mat ~= wallRed, "then the area colours")
     W.cycleSkin(); run(1)
     expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
     W.setSkin("c")
@@ -2357,6 +2360,8 @@ do  -- area_size regions: every named region of the game its own, opened by a Re
     push("item", "9000", tostring(itemId["Region Pass: Golden Hills"]), "1", "1", "1", "Region Pass: Golden Hills", "Tester")
     run(60)
     expect(wallCount() < up, "a Region Pass takes its region's walls down: " .. up .. " -> " .. wallCount())
+    expect(W.parentOf("Golden Hills") == "Bamboo Groves" and W.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
+           "a region wears its area's colour, ticket and stamp (area_parents_regions.lua)")
     slotData["options.area_size"] = nil                          -- an areas seed again (and seeds made before the option)
     push("status", "disconnected")
     push("status", "connected", "Tester")
@@ -2387,6 +2392,114 @@ do  -- Areas beyond the goal (slot data beyond_goal_areas and options.beyond_goa
            "open: its walls come down without a pass: " .. up .. " -> " .. wallCount())
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
 end
+;(function()  -- area-coloured walls, sealed walls beyond the goal, the hint pop-up (v0.14.0-dev.3)
+    local W = require("walls")
+    local openedBeyond = hintArea                -- the open-beyond test above opened it
+    local hudKids = {}
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("CanvasPanel_179") end })
+    function canvas:AddChildToCanvas(w)
+        hudKids[#hudKids + 1] = w
+        w.RemoveFromParent = function(self) self.removed = true end
+        local slot = { SetAnchors = function(sl, v) sl.anchors = v end, SetAlignment = function(sl, v) sl.alignment = v end,
+                       SetPosition = function(sl, v) sl.position = v end, SetAutoSize = function() end,
+                       SetZOrder = function(sl, z) sl.z = z end }
+        w.canvasSlot = slot
+        return slot
+    end
+    -- As on the client (v0.13.9 playtest): SafeZone_0 holding CanvasPanel_179.
+    local safe = Widget({ GetClass = function() return classed("SafeZone") end, GetChildAt = function() return canvas end })
+    local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = safe } })
+    local savedFAO = FindAllOf
+    FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
+    local function actorOf(w)
+        for a in pairs(wallsUp) do if a.t.Translation.X == w[1] and a.t.Translation.Y == w[2] then return a end end
+    end
+    local function pieceBetween(x, y)
+        for _, w in ipairs(WD.walls) do
+            local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+            if (a1 == x and a2 == y) or (a1 == y and a2 == x) then
+                local a = actorOf(w)
+                if a then return a end
+            end
+        end
+    end
+    local function close(c, d) return c and d and math.abs(c.R - d.R) < 1e-3 and math.abs(c.G - d.G) < 1e-3 and math.abs(c.B - d.B) < 1e-3 end
+    local function popupAfter(n)
+        for _ = 1, 450 do
+            if #hudKids > n then return hudKids[n + 1] end
+            run(1)
+        end
+    end
+    W.setSkin(nil); run(3)
+    -- An area beside the start still locked (the open-beyond test above opened the hint test's area), and a spot on
+    -- the start's side of one of its walls.
+    local area, at, piece
+    for _, w in ipairs(WD.walls) do
+        local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        local other = (x == WD.start and y) or (y == WD.start and x)
+        if other and W.AREA_COLOURS[other] and w[3] > 5000 and actorOf(w) then
+            local yaw = math.rad(w[4])
+            for _, side in ipairs({ 1, -1 }) do
+                local px, py = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
+                if WALLS.areaAt(px, py) == WD.start then area, at, piece = other, { X = px, Y = py, Z = 0 }, actorOf(w) end
+            end
+            if area then break end
+        end
+    end
+    local hintArea, hintAt = area, at
+    local want = hintArea and W.linearOf(W.AREA_COLOURS[hintArea])
+    expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-a" and close(piece.Cube.mat.vectors.Color, want)
+           and logged("wall skin area: colours "), "by default a wall wears the lattice in the colour of the area it keeps you out of")
+    -- The hint pop-up at that wall: centred, a little transparent, gone after 6 s.
+    pawnAt = hintAt
+    local box = popupAfter(#hudKids)
+    local over = box and box.child
+    expect(box and box.width == 380 and box.height == 84 and box.opacity == 0.8 and box.vis == 4
+           and box.canvasSlot.anchors.Minimum.X == 0.5 and box.canvasSlot.anchors.Minimum.Y == 0.5
+           and box.canvasSlot.alignment.X == 0.5 and box.canvasSlot.position.Y == 0,
+           "walking up to a wall shows the hint pop-up in the middle of the screen at 0.8 opacity")
+    expect(over and over.children[1].child.texture.path == "ap-hint-plate-short" and over.children[2].text == hintArea .. " is sealed"
+           and over.children[3].text == "Not enough points for a hint: 3 of 121" and over.children[4] and over.children[4].width == 9,
+           "on the not-enough-points plate, with its two lines and the bar: "
+           .. tostring(over and over.children[3] and over.children[3].text))
+    run(21)
+    expect(box and box.removed, "and goes away after 6 s")
+    -- Beyond the goal: the sealed walls (slate grey; the sealed pattern when its file is found) and the pop-up says so.
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = hintArea, "0"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    local m = piece.Cube.mat
+    expect(m and (m.textures.MainTexture01.path == "ap-wall-pattern-sealed" or m.textures.MainTexture01.path == "ap-wall-pattern-a")
+           and close(m.vectors.Color, { R = 0.3231, G = 0.3663, B = 0.4564 }), "a wall to an area beyond the goal wears the sealed grey")
+    local sealedBox = popupAfter(#hudKids)
+    expect(sealedBox and sealedBox.child.children[2].text == hintArea .. " is beyond the goal"
+           and sealedBox.child.children[3].text == "Its walls stay up for good." and not sealedBox.child.children[4],
+           "its pop-up says it is beyond the goal, with no points bar")
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(close(piece.Cube.mat.vectors.Color, want), "and back to its area's colour when it is not")
+    -- A pass that opens one side of a piece still up turns it to the other side's colour.
+    local a1, a2, between
+    for _, w in ipairs(WD.walls) do
+        local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        if W.AREA_COLOURS[x] and W.AREA_COLOURS[y] and not open[x] and not open[y] and x ~= openedBeyond
+           and y ~= openedBeyond and actorOf(w) then
+            a1, a2, between = x, y, actorOf(w)
+            break
+        end
+    end
+    local colourOf = function(area) return W.linearOf(W.AREA_COLOURS[area]) end
+    local before = between and between.Cube.mat.vectors.Color
+    push("item", "9300", tostring(itemId["Area Pass: " .. tostring(a1)]), "1", "1", "1", "Area Pass: " .. tostring(a1), "Tester")
+    run(80)
+    expect(between and (close(before, colourOf(a1)) or close(before, colourOf(a2))) and close(between.Cube.mat.vectors.Color, colourOf(a2))
+           and not between.gone, "a piece between " .. tostring(a1) .. " and " .. tostring(a2) .. " turns to "
+           .. tostring(a2) .. "'s colour when " .. tostring(a1) .. " opens")
+    FindAllOf = savedFAO
+end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

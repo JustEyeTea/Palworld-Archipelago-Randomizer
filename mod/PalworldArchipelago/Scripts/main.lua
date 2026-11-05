@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.2"
+local VERSION = "0.14.0-dev.3"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -17,6 +17,7 @@ local TECHS = require("tech_icons")
 local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local R = require("records")
 local WALLS = require("walls")
+local POPUP = require("hint_popup")
 local MENU = require("menu")
 local TECHSCAN = require("techscan")
 local MAIL = require("mailbox")
@@ -600,10 +601,12 @@ local function relabel(card, key, full)
     local clickable = not sent or mine ~= nil
     local it = own and D.items[r.id]
     local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
-    -- An Area Pass shows its own area's ticket (art/ap-pass-<area>.png, round 2), else the shared one; a Region Pass
-    -- (area_size regions) the shared one.
+    -- An Area Pass shows its own area's ticket (art/ap-pass-<area>.png, round 2); a Region Pass (area_size regions) its
+    -- area's, else the Region Pass ticket (ap-pass-region.png); else the shared one.
+    local ART = require("art")
     local tex = mine and techIcon(mine)
-        or (kind == "area-pass" and it.name:find("^Area Pass") and require("art").texture("ap-pass-" .. WALLS.slugOf(it.area)))
+        or (kind == "area-pass" and (ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
+                                     or (it.name:find("^Region Pass") and ART.texture("ap-pass-region"))))
         or icon(kind, card)
     local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
     local sig = name .. "\0" .. category .. "\0" .. tostring(clickable) .. "\0" .. tostring(texAddr)
@@ -945,6 +948,7 @@ local function onEvent(line)
             local mode = AP_SlotData("options.beyond_goal")
             ap.beyondOpen = mode == "2" or mode == "open"
             if ap.beyondOpen then for area in pairs(ap.beyond) do ap.passes[area] = true end end
+            WALLS.setBeyond(ap.beyondOpen and {} or ap.beyond)    -- sealed walls and stamps (open ones come down)
             if nBeyond > 0 then
                 log("areas beyond the goal: " .. nBeyond .. (ap.beyondOpen and ", open from the start" or ", sealed for good"))
             end
@@ -1032,20 +1036,33 @@ else
 end
 
 -- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.
+-- Returns the chat line, and what the hint pop-up shows (hint_popup.lua: two short lines and the points bar).
 local function wallNotice(area)
-    if ap.beyond and ap.beyond[area] then return area .. " is beyond this seed's goal: its walls stay up." end
+    if ap.beyond and ap.beyond[area] then
+        return area .. " is beyond this seed's goal: its walls stay up.",
+            { title = area .. " is beyond the goal", line = "Its walls stay up for good." }
+    end
     local pass = WALLS.passName(area)
-    if hints.known[area] then return area .. " is sealed. " .. hints.known[area] end
+    if hints.known[area] then
+        local where, world = hints.known[area]:match(" is at (.-) in (.-)'s World")
+        return area .. " is sealed. " .. hints.known[area],
+            { title = area .. " is sealed", line = where and ("Its pass is at " .. where .. " (" .. world .. ")")
+                                                     or hints.known[area]:sub(1, 60), ready = true }
+    end
     local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
     local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
-    if not points then return text end
+    if not points then return text, { title = area .. " is sealed", line = "It needs " .. pass .. "." } end
     points, cost = tonumber(points), tonumber(cost)
     hints.offer, hints.offeredAt = area, tick
     -- Both cases say what the player has and what a hint costs (the user, 2026-11-04), with the configured key.
     if points >= cost then
-        return text .. " Press " .. hints.key .. " for a hint: you have " .. points .. " points, a hint costs " .. cost .. "."
+        return text .. " Press " .. hints.key .. " for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
+            { title = area .. " is sealed", line = hints.key .. " for a hint: " .. points .. " points, a hint costs " .. cost,
+              have = points, cost = cost, ready = true }
     end
-    return text .. " Not enough points for a hint: you have " .. points .. " points, a hint costs " .. cost .. "."
+    return text .. " Not enough points for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
+        { title = area .. " is sealed", line = "Not enough points for a hint: " .. points .. " of " .. cost,
+          have = points, cost = cost, ready = false }
 end
 local function askHint()
     local area = hints.offer
@@ -1161,6 +1178,7 @@ end
 
 local function update(ctx)
     tick = tick + 1
+    pcall(POPUP.tick, tick)
     P.start("poll")
     for line in AP_Poll():gmatch("[^\n]+") do
         local ok, err = pcall(onEvent, line)
@@ -1244,7 +1262,10 @@ local function update(ctx)
                 end)
                 if okn and area and (hints.shown[area] or -1e9) + 400 <= tick then
                     hints.shown[area] = tick
-                    notify(wallNotice(area))
+                    local line, info = wallNotice(area)
+                    notify(line)
+                    local okp, errp = pcall(POPUP.show, info, tick)
+                    if not okp then log("hint pop-up error: " .. tostring(errp)) end
                 end
             end
             -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area. Not while
