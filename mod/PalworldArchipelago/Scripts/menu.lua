@@ -133,22 +133,46 @@ local function logLayout(menu, ourButton)
 end
 
 -- The title banner (Art & Assets lane, round 1: art/ap-title-banner.png, 1200x300 shown at 600x150, the width of the
--- title buttons) above our buttons, with the connection in its pill: a dot (art/ap-status-dot.png) tinted by state and
--- a line of text. Positions are the art's own (the pill spans x 140-575, y 107-133 at 600x150; the dot is centred at
--- 155,120 and the text starts at 167). Untested in game (2026-11-04): its place on the screen is a first guess.
+-- title buttons) above the title buttons, with the connection in its pill: a dot (art/ap-status-dot.png) tinted by
+-- state and a line of text. Positions are the art's own (the pill spans x 140-575, y 107-133 at 600x150; the dot is
+-- centred at 155,120 and the text starts at 167). v0.13.5 playtest: in the button list it went below Credits (the list
+-- holds the game's buttons too) and pushed ours off the screen, and its picture kept the brush's 32x32. So it goes on
+-- the canvas the list sits in (CanvasPanelMenu on the client), its bottom 8 above the list's top, and the picture
+-- fills it. The list's top is worked out from its canvas slot each update (our Disconnect button changes its height).
+-- Only when the list is not on a canvas (or is stretched across it) does the banner go in the list, after our buttons.
 local ART = require("art")
 local DOT = { connected = { R = 0.074, G = 0.631, B = 0.195, A = 1 },      -- #4DD07A, as linear colours
               connecting = { R = 0.839, G = 0.515, B = 0.155, A = 1 },     -- #ECBE6E
               other = { R = 0.863, G = 0.144, B = 0.105, A = 1 } }         -- #EF6A5B
 local TEXT_COLOUR = { R = 0.807, G = 0.905, B = 0.888, A = 1 }            -- #E8F4F2
+-- Where the banner goes on the list's canvas: centred over the list, its bottom 8 above the list's top. Errors when
+-- the list's slot can't tell (no canvas slot, or anchors stretched across the canvas).
+local function bannerSpot(list)
+    local ls = list.Slot
+    local a, al, pos = ls:GetAnchors(), ls:GetAlignment(), ls:GetPosition()
+    if a.Minimum.X ~= a.Maximum.X or a.Minimum.Y ~= a.Maximum.Y then error("the button list is stretched on its canvas") end
+    local size = list:GetDesiredSize()
+    return { Minimum = { X = a.Minimum.X, Y = a.Minimum.Y }, Maximum = { X = a.Maximum.X, Y = a.Maximum.Y } },
+        { X = pos.X + (0.5 - al.X) * size.X, Y = pos.Y - al.Y * size.Y - 8 }
+end
+local function placeBanner(b)
+    if not b.slot then return end
+    local anchors, at = bannerSpot(b.list)
+    if b.at and b.at.X == at.X and b.at.Y == at.Y then return end
+    b.slot:SetAnchors(anchors)
+    b.slot:SetAlignment({ X = 0.5, Y = 1 })
+    b.slot:SetPosition(at)
+    b.at = at
+end
 local function addBanner(menu, list)
     local box, img = ART.box(menu, "ap-title-banner", 600, 150)
     if not box then return nil end
     local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), menu)
     box:RemoveChild(img)
     box:AddChild(over)
-    over:AddChild(img)                                         -- fills the overlay
-    local b = { box = box }
+    local s0 = over:AddChild(img)
+    pcall(function() s0:SetHorizontalAlignment(0); s0:SetVerticalAlignment(0) end)   -- Fill, Fill: not the brush's 32x32
+    local b = { box = box, list = list }
     local dotBox, dot = ART.box(menu, "ap-status-dot", 12, 12)
     if dotBox then
         local s = over:AddChild(dotBox)
@@ -166,10 +190,30 @@ local function addBanner(menu, list)
     pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)
     pcall(function() s:SetPadding({ Left = 167, Top = 111, Right = 24, Bottom = 0 }) end)
     b.text = text
-    local slot = list:AddChild(box)
-    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 8 }) end)
-    pcall(function() slot:SetHorizontalAlignment(0) end)
-    log("menu: title banner added (" .. (sized and "13 pt text" or "text scaled down") .. (b.dot and "" or ", no status dot") .. ")")
+    local okp, canvas = pcall(function() return list:GetParent() end)
+    local where
+    if okp and canvas and canvas:IsValid() and className(canvas) == "CanvasPanel" then
+        pcall(function() list:ForceLayoutPrepass() end)          -- our buttons just went in: the list's size with them
+        local oks, why = pcall(bannerSpot, list)
+        if oks then
+            b.slot = canvas:AddChildToCanvas(box)
+            pcall(function() b.slot:SetAutoSize(false); b.slot:SetSize({ X = 600, Y = 150 }) end)
+            placeBanner(b)
+            where = "on " .. nameOf(canvas) .. " at " .. math.floor(b.at.X + 0.5) .. "," .. math.floor(b.at.Y + 0.5)
+                .. " (its bottom edge, centred over the buttons)"
+        else
+            where = "in the button list (" .. tostring(why):gsub("^.-:%d+: ", "") .. ")"
+        end
+    else
+        where = "in the button list (it is not on a canvas)"
+    end
+    if not b.slot then
+        local slot = list:AddChild(box)
+        pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 8 }) end)
+        pcall(function() slot:SetHorizontalAlignment(0) end)
+    end
+    log("menu: title banner added " .. where .. " (" .. (sized and "13 pt text" or "text scaled down")
+        .. (b.dot and "" or ", no status dot") .. ")")
     return b
 end
 local function bannerStatus(b)
@@ -177,6 +221,7 @@ local function bannerStatus(b)
     local text = st == "connected" and ("Connected | " .. server .. " | Slot: " .. api.slot())
         or st == "connecting" and ("Connecting to " .. server .. "...")
         or (server ~= "" and ("Not connected | " .. server) or "Not connected")
+    if b.slot then pcall(placeBanner, b) end
     if b.shown ~= text then b.shown = text; pcall(function() b.text:SetText(FText(text)) end) end
     if b.dot and b.state ~= st then b.state = st; pcall(function() b.dot:SetColorAndOpacity(DOT[st] or DOT.other) end) end
 end
@@ -758,14 +803,16 @@ function M.update(ctx)
             local key = tostring(menu:GetAddress())
             local m = menus[key]
             if not m or not m.connect:IsValid() then
-                local okB, banner = pcall(addBanner, menu, list)
-                if not okB then log("menu: title banner error: " .. tostring(banner)); banner = nil end
                 local okc, c = pcall(addButton, menu, list, "connect")
                 local okd, d = pcall(addButton, menu, list, "disconnect")
                 if okc and c and okd and d then
-                    m = { connect = c, disconnect = d, banner = banner, keys = { tostring(c:GetAddress()), tostring(d:GetAddress()) } }
+                    m = { connect = c, disconnect = d, keys = { tostring(c:GetAddress()), tostring(d:GetAddress()) } }
                     menus[key] = m
                     added = true
+                    -- After the buttons, once they are in (v0.13.5 playtest: before them, a menu whose buttons failed
+                    -- got a new banner every update, 1,042 in five minutes).
+                    local okB, banner = pcall(addBanner, menu, list)
+                    if okB then m.banner = banner else log("menu: title banner error: " .. tostring(banner)) end
                     local okq, why = pcall(quitLast, menu, list)
                     if not okq or why then log("menu: Quit Game left where it was: " .. tostring(why)) end
                     pcall(logLayout, menu, c)

@@ -29,7 +29,8 @@ function A.box(outer, name, w, h)
     local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
     box:SetWidthOverride(w)
     box:SetHeightOverride(h)
-    box:AddChild(img)
+    local s = box:AddChild(img)
+    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)   -- Fill: an image keeps its brush's 32x32 otherwise
     return box, img
 end
 

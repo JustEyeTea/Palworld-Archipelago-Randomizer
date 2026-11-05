@@ -117,7 +117,8 @@ local cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade
 cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
 local function Texture(path) return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end,
                                        SRGB = true, UpdateResource = function(self) self.updated = true end,
-                                       GetSurfaceWidth = function() return 512 end, GetSurfaceHeight = function() return 512 end } end
+                                       -- (no GetSurfaceWidth: C++ only, not callable from Lua on the client; v0.13.5 playtest)
+                                       Blueprint_GetSizeX = function() return 512 end, Blueprint_GetSizeY = function() return 512 end } end
 local kept = {}
 worldDir = "AP_WORLD"                                        -- the loaded world's save folder
 local gameInstance = { IsValid = function() return true end,
@@ -309,6 +310,24 @@ local buttonBox = Widget({ GetClass = function() return classed("VerticalBox") e
                            RemoveChild = function(_, box)
                                for i, c in ipairs(menuChildren) do if c == box then table.remove(menuChildren, i); return true end end
                                return false end })
+-- As on the client (v0.13.5 log): the list sits on a canvas, CanvasPanelMenu; here anchored bottom-centre, its bottom
+-- 80 above the anchor, 600x500 with our buttons in it.
+titleCanvasKids = {}                                          -- global: what the mod puts on that canvas
+local titleCanvas = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("CanvasPanelMenu") end })
+function titleCanvas:AddChildToCanvas(w)
+    local slot = { SetAnchors = function(s, a) s.anchors = a end, SetAlignment = function(s, a) s.alignment = a end,
+                   SetPosition = function(s, p) s.position = p; s.moves = (s.moves or 0) + 1 end,
+                   SetAutoSize = function(s, v) s.auto = v end, SetSize = function(s, v) s.size = v end }
+    w.canvasSlot = slot
+    titleCanvasKids[#titleCanvasKids + 1] = w
+    return slot
+end
+buttonBox.GetParent = function() return titleCanvas end
+buttonBox.desired = { X = 600, Y = 500 }
+buttonBox.GetDesiredSize = function(self) return self.desired end
+buttonBox.ForceLayoutPrepass = function(self) self.prepassed = true end
+buttonBox.Slot = { GetAnchors = function() return { Minimum = { X = 0.5, Y = 1 }, Maximum = { X = 0.5, Y = 1 } } end,
+                   GetAlignment = function() return { X = 0.5, Y = 1 } end, GetPosition = function() return { X = 0, Y = -80 } end }
 local gameButtonWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end })
 gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
 -- Quit Game, last in the list until our buttons go in (v0.11.2 playtest: ours sat below it).
@@ -1808,6 +1827,7 @@ expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools b
            and img and img.texture and img.texture.path == "ap-hint-icon-128",
            "Ctrl+F4 puts the hint icon on the HUD layout's canvas, logging what it found")
     local goal = canvasKids[2]
+    expect(goal and goal.child.children[1].slot.h == 0 and goal.child.children[1].slot.v == 0, "the goal banner's picture fills it")
     expect(goal and goal.width == 600 and goal.child and goal.child.children[1].texture.path == "ap-goal-banner"
            and goal.child.children[2].text == "All 14 areas open | 2,431 checks | 12h 08m" and logged("HUD probe: goal banner added"),
            "and the goal banner, centred, with a sample line in its pill")
@@ -1835,18 +1855,38 @@ do   -- (its own block, as above)
 print("the title menu's Archipelago buttons")
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
 titleOpen = true
+-- v0.13.5 playtest: a title menu whose buttons could not be made got a new banner every update (1,042 of them).
+local realCreate = wbl.Create
+wbl.Create = function() return nil end
+run(3)
+expect(#titleCanvasKids == 0 and #menuChildren == 1 and not logged("title banner added"), "no buttons, no banner")
+wbl.Create = realCreate
 run(1)
-local bannerBox = menuChildren[1]                           -- the title banner, above our buttons
-expect(bannerBox and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
+local bannerBox = titleCanvasKids[1]                        -- the title banner, on the list's canvas
+expect(#titleCanvasKids == 1 and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
        and #bannerBox.child.children == 3 and bannerBox.child.children[1].texture.path == "ap-title-banner",
-       "the banner (600x150: picture, status dot, text) sits above our buttons")
-local connectBtn, disconnectBtn = menuChildren[2] and menuChildren[2].child, menuChildren[3] and menuChildren[3].child
+       "the banner (600x150: picture, status dot, text) goes on the canvas the buttons sit on")
+local pic = bannerBox and bannerBox.child.children[1]
+expect(pic and pic.slot.h == 0 and pic.slot.v == 0, "its picture fills it (v0.13.5 playtest: it kept the brush's 32x32)")
+local bs = bannerBox and bannerBox.canvasSlot
+expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.alignment.X == 0.5 and bs.alignment.Y == 1
+       and bs.position.X == 0 and bs.position.Y == -588 and bs.size.X == 600 and bs.auto == false and buttonBox.prepassed,
+       "its bottom 8 above the list's top, centred over it, with the list's anchors")
+expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
+local connectBtn, disconnectBtn = menuChildren[1] and menuChildren[1].child, menuChildren[2] and menuChildren[2].child
 expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as Tester" and disconnectBtn.visibility == 0,
        "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
-expect(menuChildren[4] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+expect(menuChildren[3] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
        "Quit Game moved back to the end, with its padding")
+local moves = bs and bs.moves
 run(3)
-expect(#menuChildren == 4, "added once")
+expect(#menuChildren == 3 and #titleCanvasKids == 1, "added once")
+expect(bs and bs.moves == moves, "and left where it is while the list keeps its size")
+buttonBox.desired = { X = 600, Y = 459 }                    -- Disconnect hidden: the list is shorter
+run(1)
+expect(bs and bs.position.Y == -547, "the list got shorter: the banner follows its top")
+buttonBox.desired = { X = 600, Y = 500 }
+run(1)
 expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
@@ -2240,7 +2280,7 @@ do  -- the Art & Assets lane's round-1 art (art.lua): the title banner with its 
         sawNot = sawNot or t:find("^Not connected") ~= nil
         sawConnected = sawConnected or t:find("^Connected | .+ | Slot: ") ~= nil
     end
-    expect(logged("menu: title banner added %(13 pt text%)") and not logged("title banner error"),
+    expect(logged("menu: title banner added on CanvasPanelMenu .*%(13 pt text%)") and not logged("title banner error"),
            "the title banner goes in above our buttons, its text at 13 pt")
     expect(sawNot and sawConnected, "its pill shows the connection: not connected, then connected with the server and slot")
     expect(logged("mailbox: emblem added beside the heading") and chestRow and #chestRow.children == 1 and not logged("emblem error"),

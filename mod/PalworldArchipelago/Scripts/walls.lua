@@ -336,7 +336,9 @@ local function skinMaterial(name)
         mid:SetScalarParameterValue(FName("ScrollingV_01"), W.scroll[2])
     end
     skin.mids[name], skin.failed[name] = mid, nil
-    log("wall skin " .. name .. ": material made (" .. tex:GetSurfaceWidth() .. "x" .. tex:GetSurfaceHeight()
+    -- Blueprint_GetSizeX/Y: Lua sees only UFunctions (v0.13.5 playtest: GetSurfaceWidth is C++ only, and the call errored).
+    local okw, size = pcall(function() return tex:Blueprint_GetSizeX() .. "x" .. tex:Blueprint_GetSizeY() end)
+    log("wall skin " .. name .. ": material made (" .. (okw and size or "size unknown")
         .. (srgb and ", linear" or ", sRGB: could not change") .. ", tiling "
         .. (W.tiling and (W.tiling[1] .. "x" .. W.tiling[2]) or "the material's") .. ")")
     return mid
