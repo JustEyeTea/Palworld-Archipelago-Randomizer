@@ -293,7 +293,13 @@ end
 -- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0. Untested in game (2026-11-04).
 -- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat). <skin>-dense: that pattern tiled 10x6,
 -- twice the material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
-local SKINS = { "red", "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense" }
+-- colour-<x>: full-colour tiles (walls/ap-wall-colour-<x>.png, RGBA) on our own material, M_APWall, from the
+-- PalworldArchipelagoArt pak (logicmod/make_wall_material.py; the user, 2026-11-05: the game's material can show one
+-- colour per piece, they want multicolour). Without the pak (or the file) such a skin is refused, logged, and skipped
+-- by Ctrl+F3.
+local SKINS = { "red", "colour-paws", "colour-routes", "colour-grid", "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense" }
+local AP_WALL = "/Game/Mods/PalworldArchipelagoArt/M_APWall.M_APWall"
+local apWall = nil                                             -- M_APWall once loaded
 local DENSE = { 10, 6 }
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
 local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
@@ -305,6 +311,31 @@ local function meshOf(a)
     local smc = StaticFindObject("/Script/Engine.StaticMeshComponent")
     ok, m = pcall(function() return a:GetComponentByClass(smc) end)
     if ok and m and m:IsValid() then return m end
+end
+local function apWallMaterial()
+    if apWall and apWall:IsValid() then return apWall end
+    pcall(LoadAsset, AP_WALL)
+    local m = StaticFindObject(AP_WALL)
+    if m and m:IsValid() then apWall = m; W.keep(m); return m end
+end
+local function colourMaterial(name, gi, krl, kml)
+    local base = apWallMaterial()
+    if not base then log("wall skin " .. name .. ": needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
+    local path = W.dir .. "\\walls\\ap-wall-" .. name .. ".png"
+    local tex = krl:ImportFileAsTexture2D(gi, path)
+    if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
+    W.keep(tex)                                                -- a colour picture: sRGB as imported
+    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), 0)
+    if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
+    W.keep(mid)
+    mid:SetTextureParameterValue(FName("Pattern"), tex)
+    if W.scroll then
+        mid:SetScalarParameterValue(FName("ScrollU"), W.scroll[1])
+        mid:SetScalarParameterValue(FName("ScrollV"), W.scroll[2])
+    end
+    skin.mids[name], skin.failed[name] = mid, nil
+    log("wall skin " .. name .. ": material made on M_APWall")
+    return mid
 end
 local function skinMaterial(name)
     local mid = skin.mids[name]
@@ -319,6 +350,7 @@ local function skinMaterial(name)
         skin.failed[name] = nil
         return nil
     end
+    if name:find("^colour%-") then return colourMaterial(name, gi, krl, kml) end
     local file = name:match("^(.-)%-dense$")
     local tiling = file and DENSE or W.tiling
     local path = W.dir .. "\\walls\\ap-wall-pattern-" .. (file or name) .. ".png"
@@ -364,9 +396,16 @@ function W.setSkin(name)
     for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
     log("wall skin " .. tostring(name) .. ": unknown (" .. table.concat(SKINS, ", ") .. ")")
 end
+-- The next skin, skipping any refused this session (no pak, no file): it would be refused again and the cycle would
+-- stop there.
 function W.cycleSkin()
     for k, s in ipairs(SKINS) do
-        if s == skin.want then skin.want = SKINS[k % #SKINS + 1]; return skin.want end
+        if s == skin.want then
+            for j = 1, #SKINS do
+                local nxt = SKINS[(k + j - 1) % #SKINS + 1]
+                if not skin.failed[nxt] then skin.want = nxt; return nxt end
+            end
+        end
     end
 end
 -- On the game thread (from W.update): the skin wanted, once the wall material is known (from the first piece raised).

@@ -138,4 +138,24 @@ To go back to the chest window without removing the pak, set `mailbox_view=chest
   `Scripts/test_tools.lua`). Like the game's own create, it works only where the game has authority: single player or
   a listen-server host, not a client of a dedicated server. A Blueprint function here remains the fallback if every
   route fails: it can build the save parameter itself and call `CreateIndividual` with a real callback.
-- **Wall look:** the red grid is the accepted look. A custom material can go here if that changes.
+- **Wall look:** done as its own pak; see "The wall material" below.
+
+## The wall material (PalworldArchipelagoArt.pak)
+
+A second, separate pak with one material, `M_APWall`, for multicoloured area walls. The game's wall material shows one
+colour per wall piece. This one shows a full-colour picture. It is independent of the mailbox window: it needs only
+Part 1's setup, not Parts 2 and 3.
+
+1. Run `logicmod\make_wall_material.py` the same way as Part 2 (Tools > Execute Python Script..., or the
+   `UnrealEditor-Cmd.exe ... -run=pythonscript` line with this script). It builds the whole material and its chunk
+   label (chunk 2); nothing is by hand. The Output Log lines start with `[PalworldArchipelagoArt]`.
+2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and look for a compile error at the bottom.
+3. Package as in Part 4 (Use Pak File and Generate Chunks on). Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc`
+   if there), rename to `PalworldArchipelagoArt.pak` (and `.ucas` / `.utoc`), and copy to `Pal\Content\Paks\LogicMods\`.
+4. In game with `test_tools=1`, Ctrl+F3 to a `colour-...` skin. UE4SS.log says `wall skin colour-...: material made on
+   M_APWall`. Without the pak it says `needs the PalworldArchipelagoArt pak` and Ctrl+F3 skips it.
+
+What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour-<name>.png`), and optionally
+`CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`, `Opacity`, `FadeStart`/`FadeEnd`
+(900 / 1500 cm). The pattern is laid on the wall in world space, so it keeps its size on every piece and recedes in
+perspective.

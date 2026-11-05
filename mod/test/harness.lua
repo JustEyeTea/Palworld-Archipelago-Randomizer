@@ -695,6 +695,24 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
     expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
     W.setSkin("c")
     expect(logged("wall skin c: unknown"), "an unknown skin is refused")
+    -- colour skins: our own material from the PalworldArchipelagoArt pak, a full-colour tile on it
+    local hadPak = logicMod
+    logicMod = true
+    W.setSkin("colour-paws"); run(1)
+    local cm = a.Cube.mat
+    expect(cm ~= wallRed and cm.parent and tostring(cm.parent.path):find("PalworldArchipelagoArt/M_APWall", 1, true)
+           and cm.textures.Pattern and cm.textures.Pattern.path == "ap-wall-colour-paws" and cm.textures.Pattern.SRGB == true
+           and logged("wall skin colour%-paws: material made on M_APWall"),
+           "a colour skin: M_APWall from the pak with the colour tile (left sRGB)")
+    cm.parent.IsValid = function() return false end            -- now without the pak
+    logicMod = false
+    expect(W.cycleSkin() == "colour-routes", "Ctrl+F3 goes on to the next colour skin"); run(1)
+    expect(logged("wall skin colour%-routes: needs the PalworldArchipelagoArt pak") and a.Cube.mat == cm,
+           "without the pak it is refused and the wall keeps its skin")
+    expect(W.cycleSkin() == "colour-grid", "the refused one is skipped"); run(1)
+    expect(W.cycleSkin() == "a", "and every refused one after it")
+    logicMod = hadPak
+    W.setSkin("red"); run(1)
 end
 local WALLS = dofile(MOD .. "/Scripts/walls.lua")
 expect(WALLS.areaAt(-304485, 240071) == "Bamboo Groves" and WALLS.areaAt(-342035, 236885) == WD.start,
