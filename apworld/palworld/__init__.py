@@ -6,14 +6,14 @@ import math
 from collections import defaultdict
 from typing import Any, Dict, FrozenSet, List, Optional
 
-from BaseClasses import CollectionState, Item, ItemClassification, Location, Region, Tutorial
+from BaseClasses import CollectionState, Item, ItemClassification, Location, LocationProgressType, Region, Tutorial
 from Options import OptionError
 from worlds.AutoWorld import WebWorld, World
 
 from .data import (BREEDING_TECH, CATCHABLE, DECOR_TECHS, DIRECT, FILLER, FLYING_MOUNTS, ITEM_GROUPS, ITEM_NAME_TO_ID,
                    ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS, PREREQ_TECHS,
                    PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS, SPHERE_NEEDS, SPHERE_TECHS,
-                   STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, Layout, tech_item)
+                   STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, Layout, shop_location, tech_item)
 from .game_data import TOWERS
 from .options import PalworldOptions, option_groups, options_presets
 
@@ -30,6 +30,8 @@ TOWER_MARGIN = 8             # levels a player passes the last tower they need (
 PALDECK_MARGIN = 5           # the same for the Pal that completes a Paldeck goal
 RELIC_LEVEL = 30             # the Relic Hunt goal's check level when left on auto
 MAX_LEVEL = 80
+TECH_POINTS_PER_LEVEL = 6    # the game's tech points for each level (1.0.5 tables)
+ANCIENT_POINTS_PER_TOWER = 5  # Ancient tech points a tower boss gives
 WORLD_TREE_EVENT = "World Tree Boss Defeated"
 # The towers' bosses in Palworld 1.0 (web research, 2026-11-05: Zoe, Lily, Axel, Marcus, Victor, Saya, Bjorn, Auri):
 # the level each tower fight asks for, and the order a Towers goal takes them in.
@@ -157,6 +159,7 @@ class PalworldWorld(World):
             if reachable < o.paldeck_count.value:
                 raise OptionError(f"Palworld ({self.player_name}): only {reachable} Pals can be registered by level "
                                 f"{self.cap}; lower Pals to Register or raise the Check Level Cap.")
+        self.unaffordable = self.points_budget()
         # Every item needs a location: the passes and techs alone can outnumber the checks when most kinds are off.
         relic_hunt = o.goal == o.goal.option_relic_hunt
         locations = sum(1 for loc in LOCATIONS if self.wanted(loc))
@@ -291,6 +294,28 @@ class PalworldWorld(World):
         research, so no check waits on a gear item."""
         prereq, research = tech[5], tech[7]
         return bool(research) or bool(prereq and TECH_BY_ID[prereq][2] > STARTER_LEVEL)
+
+    def points_budget(self) -> FrozenSet[str]:
+        """Tech-slot checks a player can't be sure to afford in time; they hold only filler and traps (anyone's), so no
+        one's progression or useful item waits on tech points the logic doesn't count. Normal slots are taken in the
+        order they open, cheapest first, while their running cost stays within the points levelling gives by then
+        (6 a level; fast travel, Technical Manuals and the like are the player's spare). Ancient slots: within the
+        Ancient points of the towers beaten before the goal (5 each; the last goal tower's come with the goal), and at
+        least one tower's."""
+        o = self.options
+        slots = [t for t in SHOP_TECHS if t[0] not in self.research()]
+        towers = len(self.goal_towers) - (1 if o.goal == o.goal.option_towers else 0)
+        ancient_points = ANCIENT_POINTS_PER_TOWER * max(1, towers)
+        keep, normal, ancient = set(), 0, 0
+        for t in sorted(slots, key=lambda t: (self.lv.tech(t), t[3], t[0])):
+            if t[4]:
+                if ancient + t[3] <= ancient_points:
+                    keep.add(t[0])
+                    ancient += t[3]
+            elif normal + t[3] <= TECH_POINTS_PER_LEVEL * (self.lv.tech(t) - 1):
+                keep.add(t[0])
+                normal += t[3]
+        return frozenset(shop_location(t) for t in slots if t[0] not in keep)
 
     def passes_in_pool(self) -> List[str]:
         if not self.options.area_locks:
@@ -451,7 +476,10 @@ class PalworldWorld(World):
                 continue
             piece = layout.location_piece[loc.name]
             region = regions[piece] if piece else menu
-            region.locations.append(PalworldLocation(self.player, loc.name, loc.id, region))
+            location = PalworldLocation(self.player, loc.name, loc.id, region)
+            if loc.name in self.unaffordable:       # filler and traps only (points_budget)
+                location.progress_type = LocationProgressType.EXCLUDED
+            region.locations.append(location)
         for name, _ in TOWERS:
             if layout.towers[name] not in regions:
                 continue
@@ -497,8 +525,9 @@ class PalworldWorld(World):
         # or 3): nothing can be caught without it, and vanilla has it at level 2.
         first = PROGRESSIVE_SPHERE if self.options.progressive_spheres else tech_item(SPHERE_TECHS[0][0])
         early = [loc for loc in self.multiworld.get_unfilled_locations(self.player)
-                 if loc.name in ("Level 2", "Level 3")
-                 or (loc.name.startswith("Shop: ") and LOCATION_LEVEL.get(loc.name) == STARTER_LEVEL + 1)]
+                 if loc.progress_type != LocationProgressType.EXCLUDED
+                 and (loc.name in ("Level 2", "Level 3")
+                      or (loc.name.startswith("Shop: ") and LOCATION_LEVEL.get(loc.name) == STARTER_LEVEL + 1))]
         self.random.choice(early).place_locked_item(pool.pop(next(i for i, it in enumerate(pool) if it.name == first)))
         slots = sum(1 for loc in self.multiworld.get_unfilled_locations(self.player))
         if self.options.goal == self.options.goal.option_relic_hunt:

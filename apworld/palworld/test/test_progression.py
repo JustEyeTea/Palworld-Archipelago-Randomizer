@@ -140,3 +140,30 @@ class TestTechPointItems(PalworldTestBase):
 
     def test_tech_points_in_the_filler(self):
         self.assertTrue(any("Tech Points" in i.name for i in self.multiworld.itempool))
+
+
+class TestPointsBudget(PalworldTestBase):
+    """Tech slots a player can't be sure to afford hold filler and traps only; the rest fit the points levelling gives."""
+
+    def test_affordable_slots_fit_the_points(self):
+        from BaseClasses import LocationProgressType
+        from ..data import TECHS
+        by_name = {f"Shop: {t[1]}": t for t in TECHS}
+        slots = [l for l in self.multiworld.get_locations(self.player) if l.name in by_name]
+        kept = [by_name[l.name] for l in slots if l.progress_type != LocationProgressType.EXCLUDED]
+        excluded = [l for l in slots if l.progress_type == LocationProgressType.EXCLUDED]
+        self.assertTrue(excluded, "a two-tower seed has more slots than levelling pays for")
+        normal = sorted((self.world.lv.tech(t), t[3]) for t in kept if not t[4])
+        spent = 0
+        for level, cost in normal:
+            spent += cost
+            self.assertLessEqual(spent, 6 * (level - 1), f"slots up to level {level}")
+        self.assertLessEqual(sum(t[3] for t in kept if t[4]), 5, "Ancient: Zoe's 5 points (Lily's come with the goal)")
+
+    def test_excluded_slots_hold_no_important_items(self):
+        from BaseClasses import LocationProgressType
+        from Fill import distribute_items_restrictive
+        distribute_items_restrictive(self.multiworld)
+        for loc in self.multiworld.get_locations(self.player):
+            if loc.progress_type == LocationProgressType.EXCLUDED:
+                self.assertFalse(loc.item.advancement or loc.item.useful, f"{loc.name} holds {loc.item.name}")
