@@ -1,7 +1,7 @@
 {
  "game": "Palworld",
  "game_yaml": "Palworld",
- "world_version": "0.6.1",
+ "world_version": "0.7.0",
  "archipelago_version": "0.6.8",
  "yaml_header": "# Q. What is this file?\n# A. This file contains options which allow you to configure your multiworld experience while allowing\n#    others to play how they want as well.\n#\n# Q. How do I use it?\n# A. The options in this file are weighted. This means the higher number you assign to a value, the\n#    more chances you have for that option to be chosen. For example, an option like this:\n#\n#    map_shuffle:\n#      on: 5\n#      off: 15\n#\n#    Means you have 5 chances for map shuffle to occur, and 15 chances for map shuffle to be turned\n#    off.\n#\n# Q. I've never seen a file like this before. What characters am I allowed to use?\n# A. This is a .yaml file. You are allowed to use most characters.\n#    To test if your yaml is valid or not, you can use this website:\n#        http://www.yamllint.com/\n#    You can also verify that your Archipelago options are valid at this site:\n#        https://archipelago.gg/check\n\n# Your name in-game, limited to 16 characters.\n#     {player} will be replaced with the player's slot number.\n#     {PLAYER} will be replaced with the player's slot number, if that slot number is greater than 1.\n#     {number} will be replaced with the counter value of the name.\n#     {NUMBER} will be replaced with the counter value of the name, if the counter value is greater than 1.\n",
  "descriptions": {
@@ -356,6 +356,70 @@
    "name": "Filler",
    "start_collapsed": false,
    "options": [
+    {
+     "key": "crate_sphere_weight",
+     "name": "Sphere Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Sphere Crate (spheres of the player's tier when opened).",
+     "min": 0,
+     "max": 100,
+     "default": 30
+    },
+    {
+     "key": "crate_food_weight",
+     "name": "Food Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Food Crate (dishes for the player's level when opened).",
+     "min": 0,
+     "max": 100,
+     "default": 25
+    },
+    {
+     "key": "crate_common_weight",
+     "name": "Common Supply Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Common Supply Crate (Gold Coins, medicine, Training Manuals, keys).",
+     "min": 0,
+     "max": 100,
+     "default": 30
+    },
+    {
+     "key": "crate_rare_weight",
+     "name": "Rare Supply Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Rare Supply Crate (Skill Fruits, accessories, gear that may be ahead of\nthe player, better manuals and keys).",
+     "min": 0,
+     "max": 100,
+     "default": 12
+    },
+    {
+     "key": "crate_jackpot_weight",
+     "name": "Jackpot Supply Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Jackpot Supply Crate (stat fruits, Elixirs, top gear, high spheres).",
+     "min": 0,
+     "max": 100,
+     "default": 3
+    },
+    {
+     "key": "material_bundles",
+     "name": "Material Bundles",
+     "type": "Toggle",
+     "help": "Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items, besides Palworld Crates. Worth it in\nlong games; little use once a base makes them.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
     {
      "key": "tech_point_items",
      "name": "Tech Point Items",

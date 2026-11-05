@@ -12,7 +12,7 @@ from worlds.AutoWorld import WebWorld, World
 
 from .data import (BREEDING_TECH, CATCHABLE, DECOR_TECHS, DIRECT, FILLER, FLYING_MOUNTS, ITEM_GROUPS, ITEM_NAME_TO_ID,
                    ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS, PREREQ_TECHS,
-                   PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS, SPHERE_NEEDS, SPHERE_TECHS,
+                   PROGRESSIVE_SPHERE, RELIC, CRATE, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS, SPHERE_NEEDS, SPHERE_TECHS,
                    STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, Layout, shop_location, tech_item)
 from .game_data import TOWERS
 from .options import PalworldOptions, option_groups, options_presets
@@ -545,8 +545,11 @@ class PalworldWorld(World):
         return self.random.choice(self.filler_names())
 
     def filler_names(self) -> List[str]:
-        """Material bundles, plus the tech-point items with Tech Point Items on."""
-        return [n for n in FILLER if self.options.tech_point_items or "Tech Points" not in n]
+        """Palworld Crates, plus material bundles with Material Bundles on and the tech-point items with Tech Point
+        Items on."""
+        o = self.options
+        return [CRATE] + [n for n in FILLER if (o.material_bundles and n.endswith(" Bundle"))
+                          or (o.tech_point_items and "Tech Points" in n)]
 
     def trap_weights(self) -> list:
         o = self.options
@@ -605,7 +608,9 @@ class PalworldWorld(World):
         return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "area_size", "beyond_goal", "gear_logic",
                                                 "progressive_spheres",
                                                 "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks",
-                                                "level_checks", "death_link", "death_link_amnesty", "trap_chance"),
+                                                "level_checks", "death_link", "death_link_amnesty", "trap_chance",
+                                                "crate_sphere_weight", "crate_food_weight", "crate_common_weight",
+                                                "crate_rare_weight", "crate_jackpot_weight"),
                 "relics": self.relics, "relics_needed": self.relics_needed,
                 "check_level": self.cap,                                   # checks above it are not in this seed
                 "beyond_goal_areas": "|".join(self.beyond_goal_areas()),   # passes not in this seed (beyond_goal)

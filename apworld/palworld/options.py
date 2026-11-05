@@ -111,6 +111,53 @@ class GearLogic(Toggle):
     display_name = "Gear Logic"
 
 
+class MaterialBundles(Toggle):
+    """Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items, besides Palworld Crates. Worth it in
+    long games; little use once a base makes them."""
+    display_name = "Material Bundles"
+
+
+class CrateSphereWeight(Range):
+    """Palworld Crates: the chance weight of a Sphere Crate (spheres of the player's tier when opened)."""
+    display_name = "Sphere Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 30
+
+
+class CrateFoodWeight(Range):
+    """Palworld Crates: the chance weight of a Food Crate (dishes for the player's level when opened)."""
+    display_name = "Food Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 25
+
+
+class CrateCommonWeight(Range):
+    """Palworld Crates: the chance weight of a Common Supply Crate (Gold Coins, medicine, Training Manuals, keys)."""
+    display_name = "Common Supply Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 30
+
+
+class CrateRareWeight(Range):
+    """Palworld Crates: the chance weight of a Rare Supply Crate (Skill Fruits, accessories, gear that may be ahead of
+    the player, better manuals and keys)."""
+    display_name = "Rare Supply Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 12
+
+
+class CrateJackpotWeight(Range):
+    """Palworld Crates: the chance weight of a Jackpot Supply Crate (stat fruits, Elixirs, top gear, high spheres)."""
+    display_name = "Jackpot Supply Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 3
+
+
 class TechPointItems(Toggle):
     """Tech Points +2 and Ancient Tech Points +1 among the filler items (otherwise only material bundles)."""
     display_name = "Tech Point Items"
@@ -224,6 +271,12 @@ class PalworldOptions(PerGameCommonOptions):
     fast_travel_checks: FastTravelChecks
     level_checks: LevelChecks
     tech_point_items: TechPointItems
+    material_bundles: MaterialBundles
+    crate_sphere_weight: CrateSphereWeight
+    crate_food_weight: CrateFoodWeight
+    crate_common_weight: CrateCommonWeight
+    crate_rare_weight: CrateRareWeight
+    crate_jackpot_weight: CrateJackpotWeight
     death_link: DeathLink
     death_link_amnesty: DeathLinkAmnesty
     trap_chance: TrapChance
@@ -237,7 +290,8 @@ option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
     OptionGroup("Progression", [AreaLocks, AreaSize, BeyondGoal, GearLogic, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
-    OptionGroup("Filler", [TechPointItems]),
+    OptionGroup("Filler", [CrateSphereWeight, CrateFoodWeight, CrateCommonWeight, CrateRareWeight, CrateJackpotWeight,
+                           MaterialBundles, TechPointItems]),
     OptionGroup("Traps", [TrapChance, SlowTrapWeight, HungerTrapWeight, TeleportTrapWeight, FoolTrapWeight]),
     OptionGroup("Death Link", [DeathLink, DeathLinkAmnesty]),
 ]
