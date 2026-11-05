@@ -2448,8 +2448,8 @@ end
     end
     local hintArea, hintAt = area, at
     local want = hintArea and W.linearOf(W.AREA_COLOURS[hintArea])
-    expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-a" and close(piece.Cube.mat.vectors.Color, want)
-           and logged("wall skin area: colours "), "by default a wall wears the lattice in the colour of the area it keeps you out of")
+    expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes" and close(piece.Cube.mat.vectors.Color, want)
+           and logged("wall skin area: colours "), "by default a wall wears the paw holes in the colour of the area it keeps you out of")
     -- The hint pop-up at that wall: centred, a little transparent, gone after 6 s.
     pawnAt = hintAt
     local box = popupAfter(#hudKids)

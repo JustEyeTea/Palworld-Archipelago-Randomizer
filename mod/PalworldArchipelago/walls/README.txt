@@ -15,5 +15,7 @@ Default (wall_skin unset or area): ap-wall-pattern-pawholes.png (an area-coloure
 holes; ap-wall-pattern-a.png until that file is here) in the colour of the locked area behind each wall (that area's
 pass ticket colour; a region takes its area's), and for areas beyond the seed's goal:
   ap-wall-pattern-sealed.png the lattice dimmed, crossed by caution tape, in slate grey (2026-11-05)
+  ap-wall-pattern-pawholes.png the default walls: 0.92 wall with four 1.6 m logo-paw holes a tile (40.6% see-through),
+                             a 0.76 rim round each hole (2026-11-05)
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).
