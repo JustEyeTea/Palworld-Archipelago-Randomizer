@@ -210,7 +210,15 @@ local function hudProbeStart()
         if okk and k then kids[#kids + 1] = nameAndClass(k) end
     end
     log("HUD probe: root " .. nameAndClass(root) .. " with " .. tostring(okn and n or "?") .. " children: " .. table.concat(kids, ", "))
-    if not nameAndClass(root):find(":CanvasPanel$") then log("HUD probe: the root is not a canvas; nothing added"); return end
+    -- v0.13.5 playtest: the root is SafeZone_0:SafeZone holding one CanvasPanel; go down to the first canvas.
+    for _ = 1, 3 do
+        if nameAndClass(root):find(":CanvasPanel$") then break end
+        local okk, k = pcall(function() return root:GetChildAt(0) end)
+        if not (okk and k and k:IsValid()) then break end
+        root = k
+        log("HUD probe: going down to " .. nameAndClass(root))
+    end
+    if not nameAndClass(root):find(":CanvasPanel$") then log("HUD probe: no canvas under the root; nothing added"); return end
     local box, img = require("art").box(layout, "ap-hint-icon-128", 64, 64)
     if not box then log("HUD probe: no hint icon file"); return end
     local slot = root:AddChildToCanvas(box)
@@ -282,9 +290,13 @@ function T.install()
     end
     log("test tools on: Ctrl+F5-F8 Slow/Hunger/Teleport/Fool Trap, Ctrl+F9 exhaustion, Ctrl+F10 nightfall, Ctrl+F11 status")
     -- Ctrl+F3: the next wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense; walls.lua), put on at the next update.
+    -- On the game thread like every other key (v0.13.5 playtest: run straight from the key bind, it shared the Lua
+    -- state with the update; a walls error with a number for an actor, and UE4SS's "Ref was not function").
     RegisterKeyBind(Key.F3, { ModifierKey.CONTROL }, function()
-        local name = require("walls").cycleSkin()
-        log("--- wall skin " .. tostring(name) .. " (on at the next update)")
+        ExecuteInGameThread(function()
+            local name = require("walls").cycleSkin()
+            log("--- wall skin " .. tostring(name) .. " (on at the next update)")
+        end)
     end)
     log("test tools on: Ctrl+F3 wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense)")
     RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function()

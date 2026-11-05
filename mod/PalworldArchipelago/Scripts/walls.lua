@@ -397,8 +397,9 @@ function W.skinTick()
 end
 
 -- The locked-area stamps (Art & Assets lane: art/ap-map-stamp-<area>.png per area, round 2; art/ap-map-stamp.png when
--- an area has none), 256x256 tickets with a padlock, drawn on each locked area at its deepest point (area_centres.lua,
--- from tools/area_centres.py), STAMP_PX across on the 4096 map. Untested in game (2026-11-04).
+-- an area has none), 256x256 tickets with a padlock, drawn on each locked area STAMP_PX across on the 4096 map, a whole
+-- stamp inside the area on its side nearest the starting area (area_centres.lua, from tools/area_centres.py). v0.13.5
+-- playtest: at each area's deepest point all 14 sat under the map's fog of war, which a locked area never clears.
 local ART = require("art")
 local CENTRES = require("area_centres")
 local STAMP_PX = 88
@@ -417,7 +418,8 @@ local function drawStamps(canvas, krl, gi, locked)
         local c, name = CENTRES[k], DATA.areas[k + 1]
         local tex = c and name and (ART.texture("ap-map-stamp-" .. slugOf(name)) or ART.texture("ap-map-stamp"))
         if tex then
-            canvas:K2_DrawTexture(tex, { X = c[1] * RT_SIZE - STAMP_PX / 2, Y = c[2] * RT_SIZE - STAMP_PX / 2 },
+            local u, v = c[3] or c[1], c[4] or c[2]
+            canvas:K2_DrawTexture(tex, { X = u * RT_SIZE - STAMP_PX / 2, Y = v * RT_SIZE - STAMP_PX / 2 },
                 { X = STAMP_PX, Y = STAMP_PX }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
             n = n + 1
         end

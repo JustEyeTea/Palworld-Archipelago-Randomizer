@@ -557,14 +557,23 @@ end
 local function emblem(t)
     if view.emblem then return end
     view.emblem = true
-    local parent = t:GetParent()
-    local kind = parent and parent:IsValid() and parent:GetClass():GetFName():ToString() or "nothing"
-    if kind ~= "HorizontalBox" then log("mailbox: the heading sits in a " .. kind .. "; no emblem"); return end
+    -- v0.13.5 playtest: the heading sits in a SizeBox; the row is further up. The nearest horizontal box within 3
+    -- levels, with the chain logged either way.
+    local parent, w, chain = nil, t, {}
+    for _ = 1, 3 do
+        local okp, p = pcall(function() return w:GetParent() end)
+        if not (okp and p and p:IsValid()) then break end
+        local okn, kind = pcall(function() return p:GetFName():ToString() .. ":" .. p:GetClass():GetFName():ToString() end)
+        chain[#chain + 1] = okn and kind or "?"
+        if okn and kind:find(":HorizontalBox$") then parent = p; break end
+        w = p
+    end
+    if not parent then log("mailbox: no row above the heading (" .. table.concat(chain, " < ") .. "); no emblem"); return end
     local box = require("art").box(parent, "ap-mailbox-emblem-64", 32, 32)
     if not box then return end
     local s = parent:AddChild(box)
     pcall(function() s:SetVerticalAlignment(2); s:SetPadding({ Left = 8, Top = 0, Right = 0, Bottom = 0 }) end)
-    log("mailbox: emblem added beside the heading")
+    log("mailbox: emblem added beside the heading (" .. table.concat(chain, " < ") .. ")")
 end
 
 local function heading()

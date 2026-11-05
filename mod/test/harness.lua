@@ -134,7 +134,11 @@ LoadAsset = function(path)
     loaded[pkg] = true
 end
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
-local canvas = { K2_DrawTexture = function(_, tex) if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end end,
+stampAt = {}                                                 -- global: stamp texture -> where it was last drawn
+local canvas = { K2_DrawTexture = function(_, tex, pos)
+                     if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end
+                     if tex and tostring(tex.path):find("ap%-map%-stamp") then stampAt[tex.path] = pos end
+                 end,
                  K2_DrawLine = function() edgeLines = (edgeLines or 0) + 1 end,
                  K2_DrawTriangle = function(_, tex, tris)
                      lastTriTex = tex
@@ -799,6 +803,12 @@ expect(#composeJobs == 1 and composeJobs[1].labels:find("area_labels.png") and c
 expect(not mapBody.Image_MapBody.shown, "the game's own map stays until the picture is ready")
 run(2)
 expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt, "then the composed map is shown")
+do  -- v0.13.5 playtest: stamps at each area's deepest point sat under the fog of war; now on the side facing home
+    local c = require("area_centres")[3]                        -- Sea Breeze Archipelago, still locked
+    local at = stampAt["ap-map-stamp-sea-breeze-archipelago"]
+    expect(at and c[3] and math.abs(at.X - (c[3] * 4096 - 44)) < 0.01 and math.abs(at.Y - (c[4] * 4096 - 44)) < 0.01
+           and (c[3] ~= c[1] or c[4] ~= c[2]), "a locked area's stamp goes on its side nearest the start, not its middle")
+end
 local lockedFirst = composeJobs[1].locked
 expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
        "locked areas passed by index: " .. lockedFirst)
@@ -1132,11 +1142,14 @@ hud.CreateDispatchParameterForK2Node = function() return {} end
 hud.ShowCommonUI = function(_, kind, param)
     local id = "chest" .. (#shown + 1)
     shown[#shown + 1] = { kind = kind, param = param }
-    local row = Widget({ GetClass = function() return classed("HorizontalBox") end, children = {} })   -- the heading's row
+    -- the heading's row; v0.13.5 playtest: the heading sits in a SizeBox in it
+    local row = Widget({ GetClass = function() return classed("HorizontalBox") end, GetFName = function() return FNameOf("HorizontalBox_Title") end, children = {} })
+    local headBox = Widget({ GetClass = function() return classed("SizeBox") end, GetFName = function() return FNameOf("SizeBox_Title") end,
+                             GetParent = function() return row end })
     function row:AddChild(c) self.children[#self.children + 1] = c; return { SetVerticalAlignment = function() end, SetPadding = function() end } end
     chestRow = row
     local head = { IsValid = function() return true end, text = "Advanced Chest", BindTextDatatableHandle = {},
-                   GetParent = function() return row end }
+                   GetParent = function() return headBox end }
     function head:SetText(t) self.text = t.text end
     function head:GetText() local t = self.text; return { ToString = function() return t end } end
     hudWindows[id] = Widget({ WBP_IngameMenu_Chest = { Text_TargetContainerName = head } })
@@ -1822,7 +1835,10 @@ expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools b
         for _, f in ipairs({ "SetAnchors", "SetAlignment", "SetPosition", "SetAutoSize", "SetZOrder" }) do slot[f] = function() end end
         return slot
     end
-    local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = root } })
+    -- As on the client (v0.13.5 playtest): the root is a SafeZone holding the canvas.
+    local safe = Widget({ GetClass = function() return classed("SafeZone") end, GetFName = function() return FNameOf("SafeZone_0") end,
+                          GetChildrenCount = function() return 1 end, GetChildAt = function() return root end })
+    local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = safe } })
     local savedFAO = FindAllOf
     FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
     keyBinds["key:F4"]()
@@ -1833,7 +1849,8 @@ expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools b
     end
     run(20)
     FindAllOf = savedFAO
-    expect(logged("HUD probe: 1 WBP_PalHUDLayout_C, one visible") and logged("HUD probe: root Canvas_Root:CanvasPanel with 0 children")
+    expect(logged("HUD probe: 1 WBP_PalHUDLayout_C, one visible") and logged("HUD probe: root SafeZone_0:SafeZone with 1 children")
+           and logged("HUD probe: going down to Canvas_Root:CanvasPanel")
            and img and img.texture and img.texture.path == "ap-hint-icon-128",
            "Ctrl+F4 puts the hint icon on the HUD layout's canvas, logging what it found")
     local goal = canvasKids[2]
@@ -2293,7 +2310,7 @@ do  -- the Art & Assets lane's round-1 art (art.lua): the title banner with its 
     expect(logged("menu: title banner added on CanvasPanelMenu .*%(13 pt text%)") and not logged("title banner error"),
            "the title banner goes in above our buttons, its text at 13 pt")
     expect(sawNot and sawConnected, "its pill shows the connection: not connected, then connected with the server and slot")
-    expect(logged("mailbox: emblem added beside the heading") and chestRow and #chestRow.children == 1 and not logged("emblem error"),
+    expect(logged("mailbox: emblem added beside the heading %(SizeBox_Title:SizeBox < HorizontalBox_Title:HorizontalBox%)") and chestRow and #chestRow.children == 1 and not logged("emblem error"),
            "the mailbox emblem goes beside the chest window's heading (the mailbox's own window)")
     expect(not logged("art: could not load"), "every art file loads")
 end
