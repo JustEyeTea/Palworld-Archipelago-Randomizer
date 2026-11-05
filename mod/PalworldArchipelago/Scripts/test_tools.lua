@@ -281,12 +281,12 @@ function T.install()
         end)
     end
     log("test tools on: Ctrl+F5-F8 Slow/Hunger/Teleport/Fool Trap, Ctrl+F9 exhaustion, Ctrl+F10 nightfall, Ctrl+F11 status")
-    -- Ctrl+F3: the next wall skin (red, a, b, a3d, b3d; walls.lua), put on at the next update.
+    -- Ctrl+F3: the next wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense; walls.lua), put on at the next update.
     RegisterKeyBind(Key.F3, { ModifierKey.CONTROL }, function()
         local name = require("walls").cycleSkin()
         log("--- wall skin " .. tostring(name) .. " (on at the next update)")
     end)
-    log("test tools on: Ctrl+F3 wall skin (red, a, b, a3d, b3d)")
+    log("test tools on: Ctrl+F3 wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense)")
     RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function()
         ExecuteInGameThread(function()
             log("--- HUD probe")

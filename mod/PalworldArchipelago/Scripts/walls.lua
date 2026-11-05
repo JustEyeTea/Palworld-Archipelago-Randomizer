@@ -291,7 +291,10 @@ end
 -- (from the server pak): MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the
 -- engine's blue noise for the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day);
 -- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0. Untested in game (2026-11-04).
-local SKINS = { "red", "a", "b", "a3d", "b3d" }   -- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat)
+-- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat). <skin>-dense: that pattern tiled 10x6,
+-- twice the material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
+local SKINS = { "red", "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense" }
+local DENSE = { 10, 6 }
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
 local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
 local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
@@ -316,7 +319,9 @@ local function skinMaterial(name)
         skin.failed[name] = nil
         return nil
     end
-    local path = W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png"
+    local file = name:match("^(.-)%-dense$")
+    local tiling = file and DENSE or W.tiling
+    local path = W.dir .. "\\walls\\ap-wall-pattern-" .. (file or name) .. ".png"
     local tex = krl:ImportFileAsTexture2D(gi, path)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
     local srgb = pcall(function() tex.SRGB = false; tex:UpdateResource() end)   -- the game's pattern is linear
@@ -327,9 +332,9 @@ local function skinMaterial(name)
     mid:SetTextureParameterValue(FName("MainTexture01"), tex)
     local night = { R = TEAL.R * NIGHT, G = TEAL.G * NIGHT, B = TEAL.B * NIGHT, A = 1 }
     for k, c in pairs({ Color = TEAL, DayColor = TEAL, NightColor = night }) do mid:SetVectorParameterValue(FName(k), c) end
-    if W.tiling then
-        mid:SetScalarParameterValue(FName("TilingU_01"), W.tiling[1])
-        mid:SetScalarParameterValue(FName("TilingV_01"), W.tiling[2])
+    if tiling then
+        mid:SetScalarParameterValue(FName("TilingU_01"), tiling[1])
+        mid:SetScalarParameterValue(FName("TilingV_01"), tiling[2])
     end
     if W.scroll then
         mid:SetScalarParameterValue(FName("ScrollingU_01"), W.scroll[1])
@@ -340,7 +345,7 @@ local function skinMaterial(name)
     local okw, size = pcall(function() return tex:Blueprint_GetSizeX() .. "x" .. tex:Blueprint_GetSizeY() end)
     log("wall skin " .. name .. ": material made (" .. (okw and size or "size unknown")
         .. (srgb and ", linear" or ", sRGB: could not change") .. ", tiling "
-        .. (W.tiling and (W.tiling[1] .. "x" .. W.tiling[2]) or "the material's") .. ")")
+        .. (tiling and (tiling[1] .. "x" .. tiling[2]) or "the material's") .. ")")
     return mid
 end
 -- Puts the current skin on one piece (a new piece, or every raised one when the skin changes).
@@ -357,7 +362,7 @@ end
 function W.setSkin(name)
     if name == "" or name == nil then name = "red" end
     for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
-    log("wall skin " .. tostring(name) .. ": unknown (red, a or b)")
+    log("wall skin " .. tostring(name) .. ": unknown (" .. table.concat(SKINS, ", ") .. ")")
 end
 function W.cycleSkin()
     for k, s in ipairs(SKINS) do

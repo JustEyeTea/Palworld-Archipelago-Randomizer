@@ -682,6 +682,12 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
     W.cycleSkin(); run(1)
     expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d", "then b3d")
     W.cycleSkin(); run(1)
+    local m = a.Cube.mat
+    expect(m.textures.MainTexture01.path == "ap-wall-pattern-a3d" and m.scalars.TilingU_01 == 10 and m.scalars.TilingV_01 == 6
+           and logged("wall skin a3d%-dense: material made %(512x512, linear, tiling 10x6%)"), "then a3d tiled 10x6")
+    W.cycleSkin(); run(1)
+    expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d" and a.Cube.mat.scalars.TilingU_01 == 10, "then b3d tiled 10x6")
+    W.cycleSkin(); run(1)
     expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
     W.setSkin("c")
     expect(logged("wall skin c: unknown"), "an unknown skin is refused")
