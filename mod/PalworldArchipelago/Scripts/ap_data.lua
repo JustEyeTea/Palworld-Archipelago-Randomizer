@@ -1201,6 +1201,7 @@ M.items = {
     [1352729531] = { kind = "filler", name = "Ingot Bundle" },
     [1352729532] = { kind = "filler", name = "Sphere Bundle" },
     [1352729533] = { kind = "filler", name = "Food Bundle" },
+    [1352729534] = { kind = "filler", name = "Palworld Crate" },
     [1352729546] = { kind = "trap", name = "Slow Trap" },
     [1352729547] = { kind = "trap", name = "Hunger Trap" },
     [1352729548] = { kind = "trap", name = "Teleport Trap" },

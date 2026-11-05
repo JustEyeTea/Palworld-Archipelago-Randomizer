@@ -167,3 +167,24 @@ class TestPointsBudget(PalworldTestBase):
         for loc in self.multiworld.get_locations(self.player):
             if loc.progress_type == LocationProgressType.EXCLUDED:
                 self.assertFalse(loc.item.advancement or loc.item.useful, f"{loc.name} holds {loc.item.name}")
+
+
+class TestCrates(PalworldTestBase):
+    """The default filler is the Palworld Crate (and traps); material bundles only with Material Bundles on."""
+
+    def test_crates_not_bundles(self):
+        names = [i.name for i in self.multiworld.itempool]
+        self.assertGreater(names.count("Palworld Crate"), 100)
+        self.assertFalse(any(n.endswith(" Bundle") for n in names))
+        weights = self.world.fill_slot_data()["options"]
+        self.assertEqual([weights[k] for k in ("crate_sphere_weight", "crate_food_weight", "crate_common_weight",
+                                               "crate_rare_weight", "crate_jackpot_weight")], [30, 25, 30, 12, 3])
+
+
+class TestMaterialBundles(PalworldTestBase):
+    options = {"material_bundles": True}
+
+    def test_bundles_and_crates(self):
+        names = [i.name for i in self.multiworld.itempool]
+        self.assertIn("Palworld Crate", names)
+        self.assertTrue(any(n.endswith(" Bundle") for n in names))

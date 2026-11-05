@@ -93,6 +93,9 @@ FILLER = ["Tech Points +2", "Ancient Tech Points +1", "Wood Bundle", "Stone Bund
 # Traps (Trap Chance): received items that do something mildly bad in game. None can make the player faint.
 TRAPS = ["Slow Trap", "Hunger Trap", "Teleport Trap", "Fool Trap"]
 PROGRESSIVE_SPHERE = "Progressive Sphere"
+# The default filler (the user, 2026-11-05): a crate that turns into a Sphere, Food, Common, Rare or Jackpot Supply
+# crate when it arrives (the Crate Chances options), opened in game for contents scaled to the player's level then.
+CRATE = "Palworld Crate"
 RELIC = "Palpagos Relic"                           # the Relic Hunt goal's item
 
 
@@ -108,7 +111,8 @@ def _items() -> List[ItemDef]:
     out.append(ItemDef(PROGRESSIVE_SPHERE, BASE + 900, "progressive"))
     out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
-    out += [ItemDef(n, BASE + 970 + i, "trap") for i, n in enumerate(TRAPS)]      # 958-969 stay free for filler
+    out.append(ItemDef(CRATE, BASE + 958, "filler"))
+    out += [ItemDef(n, BASE + 970 + i, "trap") for i, n in enumerate(TRAPS)]      # 959-969 stay free for filler
     out += [ItemDef(region_pass(r), BASE + 7000 + i, "pass") for i, r in enumerate(REGION_PASS_AREAS)]
     return out
 
@@ -197,6 +201,7 @@ ITEM_GROUPS = {
     "Techs": {i.name for i in ITEMS if i.kind == "tech"},
     "Spheres": {tech_item(t[0]) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
     "Bundles": {n for n in FILLER if n.endswith(" Bundle")},
+    "Crates": {CRATE},
     "Tech Points": {"Tech Points +2", "Ancient Tech Points +1"},
     "Traps": set(TRAPS),
 }
