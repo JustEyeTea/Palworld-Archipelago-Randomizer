@@ -296,8 +296,10 @@ end
 -- colour-<x>: full-colour tiles (walls/ap-wall-colour-<x>.png, RGBA) on our own material, M_APWall, from the
 -- PalworldArchipelagoArt pak (logicmod/make_wall_material.py; the user, 2026-11-05: the game's material can show one
 -- colour per piece, they want multicolour). Without the pak (or the file) such a skin is refused, logged, and skipped
--- by Ctrl+F3.
-local SKINS = { "red", "colour-paws", "colour-routes", "colour-grid", "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense" }
+-- by Ctrl+F3. colour-<x>-flow: that tile drifting sideways (FLOW tiles a second; the user's rainbow, 2026-11-05).
+local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
+                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense" }
+local FLOW = 0.05
 local AP_WALL = "/Game/Mods/PalworldArchipelagoArt/M_APWall.M_APWall"
 local apWall = nil                                             -- M_APWall once loaded
 local DENSE = { 10, 6 }
@@ -321,7 +323,8 @@ end
 local function colourMaterial(name, gi, krl, kml)
     local base = apWallMaterial()
     if not base then log("wall skin " .. name .. ": needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
-    local path = W.dir .. "\\walls\\ap-wall-" .. name .. ".png"
+    local flow = name:match("^(.-)%-flow$")
+    local path = W.dir .. "\\walls\\ap-wall-" .. (flow or name) .. ".png"
     local tex = krl:ImportFileAsTexture2D(gi, path)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
     W.keep(tex)                                                -- a colour picture: sRGB as imported
@@ -329,12 +332,13 @@ local function colourMaterial(name, gi, krl, kml)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("Pattern"), tex)
-    if W.scroll then
-        mid:SetScalarParameterValue(FName("ScrollU"), W.scroll[1])
-        mid:SetScalarParameterValue(FName("ScrollV"), W.scroll[2])
+    local scroll = flow and { FLOW, 0 } or W.scroll
+    if scroll then
+        mid:SetScalarParameterValue(FName("ScrollU"), scroll[1])
+        mid:SetScalarParameterValue(FName("ScrollV"), scroll[2])
     end
     skin.mids[name], skin.failed[name] = mid, nil
-    log("wall skin " .. name .. ": material made on M_APWall")
+    log("wall skin " .. name .. ": material made on M_APWall" .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
     return mid
 end
 local function skinMaterial(name)

@@ -704,6 +704,11 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
            and cm.textures.Pattern and cm.textures.Pattern.path == "ap-wall-colour-paws" and cm.textures.Pattern.SRGB == true
            and logged("wall skin colour%-paws: material made on M_APWall"),
            "a colour skin: M_APWall from the pak with the colour tile (left sRGB)")
+    W.setSkin("colour-rainbow-flow"); run(1)
+    local fm = a.Cube.mat
+    expect(fm.textures.Pattern.path == "ap-wall-colour-rainbow" and fm.scalars.ScrollU == 0.05 and fm.scalars.ScrollV == 0,
+           "the -flow skin: the same tile, drifting sideways")
+    W.setSkin("colour-paws"); run(1)
     cm.parent.IsValid = function() return false end            -- now without the pak
     logicMod = false
     expect(W.cycleSkin() == "colour-routes", "Ctrl+F3 goes on to the next colour skin"); run(1)
