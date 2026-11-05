@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.13.11"
+local VERSION = "0.14.0-dev"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -600,9 +600,10 @@ local function relabel(card, key, full)
     local clickable = not sent or mine ~= nil
     local it = own and D.items[r.id]
     local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
-    -- An Area Pass shows its own area's ticket (art/ap-pass-<area>.png, round 2), else the shared one.
+    -- An Area Pass shows its own area's ticket (art/ap-pass-<area>.png, round 2), else the shared one; a Region Pass
+    -- (area_size regions) the shared one.
     local tex = mine and techIcon(mine)
-        or (kind == "area-pass" and require("art").texture("ap-pass-" .. WALLS.slugOf(it.area)))
+        or (kind == "area-pass" and it.name:find("^Area Pass") and require("art").texture("ap-pass-" .. WALLS.slugOf(it.area)))
         or icon(kind, card)
     local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
     local sig = name .. "\0" .. category .. "\0" .. tostring(clickable) .. "\0" .. tostring(texAddr)
@@ -933,6 +934,9 @@ local function onEvent(line)
             if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
             local locks = AP_SlotData("options.area_locks")
             areaLocks = locks == "1" or locks == "true"
+            -- The seed's cut of the map (options.area_size: 0 the 15 areas, 1 every region; older seeds have none).
+            local size = AP_SlotData("options.area_size")
+            WALLS.setLayout((size == "1" or size == "regions") and "regions" or "areas")
             local dl = AP_SlotData("options.death_link")
             death.on = (dl == "1" or dl == "true") and AP_SetTags ~= nil
             if death.on then
@@ -972,7 +976,7 @@ local function onEvent(line)
         if kindOf == "Hint" then
             notify(text)
             -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
-            local who, pass = text:match("^%[Hint%]: (.-)'s Area Pass: (.-) is at ")
+            local who, pass = text:match("^%[Hint%]: (.-)'s %a+ Pass: (.-) is at ")       -- Area or Region Pass
             if pass and who == (ap.slotName or cfg.slot) then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
         elseif kindOf == "CommandResult" and hints.asked and tick - hints.asked < 50 then
             notify(text)                               -- the server's answer to a hint the player asked for
@@ -1018,7 +1022,7 @@ end
 
 -- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.
 local function wallNotice(area)
-    local pass = "Area Pass: " .. area
+    local pass = WALLS.passName(area)
     if hints.known[area] then return area .. " is sealed. " .. hints.known[area] end
     local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
     local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
@@ -1040,8 +1044,8 @@ local function askHint()
         return
     end
     hints.offer, hints.asked = nil, tick
-    AP_Say("!hint Area Pass: " .. area)
-    notify("Asking the Archipelago server where Area Pass: " .. area .. " is...")
+    AP_Say("!hint " .. WALLS.passName(area))
+    notify("Asking the Archipelago server where " .. WALLS.passName(area) .. " is...")
 end
 if RegisterKeyBind and Key and Key[hints.key] then
     RegisterKeyBind(Key[hints.key], function()
@@ -1246,7 +1250,7 @@ local function update(ctx)
                         pawn:K2_TeleportTo({ X = h[1], Y = h[2], Z = h[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
                     end)
                     log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
-                    notify(tostring(where) .. " is locked until its Area Pass arrives. Back to " .. WALLS.start .. ".")
+                    notify(tostring(where) .. " is locked until its pass arrives. Back to " .. WALLS.start .. ".")
                 end
             end
         end

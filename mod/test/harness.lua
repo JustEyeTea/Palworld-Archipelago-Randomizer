@@ -2342,6 +2342,27 @@ do  -- the Art & Assets lane's round-1 art (art.lua): the title banner with its 
            "the mailbox emblem goes beside the chest window's heading (the mailbox's own window)")
     expect(not logged("art: could not load"), "every art file loads")
 end
+do  -- area_size regions: every named region of the game its own, opened by a Region Pass (slot data options.area_size)
+    local RD = dofile(MOD .. "/Scripts/area_walls_regions.lua")
+    local W = require("walls")
+    slotData["options.area_size"] = "1"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+    run(80)
+    expect(logged("area locks: regions %(75 regions, " .. #RD.walls .. " border pieces%)") and W.layout == "regions"
+           and W.passName("Golden Hills") == "Region Pass: Golden Hills", "a regions seed: the regions' walls and passes")
+    local up = wallCount()
+    expect(up > 1000 and up <= #RD.walls, "the regions' walls go up (the areas' came down): " .. up)
+    push("item", "9000", tostring(itemId["Region Pass: Golden Hills"]), "1", "1", "1", "Region Pass: Golden Hills", "Tester")
+    run(60)
+    expect(wallCount() < up, "a Region Pass takes its region's walls down: " .. up .. " -> " .. wallCount())
+    slotData["options.area_size"] = nil                          -- an areas seed again (and seeds made before the option)
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(W.layout == "areas" and logged("area locks: areas %(15 areas"), "back to an areas seed: the areas' walls")
+end
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

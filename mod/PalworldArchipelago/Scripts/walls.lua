@@ -2,11 +2,15 @@
 -- stretched into pieces along every border between areas (area_walls.lua, from tools/area_walls.py). A piece stays up
 -- while either area it separates is locked; an Area Pass opens its area. Open sea is never locked, so an area that
 -- is locked is ringed from the sea as well.
+-- Two cuts of the map (the seed's area_size option, W.setLayout): "areas", the 15 areas (area_walls.lua and the rest);
+-- "regions", every named region of the game (the same files with _regions). The areas' are loaded at start.
 local DATA = require("area_walls")
 local MAP = require("area_map")
-local SHAPES = require("area_shapes")
+local SHAPES = nil            -- area_shapes(_regions).lua: only for a map drawn without the compositor, loaded then
+local SUFFIX = ""
 
 local W = {}
+W.layout = "areas"
 local P = require("perf")
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 local reported = {}
@@ -26,9 +30,18 @@ local nRaised = 0             -- how many raised holds (counted as it changes: W
 local cls, gs = nil, nil
 -- Each piece's direction, worked out once (lockedNear did it for every raised piece every 7th update).
 local trig = {}
-for i, w in ipairs(DATA.walls) do
-    local yaw = math.rad(w[4])
-    trig[i] = { math.cos(yaw), math.sin(yaw) }
+local function buildTrig()
+    trig = {}
+    for i, w in ipairs(DATA.walls) do
+        local yaw = math.rad(w[4])
+        trig[i] = { math.cos(yaw), math.sin(yaw) }
+    end
+end
+buildTrig()
+
+-- The item that opens an area: an Area Pass, or with area_size regions a Region Pass.
+function W.passName(area)
+    return (W.layout == "regions" and "Region Pass: " or "Area Pass: ") .. area
 end
 
 local function isOpen(area, passes)
@@ -447,7 +460,7 @@ end
 -- stamp inside the area on its side nearest the starting area (area_centres.lua, from tools/area_centres.py). v0.13.5
 -- playtest: at each area's deepest point all 14 sat under the map's fog of war, which a locked area never clears.
 local ART = require("art")
-local CENTRES = require("area_centres")
+local CENTRES = require("area_centres")    -- area_centres_regions.lua with the regions (W.setLayout)
 local STAMP_PX = 88
 local function slugOf(name) return (name:lower():gsub("[^%w]+", "-")) end
 W.slugOf = slugOf
@@ -462,7 +475,9 @@ local function drawStamps(canvas, krl, gi, locked)
     local n = 0
     for _, k in ipairs(locked) do
         local c, name = CENTRES[k], DATA.areas[k + 1]
-        local tex = c and name and (ART.texture("ap-map-stamp-" .. slugOf(name)) or ART.texture("ap-map-stamp"))
+        -- per-area stamps exist for the 15 areas only; a region takes the shared one
+        local tex = c and name and ((W.layout == "areas" and ART.texture("ap-map-stamp-" .. slugOf(name)))
+                                    or ART.texture("ap-map-stamp"))
         if tex then
             local u, v = c[3] or c[1], c[4] or c[2]
             canvas:K2_DrawTexture(tex, { X = u * RT_SIZE - STAMP_PX / 2, Y = v * RT_SIZE - STAMP_PX / 2 },
@@ -504,6 +519,7 @@ local triangles = {}          -- area index .. tint -> FCanvasUVTri list, built 
 local function trianglesOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if triangles[key] then return triangles[key] end
+    SHAPES = SHAPES or require("area_shapes" .. SUFFIX)
     local v, out = SHAPES.areas[k] or {}, {}
     for t = 1, #v - 5, 6 do
         local tri = {}
@@ -522,6 +538,7 @@ local bands = {}              -- area index .. tint -> FCanvasUVTri list of its 
 local function bandOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if bands[key] then return bands[key] end
+    SHAPES = SHAPES or require("area_shapes" .. SUFFIX)
     local v, out = (SHAPES.edges or {})[k] or {}, {}
     for t = 1, #v - 8, 9 do
         local tri = {}
@@ -679,7 +696,7 @@ local function composeMap(ctx, passes, key)
     local tex = StaticFindObject(MAP_TEXTURE)
     if not tex or not tex:IsValid() then return false end
     local colour = colourMap(krl, tex, gi)
-    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels.png", lockedIndexes(passes),
+    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes),
         W.dir .. "\\map-composed.png", "0.4545")
     if err == "" then composing, composingList = key, lockedList(passes) elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
     return false
@@ -751,6 +768,27 @@ end
 
 function W.count()
     return nRaised, #DATA.walls
+end
+
+
+-- The seed's cut of the map (slot data options.area_size: 0 areas, 1 regions), set once a connection is ready and
+-- before any wall goes up. A change takes every wall down at once (their piece numbers mean other pieces in the other
+-- cut) and forgets the map pictures made for the old one; the update raises the new cut's walls.
+function W.setLayout(name)
+    name = name == "regions" and "regions" or "areas"
+    if name == W.layout then return false end
+    for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
+    raised, nRaised, sinking = {}, 0, {}
+    SUFFIX = name == "regions" and "_regions" or ""
+    DATA, MAP, SHAPES = require("area_walls" .. SUFFIX), require("area_map" .. SUFFIX), nil
+    CENTRES = require("area_centres" .. SUFFIX)
+    START, W.start, W.home = DATA.start, DATA.start, MAP.home
+    W.layout = name
+    buildTrig()
+    decoded, triangles, bands = {}, {}, {}
+    mapKey, composing, composedKey, failedKey, composingList = nil, nil, nil, nil, {}
+    log("area locks: " .. name .. " (" .. (#DATA.areas - 1) .. " " .. name .. ", " .. #DATA.walls .. " border pieces)")
+    return true
 end
 
 return W
