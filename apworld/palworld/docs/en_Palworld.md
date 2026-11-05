@@ -42,10 +42,21 @@ game.
 
 ## What the logic expects
 
-Levels climb area by area: an area counts for levelling once you can catch its Pals (spheres good enough for them,
-and the furnace their recipe needs) and are no more than 8 levels below them. Towers and alphas also need spheres for
-their level. Crossing the open sea needs a mount that swims or flies (its saddle and the Pal), and the Sky Islands a
-flying one.
+Levels climb area by area: an area counts for levelling once it is open and you are no more than 8 levels below its
+Pals. Nothing stops you levelling; the logic just won't expect a level-20 boss or a level-23 Pal before your open areas
+let you reach that level.
+
+By default (Gear Logic off) only Area Passes and levels decide where things can be. Your first Pal Sphere comes early,
+and gear never holds up progression: better spheres, furnaces, prerequisites, the Pal Labor Research Lab and breeding
+are ordinary items. Tech cards that need another tech or Lab research first stay normal research, bred-only Pals
+aren't checks, and parts of the map only the open sea reaches have no checks. A saddle counts only where the map needs
+one: a flying mount for the Sky Islands, and a swimming or flying one when the goal lies across the open sea.
+
+With Gear Logic on, the logic also asks for spheres good enough for each Pal's level (and the furnace their recipe
+needs), every tech's prerequisites, the Lab, breeding, and a mount for the open sea.
+
+Filler items are material bundles (Wood, Stone, Paldium, Ingot, Sphere, Food); the Tech Point Items option adds
+Tech Points +2 and Ancient Tech Points +1.
 
 By default the décor techs (furniture, flag and foliage sets, statues, signs and lights) stay normal research, bought
 with tech points as usual; the Tech Checks option can make them checks too.

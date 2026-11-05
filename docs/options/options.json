@@ -1,7 +1,7 @@
 {
  "game": "Palworld",
  "game_yaml": "Palworld",
- "world_version": "0.5.0",
+ "world_version": "0.6.0",
  "archipelago_version": "0.6.8",
  "yaml_header": "# Q. What is this file?\n# A. This file contains options which allow you to configure your multiworld experience while allowing\n#    others to play how they want as well.\n#\n# Q. How do I use it?\n# A. The options in this file are weighted. This means the higher number you assign to a value, the\n#    more chances you have for that option to be chosen. For example, an option like this:\n#\n#    map_shuffle:\n#      on: 5\n#      off: 15\n#\n#    Means you have 5 chances for map shuffle to occur, and 15 chances for map shuffle to be turned\n#    off.\n#\n# Q. I've never seen a file like this before. What characters am I allowed to use?\n# A. This is a .yaml file. You are allowed to use most characters.\n#    To test if your yaml is valid or not, you can use this website:\n#        http://www.yamllint.com/\n#    You can also verify that your Archipelago options are valid at this site:\n#        https://archipelago.gg/check\n\n# Your name in-game, limited to 16 characters.\n#     {player} will be replaced with the player's slot number.\n#     {PLAYER} will be replaced with the player's slot number, if that slot number is greater than 1.\n#     {number} will be replaced with the counter value of the name.\n#     {NUMBER} will be replaced with the counter value of the name, if the counter value is greater than 1.\n",
  "descriptions": {
@@ -193,9 +193,28 @@
      "default": "locked"
     },
     {
+     "key": "gear_logic",
+     "name": "Gear Logic",
+     "type": "Toggle",
+     "help": "What the logic counts on besides Area Passes and levels.\nOff: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,\nfurnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need\nanother tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only\nwhere the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when\nan area can't be reached by land.\nOn: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every\ntech's prerequisites, the Lab, breeding, and a mount for the open sea.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
+    {
      "key": "progressive_spheres",
      "name": "Progressive Spheres",
-     "type": "DefaultOnToggle",
+     "type": "Toggle",
      "help": "Sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on) instead of separately.",
      "choices": [
       {
@@ -209,7 +228,7 @@
        "yaml": "'true'"
       }
      ],
-     "default": "true"
+     "default": "false"
     }
    ]
   },
@@ -330,6 +349,31 @@
       }
      ],
      "default": "every_level"
+    }
+   ]
+  },
+  {
+   "name": "Filler",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "tech_point_items",
+     "name": "Tech Point Items",
+     "type": "Toggle",
+     "help": "Tech Points +2 and Ancient Tech Points +1 among the filler items (otherwise only material bundles).",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
     }
    ]
   },

@@ -53,16 +53,16 @@ class Levels:
         """The level from which a tech can be had: its own, or its tower's if it needs one."""
         return max(tech[2], self.tower[tech[6]] if tech[6] else 0)
 
-    def _pal(self, entry: str, live: Optional[FrozenSet[str]] = None) -> int:
-        """The lowest level at which a Pal can be had: where it is caught, or for a bred-only Pal, its parents' level
-        and the Breeding Farm's. With `live`, only sources in those pieces count."""
+    def _pal(self, entry: str, live: Optional[FrozenSet[str]] = None, breed: bool = True) -> int:
+        """The lowest level at which a Pal can be had: where it is caught, or for a bred-only Pal (with `breed`), its
+        parents' level and the Breeding Farm's. With `live`, only sources in those pieces count."""
         sources = self.layout.sources
         caught = lambda s: s[0] in ("wild", "alpha", "dungeon") and (live is None or s[1] in live)
         best = MAX_LEVEL + 1
         for source in sources[entry]:
             if caught(source):
                 best = min(best, int(source[2]))
-            elif source[0] == "breed" and all(p in DIRECT for p in source[1]):
+            elif breed and source[0] == "breed" and all(p in DIRECT for p in source[1]):
                 parents = max(min((int(s[2]) for s in sources[p] if caught(s)), default=MAX_LEVEL + 1)
                               for p in source[1])
                 best = min(best, max(parents, self.tech(TECH_BY_ID[BREEDING_TECH])))
@@ -133,9 +133,24 @@ class PalworldWorld(World):
                 self.scope = self.every_area()
         self.live = (self.pieces_of(self.scope) if o.area_locks and o.beyond_goal == o.beyond_goal.option_locked
                      else frozenset(self.layout.pieces))
+        # Gear Logic off: only passes and levels (and the first sphere) gate anything; bred-only Pals aren't checks.
+        self.gear = bool(o.gear_logic)
+        # Mounts count only where the map needs them: the open sea always with Gear Logic; without it only when the
+        # goal can't be reached by land, and otherwise the pieces only the sea reaches are left out of the seed (no
+        # checks there; a player may still swim over). The Sky Islands need a flying mount whenever the seed has them.
+        land = self.reach_by_land()
+        goal_pieces = [self.layout.towers[t] for t in self.goal_towers]
+        if o.goal == o.goal.option_world_tree:
+            goal_pieces.append(self.layout.world_tree)
+        self.sea_needed = self.gear or any(p not in land for p in goal_pieces)
+        if not self.sea_needed:
+            self.live = frozenset(p for p in self.live if p in land)
+        self.sky_needed = any(a in self.layout.sky for p, a in self.layout.pieces.items() if p in self.live)
+        self.prog_techs = self.progression_techs()
         # A Pal is a capture check only where this seed has checks: not in areas beyond the goal, open or not.
-        self.pal_level = ({e: self.lv._pal(e, self.pieces_of(self.scope)) for e in CATCHABLE}
-                          if self.scope != self.every_area() else self.lv.pal)
+        checked = self.live & self.pieces_of(self.scope)
+        self.pal_level = ({e: self.lv._pal(e, checked, breed=self.gear) for e in CATCHABLE}
+                          if checked != frozenset(self.layout.pieces) or not self.gear else self.lv.pal)
         self.cap = min(self.cap, self.climb_top())      # no check above what the map in this seed lets a player reach
         if o.goal == o.goal.option_paldeck:     # the goal must fit under the cap the player chose
             reachable = sum(1 for lv in self.pal_level.values() if lv <= self.cap)
@@ -239,6 +254,44 @@ class PalworldWorld(World):
             top = max(top, int(levels[a]) + LEVEL_SLACK)
         return min(MAX_LEVEL, top)
 
+    def reach_by_land(self) -> FrozenSet[str]:
+        """The pieces in this seed the start reaches without the open sea (and without going up to the sky)."""
+        layout, nbrs = self.layout, self.neighbours()
+        todo = [p for p, a in layout.pieces.items() if a == layout.start]
+        seen = set(todo)
+        while todo:
+            for nxt in nbrs.get(todo.pop(), ()):
+                area = layout.pieces[nxt]
+                if nxt not in seen and nxt in self.live and area != SEA and area not in layout.sky:
+                    seen.add(nxt)
+                    todo.append(nxt)
+        return frozenset(seen)
+
+    def progression_techs(self) -> FrozenSet[str]:
+        """The techs the logic counts on in this seed: every prerequisite, the Lab, breeding, spheres, their furnaces
+        and the sea mounts with Gear Logic; without it only the first sphere and the saddles the map needs."""
+        if self.gear:
+            return frozenset(PREREQ_TECHS)
+        out = {SPHERE_TECHS[0][0]}
+        if self.sea_needed:
+            out |= set(SEA_MOUNTS)
+        if self.sky_needed:
+            out |= set(FLYING_MOUNTS)
+        todo = list(out)                        # and whatever those techs' cards need first
+        while todo:
+            tech = TECH_BY_ID[todo.pop()]
+            for need in (tech[5], LAB_TECH if tech[7] else None):
+                if need and TECH_BY_ID[need][2] > STARTER_LEVEL and need not in out:
+                    out.add(need)
+                    todo.append(need)
+        return frozenset(out)
+
+    def gated(self, tech) -> bool:
+        """A tech card that needs another (non-starter) tech or Lab research first: without Gear Logic it stays normal
+        research, so no check waits on a gear item."""
+        prereq, research = tech[5], tech[7]
+        return bool(research) or bool(prereq and TECH_BY_ID[prereq][2] > STARTER_LEVEL)
+
     def passes_in_pool(self) -> List[str]:
         if not self.options.area_locks:
             return []
@@ -254,7 +307,7 @@ class PalworldWorld(World):
         water to go out on the open sea, and one that flies to go up to the Sky Islands."""
         area = self.layout.pieces[piece]
         if area == SEA:
-            return self.can_ride(state, SEA_MOUNTS)
+            return not self.sea_needed or self.can_ride(state, SEA_MOUNTS)
         if area in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
             return False
         if area not in self.scope:              # beyond the goal: open from the start, or no pass at all
@@ -289,14 +342,15 @@ class PalworldWorld(World):
         """Spheres the player can make, in order: each sphere's tech and what its recipe needs (SPHERE_NEEDS)."""
         tier = 0
         for tech in SPHERE_TECHS:
-            if not all(self.has_tech(state, t, top) for t in (tech[0],) + SPHERE_NEEDS.get(tech[0], ())):
+            needs = SPHERE_NEEDS.get(tech[0], ()) if self.gear else ()
+            if not all(self.has_tech(state, t, top) for t in (tech[0],) + needs):
                 break
             tier += 1
         return tier
 
     def can_catch_at(self, state: CollectionState, level: int, top: Optional[int] = None) -> bool:
         """Spheres good enough for Pals of this level (top: the player's level, when already known)."""
-        need = min(len(SPHERE_TECHS), max(1, math.ceil(level / SPHERE_STEP)))
+        need = min(len(SPHERE_TECHS), max(1, math.ceil(level / SPHERE_STEP))) if self.gear else 1
         return self.sphere_tier(state, top) >= need
 
     def can_fight_at(self, state: CollectionState, level: int) -> bool:
@@ -321,7 +375,7 @@ class PalworldWorld(World):
                 _, area, level = source
                 if self.area_open(state, area) and self.level_ok(state, level) and self.can_catch_at(state, level):
                     return True
-            elif kind == "breed" and breed and self.has_tech(state, BREEDING_TECH):
+            elif kind == "breed" and breed and self.gear and self.has_tech(state, BREEDING_TECH):
                 if all(p in DIRECT and self.can_get_pal(state, p, breed=False) for p in source[1]):
                     return True
         return False
@@ -344,7 +398,8 @@ class PalworldWorld(World):
         if not hasattr(self, "_research"):
             decor = DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
             beyond = {t for t in self.layout.towers if self.layout.pieces[self.layout.towers[t]] not in self.scope}
-            self._research = decor | {t[0] for t in SHOP_TECHS if self.lv.tech(t) > self.cap or t[6] in beyond}
+            self._research = decor | {t[0] for t in SHOP_TECHS if self.lv.tech(t) > self.cap or t[6] in beyond
+                                      or (not self.gear and self.gated(t))}
         return self._research
 
     def loc_level(self, loc) -> int:
@@ -360,7 +415,7 @@ class PalworldWorld(World):
     def wanted(self, loc) -> bool:
         o = self.options
         piece = self.layout.location_piece[loc.name]
-        if piece and self.layout.pieces[piece] not in self.scope: return False    # beyond the goal: no checks
+        if piece and (self.layout.pieces[piece] not in self.scope or piece not in self.live): return False   # not in this seed
         if self.loc_level(loc) > self.cap: return False
         if loc.name in SHARED_ALPHAS: return False     # its defeat records as another alpha's: that one is the check
         if loc.kind == "shop": return loc.key not in self.research()
@@ -421,7 +476,8 @@ class PalworldWorld(World):
             cls = ItemClassification.trap
         elif kind == "tech":
             tech = next(t for t in SHOP_TECHS if tech_item(t[0]) == name)
-            cls = ItemClassification.progression if tech[0] in PREREQ_TECHS else ItemClassification.useful
+            prog = getattr(self, "prog_techs", PREREQ_TECHS)     # (before generate_early: Archipelago's item tests)
+            cls = ItemClassification.progression if tech[0] in prog else ItemClassification.useful
         else:
             cls = ItemClassification.filler
         return PalworldItem(name, cls, ITEM_NAME_TO_ID[name], self.player)
@@ -457,7 +513,11 @@ class PalworldWorld(World):
 
     def get_filler_item_name(self) -> str:
         # Filler only, never a trap: core's own replacements (item links, plando, start inventory from pool) use this.
-        return self.random.choice(FILLER)
+        return self.random.choice(self.filler_names())
+
+    def filler_names(self) -> List[str]:
+        """Material bundles, plus the tech-point items with Tech Point Items on."""
+        return [n for n in FILLER if self.options.tech_point_items or "Tech Points" not in n]
 
     def trap_weights(self) -> list:
         o = self.options
@@ -513,7 +573,7 @@ class PalworldWorld(World):
         self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)
 
     def fill_slot_data(self) -> Dict[str, Any]:
-        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "area_size", "beyond_goal",
+        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "area_size", "beyond_goal", "gear_logic",
                                                 "progressive_spheres",
                                                 "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks",
                                                 "level_checks", "death_link", "death_link_amnesty", "trap_chance"),

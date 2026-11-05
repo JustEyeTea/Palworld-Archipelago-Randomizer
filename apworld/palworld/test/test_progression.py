@@ -67,7 +67,7 @@ class TestBeyondGoalPasses(PalworldTestBase):
 
 
 class TestBeyondGoalOpen(PalworldTestBase):
-    options = {"beyond_goal": "open"}
+    options = {"beyond_goal": "open", "gear_logic": True, "progressive_spheres": True}
 
     def test_open_without_a_pass_and_no_checks(self):
         self.assertEqual(passes(self), TWO_TOWER_PASSES)
@@ -95,3 +95,48 @@ class TestWorldTreeKeepsEverything(PalworldTestBase):
 
     def test_every_area(self):
         self.assertEqual(len(passes(self)), 14)
+
+
+class TestNoGearLogic(PalworldTestBase):
+    """The default: only passes and levels gate anything, besides the first Pal Sphere (placed early)."""
+
+    def test_only_passes_and_the_first_sphere_are_progression(self):
+        prog = sorted({i.name for i in self.multiworld.itempool if i.advancement})
+        others = [n for n in prog if not n.startswith("Area Pass: ")]
+        self.assertEqual(others, [], "a two-tower seed reaches everything by land: no saddle needed")
+        first = [l for l in self.multiworld.get_locations(self.player) if l.item and l.item.name == "Tech: Pal Sphere"]
+        self.assertEqual(len(first), 1)
+        self.assertTrue(first[0].locked and first[0].item.advancement, "the first sphere sits early, as progression")
+        self.assertFalse(any(i.name == "Progressive Sphere" for i in self.multiworld.itempool))
+
+    def test_no_tech_points_in_the_pool(self):
+        self.assertFalse(any("Tech Points" in i.name for i in self.multiworld.itempool))
+
+    def test_lily_needs_only_passes(self):
+        self.collect_by_name(sorted(TWO_TOWER_PASSES))
+        self.multiworld.state.sweep_for_advancements()
+        self.assertTrue(self.can_reach_location("Goal Complete"))
+
+    def test_gated_cards_stay_research(self):
+        """A card that needs another tech first (Lockpicking Tool v2 needs v1) has no check without Gear Logic."""
+        names = {l.name for l in self.multiworld.get_locations(self.player)}
+        self.assertIn("Shop: Lockpicking Tool v1 (Ancient)", names)
+        self.assertNotIn("Shop: Lockpicking Tool v2 (Ancient)", names)
+        self.assertIn("Unlock_Picking_Tier2", self.world.fill_slot_data()["research_techs"].split(","))
+
+
+class TestNoGearLogicWorldTree(PalworldTestBase):
+    """Without Gear Logic the Sky Islands still need a flying mount, and the islands the open sea."""
+    options = {"goal": "world_tree"}
+
+    def test_saddles_count_where_the_map_needs_them(self):
+        self.assertTrue(self.get_item_by_name("Tech: Nitewing Saddle").advancement)
+        self.assertTrue(self.get_item_by_name("Tech: Surfent Saddle").advancement)
+        self.assertFalse(self.get_item_by_name("Tech: Primitive Furnace").advancement)
+
+
+class TestTechPointItems(PalworldTestBase):
+    options = {"tech_point_items": True}
+
+    def test_tech_points_in_the_filler(self):
+        self.assertTrue(any("Tech Points" in i.name for i in self.multiworld.itempool))

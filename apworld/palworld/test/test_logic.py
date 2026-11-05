@@ -2,7 +2,8 @@ from . import PalworldTestBase
 
 
 class TestLevels(PalworldTestBase):
-    options = {"goal": "world_tree"}              # every area and every tech, the Sky Islands and saddles too
+    # Every area and every tech, the Sky Islands and saddles too, with the strict gear logic and progressive spheres.
+    options = {"goal": "world_tree", "gear_logic": True, "progressive_spheres": True}
 
     def test_a_pass_alone_is_not_a_level(self):
         """Reaching a high-level area does not let a fresh player level there, or beat its tower."""
@@ -27,7 +28,7 @@ class TestLevels(PalworldTestBase):
 
 
 class TestMounts(PalworldTestBase):
-    options = {"goal": "world_tree"}
+    options = {"goal": "world_tree", "gear_logic": True, "progressive_spheres": True}
 
     def test_the_sea_needs_a_mount_and_the_sky_islands_a_flying_one(self):
         self.collect_by_name([i.name for i in self.multiworld.itempool if i.name.startswith("Area Pass")])
@@ -67,7 +68,7 @@ class TestLevelChecksEvery5(PalworldTestBase):
 
 
 class TestSyncNeedsItems(PalworldTestBase):
-    options = {"tower_count": 1}
+    options = {"tower_count": 1, "gear_logic": True, "progressive_spheres": True}
 
     def test_goal_not_in_reach_with_nothing(self):
         self.assertFalse(self.can_reach_location("Goal Complete"))

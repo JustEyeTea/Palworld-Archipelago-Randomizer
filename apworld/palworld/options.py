@@ -94,9 +94,26 @@ class BeyondGoal(Choice):
     default = 0
 
 
-class ProgressiveSpheres(DefaultOnToggle):
+class ProgressiveSpheres(Toggle):
     """Sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on) instead of separately."""
     display_name = "Progressive Spheres"
+
+
+class GearLogic(Toggle):
+    """What the logic counts on besides Area Passes and levels.
+    Off: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,
+    furnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need
+    another tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only
+    where the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when
+    an area can't be reached by land.
+    On: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every
+    tech's prerequisites, the Lab, breeding, and a mount for the open sea."""
+    display_name = "Gear Logic"
+
+
+class TechPointItems(Toggle):
+    """Tech Points +2 and Ancient Tech Points +1 among the filler items (otherwise only material bundles)."""
+    display_name = "Tech Point Items"
 
 
 class TechChecks(Choice):
@@ -200,11 +217,13 @@ class PalworldOptions(PerGameCommonOptions):
     area_size: AreaSize
     beyond_goal: BeyondGoal
     progressive_spheres: ProgressiveSpheres
+    gear_logic: GearLogic
     tech_checks: TechChecks
     capture_checks: CaptureChecks
     alpha_checks: AlphaChecks
     fast_travel_checks: FastTravelChecks
     level_checks: LevelChecks
+    tech_point_items: TechPointItems
     death_link: DeathLink
     death_link_amnesty: DeathLinkAmnesty
     trap_chance: TrapChance
@@ -216,8 +235,9 @@ class PalworldOptions(PerGameCommonOptions):
 
 option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
-    OptionGroup("Progression", [AreaLocks, AreaSize, BeyondGoal, ProgressiveSpheres]),
+    OptionGroup("Progression", [AreaLocks, AreaSize, BeyondGoal, GearLogic, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
+    OptionGroup("Filler", [TechPointItems]),
     OptionGroup("Traps", [TrapChance, SlowTrapWeight, HungerTrapWeight, TeleportTrapWeight, FoolTrapWeight]),
     OptionGroup("Death Link", [DeathLink, DeathLinkAmnesty]),
 ]
