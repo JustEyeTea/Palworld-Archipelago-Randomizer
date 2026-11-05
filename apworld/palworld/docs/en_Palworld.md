@@ -55,6 +55,11 @@ one: a flying mount for the Sky Islands, and a swimming or flying one when the g
 With Gear Logic on, the logic also asks for spheres good enough for each Pal's level (and the furnace their recipe
 needs), every tech's prerequisites, the Lab, breeding, and a mount for the open sea.
 
+Tech slots cost their usual tech points, which the logic doesn't count. So only the slots levelling pays for in time
+(6 points a level, the cheapest first as they open; Ancient slots within the Ancient points of the towers you beat before
+the goal) can hold anyone's progression or useful items; the rest hold filler and traps. Fast-travel points and
+Technical Manuals give the spare points for those.
+
 Filler items are material bundles (Wood, Stone, Paldium, Ingot, Sphere, Food); the Tech Point Items option adds
 Tech Points +2 and Ancient Tech Points +1.
 
