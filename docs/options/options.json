@@ -92,7 +92,7 @@
      "key": "tower_count",
      "name": "Towers to Beat",
      "type": "Range",
-     "help": "Towers goal: how many tower bosses you must beat. One or two suit a run of a few hours; all eight is a long\ngame.",
+     "help": "Towers goal: how many tower bosses you must beat. Any towers count, but the logic plans for the first ones in the\ngame's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).\nOne or two suit a run of a few hours; all eight is a long game.",
      "min": 1,
      "max": 8,
      "default": 2
@@ -169,6 +169,30 @@
      "default": "areas"
     },
     {
+     "key": "beyond_goal",
+     "name": "Areas Beyond the Goal",
+     "type": "Choice",
+     "help": "Area Locks: what becomes of the areas this goal never needs, the ones whose Pals are all above the Check Level\nCap. The areas on the way to the goal's towers always stay in.\nLocked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.\nPasses: every area has its pass somewhere in the multiworld, as with no cap at all.\nOpen: their walls are down from the start, but nothing in them is a check.",
+     "choices": [
+      {
+       "name": "locked",
+       "value": 0,
+       "yaml": "locked"
+      },
+      {
+       "name": "passes",
+       "value": 1,
+       "yaml": "passes"
+      },
+      {
+       "name": "open",
+       "value": 2,
+       "yaml": "open"
+      }
+     ],
+     "default": "locked"
+    },
+    {
      "key": "progressive_spheres",
      "name": "Progressive Spheres",
      "type": "DefaultOnToggle",
@@ -197,7 +221,7 @@
      "key": "check_level",
      "name": "Check Level Cap",
      "type": "Range",
-     "help": "The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,\nalphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.\n0 (auto) sets it from the goal: 8 levels past the last tower you need, 5 levels past the level by which you can\nregister enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2.",
+     "help": "The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,\nalphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.\n0 (auto) sets it from the goal: 8 levels past the last tower boss you need (18 for one tower, 28 for two), 5 levels\npast the level by which you can\nregister enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2.",
      "min": 0,
      "max": 80,
      "default": 0

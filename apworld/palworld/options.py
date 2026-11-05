@@ -18,8 +18,9 @@ class Goal(Choice):
 
 
 class TowerCount(Range):
-    """Towers goal: how many tower bosses you must beat. One or two suit a run of a few hours; all eight is a long
-    game."""
+    """Towers goal: how many tower bosses you must beat. Any towers count, but the logic plans for the first ones in the
+    game's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).
+    One or two suit a run of a few hours; all eight is a long game."""
     display_name = "Towers to Beat"
     range_start = 1
     range_end = 8
@@ -53,7 +54,8 @@ class RelicsNeeded(Range):
 class CheckLevel(Range):
     """The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,
     alphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.
-    0 (auto) sets it from the goal: 8 levels past the last tower you need, 5 levels past the level by which you can
+    0 (auto) sets it from the goal: 8 levels past the last tower boss you need (18 for one tower, 28 for two), 5 levels
+    past the level by which you can
     register enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2."""
     display_name = "Check Level Cap"
     range_start = 0
@@ -76,6 +78,19 @@ class AreaSize(Choice):
     display_name = "Area Size"
     option_areas = 0
     option_regions = 1
+    default = 0
+
+
+class BeyondGoal(Choice):
+    """Area Locks: what becomes of the areas this goal never needs, the ones whose Pals are all above the Check Level
+    Cap. The areas on the way to the goal's towers always stay in.
+    Locked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.
+    Passes: every area has its pass somewhere in the multiworld, as with no cap at all.
+    Open: their walls are down from the start, but nothing in them is a check."""
+    display_name = "Areas Beyond the Goal"
+    option_locked = 0
+    option_passes = 1
+    option_open = 2
     default = 0
 
 
@@ -183,6 +198,7 @@ class PalworldOptions(PerGameCommonOptions):
     check_level: CheckLevel
     area_locks: AreaLocks
     area_size: AreaSize
+    beyond_goal: BeyondGoal
     progressive_spheres: ProgressiveSpheres
     tech_checks: TechChecks
     capture_checks: CaptureChecks
@@ -200,7 +216,7 @@ class PalworldOptions(PerGameCommonOptions):
 
 option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
-    OptionGroup("Progression", [AreaLocks, AreaSize, ProgressiveSpheres]),
+    OptionGroup("Progression", [AreaLocks, AreaSize, BeyondGoal, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
     OptionGroup("Traps", [TrapChance, SlowTrapWeight, HungerTrapWeight, TeleportTrapWeight, FoolTrapWeight]),
     OptionGroup("Death Link", [DeathLink, DeathLinkAmnesty]),
@@ -208,8 +224,8 @@ option_groups = [
 
 
 # Ready-made sets for the options page and the Launcher's template generator. Measured check counts (AP 0.6.8,
-# 2026-11-04): Short Sync 206, Sync 264, Long Sync 541, Relic Hunt Sync 339, Paldeck Sync 247, Async 731, Full Game
-# 1,148. A typical Archipelago game has about 180.
+# 2026-11-05, 15 areas; 75 regions within a few): Short Sync 182, Sync 239, Long Sync 391, Relic Hunt Sync 357,
+# Paldeck Sync 247, Async 583, Full Game 1,148. A typical Archipelago game has about 180.
 options_presets = {
     "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False},
     "Sync": {"goal": "towers", "tower_count": 1},

@@ -6,7 +6,8 @@ fast-travel points, levels and towers are further checks.
 
 ## Goals
 
-- **Towers** (default): beat a number of tower bosses.
+- **Towers** (default): beat a number of tower bosses. Any towers count, but the logic plans for the first ones in the
+  game's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).
 - **Relic Hunt**: collect Palpagos Relics, shuffled across the whole multiworld.
 - **Paldeck**: register a number of different Pals (catch or hatch them).
 - **World Tree**: beat the boss at the top of the World Tree, the end of the game. Untested in game so far.
@@ -14,19 +15,24 @@ fast-travel points, levels and towers are further checks.
 ## How many checks
 
 Checks stop at a level that fits the goal (the Check Level Cap, automatic by default): 8 levels past the last tower
-you need, 5 levels past the level by which you can register enough Pals, 30 for a Relic Hunt, or no limit for the
+boss you need (18 for one tower, 28 for two), 5 levels past the level by which you can register enough Pals, 30 for a Relic Hunt, or no limit for the
 World Tree. Shop slots for techs above it stay normal research. Ready-made presets (approximate check counts; a typical Archipelago
 game has about 180):
 
 | Preset | Goal | Checks |
 |---|---|---|
-| Short Sync | 1 tower, level checks every 5 (5, 10, 15, 20), no fast-travel checks | ~205 |
-| Sync | 1 tower | ~265 |
-| Long Sync | 2 towers | ~540 |
-| Relic Hunt Sync | 15 of 20 relics, checks up to level 25 | ~340 |
+| Short Sync | 1 tower, level checks every 5 (5, 10, 15), no fast-travel checks | ~180 |
+| Sync | 1 tower | ~240 |
+| Long Sync | 2 towers | ~390 |
+| Relic Hunt Sync | 15 of 20 relics, checks up to level 25 | ~355 |
 | Paldeck Sync | 60 Pals | ~250 |
-| Async | 3 towers | ~730 |
+| Async | 3 towers | ~585 |
 | Full Game Async | World Tree | ~1,150 |
+
+With Area Locks on, a short goal keeps a small map: areas whose Pals are all above the cap have no pass and no checks,
+and their walls stay up (Areas Beyond the Goal: locked, the default). A two-tower game has passes for the areas up to
+level 28 only. Areas Beyond the Goal can instead open them from the start (still with no checks in them), or keep a
+pass for every area as before.
 
 Shop slots cost their usual tech points. Long goals ask for more points than levelling gives: Technical Manuals from
 dungeons, treasure chests and the Bounty shop make up the rest.

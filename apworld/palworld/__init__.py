@@ -1,8 +1,10 @@
 """Palworld for Archipelago: the Technology tree (levels 2+) is a shop of checks, every tech is an item, areas open with
 Area Passes, and captures, alphas, fast-travel points, levels and towers are further checks."""
+import heapq
 import logging
 import math
-from typing import Any, Dict, Optional
+from collections import defaultdict
+from typing import Any, Dict, FrozenSet, List, Optional
 
 from BaseClasses import CollectionState, Item, ItemClassification, Location, Region, Tutorial
 from Options import OptionError
@@ -29,6 +31,10 @@ PALDECK_MARGIN = 5           # the same for the Pal that completes a Paldeck goa
 RELIC_LEVEL = 30             # the Relic Hunt goal's check level when left on auto
 MAX_LEVEL = 80
 WORLD_TREE_EVENT = "World Tree Boss Defeated"
+# The towers' bosses in Palworld 1.0 (web research, 2026-11-05: Zoe, Lily, Axel, Marcus, Victor, Saya, Bjorn, Auri):
+# the level each tower fight asks for, and the order a Towers goal takes them in.
+TOWER_LEVELS = {"Starting Zone Tower": 10, "Forest Tower": 20, "Volcano Tower": 30, "Desert Tower": 40,
+                "Snow Tower": 50, "Sakurajima Tower": 55, "Feybreak Tower": 60, "Sky Islands Tower": 68}
 
 
 class Levels:
@@ -36,7 +42,7 @@ class Levels:
     can be had at."""
     def __init__(self, layout: Layout):
         self.layout = layout
-        self.tower = {name: self.boss(piece) for name, piece in layout.towers.items()}
+        self.tower = {name: TOWER_LEVELS[name] for name in layout.towers}
         self.pal = {e: self._pal(e) for e in CATCHABLE}
 
     def boss(self, piece: str) -> int:
@@ -47,16 +53,18 @@ class Levels:
         """The level from which a tech can be had: its own, or its tower's if it needs one."""
         return max(tech[2], self.tower[tech[6]] if tech[6] else 0)
 
-    def _pal(self, entry: str) -> int:
+    def _pal(self, entry: str, live: Optional[FrozenSet[str]] = None) -> int:
         """The lowest level at which a Pal can be had: where it is caught, or for a bred-only Pal, its parents' level
-        and the Breeding Farm's."""
+        and the Breeding Farm's. With `live`, only sources in those pieces count."""
         sources = self.layout.sources
+        caught = lambda s: s[0] in ("wild", "alpha", "dungeon") and (live is None or s[1] in live)
         best = MAX_LEVEL + 1
         for source in sources[entry]:
-            if source[0] in ("wild", "alpha", "dungeon"):
+            if caught(source):
                 best = min(best, int(source[2]))
             elif source[0] == "breed" and all(p in DIRECT for p in source[1]):
-                parents = max(min(int(s[2]) for s in sources[p] if s[0] in ("wild", "alpha", "dungeon")) for p in source[1])
+                parents = max(min((int(s[2]) for s in sources[p] if caught(s)), default=MAX_LEVEL + 1)
+                              for p in source[1])
                 best = min(best, max(parents, self.tech(TECH_BY_ID[BREEDING_TECH])))
         return best
 
@@ -112,15 +120,32 @@ class PalworldWorld(World):
             self.cap = RELIC_LEVEL
         else:
             self.cap = MAX_LEVEL
+        # The towers a Towers goal asks for, in the game's order; and the World Tree goal asks for all of them.
+        by_level = sorted(self.layout.towers, key=self.lv.tower.get)
+        self.goal_towers = (by_level[:o.tower_count.value] if o.goal == o.goal.option_towers
+                            else by_level if o.goal == o.goal.option_world_tree else [])
+        self.scope = self.areas_in_scope()
+        if o.goal == o.goal.option_paldeck and self.scope != self.every_area():
+            in_scope = sum(1 for e in CATCHABLE if self.lv._pal(e, self.pieces_of(self.scope)) <= self.cap)
+            if in_scope < o.paldeck_count.value:      # the goal's Pals come first: keep every area instead
+                logging.warning(f"Palworld ({self.player_name}): Areas Beyond the Goal would leave {in_scope} "
+                                f"Pals to register; every area is kept")
+                self.scope = self.every_area()
+        self.live = (self.pieces_of(self.scope) if o.area_locks and o.beyond_goal == o.beyond_goal.option_locked
+                     else frozenset(self.layout.pieces))
+        # A Pal is a capture check only where this seed has checks: not in areas beyond the goal, open or not.
+        self.pal_level = ({e: self.lv._pal(e, self.pieces_of(self.scope)) for e in CATCHABLE}
+                          if self.scope != self.every_area() else self.lv.pal)
+        self.cap = min(self.cap, self.climb_top())      # no check above what the map in this seed lets a player reach
         if o.goal == o.goal.option_paldeck:     # the goal must fit under the cap the player chose
-            reachable = sum(1 for lv in self.lv.pal.values() if lv <= self.cap)
+            reachable = sum(1 for lv in self.pal_level.values() if lv <= self.cap)
             if reachable < o.paldeck_count.value:
                 raise OptionError(f"Palworld ({self.player_name}): only {reachable} Pals can be registered by level "
                                 f"{self.cap}; lower Pals to Register or raise the Check Level Cap.")
         # Every item needs a location: the passes and techs alone can outnumber the checks when most kinds are off.
         relic_hunt = o.goal == o.goal.option_relic_hunt
         locations = sum(1 for loc in LOCATIONS if self.wanted(loc))
-        items = (len(self.layout.passes) if o.area_locks else 0) + sum(1 for t in SHOP_TECHS if t[0] not in self.research())
+        items = len(self.passes_in_pool()) + sum(1 for t in SHOP_TECHS if t[0] not in self.research())
         if locations - items < relic_hunt:
             raise OptionError(f"Palworld ({self.player_name}): {locations} checks for {items} items"
                               + (" and at least one relic" if relic_hunt else "")
@@ -129,6 +154,99 @@ class PalworldWorld(World):
         if o.trap_chance and not any(self.trap_weights()):
             logging.warning(f"Palworld ({self.player_name}): Trap Chance is {o.trap_chance.value}% but every trap weight "
                             f"is 0, so there are no traps")
+
+    # --- the map this seed uses (Areas Beyond the Goal) --------------------------------------------------------
+    def every_area(self) -> FrozenSet[str]:
+        return frozenset(self.layout.pieces.values())
+
+    def pieces_of(self, areas) -> FrozenSet[str]:
+        return frozenset(p for p, a in self.layout.pieces.items() if a in areas)
+
+    def areas_in_scope(self) -> FrozenSet[str]:
+        """The areas this seed has passes and checks in: the start, the open sea, every area with Pals at or below the
+        Check Level Cap (or the goal's towers' level, if higher), and the areas on the cheapest way to the goal's towers (and the World Tree). Areas the start
+        can't reach through these are left out too. Without area locks, or with Areas Beyond the Goal on passes, all."""
+        o, layout = self.options, self.layout
+        if not o.area_locks or o.beyond_goal == o.beyond_goal.option_passes:
+            return self.every_area()
+        low: Dict[str, int] = {}
+        for piece, area in layout.pieces.items():
+            low[area] = min(low.get(area, MAX_LEVEL + 1), piece_level(layout, piece))
+        # Up to the cap, but never short of what the goal's towers need to level for (a low cap set by hand only
+        # takes checks away, not the areas a player levels in).
+        need = max([self.cap] + [self.lv.tower[t] + TOWER_MARGIN for t in self.goal_towers])
+        scope = {a for a, lv in low.items() if lv <= need} | {layout.start, SEA}
+        targets = [layout.towers[t] for t in self.goal_towers]
+        if o.goal == o.goal.option_world_tree:
+            targets.append(layout.world_tree)
+        for target in targets:
+            scope |= {layout.pieces[p] for p in self.corridor(target, scope, low)}
+        reached = self.reach(scope)
+        return frozenset(a for a in scope if any(layout.pieces[p] == a for p in reached))
+
+    def neighbours(self) -> Dict[str, List[str]]:
+        out = defaultdict(set)
+        for a, b in self.layout.borders:
+            out[a].add(b)
+            out[b].add(a)
+        return {p: sorted(n) for p, n in out.items()}
+
+    def corridor(self, target: str, scope, low: Dict[str, int]) -> List[str]:
+        """The pieces outside `scope` on the way from the start to `target`: the route whose highest such area is
+        lowest, then the one through the fewest pieces."""
+        layout, nbrs = self.layout, self.neighbours()
+        start = sorted(p for p, a in layout.pieces.items() if a == layout.start)
+        best = {p: (0, 0) for p in start}
+        prev: Dict[str, str] = {}
+        heap = [(0, 0, p) for p in start]
+        while heap:
+            worst, steps, piece = heapq.heappop(heap)
+            if (worst, steps) > best[piece]:
+                continue
+            if piece == target:
+                break
+            for nxt in nbrs.get(piece, ()):
+                area = layout.pieces[nxt]
+                key = (max(worst, 0 if area in scope else low[area]), steps + 1)
+                if key < best.get(nxt, (MAX_LEVEL + 2, 0)):
+                    best[nxt], prev[nxt] = key, piece
+                    heapq.heappush(heap, (key[0], key[1], nxt))
+        path, piece = [], target
+        while piece in prev:
+            path.append(piece)
+            piece = prev[piece]
+        return [p for p in path if layout.pieces[p] not in scope]
+
+    def reach(self, scope) -> FrozenSet[str]:
+        """The pieces the start reaches through the borders of these areas (mounts aside: the logic sees to those)."""
+        layout, nbrs = self.layout, self.neighbours()
+        todo = [p for p, a in layout.pieces.items() if a == layout.start]
+        seen = set(todo)
+        while todo:
+            for nxt in nbrs.get(todo.pop(), ()):
+                if nxt not in seen and layout.pieces[nxt] in scope:
+                    seen.add(nxt)
+                    todo.append(nxt)
+        return frozenset(seen)
+
+    def climb_top(self) -> int:
+        """The highest level the pieces in this seed let a player reach, as max_level climbs with everything in hand."""
+        top = FREE_LEVEL
+        levels = self.layout.levels
+        for a in sorted((a for a in levels if a in self.live), key=levels.get):
+            if levels[a] - LEVEL_SLACK > top:
+                break
+            top = max(top, int(levels[a]) + LEVEL_SLACK)
+        return min(MAX_LEVEL, top)
+
+    def passes_in_pool(self) -> List[str]:
+        if not self.options.area_locks:
+            return []
+        return [p for a, p in self.layout.passes.items() if a in self.scope]
+
+    def beyond_goal_areas(self) -> List[str]:
+        """The areas with a pass in the game but not in this seed: walls that stay up (locked) or are down (open)."""
+        return sorted(a for a in self.layout.passes if a not in self.scope)
 
     # --- logic helpers -----------------------------------------------------------------------------------------
     def can_enter(self, state: CollectionState, piece: str) -> bool:
@@ -139,6 +257,8 @@ class PalworldWorld(World):
             return self.can_ride(state, SEA_MOUNTS)
         if area in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
             return False
+        if area not in self.scope:              # beyond the goal: open from the start, or no pass at all
+            return self.options.beyond_goal == self.options.beyond_goal.option_open
         return (area == self.layout.start or not self.options.area_locks
                 or state.has(self.layout.passes[area], self.player))
 
@@ -148,14 +268,14 @@ class PalworldWorld(World):
 
     def area_open(self, state: CollectionState, piece: str) -> bool:
         """A piece is open when the player can get there: through the borders from the start."""
-        return state.can_reach_region(piece, self.player)
+        return piece in self.live and state.can_reach_region(piece, self.player)
 
     def max_level(self, state: CollectionState) -> int:
         """How far the player can level. An area takes you LEVEL_SLACK past its Pals' level once you can catch them and
         are no more than LEVEL_SLACK below them, so levels climb area by area from the starting zone."""
         top = FREE_LEVEL
         levels = self.layout.levels
-        for a in sorted(levels, key=levels.get):
+        for a in sorted((a for a in levels if a in self.live), key=levels.get):
             if levels[a] - LEVEL_SLACK > top:
                 break
             if self.area_open(state, a) and self.can_catch_at(state, levels[a], top):
@@ -223,13 +343,14 @@ class PalworldWorld(World):
         level cap."""
         if not hasattr(self, "_research"):
             decor = DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
-            self._research = decor | {t[0] for t in SHOP_TECHS if self.lv.tech(t) > self.cap}
+            beyond = {t for t in self.layout.towers if self.layout.pieces[self.layout.towers[t]] not in self.scope}
+            self._research = decor | {t[0] for t in SHOP_TECHS if self.lv.tech(t) > self.cap or t[6] in beyond}
         return self._research
 
     def loc_level(self, loc) -> int:
         """The level from which a location can be checked, for the check level cap."""
         if loc.kind == "shop": return self.lv.tech(TECH_BY_ID[loc.key])
-        if loc.kind == "capture": return self.lv.pal[loc.key]
+        if loc.kind == "capture": return self.pal_level[loc.key]
         if loc.kind == "alpha": return loc.key[1]
         if loc.kind == "fast_travel": return piece_level(self.layout, self.layout.location_piece[loc.name])
         if loc.kind == "level": return loc.key
@@ -238,6 +359,8 @@ class PalworldWorld(World):
 
     def wanted(self, loc) -> bool:
         o = self.options
+        piece = self.layout.location_piece[loc.name]
+        if piece and self.layout.pieces[piece] not in self.scope: return False    # beyond the goal: no checks
         if self.loc_level(loc) > self.cap: return False
         if loc.name in SHARED_ALPHAS: return False     # its defeat records as another alpha's: that one is the check
         if loc.kind == "shop": return loc.key not in self.research()
@@ -253,11 +376,15 @@ class PalworldWorld(World):
         regions = {}
         layout = self.layout
         for piece in layout.pieces:
+            if piece not in self.live:          # beyond the goal and locked: not in this seed at all
+                continue
             region = Region(piece, self.player, self.multiworld)
             self.multiworld.regions.append(region)
             regions[piece] = region
         menu.connect(regions[layout.start], "Start")
         for a, b in layout.borders:              # the walls in game: each way needs the entered piece's pass
+            if a not in regions or b not in regions:
+                continue
             for src, dst in ((a, b), (b, a)):
                 entrance = regions[src].connect(regions[dst], f"{src} -> {dst}",
                                                 lambda state, p=dst: self.can_enter(state, p))
@@ -271,6 +398,8 @@ class PalworldWorld(World):
             region = regions[piece] if piece else menu
             region.locations.append(PalworldLocation(self.player, loc.name, loc.id, region))
         for name, _ in TOWERS:
+            if layout.towers[name] not in regions:
+                continue
             region = regions[layout.towers[name]]
             event = PalworldLocation(self.player, TOWER_EVENTS[name], None, region)
             event.place_locked_item(PalworldItem(TOWER_EVENTS[name], ItemClassification.progression, None, self.player))
@@ -300,7 +429,7 @@ class PalworldWorld(World):
     def create_items(self) -> None:
         pool = []
         if self.options.area_locks:
-            pool += [self.create_item(p) for p in self.layout.passes.values()]
+            pool += [self.create_item(p) for p in self.passes_in_pool()]
         for tech in SHOP_TECHS:
             if tech[0] in self.research():
                 continue
@@ -362,31 +491,35 @@ class PalworldWorld(World):
             elif loc.kind == "tower":
                 location.access_rule = lambda state, lv=self.lv.tower[loc.key]: self.can_fight_at(state, lv)
         for name, _ in TOWERS:
+            if self.layout.towers[name] not in self.live:
+                continue
             get(TOWER_EVENTS[name]).access_rule = lambda state, lv=self.lv.tower[name]: self.can_fight_at(state, lv)
         o = self.options
         if o.goal == o.goal.option_relic_hunt:
             get("Goal Complete").access_rule = lambda state: state.count(RELIC, self.player) >= self.relics_needed
         elif o.goal == o.goal.option_paldeck:
-            in_reach = [e for e, lv in self.lv.pal.items() if lv <= self.cap]
+            in_reach = [e for e, lv in self.pal_level.items() if lv <= self.cap]
             get("Goal Complete").access_rule = lambda state: self.pals_in_logic(state, in_reach) >= o.paldeck_count.value
         elif o.goal == o.goal.option_world_tree:
             # The end of the game: the logic also asks for every tower, as the game's story leads there last.
             get(WORLD_TREE_EVENT).access_rule = lambda state: (
                 self.can_fight_at(state, self.lv.boss(self.layout.world_tree))
-                and all(state.has(e, self.player) for e in TOWER_EVENTS.values()))
+                and all(state.has(TOWER_EVENTS[t], self.player) for t in self.goal_towers))
             get("Goal Complete").access_rule = lambda state: state.has(WORLD_TREE_EVENT, self.player)
         else:
-            need = o.tower_count.value
-            get("Goal Complete").access_rule = lambda state: sum(state.has(e, self.player) for e in TOWER_EVENTS.values()) >= need
+            # The first towers in the game's order (the mod counts any towers beaten, so a player may pick others).
+            events = [TOWER_EVENTS[t] for t in self.goal_towers]
+            get("Goal Complete").access_rule = lambda state: all(state.has(e, self.player) for e in events)
         self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)
 
     def fill_slot_data(self) -> Dict[str, Any]:
-        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "area_size",
+        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "area_size", "beyond_goal",
                                                 "progressive_spheres",
                                                 "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks",
                                                 "level_checks", "death_link", "death_link_amnesty", "trap_chance"),
                 "relics": self.relics, "relics_needed": self.relics_needed,
                 "check_level": self.cap,                                   # checks above it are not in this seed
+                "beyond_goal_areas": "|".join(self.beyond_goal_areas()),   # passes not in this seed (beyond_goal)
                 "research_techs": ",".join(sorted(self.research())),   # techs the mod leaves as normal research
                 "game_version": "1.0.5.102999",
                 "slot": self.player,

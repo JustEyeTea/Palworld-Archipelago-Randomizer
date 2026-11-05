@@ -2363,6 +2363,30 @@ do  -- area_size regions: every named region of the game its own, opened by a Re
     run(80)
     expect(W.layout == "areas" and logged("area locks: areas %(15 areas"), "back to an areas seed: the areas' walls")
 end
+do  -- Areas beyond the goal (slot data beyond_goal_areas and options.beyond_goal): sealed for good, or open from the start
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = hintArea, "0"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(logged("areas beyond the goal: 1, sealed for good"), "a locked area beyond the goal is logged")
+    local up = wallCount()
+    local before = #announced
+    pawnAt = hintAt
+    run(420)
+    local said, offered = false, false
+    for i = before + 1, #announced do
+        if announced[i]:find(hintArea .. " is beyond this seed's goal: its walls stay up.", 1, true) then said = true end
+        if announced[i]:find("needs Area Pass: " .. hintArea, 1, true) then offered = true end
+    end
+    expect(said and not offered, "its wall says it is beyond the goal, and offers no hint for a pass that isn't there")
+    slotData["options.beyond_goal"] = "2"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(logged("areas beyond the goal: 1, open from the start") and wallCount() < up,
+           "open: its walls come down without a pass: " .. up .. " -> " .. wallCount())
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
+end
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

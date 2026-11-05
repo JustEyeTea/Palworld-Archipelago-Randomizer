@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev"
+local VERSION = "0.14.0-dev.2"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -937,6 +937,17 @@ local function onEvent(line)
             -- The seed's cut of the map (options.area_size: 0 the 15 areas, 1 every region; older seeds have none).
             local size = AP_SlotData("options.area_size")
             WALLS.setLayout((size == "1" or size == "regions") and "regions" or "areas")
+            -- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes
+            -- are not in this seed. Locked, their walls stay up for good; open, they are open from the start.
+            ap.beyond = {}
+            local nBeyond = 0
+            for area in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do ap.beyond[area], nBeyond = true, nBeyond + 1 end
+            local mode = AP_SlotData("options.beyond_goal")
+            ap.beyondOpen = mode == "2" or mode == "open"
+            if ap.beyondOpen then for area in pairs(ap.beyond) do ap.passes[area] = true end end
+            if nBeyond > 0 then
+                log("areas beyond the goal: " .. nBeyond .. (ap.beyondOpen and ", open from the start" or ", sealed for good"))
+            end
             local dl = AP_SlotData("options.death_link")
             death.on = (dl == "1" or dl == "true") and AP_SetTags ~= nil
             if death.on then
@@ -1022,6 +1033,7 @@ end
 
 -- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.
 local function wallNotice(area)
+    if ap.beyond and ap.beyond[area] then return area .. " is beyond this seed's goal: its walls stay up." end
     local pass = WALLS.passName(area)
     if hints.known[area] then return area .. " is sealed. " .. hints.known[area] end
     local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
@@ -1250,7 +1262,8 @@ local function update(ctx)
                         pawn:K2_TeleportTo({ X = h[1], Y = h[2], Z = h[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
                     end)
                     log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
-                    notify(tostring(where) .. " is locked until its pass arrives. Back to " .. WALLS.start .. ".")
+                    notify(tostring(where) .. ((ap.beyond and ap.beyond[where]) and " is beyond this seed's goal."
+                        or " is locked until its pass arrives.") .. " Back to " .. WALLS.start .. ".")
                 end
             end
         end
