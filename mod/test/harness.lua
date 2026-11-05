@@ -2080,9 +2080,14 @@ do   -- (its own block: the harness main chunk is near Lua's 200-local limit)
 print("test tools: giving a Pal through the connector")
 -- As UE4SS: key binds take modifiers; the connector refuses game calls off the game thread (pal_gift.cpp), and only
 -- ExecuteInGameThread is on it.
-ModifierKey = { CONTROL = "ctrl" }
+ModifierKey = { CONTROL = "ctrl", SHIFT = "shift" }
 local keyMods = {}
-RegisterKeyBind = function(key, a, b) keyBinds[key] = b or a; keyMods[key] = b and a or nil end
+-- (Ctrl+Shift binds keyed apart: the gifts' Ctrl+Shift+F5 and the traps' Ctrl+F5 are different binds in UE4SS)
+RegisterKeyBind = function(key, a, b)
+    local k = key
+    if b then for _, m in ipairs(a) do if m == "shift" then k = key .. "+shift" end end end
+    keyBinds[k] = b or a; keyMods[k] = b and a or nil
+end
 local onGameThread = false
 ExecuteInGameThread = function(fn)
     onGameThread = true
@@ -2126,31 +2131,31 @@ TT.install()
 local pollLoop = extraLoops[#extraLoops]
 expect(#extraLoops == loopsBefore + 2, "a poll loop for pending gifts (after the HUD probe's)")
 local allCtrl = true
-for _, k in ipairs({ "ONE", "TWO", "THREE", "FOUR", "FIVE" }) do
-    local m = keyMods["key:" .. k]
-    allCtrl = allCtrl and keyBinds["key:" .. k] ~= nil and m ~= nil and m[1] == "ctrl"
+for _, k in ipairs({ "F5", "F6", "F7", "F8", "F9" }) do
+    local m = keyMods["key:" .. k .. "+shift"]
+    allCtrl = allCtrl and keyBinds["key:" .. k .. "+shift"] ~= nil and m ~= nil and m[1] == "ctrl" and m[2] == "shift"
 end
-expect(allCtrl, "Ctrl+1 to Ctrl+5 bound")
-press("key:ONE")
+expect(allCtrl, "Ctrl+Shift+F5 to F9 bound (not the number keys: the game's own)")
+press("key:F5+shift")
 local g1 = gifts[1]
 expect(g1 and g1[1] == "SheepBall" and g1[2] == "11" and g1[3] == "party_debug" and g1[4] == "",
-       "Ctrl+1 gives SheepBall Lv 11 by party_debug, on the game thread")
+       "Ctrl+Shift+F5 gives SheepBall Lv 11 by party_debug, on the game thread")
 expect(logged("%[test%] give Pal party_debug: create: handle=PalIndividualCharacterHandle_1")
        and logged("%[test%] give Pal party_debug: result: ok party")
        and logged("give Pal party_debug: party before 3") and logged("give Pal party_debug: party after 3"),
        "every report line is logged, with the party count before and after")
-for i, want in ipairs({ { "TWO", "ChickenPal", "12", "party_plain" }, { "THREE", "PinkCat", "13", "handle" },
-                        { "FOUR", "Kitsunebi", "14", "palbox" }, { "FIVE", "Anubis", "50", "auto" } }) do
-    press("key:" .. want[1])
+for i, want in ipairs({ { "F6", "ChickenPal", "12", "party_plain" }, { "F7", "PinkCat", "13", "handle" },
+                        { "F8", "Kitsunebi", "14", "palbox" }, { "F9", "Anubis", "50", "auto" } }) do
+    press("key:" .. want[1] .. "+shift")
     local g = gifts[1 + i]
-    expect(g and g[1] == want[2] and g[2] == want[3] and g[3] == want[4], "Ctrl+" .. want[1] .. " gives " .. want[2] .. " by " .. want[4])
+    expect(g and g[1] == want[2] and g[2] == want[3] and g[3] == want[4], "Ctrl+Shift+" .. want[1] .. " gives " .. want[2] .. " by " .. want[4])
 end
 expect(pollCalls == 0, "nothing pending, so no polls")
 -- A gift the game hasn't finished: polled until it arrives, then not again.
 giveReply = "route=palbox species=Kitsunebi\nimport: calling\nresult: pending"
 pollReplies = { "poll 1 route=palbox\ncheck: palbox slot 7 handle=null\nresult: pending",
                 "poll 2 route=palbox\ncheck: palbox slot 7 handle=PalIndividualCharacterHandle_2\nresult: ok palbox" }
-press("key:FOUR")
+press("key:F8+shift")
 run(1)
 expect(pollCalls == 2 and logged("give Pal palbox: check: palbox slot 7 handle=PalIndividualCharacterHandle_2")
        and logged("give Pal palbox: result: ok palbox") and logged("give Pal palbox: party now 3"),
@@ -2159,9 +2164,9 @@ run(2)
 expect(pollCalls == 2, "and then no more polls")
 -- Another key while one is pending: the connector answers busy, and the first gift is still polled.
 pollReplies = { "poll 1 route=palbox\nresult: pending" }
-press("key:FOUR")
+press("key:F8+shift")
 giveReply = "route=auto\nresult: busy"
-press("key:FIVE")
+press("key:F9+shift")
 pollReplies[#pollReplies + 1] = "poll 2 route=palbox\nresult: fail timeout (palbox slot 7 handle=null)"
 run(1)
 expect(logged("give Pal auto: result: busy") and pollCalls == 4 and logged("give Pal palbox: result: fail timeout"),
@@ -2169,13 +2174,13 @@ expect(logged("give Pal auto: result: busy") and pollCalls == 4 and logged("give
 -- The connector forgets the gift (reloaded): the probe stops polling.
 giveReply = "route=party_debug\nresult: pending"
 pollReplies = {}
-press("key:ONE")
+press("key:F5+shift")
 run(2)
 expect(pollCalls == 5 and logged("give Pal party_debug: the connector has no pending gift"), "an empty poll ends it")
 -- The connector holds a gift this side isn't polling (the Lua mod restarted, the DLL didn't): busy starts the polls.
 giveReply = "route=party_plain\nresult: busy"
 pollReplies = { "poll 20 route=palbox\ncheck: palbox slot 7 handle=null\nresult: fail timeout (palbox slot 7 handle=null)" }
-press("key:TWO")
+press("key:F6+shift")
 run(1)
 expect(pollCalls == 6 and logged("give Pal party_plain: the connector holds a gift from before; polling it to its end")
        and logged("give Pal earlier: result: fail timeout"), "busy with nothing pending here polls the connector's gift to its end")
@@ -2184,7 +2189,7 @@ expect(pollCalls == 6, "and then no more polls")
 -- The game thread stalls past 250 ms: two polls are queued, and the second runs after the first ended the gift.
 giveReply = "route=palbox\nresult: pending"
 pollReplies = { "poll 1 route=palbox\nresult: ok palbox" }
-press("key:FOUR")
+press("key:F8+shift")
 local queued = {}
 local runNow = ExecuteInGameThread
 ExecuteInGameThread = function(fn) queued[#queued + 1] = fn end
@@ -2196,11 +2201,11 @@ expect(#queued == 2 and pollCalls == 7 and logged("give Pal palbox: result: ok p
 giveReply = nil
 -- An error from the connector is logged, and the next key still works.
 giveReply = "throw"
-press("key:TWO")
+press("key:F6+shift")
 expect(logged("give Pal party_plain: error .*boom"), "a connector error is logged")
 giveReply = nil
 local n = #gifts
-press("key:THREE")
+press("key:F7+shift")
 run(1)
 expect(#gifts == n + 1 and gifts[#gifts][3] == "handle", "and the next key still gives")
 end

@@ -7,13 +7,13 @@
 --                        each checked right after and 2 s later, and removed after 10 s
 -- The probes are candidates for the next traps: none of them is a trap item yet.
 -- Giving a Pal through the C++ connector's AP_GivePal (APConnector, pal_gift.cpp; UNTESTED IN GAME). One key per route
--- (Ctrl+1 .. Ctrl+5; the F keys are the traps'), each with its own Pal, so the party or the Palbox shows which route
+-- (Ctrl+Shift+F5 .. F9; v0.13.9 playtest: the number keys are the game's own, Ctrl+4 opened the emote menu), each with its own Pal, so the party or the Palbox shows which route
 -- made which Pal even without the log:
---   Ctrl+1    party_debug  SheepBall Lv 11   CreateIndividual + the party's debug callback (group, EXP, party)
---   Ctrl+2    party_plain  ChickenPal Lv 12  CreateIndividual + the plain callback (party only)
---   Ctrl+3    handle       PinkCat Lv 13     CreateIndividual with no callback, then AddOtomoHandleToFreeSlot (riskiest)
---   Ctrl+4    palbox       Kitsunebi Lv 14   the Global Palbox import into an empty Palbox slot
---   Ctrl+5    auto         Anubis Lv 50      party_debug while the party has room, else palbox
+--   Ctrl+Shift+F5  party_debug  SheepBall Lv 11   CreateIndividual + the party's debug callback (group, EXP, party)
+--   Ctrl+Shift+F6  party_plain  ChickenPal Lv 12  CreateIndividual + the plain callback (party only)
+--   Ctrl+Shift+F7  handle       PinkCat Lv 13     CreateIndividual with no callback, then AddOtomoHandleToFreeSlot (riskiest)
+--   Ctrl+Shift+F8  palbox       Kitsunebi Lv 14   the Global Palbox import into an empty Palbox slot
+--   Ctrl+Shift+F9  auto         Anubis Lv 50      party_debug while the party has room, else palbox
 -- Each logs the connector's report line by line and the party count before and after. A gift the game hasn't finished
 -- ("result: pending") is polled with AP_GivePalPoll every 250 ms until "result: ok ..." or "result: fail ...". While one
 -- is pending the connector answers "result: busy"; if this side wasn't polling it (a Lua mod restart), it starts. With an
@@ -102,11 +102,11 @@ local function status()
 end
 
 local GIFTS = {
-    { key = "ONE", route = "party_debug", species = "SheepBall", level = "11" },
-    { key = "TWO", route = "party_plain", species = "ChickenPal", level = "12" },
-    { key = "THREE", route = "handle", species = "PinkCat", level = "13" },
-    { key = "FOUR", route = "palbox", species = "Kitsunebi", level = "14" },
-    { key = "FIVE", route = "auto", species = "Anubis", level = "50" },
+    { key = "F5", route = "party_debug", species = "SheepBall", level = "11" },
+    { key = "F6", route = "party_plain", species = "ChickenPal", level = "12" },
+    { key = "F7", route = "handle", species = "PinkCat", level = "13" },
+    { key = "F8", route = "palbox", species = "Kitsunebi", level = "14" },
+    { key = "F9", route = "auto", species = "Anubis", level = "50" },
 }
 local pending = nil   -- the route whose gift the connector is still waiting on
 
@@ -321,7 +321,7 @@ function T.install()
         return
     end
     for _, g in ipairs(GIFTS) do
-        RegisterKeyBind(Key[g.key], { ModifierKey.CONTROL }, function()
+        RegisterKeyBind(Key[g.key], { ModifierKey.CONTROL, ModifierKey.SHIFT }, function()
             -- Key binds run off the game thread; the connector refuses game calls there.
             ExecuteInGameThread(function()
                 local ok, err = pcall(give, g)
@@ -339,7 +339,7 @@ function T.install()
         end
         return false
     end)
-    log("test tools on: give Pal by Ctrl+1 party_debug, Ctrl+2 party_plain, Ctrl+3 handle, Ctrl+4 palbox, Ctrl+5 auto")
+    log("test tools on: give Pal by Ctrl+Shift+F5 party_debug, F6 party_plain, F7 handle, F8 palbox, F9 auto")
 end
 
 return T

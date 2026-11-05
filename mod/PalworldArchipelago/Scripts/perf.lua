@@ -490,7 +490,7 @@ end
 local WALL_MODES = { full = "hidden", hidden = "nocoll", nocoll = "none", none = "full" }
 local function hotkeys()
     if not RegisterKeyBind or not Key or not ModifierKey then log("no key binds in this UE4SS"); return end
-    -- Ctrl and the number keys 6 to 0: the traps' test keys have Ctrl+F5 to Ctrl+F11 and the Pal gifts' Ctrl+1 to Ctrl+5
+    -- Ctrl and the number keys 6 to 0: the traps' test keys have Ctrl+F5 to Ctrl+F11 and the Pal gifts' Ctrl+Shift+F5 to F9
     -- (test_tools.lua), and a key bound twice would run both.
     local function bind(key, label, fn)
         RegisterKeyBind(Key[key], { ModifierKey.CONTROL }, function()

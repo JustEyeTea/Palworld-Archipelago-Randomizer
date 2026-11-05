@@ -395,8 +395,11 @@ end
 function W.skinNew(a)
     if skin.now ~= "red" then pcall(dress, a, skin.mids[skin.now]) end
 end
+-- Empty or unset: the teal hex lattice, a (the user, 2026-11-05: "stick with the hex layout"); wall_skin=red for the
+-- game's own red grid.
+W.DEFAULT_SKIN = "a"
 function W.setSkin(name)
-    if name == "" or name == nil then name = "red" end
+    if name == "" or name == nil then name = W.DEFAULT_SKIN end
     for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
     log("wall skin " .. tostring(name) .. ": unknown (" .. table.concat(SKINS, ", ") .. ")")
 end

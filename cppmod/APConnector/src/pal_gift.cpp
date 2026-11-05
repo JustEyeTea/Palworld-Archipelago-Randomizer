@@ -116,6 +116,23 @@ namespace pal_gift_unreal
         return fn;
     }
 
+    // The function `path` names as the object's own class has it. A BlueprintImplementableEvent (GetMaxOtomoNum) is an
+    // empty native stub on the C++ class with its body in the Blueprint subclass, so called through the C++ class's
+    // UFunction it does nothing and returns 0 (v0.13.9 playtest: "party: 0/0", every party gift refused as full).
+    // GetFunctionByNameInChain walks from the object's class up, so it finds an override first (UObject.hpp, as
+    // GetPropertyByNameInChain below); for a plain native function it finds the same UFunction as the path.
+    auto resolve(UObject* self, const CharType* path) -> UFunction*
+    {
+        UFunction* base = find_function(path);
+        if (!self) return base;
+        const StringType full(path);
+        const auto colon = full.rfind(STR(':'));
+        if (colon == StringType::npos) return base;
+        const StringType short_name = full.substr(colon + 1);
+        UFunction* own = self->GetFunctionByNameInChain(FromCharTypePtr<TCHAR>(short_name.c_str()));
+        return own ? own : base;
+    }
+
     // One reflected call. The parameter block is heap memory of the function's own size, constructed with
     // InitializeStruct and destroyed with DestroyStruct, so parameters holding strings and arrays (the Pal save data) are
     // built and freed properly; UE4SS's Lua path only zero-fills a stack array and never frees what the game put in it.
@@ -260,7 +277,7 @@ namespace pal_gift_unreal
     // obj:fn(arg) for functions that take at most one object and return an object.
     auto call_object(UObject* self, const CharType* fn, const CharType* arg_name = nullptr, UObject* arg = nullptr) -> UObject*
     {
-        ReflectedCall c(self, find_function(fn));
+        ReflectedCall c(self, resolve(self, fn));
         if (arg_name) *c.at<UObject*>(c.param(arg_name)) = arg;
         c.run();
         return *c.at<UObject*>(c.param(STR("ReturnValue")));
@@ -268,7 +285,7 @@ namespace pal_gift_unreal
 
     auto call_int(UObject* self, const CharType* fn) -> int32_t
     {
-        ReflectedCall c(self, find_function(fn));
+        ReflectedCall c(self, resolve(self, fn));
         c.run();
         return *c.at<int32_t>(c.param(STR("ReturnValue")));
     }
