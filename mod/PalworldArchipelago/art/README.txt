@@ -15,7 +15,7 @@ Round 2 (2026-11-04):
   ap-goal-banner.png          1200x300, the goal-complete banner (shown at 600x150); not drawn in play yet.
   Both appear for 6 s with test_tools=1 and Ctrl+F4 (the HUD probe), to see whether and where the HUD takes them.
 Round 3 (2026-11-05):
-  ap-map-stamp-sealed.png     256x256, the stamp of an area beyond the seed's goal (sealed for good; a no-entry sign).
+  ap-map-stamp-sealed.png     256x256, the stamp of an area beyond the seed's goal (sealed for good; a chained padlock).
   ap-pass-region.png          256x256, a Region Pass's ticket on the Technology cards when its area has none.
   ap-hint-plate-ready.png     760x168, the hint pop-up at a locked wall with enough hint points (hint_popup.lua; shown
                               at 380x84 in the middle of the screen, a little transparent).
