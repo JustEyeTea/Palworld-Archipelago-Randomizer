@@ -28,5 +28,10 @@ Round 4 (2026-11-05, interim drafts until the user picks):
   ap-mailbox-row.png, ap-mailbox-row-selected.png  720x96, a crate kind's row in the list.
   ap-mailbox-cell.png         120x120, one item of the last crate opened.
   ap-mailbox-reveal.png       512x512 white glow behind the chosen crate, tinted per kind.
+Round 5 (2026-11-06, the user's pick A):
+  ap-debuff-slow.png          128x128, the Slow Trap's debuff icon (a snail; debuffs.lua shows it at 44 px at the top of
+                              the HUD with the time left under it).
+  ap-debuff-frame.png         128x128, the same frame empty, for future timed traps (keep a glyph inside x 20-108,
+                              y 20-104).
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).
