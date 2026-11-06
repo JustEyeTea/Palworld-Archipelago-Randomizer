@@ -21,6 +21,11 @@
 //                                        (see pal_gift.cpp; game thread only, so call it inside ExecuteInGameThread)
 //   AP_GivePalPoll() -> string           while a gift is pending, a report ending like AP_GivePal's; else ""
 //   (AP_GivePal and AP_GivePalPoll are untested in game.)
+//   AP_ComposeChart(colour, paper, sea, compass, out, size, gamma) -> string   starts drawing the explorer's-chart
+//                                        picture of the map in the background ("" started, "busy", or an error)
+//   AP_ChartStatus() -> string           "busy", "done" (once), "error: ..." or ""
+//   AP_ComposeFog(chart, mask, default, spec, out, size) -> string   starts the fog picture (the chart where unexplored)
+//   AP_FogStatus() -> string             as AP_ChartStatus (chart and fog untested in game)
 //   AP_MapScreen(cmd, value) -> string  the world map screen, changed inside the game's own Setup so it never shows the
 //                                        game's version first: "body", path / "fog", "r,g,b,a" / "status" (map_screen.hpp;
 //                                        untested in game)
@@ -179,6 +184,30 @@ namespace
         });
         lua.register_function("AP_ComposeStatus", [](const LuaMadeSimple::Lua& l) -> int {
             l.set_string(compose_map_status());
+            return 1;
+        });
+        lua.register_function("AP_ComposeChart", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto colour = arg(l), paper = arg(l), sea = arg(l), compass = arg(l), out = arg(l), size = arg(l), gamma = arg(l);
+            int s = 2048;
+            double g = 1.0;
+            try { s = std::stoi(size); } catch (...) {}
+            try { g = std::stod(gamma); } catch (...) {}
+            l.set_string(chart_jobs().start([=] { return compose_chart(colour, paper, sea, compass, out, s, g); }));
+            return 1;
+        });
+        lua.register_function("AP_ChartStatus", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(chart_jobs().status());
+            return 1;
+        });
+        lua.register_function("AP_ComposeFog", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l), size = arg(l);
+            int s = 2048;
+            try { s = std::stoi(size); } catch (...) {}
+            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s); }));
+            return 1;
+        });
+        lua.register_function("AP_FogStatus", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(fog_jobs().status());
             return 1;
         });
         lua.register_function("AP_GreyscalePNG", [](const LuaMadeSimple::Lua& l) -> int {

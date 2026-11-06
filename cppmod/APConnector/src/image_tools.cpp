@@ -111,36 +111,49 @@ auto compose_map(const std::string& colour, const std::string& labels, const std
     return stbi_write_png(out.c_str(), w, h, 4, px.get(), w * 4) ? "" : "could not write " + out;
 }
 
-namespace
-{
-std::mutex compose_mutex;
-std::string compose_state;                          // "busy", "done", "error: ..." or ""
-} // namespace
-
-auto compose_map_start(const std::string& colour, const std::string& labels, const std::string& locked,
-                       const std::string& out, double gamma) -> std::string
+// The slots are globals that live all session, so a detached job may keep a pointer to its slot.
+auto JobSlot::start(std::function<std::string()> job) -> std::string
 {
     {
-        std::lock_guard<std::mutex> lock(compose_mutex);
-        if (compose_state == "busy") return "busy";
-        compose_state = "busy";
+        std::lock_guard<std::mutex> guard(m_lock);
+        if (m_state == "busy") return "busy";
+        m_state = "busy";
     }
-    std::thread([=] {
+    std::thread([this, job] {
         std::string err;
-        try { err = compose_map(colour, labels, locked, out, gamma); }
+        try { err = job(); }
         catch (const std::exception& e) { err = e.what(); }
-        std::lock_guard<std::mutex> lock(compose_mutex);
-        compose_state = err.empty() ? "done" : "error: " + err;
+        std::lock_guard<std::mutex> guard(m_lock);
+        m_state = err.empty() ? "done" : "error: " + err;
     }).detach();
     return "";
 }
 
+auto JobSlot::status() -> std::string
+{
+    std::lock_guard<std::mutex> guard(m_lock);
+    std::string st = m_state;
+    if (st != "busy") m_state.clear();
+    return st;
+}
+
+namespace
+{
+JobSlot map_slot, chart_slot, fog_slot;
+} // namespace
+
+auto chart_jobs() -> JobSlot& { return chart_slot; }
+auto fog_jobs() -> JobSlot& { return fog_slot; }
+
+auto compose_map_start(const std::string& colour, const std::string& labels, const std::string& locked,
+                       const std::string& out, double gamma) -> std::string
+{
+    return map_slot.start([=] { return compose_map(colour, labels, locked, out, gamma); });
+}
+
 auto compose_map_status() -> std::string
 {
-    std::lock_guard<std::mutex> lock(compose_mutex);
-    std::string s = compose_state;
-    if (s != "busy") compose_state.clear();
-    return s;
+    return map_slot.status();
 }
 
 namespace
@@ -382,4 +395,57 @@ auto compose_chart(const std::string& colour, const std::string& paper, const st
         }
     stbi_write_png_compression_level = 1;
     return stbi_write_png(out.c_str(), S, S, 3, img.data(), S * 3) ? "" : "could not write " + out;
+}
+
+auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
+                 const std::string& spec, const std::string& out, int size) -> std::string
+{
+    const int S = size;
+    if (S < 64 || S > 8192) return "fog size " + std::to_string(S);
+    if (spec.size() != 2 || std::string("rgba").find(spec[0]) == std::string::npos || (spec[1] != '+' && spec[1] != '-'))
+        return "mask spec '" + spec + "' (want a channel r/g/b/a and + or -)";
+    const int ch = static_cast<int>(std::string("rgba").find(spec[0]));
+    const bool high = spec[1] == '+';
+    std::string err;
+    Rgba art = load_rgba(chart, S, err);
+    if (!err.empty()) return err;
+    Rgba m = load_rgba(mask, S, err);
+    if (!err.empty()) return err;
+    Rgba d;
+    if (!default_mask.empty()) { d = load_rgba(default_mask, S, err); if (!err.empty()) return err; }
+    const size_t N = static_cast<size_t>(S) * S;
+    Plane explored(N);
+    for (size_t i = 0; i < N; ++i)
+    {
+        float e = m.px[i * 4 + ch];
+        if (!high) e = 1.f - e;
+        if (d.s)
+        {
+            float f = d.px[i * 4 + ch];
+            if (!high) f = 1.f - f;
+            e = std::max(e, f);
+        }
+        explored[i] = e;
+    }
+    blur(explored, S, S, std::max(1, S / 400));       // soft, as the game blurs its fog's edge
+    const float ink_c[3] = {0.231f, 0.165f, 0.102f};
+    std::vector<unsigned char> img(N * 4);
+    for (int y = 0; y < S; ++y)
+        for (int x = 0; x < S; ++x)
+        {
+            const size_t i = static_cast<size_t>(y) * S + x;
+            auto e = [&](int xx, int yy) { return explored[static_cast<size_t>(std::min(std::max(yy, 0), S - 1)) * S + std::min(std::max(xx, 0), S - 1)]; };
+            const float gx = (e(x + 1, y) - e(x - 1, y)) * 0.5f, gy = (e(x, y + 1) - e(x, y - 1)) * 0.5f;
+            const float wash = std::min(1.f, std::sqrt(gx * gx + gy * gy) * S / 50.f);   // an ink wash along the edge
+            const float alpha = std::min(1.f, std::max(1.f - explored[i], 0.5f * wash));
+            const float* a = &art.px[i * 4];
+            for (int c = 0; c < 3; ++c)
+            {
+                const float v = a[c] * (1 - 0.35f * wash) + ink_c[c] * 0.35f * wash;
+                img[i * 4 + c] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, v))));
+            }
+            img[i * 4 + 3] = static_cast<unsigned char>(std::lround(255.f * alpha));
+        }
+    stbi_write_png_compression_level = 1;
+    return stbi_write_png(out.c_str(), S, S, 4, img.data(), S * 4) ? "" : "could not write " + out;
 }

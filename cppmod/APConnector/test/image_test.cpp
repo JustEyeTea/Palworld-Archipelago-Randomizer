@@ -63,5 +63,22 @@ int main()
     std::printf("%s chart: %s land %.0f, sea %.0f, coast %.0f, beyond %.0f\n", chartOk ? "ok" : "FAIL",
                 cerr.empty() ? "written" : cerr.c_str(), c ? lum(150, 130) : -1.0, c ? lum(80, 130) : -1.0,
                 c ? lum(110, 130) : -1.0, c ? lum(10, 130) : -1.0);
-    return chartOk ? 0 : 1;
+    if (!chartOk) return 1;
+
+    // compose_fog: the chart above, a mask explored (red high) on the right half only: see-through on the right, the
+    // chart on the left, inked and partly shown along the edge. The fog slot runs it in the background.
+    std::vector<unsigned char> mk(64 * 64 * 4);
+    for (int i = 0; i < 64 * 64; ++i) { mk[i * 4] = (i % 64) >= 32 ? 255 : 0; mk[i * 4 + 3] = 255; }
+    stbi_write_png("/tmp/fog_mask.png", 64, 64, 4, mk.data(), 64 * 4);
+    if (fog_jobs().start([] { return compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_out.png", 256); }) != "")
+        { std::printf("FAIL fog could not start\n"); return 1; }
+    std::string fst;
+    while ((fst = fog_jobs().status()) == "busy") {}
+    unsigned char* f = fst == "done" ? stbi_load("/tmp/fog_out.png", &w, &h, &n, 4) : nullptr;
+    auto fa = [&](int x, int y) { return f ? f[(y * 256 + x) * 4 + 3] : -1; };
+    const bool fogOk = f && fa(20, 128) == 255 && fa(240, 128) == 0 && fa(128, 128) > 0 && fa(128, 128) < 255
+                       && compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "x+", "/tmp/fog_bad.png", 256) != "";
+    std::printf("%s fog: %s, alpha unexplored %d, explored %d, edge %d\n", fogOk ? "ok" : "FAIL", fst.c_str(),
+                fa(20, 128), fa(240, 128), fa(128, 128));
+    return fogOk ? 0 : 1;
 }
