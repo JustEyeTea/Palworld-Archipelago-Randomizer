@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.5"
+local VERSION = "0.14.0-dev.6"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -872,7 +872,13 @@ local function unlockableCheck(self, ...)
     if not tech or not shopCard(tech) then return nil end
     local r = slotUnlockable(self:get(), tech)
     if r ~= nil and not reported.unlockable then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
-    if tech == hoveredTech and not reported["ask1" .. tech] then once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r)) end
+    if tech == hoveredTech and not reported["ask1" .. tech] then
+        -- Left to the game (nil): its own answer too, the first plain boolean UE4SS hands the after-callback (2026-11-05:
+        -- Direhowl's Saddled Harness stayed greyed with no gate in our data or the game's table).
+        local game
+        if r == nil then for i = 1, select("#", ...) do if type((select(i, ...))) == "boolean" then game = select(i, ...); break end end end
+        once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r) .. (r == nil and (" (the game says " .. tostring(game) .. ")") or ""))
+    end
     return r
 end
 local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,

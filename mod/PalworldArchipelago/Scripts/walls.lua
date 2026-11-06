@@ -86,12 +86,15 @@ local function raise(i, context)
     return true
 end
 
--- Opening a wall: it stops blocking at once, sinks out of sight (top first, so it reads as the barrier going down)
--- and is then removed.
+-- Opening a wall: it shrinks to nothing (top and bottom towards its middle), stops blocking halfway, and is then
+-- removed. It used to sink with K2_SetActorLocation, whose out-parameter FHitResult (a struct of structs, left
+-- unfilled without a sweep) UE4SS copies back into Lua: that crashed the game twice on 2026-11-05, both times within
+-- 2 s of a Region Pass, in UE4SS's nested push_structproperty (reading 0x7b and 0x0a). SetActorScale3D has no
+-- out-parameters.
 -- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. One loop for
 -- the session, made when this module loads (UE4SS cannot start one from inside a game-thread callback); it idles while
 -- nothing sinks.
-local sinking = {}            -- list of { actor, x, y, step }
+local sinking = {}            -- list of { actor, scale X, scale Y, step }
 local function sinkStep()
     local still = {}
     for _, s in ipairs(sinking) do
@@ -100,7 +103,7 @@ local function sinkStep()
             s[4] = s[4] + 1
             local t = s[4] / SINK_STEPS
             local eased = t * t * (3 - 2 * t)            -- slow, fast, slow
-            pcall(function() a:K2_SetActorLocation({ X = s[2], Y = s[3], Z = MID_Z - HEIGHT * eased }, false, {}, true) end)
+            pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
             if s[4] == SINK_STEPS // 2 then pcall(function() a:SetActorEnableCollision(false) end) end
             if s[4] >= SINK_STEPS then
                 pcall(function() a:K2_DestroyActor() end)
@@ -131,8 +134,7 @@ local function lower(i)
     local a = raised[i]
     forget(i)
     if not (a and a:IsValid()) then return end
-    local w = DATA.walls[i]
-    sinking[#sinking + 1] = { a, w[1], w[2], 0 }
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0 }
 end
 
 -- Walls the game removed (back to the title, another world) are noticed by checking a share of the pieces each

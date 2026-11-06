@@ -228,7 +228,8 @@ local gameplay = { IsValid = function() return true end,
                        function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
                        function a:SetActorEnableCollision(on) self.collision = on end
                        function a:SetActorHiddenInGame(on) self.hidden = on end
-                       function a:K2_SetActorLocation(loc) self.sankTo = loc.Z end
+                       function a:K2_SetActorLocation() error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS (2026-11-05)") end
+                       function a:SetActorScale3D(sc) self.shrunkTo = sc.Z; assert(sc.X > 0 and sc.Y > 0, "only the height shrinks") end
                        return a
                    end,
                    FinishSpawningActor = function(_, a) wallsUp[a] = true end,
@@ -814,8 +815,9 @@ end)()
 local saidBefore = #said
 keyBinds["key:H"]()
 expect(#said == saidBefore, "no offer pending, nothing asked")
-expect(lastGone and lastGone.collision == false and lastGone.sankTo and lastGone.sankTo < 50000 - 290000,
-       "an opened wall sinks out of sight, stops blocking on the way down, then goes: " .. tostring(lastGone and lastGone.sankTo))
+expect(lastGone and lastGone.collision == false and lastGone.shrunkTo and lastGone.shrunkTo < 1,
+       "an opened wall shrinks to nothing (no K2_SetActorLocation: its FHitResult crashed UE4SS), stops blocking on the way, then goes: "
+       .. tostring(lastGone and lastGone.shrunkTo))
 expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),
        "an Area Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)
