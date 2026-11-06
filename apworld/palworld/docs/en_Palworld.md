@@ -93,6 +93,10 @@ over days the game's own settings are fine. For one played in one sitting (Sync)
 | Time to hatch a massive egg | 1 | 0.5 | 0.5 | 0.5 |
 | Work Speed Multiplier | 1 | 1 | as you like | as high as it goes |
 | Max Pals at base | 15 | 15 | more if you like | more if you like |
+| Structure Deterioration Rate | 1 | 1 | 0 (off) | 0 (off) |
+
+Structure Deterioration Rate 0 stops buildings outside a base (bridges, ladders, outposts) from slowly wearing
+away, which suits a run that sends you all over the map. Speed Boost never changes it.
 
 **Speed Boost** (off by default; the Sync presets turn it on) does some of this for you: the mod multiplies your
 world's EXP Rate, Work Speed Multiplier and Gatherable Items Multiplier (×3, ×3 and ×2 by default; set each in the
