@@ -20,3 +20,12 @@ auto compose_map(const std::string& colour, const std::string& labels, const std
 auto compose_map_start(const std::string& colour, const std::string& labels, const std::string& locked,
                        const std::string& out, double gamma) -> std::string;
 auto compose_map_status() -> std::string;
+
+// The explorer's-chart picture of the map (the user, 2026-11-06: unexplored areas drawn like an explorer's chart instead
+// of the black fog, so the locked-area stamps show there too). size x size, opaque: paper, with land and sea told apart
+// by colour; inked coastlines, coastal ripple rings, light contours and relief on land, a double-ruled frame along the
+// world's edge and cross-hatching beyond it. colour: the map as compose_map reads it (gamma as there). paper / sea /
+// compass: the Art lane's ap-chart-*.png ("" for each: plain procedural paper, no sea marks, no compass). Returns "" on
+// success, else what went wrong. Look worked out in a numpy prototype against the real map (2026-11-06).
+auto compose_chart(const std::string& colour, const std::string& paper, const std::string& sea, const std::string& compass,
+                   const std::string& out, int size, double gamma) -> std::string;

@@ -35,5 +35,33 @@ int main()
     const bool soft = o && at(99, 50)[0] > at(20, 50)[0] && at(99, 50)[0] < 255 && at(99, 50)[1] > 0;   // mixed at the edge
     std::printf("%s compose: %s, inside %d, open %d, edge %d/%d\n", st == "done" && grey && colour && soft ? "ok" : "FAIL",
                 st.c_str(), o ? at(20, 50)[0] : -1, o ? at(180, 50)[0] : -1, o ? at(99, 50)[0] : -1, o ? at(99, 50)[1] : -1);
-    return st == "done" && grey && colour && soft ? 0 : 1;
+    if (!(st == "done" && grey && colour && soft)) return 1;
+
+    // compose_chart: a 256x256 map: a grey band beyond the world's edge on the left, teal sea, a green island in the
+    // middle. Land comes out as warm paper, the sea cooler, the coast inked dark, beyond the edge darker paper.
+    std::vector<unsigned char> cm(256 * 256 * 4);
+    for (int y = 0; y < 256; ++y)
+        for (int x = 0; x < 256; ++x)
+        {
+            unsigned char* q = &cm[(y * 256 + x) * 4];
+            const bool beyond = x < 40, island = x >= 110 && x < 190 && y >= 90 && y < 170;
+            const unsigned char c[3] = {static_cast<unsigned char>(beyond ? 28 : island ? 90 : 0),
+                                        static_cast<unsigned char>(beyond ? 28 : island ? 140 : 38),
+                                        static_cast<unsigned char>(beyond ? 28 : island ? 60 : 58)};
+            q[0] = c[0]; q[1] = c[1]; q[2] = c[2]; q[3] = 255;
+        }
+    stbi_write_png("/tmp/chart_map.png", 256, 256, 4, cm.data(), 256 * 4);
+    const auto cerr = compose_chart("/tmp/chart_map.png", "", "", "", "/tmp/chart_out.png", 256, 1.0);
+    unsigned char* c = cerr.empty() ? stbi_load("/tmp/chart_out.png", &w, &h, &n, 3) : nullptr;
+    auto cpx = [&](int x, int y) { return c + (y * 256 + x) * 3; };
+    auto lum = [&](int x, int y) { const unsigned char* q = cpx(x, y); return 0.2126 * q[0] + 0.7152 * q[1] + 0.0722 * q[2]; };
+    const bool paperLand = c && cpx(150, 130)[0] > cpx(150, 130)[2] + 30 && lum(150, 130) > 170;         // warm, light
+    const bool coolSea = c && (cpx(80, 130)[2] - cpx(80, 130)[0]) > (cpx(150, 130)[2] - cpx(150, 130)[0]); // bluer than land
+    const bool coast = c && lum(110, 130) < lum(150, 130) - 40;                                      // inked edge
+    const bool beyondDark = c && lum(10, 130) < lum(80, 130) - 10;                                   // darker past the frame
+    const bool chartOk = cerr.empty() && w == 256 && paperLand && coolSea && coast && beyondDark;
+    std::printf("%s chart: %s land %.0f, sea %.0f, coast %.0f, beyond %.0f\n", chartOk ? "ok" : "FAIL",
+                cerr.empty() ? "written" : cerr.c_str(), c ? lum(150, 130) : -1.0, c ? lum(80, 130) : -1.0,
+                c ? lum(110, 130) : -1.0, c ? lum(10, 130) : -1.0);
+    return chartOk ? 0 : 1;
 }
