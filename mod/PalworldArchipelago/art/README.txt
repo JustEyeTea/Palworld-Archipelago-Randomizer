@@ -33,5 +33,12 @@ Round 5 (2026-11-06, the user's pick A):
                               the HUD with the time left under it).
   ap-debuff-frame.png         128x128, the same frame empty, for future timed traps (keep a glyph inside x 20-108,
                               y 20-104).
+Round 6 (2026-11-06, the user's pick A, "engraved"): the explorer's-chart fog of war (the map's unexplored parts drawn
+as a chart; image_tools.cpp compose_chart / compose_fog, not drawn in play yet).
+  ap-chart-paper.png          1024x1024 opaque, seamless parchment (tiled two across the chart).
+  ap-chart-sea.png            512x512, seamless engraved wave lines for open water.
+  ap-chart-compass.png        512x512, a 16-point compass rose with a paw for north (beyond the frame's top-left).
+  ap-chart-edge.png           512x64, tiles left to right, chart side at the top: a torn edge for the explored boundary
+                              (not used yet).
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).
