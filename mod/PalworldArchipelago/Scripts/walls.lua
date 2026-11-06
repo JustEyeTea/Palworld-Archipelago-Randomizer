@@ -582,6 +582,16 @@ end
 local ART = require("art")
 local CENTRES = require("area_centres")    -- area_centres_regions.lua with the regions (W.setLayout)
 local STAMP_PX = 88
+-- A region too small for the whole stamp gets a smaller one, about as wide as the region (its fifth field: how far the
+-- stamp's point is from the region's edge), but never under STAMP_MIN_PX. 2026-11-06 run: the full 88 px padlock buried
+-- Small Settlement's village. Data without the field (older area_centres files) keeps the full size.
+local STAMP_MIN_PX = 28
+local function stampSize(c)
+    local room = c[5]
+    if not room then return STAMP_PX end
+    return math.max(STAMP_MIN_PX, math.min(STAMP_PX, math.floor(2 * room)))
+end
+W.stampSize = stampSize
 local function slugOf(name) return (name:lower():gsub("[^%w]+", "-")) end
 W.slugOf = slugOf
 local function lockedList(passes)
@@ -601,8 +611,9 @@ local function drawStamps(canvas, krl, gi, locked)
                                     or ART.texture("ap-map-stamp"))
         if tex then
             local u, v = c[3] or c[1], c[4] or c[2]
-            canvas:K2_DrawTexture(tex, { X = u * RT_SIZE - STAMP_PX / 2, Y = v * RT_SIZE - STAMP_PX / 2 },
-                { X = STAMP_PX, Y = STAMP_PX }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+            local px = stampSize(c)
+            canvas:K2_DrawTexture(tex, { X = u * RT_SIZE - px / 2, Y = v * RT_SIZE - px / 2 },
+                { X = px, Y = px }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
             n = n + 1
         end
     end

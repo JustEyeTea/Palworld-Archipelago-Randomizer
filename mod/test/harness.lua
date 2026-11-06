@@ -835,6 +835,20 @@ do  -- v0.13.5 playtest: stamps at each area's deepest point sat under the fog o
     expect(at and c[3] and math.abs(at.X - (c[3] * 4096 - 44)) < 0.01 and math.abs(at.Y - (c[4] * 4096 - 44)) < 0.01
            and (c[3] ~= c[1] or c[4] ~= c[2]), "a locked area's stamp goes on its side nearest the start, not its middle")
 end
+do  -- 2026-11-06 run: the full 88 px stamp buried a small region (Small Settlement); a small one is drawn smaller
+    local W = require("walls")
+    expect(W.stampSize({ 0, 0, 0, 0 }) == 88 and W.stampSize({ 0, 0, 0, 0, 120 }) == 88,
+           "an area with room (or data without the field) keeps the full 88 px stamp")
+    expect(W.stampSize({ 0, 0, 0, 0, 30 }) == 60 and W.stampSize({ 0, 0, 0, 0, 9 }) == 28,
+           "a small region's stamp is about as wide as the region, but at least 28 px")
+    local small, tiny = 0, 0
+    for _, c in pairs(dofile(MOD .. "/Scripts/area_centres_regions.lua")) do
+        expect(c[5], "every region's centre carries its room")
+        if c[5] and W.stampSize(c) < 88 then small = small + 1 end
+        if c[5] and c[5] < 14 then tiny = tiny + 1 end
+    end
+    expect(small > 0 and tiny > 0, "the regions set has small regions that get a smaller stamp")
+end
 local lockedFirst = composeJobs[1].locked
 expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
        "locked areas passed by index: " .. lockedFirst)
