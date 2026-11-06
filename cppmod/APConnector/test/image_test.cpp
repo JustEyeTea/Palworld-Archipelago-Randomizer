@@ -80,5 +80,24 @@ int main()
                        && compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "x+", "/tmp/fog_bad.png", 256) != "";
     std::printf("%s fog: %s, alpha unexplored %d, explored %d, edge %d\n", fogOk ? "ok" : "FAIL", fst.c_str(),
                 fa(20, 128), fa(240, 128), fa(128, 128));
-    return fogOk ? 0 : 1;
+    if (!fogOk) return 1;
+
+    // sample_png: the mask above reads 255 red on its right half, 0 on its left; a missing file is an error.
+    const auto right = sample_png("/tmp/fog_mask.png", 0.9, 0.5), left = sample_png("/tmp/fog_mask.png", 0.1, 0.5);
+    const bool sampleOk = right == "255,0,0,255" && left == "0,0,0,255" && sample_png("/tmp/no_such.png", 0, 0).rfind("error:", 0) == 0;
+    std::printf("%s sample: right %s, left %s\n", sampleOk ? "ok" : "FAIL", right.c_str(), left.c_str());
+    if (!sampleOk) return 1;
+
+    // compose_fog with a stamp: a pure blue 32x32 stamp at the middle of the unexplored half is drawn over the chart.
+    std::vector<unsigned char> stp(32 * 32 * 4);
+    for (int i = 0; i < 32 * 32; ++i) { stp[i * 4 + 2] = 255; stp[i * 4 + 3] = 255; }
+    stbi_write_png("/tmp/fog_stamp.png", 32, 32, 4, stp.data(), 32 * 4);
+    const auto serr = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_stamped.png", 256,
+                                  "/tmp/fog_stamp.png|0.25|0.5|256;");
+    unsigned char* g = serr.empty() ? stbi_load("/tmp/fog_stamped.png", &w, &h, &n, 4) : nullptr;
+    auto gp = [&](int x, int y) { return g + (y * 256 + x) * 4; };
+    const bool stampOk = g && gp(64, 128)[2] == 255 && gp(64, 128)[0] == 0 && gp(64, 128)[3] == 255 && gp(20, 20)[2] < 255;
+    std::printf("%s fog stamp: %s, at the stamp %d,%d,%d\n", stampOk ? "ok" : "FAIL", serr.empty() ? "written" : serr.c_str(),
+                g ? gp(64, 128)[0] : -1, g ? gp(64, 128)[1] : -1, g ? gp(64, 128)[2] : -1);
+    return stampOk ? 0 : 1;
 }

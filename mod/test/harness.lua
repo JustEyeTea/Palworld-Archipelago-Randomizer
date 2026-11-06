@@ -118,7 +118,8 @@ cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels 
 local function Texture(path) return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end,
                                        SRGB = true, UpdateResource = function(self) self.updated = true end,
                                        -- (no GetSurfaceWidth: C++ only, not callable from Lua on the client; v0.13.5 playtest)
-                                       Blueprint_GetSizeX = function() return 512 end, Blueprint_GetSizeY = function() return 512 end } end
+                                       Blueprint_GetSizeX = function() return 512 end, Blueprint_GetSizeY = function() return 512 end,
+                                       GetFullName = function() return "Texture2D /Engine/Transient." .. tostring(path) end } end
 local kept = {}
 worldDir = "AP_WORLD"                                        -- the loaded world's save folder
 local gameInstance = { IsValid = function() return true end,
@@ -936,6 +937,80 @@ do
     for _, c in ipairs(calls) do if c:find("^status=") then statuses = statuses + 1 end end
     expect(statuses == 1, "C++'s status is logged when the map opens, not every update: " .. statuses)
     AP_MapScreen, mapBody.MaskTextureMaterial = nil, nil
+end
+-- The explorer's-chart fog: the chart drawn once from the colour map with the Art lane's pieces; when the map opens the
+-- explored mask is exported, read once at the player and beyond the world's edge (which channel, which way round),
+-- the fog picture made with the locked areas' stamps, loaded and handed to C++ for the next opening; a pass remakes it
+-- from the same mask with one stamp fewer.
+do
+    local calls, jobs = {}, {}
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    AP_ComposeChart = function(colour, paper, sea, compass, out, size, gamma)
+        jobs[#jobs + 1] = { kind = "chart", colour = colour, paper = paper, compass = compass, out = out, size = size }
+        local f = io.open(out, "w"); f:write("chart"); f:close()
+        return ""
+    end
+    AP_ChartStatus = function() return "done" end
+    AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps)
+        jobs[#jobs + 1] = { kind = "fog", chart = chartFile, mask = mask, spec = spec, out = out, stamps = stamps }
+        local f = io.open(out, "w"); f:write("fog"); f:close()
+        return ""
+    end
+    AP_FogStatus = function() return "done" end
+    local sampled = {}
+    AP_SamplePNG = function(path, u, v)
+        sampled[#sampled + 1] = u .. "," .. v
+        return u == "0.02" and "0,0,0,255" or "0,0,0,40"         -- explored where alpha is LOW (the made-up mask)
+    end
+    os.remove(MOD .. "/map-fog.png")
+    mapBody.MaskTextureMaterial = { IsValid = function() return true end,
+        GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_2" end,
+        K2_GetTextureParameterValue = function(_, name)
+            if name:ToString() == "TargetTexture" then
+                return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
+                         GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
+            end
+        end }
+    local W6 = dofile(MOD .. "/Scripts/walls.lua")
+    W6.dir, W6.keep = MOD, function() end
+    mapOpen = false
+    W6.updateMap(true, {}, pawn)                                 -- closed: the chart is drawn in the background
+    W6.updateMap(true, {}, pawn)
+    local chartJob = jobs[1]
+    expect(chartJob and chartJob.kind == "chart" and chartJob.colour:find("map%-colour%-1%.png") and chartJob.paper:find("ap%-chart%-paper%.png")
+           and chartJob.compass:find("ap%-chart%-compass%.png") and chartJob.size == "2048" and logged("map chart: drawn"),
+           "the chart is drawn once from the saved colour map with the Art lane's paper, sea and compass")
+    mapOpen = true
+    for _ = 1, 4 do W6.updateMap(true, {}, pawn) end              -- the map opens
+    local fog
+    for _, j in ipairs(jobs) do if j.kind == "fog" then fog = fog or j end end
+    expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png") and logged("explored reads a%-"),
+           "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
+    local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
+    expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked areas' stamps go on the fog: " .. stamps)
+    local fogpic
+    for _, c in ipairs(calls) do if c:find("^fogpic=") then fogpic = c end end
+    expect(fogpic and fogpic:find("map%-fog", 1) and logged("the fog picture is ready"),
+           "the fog picture is loaded and handed to C++ for the next opening: " .. tostring(fogpic))
+    local fogs = 0
+    for _, j in ipairs(jobs) do if j.kind == "fog" then fogs = fogs + 1 end end
+    for _ = 1, 10 do W6.updateMap(true, {}, pawn) end
+    local again = 0
+    for _, j in ipairs(jobs) do if j.kind == "fog" then again = again + 1 end end
+    expect(again == fogs, "while the map stays open nothing is remade")
+    local open1 = {}
+    for _, a in ipairs(require("area_walls").areas) do open1[a] = true end
+    W6.updateMap(true, { [require("area_walls").areas[4]] = true }, pawn)
+    W6.updateMap(true, { [require("area_walls").areas[4]] = true }, pawn)
+    local last
+    for _, j in ipairs(jobs) do if j.kind == "fog" then last = j end end
+    local fewer = select(2, (last and last.stamps or ""):gsub("ap%-map%-stamp", ""))
+    expect(last ~= fog and fewer == stamps - 1, "a pass remakes the fog from the same mask with one stamp fewer: " .. fewer)
+    local nChart = 0
+    for _, j in ipairs(jobs) do if j.kind == "chart" then nChart = nChart + 1 end end
+    expect(nChart == 1, "the chart itself is drawn once a session")
+    AP_MapScreen, AP_ComposeChart, AP_ChartStatus, AP_ComposeFog, AP_FogStatus, AP_SamplePNG = nil, nil, nil, nil, nil, nil
+    mapBody.MaskTextureMaterial = nil
 end
 mapOpen = false
 

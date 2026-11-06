@@ -875,7 +875,8 @@ local function probeMask(screen)
         .. "x" .. tostring(rt.SizeY) .. " format " .. tostring(rt.RenderTargetFormat)) or "none")
         .. "; default mask " .. (def and def:GetFullName() or "none")
     local gi = owner()
-    if rt and gi then
+    -- (With the chart on, its own step exports the mask: not twice in one opening.)
+    if rt and gi and (W.chartOff or not AP_ComposeFog) then
         local ok, err = pcall(function()
             StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"):ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
         end)
@@ -900,6 +901,139 @@ local function probeMask(screen)
     end
     return info
 end
+
+-- The explorer's-chart fog (the user, 2026-11-06: the black fog replaced by a basic map drawn like an explorer's chart,
+-- with the locked-area stamps on it; art: the Art lane's ap-chart-*.png, the user's pick A). All drawn on the player's
+-- machine by the C++ part from the game's own map (never shipped):
+--   1. the chart, once a session, from the saved colour map (compose_chart);
+--   2. when the map opens (at most every EXPORT_GAP updates) the explored mask is exported and the fog picture made from
+--      it: the chart where unexplored, clear where explored, the stamps on it (compose_fog); which channel of the mask
+--      means explored, and which way round, is read once from the mask at the player and beyond the world's edge;
+--   3. the fog picture is handed to C++ (AP_MapScreen "fogpic"), which shows it in the fog image inside the screen's
+--      own Setup: from the next opening, never swapped in view. The last session's picture is used until a new one.
+-- UNTESTED IN GAME. config.txt map_chart=0 keeps the game's fog.
+local CHART_SIZE = 2048
+local CHART_FILE, FOG_FILE = "map-chart.png", "map-fog.png"
+local EXPORT_GAP = 200                     -- updates (about a minute) between exports of the explored mask
+W.chartOff = false
+local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
+                old = false }
+local function exists(path) local f = io.open(path, "rb"); if f then f:close(); return true end return false end
+local function artFile(name)
+    local path = ART.dir .. "\\art\\" .. name .. ".png"
+    return exists(path) and path or ""
+end
+-- "explored" in the mask: the channel that differs most between the player (explored) and a corner beyond the world's
+-- edge (never), and which way. nil (and why) when no channel tells them apart.
+local function maskSpec(ctx)
+    local okp, at = pcall(function() return ctx:K2_GetActorLocation() end)
+    if not (okp and at) then return nil, "no player position" end
+    local x0, x1, y0, y1 = MAP.bounds[1], MAP.bounds[2], MAP.bounds[3], MAP.bounds[4]
+    local u, v = (at.Y - y0) / (y1 - y0), (x1 - at.X) / (x1 - x0)
+    local mask = W.dir .. "\\fog-mask.png"
+    local here, corner = AP_SamplePNG(mask, tostring(u), tostring(v)), AP_SamplePNG(mask, "0.02", "0.02")
+    local a, b = {}, {}
+    for n in tostring(here):gmatch("%d+") do a[#a + 1] = tonumber(n) end
+    for n in tostring(corner):gmatch("%d+") do b[#b + 1] = tonumber(n) end
+    local info = string.format("at the player (%.3f, %.3f) %s, beyond the world's edge %s", u, v, tostring(here), tostring(corner))
+    if #a ~= 4 or #b ~= 4 then return nil, info end
+    local best, diff = nil, 0
+    for c = 1, 4 do if math.abs(a[c] - b[c]) > math.abs(diff) then best, diff = c, a[c] - b[c] end end
+    if math.abs(diff) < 64 then return nil, info .. ": no channel tells them apart" end
+    return ("rgba"):sub(best, best) .. (diff > 0 and "+" or "-"), info
+end
+local function exportMask(screen, krl, gi)
+    local dmi = screen.MaskTextureMaterial
+    if not (dmi and dmi:IsValid()) then return "no fog material" end
+    local rt = dmi:K2_GetTextureParameterValue(FName("TargetTexture"))
+    if not (rt and rt:IsValid()) then return "no explored mask" end
+    krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
+    return true
+end
+-- The stamps for the fog picture: "path|u|v|px;..." (as drawStamps places them on the 4096 map).
+local function stampList(locked)
+    local parts = {}
+    for _, k in ipairs(locked) do
+        local c, name = CENTRES[k], DATA.areas[k + 1]
+        if c and name then
+            local file = W.beyond[name] and "ap-map-stamp-sealed" or ("ap-map-stamp-" .. slugOf(W.parentOf(name)))
+            local path = artFile(file)
+            if path == "" then path = artFile("ap-map-stamp") end
+            if path ~= "" then parts[#parts + 1] = table.concat({ path, c[3] or c[1], c[4] or c[2], stampSize(c) }, "|") end
+        end
+    end
+    return table.concat(parts, ";")
+end
+local function startFog(stamps)
+    local def = W.dir .. "\\fog-default-mask.png"
+    local err = AP_ComposeFog(W.dir .. "\\" .. CHART_FILE, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
+        W.dir .. "\\" .. FOG_FILE, tostring(CHART_SIZE), stamps)
+    if err == "" then chart.fog, chart.stampKey = "composing", stamps
+    elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
+end
+local function chartTick(ctx, screens, opening, passes)
+    if W.chartOff or not (AP_ComposeChart and AP_ComposeFog and AP_SamplePNG and AP_MapScreen) then return end
+    chart.ticks = chart.ticks + 1
+    if opening then chart.want = true end                                    -- read the mask on this opening
+    if #screens == 0 then chart.want = false end                             -- (closed before it was read)
+    local gi = owner()
+    if not gi then return end
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    if chart.state == "none" then                                            -- 1. the chart
+        local colour = W.dir .. "\\" .. COLOUR_FILE
+        if not exists(colour) then return end
+        local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
+            W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), "0.4545")
+        if err == "" then chart.state = "composing"
+        elseif err ~= "busy" then chart.state = "failed"; log("map chart: could not start: " .. err) end
+        return
+    elseif chart.state == "composing" then
+        local st = AP_ChartStatus()
+        if st == "busy" then return end
+        if st ~= "done" then chart.state = "failed"; log("map chart: failed: " .. tostring(st)); return end
+        chart.state = "ready"
+        log("map chart: drawn (" .. CHART_SIZE .. " px)")
+    end
+    if chart.state ~= "ready" then return end
+    local load = false
+    if chart.fog == "composing" then                                         -- 2. the fog picture
+        local st = AP_FogStatus()
+        if st == "busy" then return end
+        chart.fog = "idle"
+        if st ~= "done" then once("fogerr" .. tostring(st), "map chart: the fog failed: " .. tostring(st)); return end
+        load = true
+    elseif not chart.old and not chart.tex and exists(W.dir .. "\\" .. FOG_FILE) then
+        chart.old, load = true, true                                         -- the last session's, until a new one
+    end
+    if chart.fog == "idle" and not load then
+        local stamps = stampList(lockedList(passes))
+        if chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
+            chart.exportedAt, chart.want = chart.ticks, false
+            local ok, res = pcall(exportMask, screens[#screens], krl, gi)
+            if not ok or res ~= true then once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res)); return end
+            if not chart.spec then
+                local spec, info = maskSpec(ctx)
+                log("map chart: the explored mask " .. info .. (spec and (": explored reads " .. spec) or ""))
+                if not spec then chart.state = "failed"; return end
+                chart.spec = spec
+            end
+            startFog(stamps)
+        elseif chart.spec and chart.stampKey and stamps ~= chart.stampKey then
+            startFog(stamps)                                                 -- a pass: the same mask, new stamps
+        end
+    end
+    if load then                                                             -- 3. shown from the next opening
+        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. FOG_FILE)
+        if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. FOG_FILE); return end
+        W.keep(tex)
+        chart.tex = tex
+        local full = tex:GetFullName()
+        AP_MapScreen("fogpic", full:match("^%S+%s+(.+)$") or full)
+        log("map chart: the fog picture is ready (" .. (chart.old and chart.fog == "idle" and not chart.stampKey and "last session's" or "new") .. ")")
+    end
+end
+W.chartStatus = function() return chart end
+
 function W.updateMap(enabled, passes, ctx)
     local wasShown = mapShownAt > 0                  -- whether the map was open at the last update
     mapShownAt = 0
@@ -913,6 +1047,9 @@ function W.updateMap(enabled, passes, ctx)
         if b:IsValid() and ok and img then images[#images + 1] = img; screens[#screens + 1] = b end
     end
     mapShownAt = #images
+    -- The chart is drawn in the background from the start; the mask is read while the map is open.
+    local okt, errt = pcall(chartTick, ctx, screens, #images > 0 and not wasShown, passes)
+    if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
     if #images == 0 then return end
     if AP_MapScreen and not wasShown then
         cpp.opened = cpp.opened + 1

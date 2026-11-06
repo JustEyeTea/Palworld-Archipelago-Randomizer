@@ -32,13 +32,18 @@ auto compose_map_status() -> std::string;
 auto compose_chart(const std::string& colour, const std::string& paper, const std::string& sea, const std::string& compass,
                    const std::string& out, int size, double gamma) -> std::string;
 
+// A PNG's colour at (u, v) in 0..1 (the 3x3 pixels around it averaged): "r,g,b,a" in 0..255, or "error: ...". Lua
+// reads the game's explored mask with it (which channel, which way round).
+auto sample_png(const std::string& path, double u, double v) -> std::string;
+
 // The fog picture: the chart where the player hasn't explored, see-through where they have, with a soft inked edge
 // between (size x size RGBA). mask: the explored mask exported from the game (fog-mask.png); default_mask: the map's
 // always-uncovered mask (fog-default-mask.png, "" for none); explored where either says so. spec says how to read
 // them, as the in-game probe shows: a channel and which way round, "r+" (explored where red is high), "r-", "a+", ...
-// Returns "" on success, else what went wrong.
+// stamps: the locked areas' stamps drawn on top wherever the fog is ("path|u|v|px;..." with u, v in 0..1 and px their
+// width on a 4096 map; "" for none), so they show on the chart. Returns "" on success, else what went wrong.
 auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
-                 const std::string& spec, const std::string& out, int size) -> std::string;
+                 const std::string& spec, const std::string& out, int size, const std::string& stamps = "") -> std::string;
 
 // One background job at a time per slot (the map, the chart, the fog each have their own), as compose_map_start:
 // start returns "" (started), "busy" or an error; status "busy", "done" (once), "error: ..." or "".

@@ -24,8 +24,10 @@
 //   AP_ComposeChart(colour, paper, sea, compass, out, size, gamma) -> string   starts drawing the explorer's-chart
 //                                        picture of the map in the background ("" started, "busy", or an error)
 //   AP_ChartStatus() -> string           "busy", "done" (once), "error: ..." or ""
-//   AP_ComposeFog(chart, mask, default, spec, out, size) -> string   starts the fog picture (the chart where unexplored)
+//   AP_ComposeFog(chart, mask, default, spec, out, size, stamps) -> string   starts the fog picture (the chart where
+//                                        unexplored, the locked areas' stamps on it; image_tools.hpp)
 //   AP_FogStatus() -> string             as AP_ChartStatus (chart and fog untested in game)
+//   AP_SamplePNG(path, u, v) -> string   a PNG's colour at (u, v) in 0..1: "r,g,b,a", or "error: ..."
 //   AP_MapScreen(cmd, value) -> string  the world map screen, changed inside the game's own Setup so it never shows the
 //                                        game's version first: "body", path / "fog", "r,g,b,a" / "status" (map_screen.hpp;
 //                                        untested in game)
@@ -200,14 +202,21 @@ namespace
             return 1;
         });
         lua.register_function("AP_ComposeFog", [](const LuaMadeSimple::Lua& l) -> int {
-            const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l), size = arg(l);
+            const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l), size = arg(l), stamps = arg(l);
             int s = 2048;
             try { s = std::stoi(size); } catch (...) {}
-            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s); }));
+            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s, stamps); }));
             return 1;
         });
         lua.register_function("AP_FogStatus", [](const LuaMadeSimple::Lua& l) -> int {
             l.set_string(fog_jobs().status());
+            return 1;
+        });
+        lua.register_function("AP_SamplePNG", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto path = arg(l), u = arg(l), v = arg(l);
+            double fu = 0, fv = 0;
+            try { fu = std::stod(u); fv = std::stod(v); } catch (...) {}
+            l.set_string(sample_png(path, fu, fv));
             return 1;
         });
         lua.register_function("AP_GreyscalePNG", [](const LuaMadeSimple::Lua& l) -> int {

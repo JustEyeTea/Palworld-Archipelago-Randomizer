@@ -71,7 +71,7 @@ local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
     for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "map_cpp" }) do
+                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "map_cpp", "map_chart" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -556,6 +556,7 @@ end
 WALLS.keep = keep
 WALLS.dir = modDir
 WALLS.cppOff = cfg.map_cpp == "0"
+WALLS.chartOff = cfg.map_chart == "0"
 do local ART = require("art"); ART.keep, ART.dir = keep, modDir end
 do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|b3d-dense, wall_tiling=U,V and wall_scroll=U,V in config.txt
     local function pair(s)

@@ -41,3 +41,6 @@ perf_no_bp_hooks=
 # builds (the game's own map may show for a moment first). Empty: C++ sets the picture and the fog inside the game's own
 # set-up of the screen, so it never shows the game's version first. Test builds tint the fog parchment (a probe).
 map_cpp=
+# map_chart=0: keep the game's dark fog over unexplored parts of the world map. Empty: they are drawn as an explorer's
+# chart (made on your PC from the game's map, with the locked-area stamps on it), from the map's next opening.
+map_chart=

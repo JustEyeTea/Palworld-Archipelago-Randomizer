@@ -33,12 +33,13 @@ namespace map_screen_unreal
     std::mutex g_lock;                         // guards what Lua sets and the counters' text
     std::string g_body;                        // the picture's object path ("" = the game's own)
     std::string g_fog;                         // "r,g,b,a" ("" = the game's own)
+    std::string g_fogpic;                      // the fog picture's object path (the explorer's chart; "" = none)
     std::string g_last;                        // what the last Setup did
 
     std::atomic<UFunction*> g_setup{nullptr};
     std::atomic<UObject*> g_class{nullptr};    // WBP_Map_Body_C, for logging its functions
     std::atomic<uint64_t> g_frame{0};
-    std::atomic<int> g_setups{0}, g_bodies{0}, g_fogs{0}, g_logged{0};
+    std::atomic<int> g_setups{0}, g_bodies{0}, g_fogs{0}, g_fogpics{0}, g_logged{0};
     std::atomic<bool> g_hooked{false};
     std::atomic<bool> g_enabled{false};        // off until Lua turns it on (config.txt map_cpp=0 keeps it off)
 
@@ -88,11 +89,12 @@ namespace map_screen_unreal
     auto on_setup(UObject* screen, const char* route) -> void
     {
         const int n = ++g_setups;
-        std::string body, fog;
+        std::string body, fog, fogpic;
         {
             std::lock_guard<std::mutex> guard(g_lock);
             body = g_body;
             fog = g_fog;
+            fogpic = g_fogpic;
         }
         std::ostringstream did;
         did << "Setup #" << n << " (" << route << ", frame " << g_frame.load() << ")";
@@ -116,7 +118,19 @@ namespace map_screen_unreal
             }
             UObject* material = object_field(screen, STR("MaskTextureMaterial"));
             did << "; fog " << (material ? class_of(material) + " " + name_of(material) : std::string("none"));
-            if (!fog.empty() && material)
+            UObject* mask_image = object_field(screen, STR("Image_MapMask"));
+            // The explorer's chart: the fog image shows the mod's fog picture (the chart where unexplored, clear where
+            // explored) in place of the game's material, on the main world's map only.
+            if (!fogpic.empty() && mask_image && map.find("Main") != std::string::npos)
+            {
+                const StringType path = ensure_str(fogpic);
+                UObject* picture = UObjectGlobals::StaticFindObject<UObject*>(nullptr, nullptr, path.c_str());
+                if (!picture) throw Fail{"the fog picture " + fogpic + " was not found"};
+                set_body(mask_image, picture);
+                ++g_fogpics;
+                did << "; showed the chart fog";
+            }
+            else if (!fog.empty() && material)
             {
                 set_fog(material, fog);
                 ++g_fogs;
@@ -195,6 +209,12 @@ namespace map_screen
             g_fog = value;
             return "";
         }
+        if (cmd == "fogpic")
+        {
+            if (value != g_fogpic) say("the chart fog: " + (value.empty() ? std::string("none") : value));
+            g_fogpic = value;
+            return "";
+        }
         if (cmd == "enable")
         {
             g_enabled = value == "1";
@@ -205,7 +225,7 @@ namespace map_screen
         {
             std::ostringstream s;
             s << (g_enabled ? "" : "OFF; ") << (g_hooked ? "hooked" : "not hooked yet") << "; Setup ran " << g_setups << "x, picture set " << g_bodies
-              << "x, fog set " << g_fogs << "x" << (g_last.empty() ? "" : "; last: " + g_last);
+              << "x, fog set " << g_fogs << "x, chart fog " << g_fogpics << "x" << (g_last.empty() ? "" : "; last: " + g_last);
             return s.str();
         }
         return "unknown command " + cmd;

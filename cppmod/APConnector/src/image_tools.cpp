@@ -398,7 +398,7 @@ auto compose_chart(const std::string& colour, const std::string& paper, const st
 }
 
 auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
-                 const std::string& spec, const std::string& out, int size) -> std::string
+                 const std::string& spec, const std::string& out, int size, const std::string& stamps) -> std::string
 {
     const int S = size;
     if (S < 64 || S > 8192) return "fog size " + std::to_string(S);
@@ -446,6 +446,47 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
             }
             img[i * 4 + 3] = static_cast<unsigned char>(std::lround(255.f * alpha));
         }
+    // The stamps, over the fog only (where it covers the map: on explored land the map's own picture has them).
+    std::stringstream list(stamps);
+    for (std::string item; std::getline(list, item, ';');)
+    {
+        if (item.empty()) continue;
+        std::stringstream parts(item);
+        std::string path, su, sv, spx;
+        std::getline(parts, path, '|'); std::getline(parts, su, '|'); std::getline(parts, sv, '|'); std::getline(parts, spx, '|');
+        double u = 0, v = 0, px = 0;
+        try { u = std::stod(su); v = std::stod(sv); px = std::stod(spx); } catch (...) { return "stamp '" + item + "'"; }
+        const int sp = std::max(4, static_cast<int>(std::lround(px * S / 4096.0)));
+        Rgba st = load_rgba(path, sp, err);
+        if (!err.empty()) return err;
+        const int x0 = static_cast<int>(std::lround(u * S - sp / 2.0)), y0 = static_cast<int>(std::lround(v * S - sp / 2.0));
+        for (int y = 0; y < sp; ++y)
+            for (int x = 0; x < sp; ++x)
+            {
+                const int X = x0 + x, Y = y0 + y;
+                if (X < 0 || Y < 0 || X >= S || Y >= S) continue;
+                unsigned char* d = &img[(static_cast<size_t>(Y) * S + X) * 4];
+                const float fog = d[3] / 255.f;
+                const float* q = st.at(x, y);
+                const float a = q[3] * fog;
+                for (int k = 0; k < 3; ++k) d[k] = static_cast<unsigned char>(std::lround(d[k] * (1 - a) + 255.f * q[k] * a));
+            }
+    }
     stbi_write_png_compression_level = 1;
     return stbi_write_png(out.c_str(), S, S, 4, img.data(), S * 4) ? "" : "could not write " + out;
+}
+
+auto sample_png(const std::string& path, double u, double v) -> std::string
+{
+    int w = 0, h = 0, n = 0;
+    std::unique_ptr<unsigned char, void (*)(void*)> px(stbi_load(path.c_str(), &w, &h, &n, 4), stbi_image_free);
+    if (!px) return std::string("error: could not read ") + path + ": " + stbi_failure_reason();
+    const int cx = std::min(std::max(static_cast<int>(u * w), 0), w - 1), cy = std::min(std::max(static_cast<int>(v * h), 0), h - 1);
+    int sum[4] = {}, count = 0;
+    for (int y = std::max(cy - 1, 0); y <= std::min(cy + 1, h - 1); ++y)
+        for (int x = std::max(cx - 1, 0); x <= std::min(cx + 1, w - 1); ++x, ++count)
+            for (int c = 0; c < 4; ++c) sum[c] += px.get()[(static_cast<size_t>(y) * w + x) * 4 + c];
+    std::ostringstream out;
+    out << sum[0] / count << "," << sum[1] / count << "," << sum[2] / count << "," << sum[3] / count;
+    return out.str();
 }
