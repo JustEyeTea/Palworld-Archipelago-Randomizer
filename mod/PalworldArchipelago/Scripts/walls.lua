@@ -881,6 +881,23 @@ local function probeMask(screen)
         end)
         info = info .. (ok and "; exported to fog-mask.png" or ("; export failed: " .. tostring(err)))
     end
+    -- The default mask (a texture, what every player sees uncovered): drawn into a render target of its size to export.
+    if def and gi then
+        local ok, err = pcall(function()
+            local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+            local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
+            local drt = krl:CreateRenderTarget2D(gi, w, h, 2, { R = 0, G = 0, B = 0, A = 0 }, false)
+            local canvasOut, contextOut, extra = {}, {}, {}
+            krl:BeginDrawCanvasToRenderTarget(gi, drt, canvasOut, contextOut, extra)
+            canvasOut.Canvas:K2_DrawTexture(def, { X = 0, Y = 0 }, { X = w, Y = h }, { X = 0, Y = 0 }, { X = 1, Y = 1 },
+                WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+            krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+            krl:ExportRenderTarget(gi, drt, W.dir, "fog-default-mask.png")
+            return w .. "x" .. h
+        end)
+        info = info .. (ok and ("; default mask " .. tostring(err) .. " exported to fog-default-mask.png")
+            or ("; default mask export failed: " .. tostring(err)))
+    end
     return info
 end
 function W.updateMap(enabled, passes, ctx)

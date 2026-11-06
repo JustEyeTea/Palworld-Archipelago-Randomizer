@@ -908,7 +908,14 @@ do
                      GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.TextureRenderTarget2D_9" end }
     mapBody.MaskTextureMaterial = { IsValid = function() return true end,
         GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_1" end,
-        K2_GetTextureParameterValue = function(_, name) return name:ToString() == "TargetTexture" and maskRT or nil end }
+        K2_GetTextureParameterValue = function(_, name)
+            if name:ToString() == "TargetTexture" then return maskRT end
+            if name:ToString() == "DefaultMaskTexture" then
+                return { IsValid = function() return true end, Blueprint_GetSizeX = function() return 512 end,
+                         Blueprint_GetSizeY = function() return 512 end,
+                         GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_MainWorld5_DefaultMask.T_MainWorld5_DefaultMask" end }
+            end
+        end }
     local W5 = dofile(MOD .. "/Scripts/walls.lua")
     W5.dir, W5.keep = MOD, function() end
     local before = exports
@@ -919,11 +926,12 @@ do
            and said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
            "C++ is told the fog colour and the picture's path (without its class): " .. said)
     expect(logged("map screen %(C%+%+%): hooked; Setup ran 1x") and logged("map fog: fog material .*MaterialInstanceDynamic_1; mask .*1024x1024.*exported to fog%-mask%.png")
-           and exports == before + 1, "the map's opening logs C++'s status, and the fog is probed and its mask exported once")
+           and logged("default mask 512x512 exported to fog%-default%-mask%.png")
+           and exports == before + 2, "the map's opening logs C++'s status, and the fog is probed and both masks exported once")
     for _ = 1, 3 do W5.updateMap(true, {}, pawn) end
     local bodies = 0
     for _, c in ipairs(calls) do if c:find("^body=") then bodies = bodies + 1 end end
-    expect(bodies == 1 and exports == before + 1, "told the picture once, not every update; the mask exported once")
+    expect(bodies == 1 and exports == before + 2, "told the picture once, not every update; the masks exported once")
     local statuses = 0
     for _, c in ipairs(calls) do if c:find("^status=") then statuses = statuses + 1 end end
     expect(statuses == 1, "C++'s status is logged when the map opens, not every update: " .. statuses)
