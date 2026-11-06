@@ -95,7 +95,9 @@ function R.progress(ps, D, now)
     each(rec.PaldeckUnlockFlag, function(k, v) if v then add(D.captures[k:lower()]); register(k) end end)
     each(rec.TowerBossDefeatFlag, function(k, v)
         if not v then return end
-        local boss = k:match("([^:]+)$")
+        -- 1.0.5 keys are BOSS_BATTLE_NAME_GrassBoss (2026-11-05 run: both towers beaten, neither counted, no goal);
+        -- EPalBossType::GrassBoss is kept as well.
+        local boss = (k:match("([^:]+)$") or k):gsub("^BOSS_BATTLE_NAME_", "")
         beaten[boss] = true
         local loc = D.towers[boss]
         if loc then towers = towers + 1; add(loc) else warnOnce("tower" .. k, "tower record key not mapped: " .. k) end

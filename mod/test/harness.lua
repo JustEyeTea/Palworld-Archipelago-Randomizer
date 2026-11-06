@@ -65,7 +65,7 @@ inv.MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 
 local record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
     PaldeckUnlockFlag = FastArray({ { "Blueplatypus", true } }),
-    TowerBossDefeatFlag = FastArray({ { "EPalBossType::GrassBoss", true } }),
+    TowerBossDefeatFlag = FastArray({ { "BOSS_BATTLE_NAME_GrassBoss", true } }),   -- the key as 1.0.5 writes it
     NormalBossDefeatFlag = FastArray({ { "yamijima_IceLand_pink_D_BOSS", true }, { "mystery_boss", true } }),
     FastTravelPointUnlockFlag = FastArray({ { "6E03F8464BAD9E458B843AA30BE1CC8F", true } }),
 }
@@ -504,7 +504,8 @@ expect(td.TechnologyPoint == 12, "Tech Points +2 applied: " .. td.TechnologyPoin
 expect(checks[D.levels[2]] and checks[D.levels[4]] and not checks[D.levels[5]], "levels 2-4 checked, not 5")
 expect(checks[D.captures.chickenpal] and not checks[D.captures.sheepball], "capture by count, not zero count")
 expect(checks[D.captures.blueplatypus], "capture by Paldeck flag (case-insensitive)")
-expect(checks[D.towers.GrassBoss], "tower checked")
+expect(checks[D.towers.GrassBoss] and not logged("tower record key not mapped"),
+       "tower checked from its 1.0.5 record key (BOSS_BATTLE_NAME_GrassBoss)")
 expect(goals == 1, "goal sent once")
 expect(checks[D.alpha_spawners.yamijima_iceland_pink_d_boss[1]], "alpha checked by spawner id")
 expect(checks[D.fast_travel.FTPoint101], "fast travel mapped from its instance id")
@@ -2085,6 +2086,15 @@ local towerList = record.TowerBossDefeatFlag.Items.list
 towerList[#towerList + 1] = { Key = FNameOf("EPalBossType::WorldTreeBoss"), Value = true }
 run(14)
 expect(goals == before + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
+-- 2026-11-05 run: a two-tower seed, both towers beaten, keys as 1.0.5 writes them; the goal never went out.
+newSeed("70009", { ["options.goal"] = "0", ["options.tower_count"] = "2" })
+before = goals
+run(14)
+expect(goals == before, "two towers: one beaten is not the goal")
+towerList[#towerList + 1] = { Key = FNameOf("BOSS_BATTLE_NAME_ForestBoss"), Value = true }
+run(14)
+expect(goals == before + 1 and logged("Goal complete: 2 tower%(s%) beaten!") and checks[D.towers.ForestBoss],
+       "two towers: the second (BOSS_BATTLE_NAME_ForestBoss) is counted, checked, and wins")
 print("mailbox off: bundles straight to the bag")
 local MB = require("mailbox")
 local mailOn = MB.on
