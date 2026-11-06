@@ -12,6 +12,7 @@
 -- UNTESTED IN GAME (only Teleport's K2_TeleportTo and the notices are calls verified before): every trap logs what it
 -- read and what came back, and a trap that fails says "<name> fizzled." in chat and is never retried.
 local T = {}
+local DEBUFFS = require("debuffs")
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 
 local CAP = 10              -- traps waiting at most: a mass release should not mean an hour of traps
@@ -87,6 +88,7 @@ TRAPS["Slow Trap"] = {
             local ok, err = pcall(function() apply(m:GetPalCharacterMovementComponent(), "mount") end)
             if not ok then parts[#parts + 1] = "mount not slowed: " .. tostring(err) end
         end
+        DEBUFFS.set("slow", "ap-debuff-slow", "SLOW", s.untilTick)              -- the icon and its timer at the top
         return table.concat(parts, ", ") .. (m and "" or " (not riding)"), "Slow Trap" .. from(e) .. ": your legs feel heavy (1 minute)."
     end,
 }
@@ -208,6 +210,7 @@ local function endSlow(c)
     if not valid(c.pawn) then return end                      -- no character this moment: try again next update
     local s = slow
     slow = nil
+    DEBUFFS.clear("slow")
     if addr(c.pawn) ~= s.pawn then
         -- A new character (fainted, or the world reloaded) starts without the multiplier: nothing to set back.
         log("trap: Slow Trap ended; the player character changed, nothing to restore")

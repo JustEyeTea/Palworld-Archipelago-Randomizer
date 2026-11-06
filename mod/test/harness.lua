@@ -2552,6 +2552,52 @@ end
            .. tostring(a2) .. "'s colour when " .. tostring(a1) .. " opens")
     FindAllOf = savedFAO
 end)()
+; (function()  -- debuff icons with their timers at the top of the HUD (the user, 2026-11-05)
+    local hudKids = {}
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function canvas:AddChildToCanvas(w)
+        hudKids[#hudKids + 1] = w
+        w.RemoveFromParent = function(self) self.removed = true end
+        local slot = { SetAnchors = function(sl, v) sl.anchors = v end, SetAlignment = function(sl, v) sl.alignment = v end,
+                       SetPosition = function(sl, v) sl.position = v end, SetAutoSize = function() end, SetZOrder = function() end }
+        w.canvasSlot = slot
+        return slot
+    end
+    local safe = Widget({ GetClass = function() return classed("SafeZone") end, GetChildAt = function() return canvas end })
+    local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = safe } })
+    local savedFAO = FindAllOf
+    FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
+    local DB = require("debuffs")
+    expect(DB.clock(200, 0) == "1:00" and DB.clock(100, 0) == "0:30" and DB.clock(5, 10) == "0:00", "the timer reads m:ss")
+    require("traps").test("Slow Trap")                     -- the test tools route: it goes on the next update
+    local row
+    for _ = 1, 40 do
+        for _, k in ipairs(hudKids) do if not k.removed then row = k end end
+        if row then break end
+        run(1)
+    end
+    local over = row and row.child
+    local timer = over and over.children[#over.children].child          -- the timer is the last piece of a tile
+    expect(row and row.canvasSlot.anchors.Minimum.X == 0.5 and row.canvasSlot.anchors.Minimum.Y == 0
+           and row.canvasSlot.position.Y == 112 and row.vis == 4,
+           "a Slow Trap puts its icon at the top centre of the HUD, never taking a click")
+    -- (The harness's ImportFileAsTexture2D makes any file; in game a missing ap-debuff-slow.png gives a plain SLOW tile.)
+    local icon = over and over.children[1].child
+    expect(icon and icon.texture and icon.texture.path == "ap-debuff-slow" and icon.ownerW == nil and over.children[1].width == 44,
+           "the Art lane's ap-debuff-slow icon, 44 px")
+    local first = timer and timer.text
+    expect(first == "1:00" or first == "0:59", "with its time left under it: " .. tostring(first))
+    run(10)
+    expect(timer.text ~= first and #hudKids == 1, "the timer counts down without rebuilding the row: " .. tostring(timer.text))
+    local ended = false
+    for _ = 1, 220 do
+        run(1)
+        if logged("Slow Trap ended") and row.removed then ended = true; break end
+    end
+    expect(ended and #DB.active() == 0,
+           "and the icon goes when the Slow Trap ends")
+    FindAllOf = savedFAO
+end)()
 ;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time
     local CR = require("crates")
     slotData.seed = "70200"                     -- a seed of its own (as newSeed in the goals tests)

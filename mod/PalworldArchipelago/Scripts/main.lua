@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.9"
+local VERSION = "0.14.0-dev.10"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -18,6 +18,7 @@ local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local R = require("records")
 local WALLS = require("walls")
 local POPUP = require("hint_popup")
+local DEBUFFS = require("debuffs")
 local CRATES = require("crates")
 local CWIN = require("crate_window")
 local MENU = require("menu")
@@ -1250,6 +1251,8 @@ end
 local function update(ctx)
     tick = tick + 1
     pcall(POPUP.tick, tick)
+    local okdb, errdb = pcall(DEBUFFS.tick, tick)
+    if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end
     P.start("poll")
     for line in AP_Poll():gmatch("[^\n]+") do
         local ok, err = pcall(onEvent, line)
