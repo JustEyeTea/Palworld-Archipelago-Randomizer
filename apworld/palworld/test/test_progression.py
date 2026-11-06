@@ -120,8 +120,9 @@ class TestNoGearLogic(PalworldTestBase):
     def test_gated_cards_stay_research(self):
         """A card that needs another tech first (Lockpicking Tool v2 needs v1) has no check without Gear Logic."""
         names = {l.name for l in self.multiworld.get_locations(self.player)}
-        self.assertIn("Shop: Lockpicking Tool v1 (Ancient)", names)
-        self.assertNotIn("Shop: Lockpicking Tool v2 (Ancient)", names)
+        from ..data import TECH_BY_ID, shop_location
+        self.assertIn(shop_location(TECH_BY_ID["Unlock_Picking_Tier1"]), names)
+        self.assertNotIn(shop_location(TECH_BY_ID["Unlock_Picking_Tier2"]), names)
         self.assertIn("Unlock_Picking_Tier2", self.world.fill_slot_data()["research_techs"].split(","))
 
 
@@ -147,8 +148,8 @@ class TestPointsBudget(PalworldTestBase):
 
     def test_affordable_slots_fit_the_points(self):
         from BaseClasses import LocationProgressType
-        from ..data import TECHS
-        by_name = {f"Shop: {t[1]}": t for t in TECHS}
+        from ..data import TECHS, shop_location
+        by_name = {shop_location(t): t for t in TECHS}
         slots = [l for l in self.multiworld.get_locations(self.player) if l.name in by_name]
         kept = [by_name[l.name] for l in slots if l.progress_type != LocationProgressType.EXCLUDED]
         excluded = [l for l in slots if l.progress_type == LocationProgressType.EXCLUDED]
@@ -188,3 +189,17 @@ class TestMaterialBundles(PalworldTestBase):
         names = [i.name for i in self.multiworld.itempool]
         self.assertIn("Palworld Crate", names)
         self.assertTrue(any(n.endswith(" Bundle") for n in names))
+
+
+class TestTechSlotNames(PalworldTestBase):
+    """Tech-tree checks are named by their place in the menu (2026-11-05 run: "Shop: <vanilla tech>" misled others)."""
+
+    def test_names_are_level_and_slot(self):
+        from ..data import TECH_BY_ID, shop_location
+        self.assertEqual(shop_location(TECH_BY_ID["SkillUnlock_Garm"]), "Tech Level 9 Slot 6")       # seen in game
+        self.assertEqual(shop_location(TECH_BY_ID["FurnitureSet_17"]), "Tech Level 9 Slot 7")        # Carpet Set
+        self.assertEqual(shop_location(TECH_BY_ID["FurnitureSet_4"]), "Tech Level 7 Slot 8")         # Houseplant Set
+        self.assertTrue(shop_location(TECH_BY_ID["Unlock_Picking_Tier1"]).startswith("Ancient Tech Level "))
+        names = [l.name for l in self.multiworld.get_locations(self.player)]
+        self.assertFalse([n for n in names if n.startswith("Shop: ")])
+        self.assertEqual(len(names), len(set(names)))

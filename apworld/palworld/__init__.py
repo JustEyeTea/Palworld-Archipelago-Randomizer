@@ -527,7 +527,7 @@ class PalworldWorld(World):
         early = [loc for loc in self.multiworld.get_unfilled_locations(self.player)
                  if loc.progress_type != LocationProgressType.EXCLUDED
                  and (loc.name in ("Level 2", "Level 3")
-                      or (loc.name.startswith("Shop: ") and LOCATION_LEVEL.get(loc.name) == STARTER_LEVEL + 1))]
+                      or LOCATION_LEVEL.get(loc.name) == STARTER_LEVEL + 1)]
         self.random.choice(early).place_locked_item(pool.pop(next(i for i, it in enumerate(pool) if it.name == first)))
         slots = sum(1 for loc in self.multiworld.get_unfilled_locations(self.player))
         if self.options.goal == self.options.goal.option_relic_hunt:

@@ -9,7 +9,9 @@ from ..data import BASE, ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID
 FROZEN = {
     "items": ({0: 957, 1: 587}, "c5576bb2e85a76b4987bdcee6fc0518f5a0bed4c5cfc6c32ac265a0aaba286c1"),
     "locations": ({1: 587, 2: 285, 3: 89, 4: 173, 5: 80, 6: 7},
-                  "498b936d091a29d7021d5d76ef031fbd8137aec0d303e489f6b0db4791a2cd12"),
+                  # 0.7.1: tech-tree checks renamed "Shop: <tech>" -> "Tech Level N Slot M" (same ids; the old
+                  # names gave 498b936d...)
+                  "e38c1f44e9f3e507bb4edc7f09ff64cad0a46832777785a12f40456b59841c76"),
 }
 
 

@@ -52,8 +52,25 @@ def tech_item(tech_id: str) -> str:
     return f"Tech: {TECH_BY_ID[tech_id][1]}"
 
 
+# A tech-tree slot's place as the Technology menu shows it: its level's row, and its position in that row (the
+# Ancient Technology column numbered separately). The menu lists a row's cards in the game table's order, which
+# TECHS keeps (all 588 rows in the same order for 1.0.5; checked against levels 7-9 in game, 2026-11-05).
+def _tech_slots():
+    seen, out = {}, {}
+    for t in TECHS:
+        row = (t[2], t[4])
+        seen[row] = seen.get(row, 0) + 1
+        out[t[0]] = seen[row]
+    return out
+
+
+TECH_SLOT = _tech_slots()
+
+
 def shop_location(tech) -> str:
-    return f"Shop: {tech[1]}"
+    """Named by where the slot is, not the vanilla tech that sat there (2026-11-05 run: other players' clients said
+    "Shop: Stone Defensive Wall" for a slot that sends something else)."""
+    return f"{'Ancient ' if tech[4] else ''}Tech Level {tech[2]} Slot {TECH_SLOT[tech[0]]}"
 
 
 # --- Pals ------------------------------------------------------------------------------------------------------
@@ -207,6 +224,7 @@ ITEM_GROUPS = {
 }
 LOCATION_GROUPS = {
     "Shop": {l.name for l in LOCATIONS if l.kind == "shop"},
+    "Tech Tree": {l.name for l in LOCATIONS if l.kind == "shop"},
     "Captures": {l.name for l in LOCATIONS if l.kind == "capture"},
     "Alphas": {l.name for l in LOCATIONS if l.kind == "alpha"},
     "Fast Travel": {l.name for l in LOCATIONS if l.kind == "fast_travel"},
