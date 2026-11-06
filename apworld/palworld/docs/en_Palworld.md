@@ -72,20 +72,35 @@ of your name on the Inventory page (new, not yet tried in game); it has no size 
 
 ## Run Style
 
-How the game is paced for the multiworld:
+What a tech you receive gives you:
 
-- **Async** (the default): Palworld as your world is set up. For games played over days.
-- **Sync (Standard)**: for a game played in one sitting. The mod makes your world level up and build faster through
-  Palworld's own world settings, so you don't need to know them: EXP ×3, work speed ×3 (building, crafting and
-  your Pals' work) and gathering drops ×2 by default (Sync EXP, Work Speed and Gathering Multiplier). A tech you
-  receive unlocks its recipe, as in Async.
-- **Sync (Nomad)**: as Sync (Standard), and a tech you receive also hands over what it makes, so you don't need a
-  base that can craft it first: a weapon, armour, glider, accessory or saddle (one, into your bag), or a stack of
-  spheres, ammo, grenades, materials or food (into the mailbox). Techs for buildings unlock as usual. The recipe
-  always unlocks too.
+- **Standard** (the default): its recipe, as in Palworld; you craft the rest at a base.
+- **Nomad**: its recipe, and what it makes, so you don't need a base that can craft it first: a weapon, armour,
+  glider, accessory or saddle (one, into your bag), or a stack of spheres, ammo, grenades, materials or food (into the
+  mailbox). Techs for buildings unlock as usual. Suits a game played in one sitting.
 
-The speeds are set again whenever you load the world, from the world's own values, so they never stack up. The world
-keeps them in its own save: set them back in World Settings to play it on without the mod.
+## Speed Boost and World Settings
+
+By default the mod never changes your world's settings: you set them yourself in World Settings. For a game played
+over days the game's own settings are fine. For one played in one sitting (Sync), these are good places to start:
+
+| World setting | Palworld's Normal | Palworld's Easy | Suggested for Async | Suggested for Sync |
+|---|---|---|---|---|
+| EXP Rate | 1 | 1.3 | 1.5–2 | 2–3 |
+| Pal Capture Rate | 1 | 2 | 1–2 | 2 |
+| Gatherable Items Multiplier | 1 | 2 | 1–2 | 2 |
+| Dropped Items Multiplier | 1 | 2 | 1–2 | 2 |
+| Time to hatch a massive egg | 1 | 0.5 | 0.5 | 0.5 |
+| Work Speed Multiplier | 1 | 1 | as you like | as high as it goes |
+| Max Pals at base | 15 | 15 | more if you like | more if you like |
+
+**Speed Boost** (off by default; the Sync presets turn it on) does some of this for you: the mod multiplies your
+world's EXP Rate, Work Speed Multiplier and Gatherable Items Multiplier (×3, ×3 and ×2 by default; set each in the
+YAML), on top of whatever you set yourself.
+
+**It changes your world's own settings, and your world keeps them in its save, also after the game.** When you
+connect, the mod tells you in game what it changed and your world's own values. It keeps those values in its own save,
+so loading the world again never multiplies twice. Set them back in World Settings to play the world on without it.
 
 ## Traps
 

@@ -2703,7 +2703,7 @@ end)()
     run(1)
     expect(kids[#kids].removed, "and it all goes with the chest window")
 end)()
-print("run style: Sync speeds and Nomad's hand-overs")
+print("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning")
 ;(function()
     local MB = require("mailbox")
     local ws = { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 }
@@ -2714,36 +2714,40 @@ print("run style: Sync speeds and Nomad's hand-overs")
     local pawnWas = playerController.K2_GetPawn
     playerController.K2_GetPawn = function() return pawn end      -- the bag is reached through the pawn
     local function mailHas(id) local n = 0; for _, e in ipairs(MB.queue) do if e.id == id then n = n + e.n end end; return n end
+    local function warned(pattern) for _, t in ipairs(announced) do if t:find(pattern) then return true end end end
     local function newSeed(seed, extra)          -- as "the other goals" does (its helper is local to that part)
         slotData.seed = seed
         for k, v in pairs(extra) do slotData[k] = v end
         push("status", "connected", "Other")
         run(14)
     end
-    -- Async: the world's settings are never touched, and a tech is a recipe only.
-    newSeed("70012", { ["options.run_style"] = "0" })
+    -- The defaults (Standard, no Speed Boost): the world's settings are never touched, and a tech is a recipe only.
+    newSeed("70012", { ["options.run_style"] = "0", ["options.speed_boost"] = "0" })
     local bows = bagHas.WeakerBow or 0
     push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
     run(40)
-    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1 and (bagHas.WeakerBow or 0) == bows and not logged("nomad:"),
-           "Async: world settings untouched, no bow handed over")
-    -- Sync (Standard): the world's own values times the multipliers, the base kept in the save, never compounding.
-    newSeed("70010", { ["options.run_style"] = "1", ["options.sync_exp_rate"] = "3", ["options.sync_work_speed"] = "3",
-                       ["options.sync_gather_rate"] = "2" })
+    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1 and (bagHas.WeakerBow or 0) == bows and not logged("nomad:")
+           and not warned("Speed Boost"), "defaults: world settings untouched, no warning, no bow handed over")
+    -- Speed Boost: the world's own values times the multipliers, the base kept in the save, never compounding, and
+    -- the player told in game what changed and the values to set back.
+    newSeed("70010", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3", ["options.boost_work_speed"] = "3",
+                       ["options.boost_gather_rate"] = "2" })
     run(40)
     expect(ws.ExpRate == 3 and ws.WorkSpeedRate == 3 and ws.CollectionDropRate == 2
-           and logged("sync: Sync %(Standard%): ExpRate 1 %-> 3 %(the world's own 1 x3%); reads back 3"),
-           "Sync (Standard): EXP x3, work speed x3, gathering x2, logged with what reads back")
+           and logged("sync: Speed Boost: ExpRate 1 %-> 3 %(the world's own 1 x3%); reads back 3"),
+           "Speed Boost: EXP x3, work speed x3, gathering x2, logged with what reads back")
+    expect(warned("Speed Boost changed your World Settings: EXP Rate 3, Work Speed Multiplier 3, Gatherable Items "
+                  .. "Multiplier 2 %(your world's own: 1, 1, 1%)%. Your world keeps these in its save; set them back"),
+           "the player is warned in game, with the values to set back")
     expect(io.open(MOD .. "/save-70010-Other.txt"):read("*a"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
            "the world's own values are in the save")
+    local warnings = #announced
     run(40)
-    expect(ws.ExpRate == 3 and optionSub.sets == 0, "set again, it stays x3 (not x9), and the setter wasn't needed")
-    ws.ExpRate = 1                                     -- the world loaded again with its saved value
-    run(14)
-    expect(ws.ExpRate == 3, "a world that went back to its own value is sped up again")
+    expect(ws.ExpRate == 3 and optionSub.sets == 0 and #announced == warnings,
+           "set again, it stays x3 (not x9), the setter wasn't needed, and the warning isn't repeated")
     push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
     run(14)
-    expect((bagHas.WeakerBow or 0) == bows, "Sync (Standard): a tech is a recipe only")
+    expect((bagHas.WeakerBow or 0) == bows, "Standard with Speed Boost: a tech is still a recipe only")
     -- A struct that comes back as a copy (writes don't stick): the game's setter is tried once for that world.
     local copySub = { sets = 0 }
     function copySub:IsValid() return true end
@@ -2754,19 +2758,25 @@ print("run style: Sync speeds and Nomad's hand-overs")
     expect(copySub.sets == 1 and logged("didn't change in place; SetOptionWorldSettings ran"),
            "a copy that won't take: SetOptionWorldSettings once, logged")
     util.GetOptionSubsystem = function() return optionSub end
-    -- Sync (Nomad): gear into the bag, a stack into the mailbox, the recipe as always.
+    -- Nomad without Speed Boost: gear into the bag, a stack into the mailbox, the recipe as always; speeds untouched.
     ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
-    newSeed("70011", { ["options.run_style"] = "2", ["options.sync_exp_rate"] = "5" })
+    newSeed("70011", { ["options.run_style"] = "1", ["options.speed_boost"] = "0" })
     local spheres = mailHas("PalSphere")
     push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
     push("item", "1", tostring(itemId["Tech: Pal Sphere"]), "6", "2", "1", "Tech: Pal Sphere", "Friend")
     run(40)
     expect((bagHas.WeakerBow or 0) == bows + 1 and logged("nomad: Tech: Old Bow brought"), "Nomad: the Old Bow itself, in the bag")
     expect(mailHas("PalSphere") == spheres + 10, "Nomad: 10 Pal Spheres in the mailbox")
-    expect(ws.ExpRate == 5 and ws.WorkSpeedRate == 3, "Nomad is sped up too (EXP x5 from the YAML, work speed at its default)")
+    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1, "Nomad alone leaves the world's settings alone")
     run(40)
     expect((bagHas.WeakerBow or 0) == bows + 1 and mailHas("PalSphere") == spheres + 10, "handed over once, not every update")
-    slotData["options.run_style"] = "0"
+    -- The Nomad Sync preset (Nomad and Speed Boost) in a world already sped up from before: a reminder, not a change.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 5, 3, 2
+    newSeed("70013", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "5" })
+    run(40)
+    expect(ws.ExpRate == 25 and warned("Speed Boost changed your World Settings: EXP Rate 25"),
+           "a world already sped up by hand is taken as its own (5 x5), and the warning says so")
+    slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     playerController.K2_GetPawn = pawnWas
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))

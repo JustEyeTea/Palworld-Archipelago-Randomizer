@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.12"
+local VERSION = "0.14.0-dev.13"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -441,7 +441,7 @@ local function openCrate(kind)
     return kind, out
 end
 
--- Run Style "Sync (Nomad)": a received tech also hands over what it makes (sync.lua). Gear goes to the bag, like a
+-- Run Style "Nomad": a received tech also hands over what it makes (sync.lua). Gear goes to the bag, like a
 -- crate's (what the bag refuses waits with the crates' and is tried again); a stack goes to the mailbox. The recipe
 -- unlocks as in every style, so a hand-over that fails still leaves the tech.
 local function giveTechGift(it)
@@ -1049,8 +1049,8 @@ local function onEvent(line)
                     .. ap.forgiven .. " faint(s) forgiven so far")
             end
             local style = SYNC.style(AP_SlotData)
-            if style ~= 0 then log("run style: " .. SYNC.NAMES[style] .. " (faster EXP and base building"
-                .. (style == 2 and "; techs also hand over what they make)" or ")")) end
+            if style ~= 0 then log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)") end
+            if SYNC.boost(AP_SlotData) then log("speed boost: on (this seed changes the world's EXP, work speed and gathering)") end
             local chance = tonumber(AP_SlotData("options.trap_chance")) or 0
             if chance > 0 then log("traps: " .. chance .. "% of filler items are traps in this seed") end
         elseif f[2] == "connecting" then
@@ -1422,7 +1422,7 @@ local function update(ctx)
             if changed then refreshTree() end
             applyItems(ps)
             if wallsWorld and worldTicks >= SETTLE then
-                local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld)
+                local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld, notify)
                 if not oks then onceErr("sync", news, "sync error: " .. tostring(news)) elseif news then writeSave() end
             end
             local okdl, errdl = pcall(deathLink, ps)

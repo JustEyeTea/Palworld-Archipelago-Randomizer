@@ -106,7 +106,8 @@ input[type=checkbox] { accent-color: var(--accent); }
 .help { color: var(--muted); font-size: .92rem; margin: .3rem 0 0; }
 .range-note { margin-top: .2rem; }
 .error { color: var(--error); font-size: .92rem; margin: .25rem 0 0; }
-.error:empty, .status:empty { display: none; }
+.error:empty, .status:empty, .warning:empty { display: none; }
+.warning { border-left: 4px solid var(--error); padding: .35rem .6rem; margin: .5rem 0 0; font-size: .92rem; }
 .status { color: var(--muted); font-size: .92rem; font-style: italic; margin: .3rem 0 0; }
 
 details summary { cursor: pointer; color: var(--accent); margin-top: .25rem; }

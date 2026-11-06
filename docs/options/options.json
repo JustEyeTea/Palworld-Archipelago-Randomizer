@@ -135,49 +135,63 @@
      "key": "run_style",
      "name": "Run Style",
      "type": "Choice",
-     "help": "How the game is paced for the multiworld.\nAsync: Palworld as your world is set up. For games played over days.\nSync (Standard): for a game played in one sitting. The mod makes your world level up and build faster (the\nmultipliers below, set through Palworld's own world settings, so you don't have to know them); otherwise the same\nas Async: a tech you receive unlocks its recipe.\nSync (Nomad): as Sync (Standard), and a tech you receive also hands over what it makes, so you don't need a base\nthat can craft it: a weapon, armour, glider, accessory or saddle (one, into your bag), or a stack of spheres, ammo,\ngrenades, materials or food (into the mailbox). Techs for buildings unlock as usual: a building can't be handed\nover. The recipe always unlocks too.\nThe world keeps the faster speeds in its own save; set them back in World Settings to play it on without the mod.",
+     "help": "What a tech you receive gives you.\nStandard: its recipe (and buildings), as in Palworld; you craft the rest at a base.\nNomad: its recipe, and what it makes, so you don't need a base that can craft it: a weapon, armour, glider,\naccessory or saddle (one, into your bag), or a stack of spheres, ammo, grenades, materials or food (into the\nmailbox). Techs for buildings unlock as usual: a building can't be handed over. Suits a game played in one\nsitting.",
      "choices": [
       {
-       "name": "async",
+       "name": "standard",
        "value": 0,
-       "yaml": "async"
+       "yaml": "standard"
       },
       {
-       "name": "sync_standard",
+       "name": "nomad",
        "value": 1,
-       "yaml": "sync_standard"
-      },
-      {
-       "name": "sync_nomad",
-       "value": 2,
-       "yaml": "sync_nomad"
+       "yaml": "nomad"
       }
      ],
-     "default": "async"
+     "default": "standard"
     },
     {
-     "key": "sync_exp_rate",
-     "name": "Sync EXP Multiplier",
+     "key": "speed_boost",
+     "name": "Speed Boost",
+     "type": "Toggle",
+     "help": "Changes your world's own settings: the mod multiplies your EXP rate, work speed and gathering by the numbers\nbelow, for a game played in one sitting. Off, the mod never touches your world settings; set them yourself in\nWorld Settings (the guide suggests values).\nWARNING: your world keeps the changed settings in its save, also after the game. The mod tells you each change\nwhen you connect, and keeps your world's own values so it never multiplies twice; set them back in World Settings\nto play the world on without it.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
+    {
+     "key": "boost_exp_rate",
+     "name": "Speed Boost EXP Multiplier",
      "type": "Range",
-     "help": "Sync run styles only: how many times your world's EXP rate.",
+     "help": "Speed Boost only: how many times your world's EXP rate.",
      "min": 1,
      "max": 10,
      "default": 3
     },
     {
-     "key": "sync_work_speed",
-     "name": "Sync Work Speed Multiplier",
+     "key": "boost_work_speed",
+     "name": "Speed Boost Work Speed Multiplier",
      "type": "Range",
-     "help": "Sync run styles only: how many times your world's work speed (building, crafting and other work, by you and\nyour Pals).",
+     "help": "Speed Boost only: how many times your world's work speed (building, crafting and other work, by you and your\nPals).",
      "min": 1,
      "max": 5,
      "default": 3
     },
     {
-     "key": "sync_gather_rate",
-     "name": "Sync Gathering Multiplier",
+     "key": "boost_gather_rate",
+     "name": "Speed Boost Gathering Multiplier",
      "type": "Range",
-     "help": "Sync run styles only: how many times your world's gathering drop rate (wood, stone, ore and the like).",
+     "help": "Speed Boost only: how many times your world's gathering drop rate (wood, stone, ore and the like).",
      "min": 1,
      "max": 3,
      "default": 2
@@ -669,34 +683,35 @@
    "tower_count": 1,
    "level_checks": "every_5",
    "fast_travel_checks": false,
-   "run_style": "sync_standard"
+   "speed_boost": true
   },
   "Sync": {
    "goal": "towers",
    "tower_count": 1,
-   "run_style": "sync_standard"
+   "speed_boost": true
   },
   "Long Sync": {
    "goal": "towers",
    "tower_count": 2,
-   "run_style": "sync_standard"
+   "speed_boost": true
   },
   "Nomad Sync": {
    "goal": "towers",
    "tower_count": 2,
-   "run_style": "sync_nomad"
+   "run_style": "nomad",
+   "speed_boost": true
   },
   "Relic Hunt Sync": {
    "goal": "relic_hunt",
    "relic_count": 20,
    "relics_needed": 75,
    "check_level": 25,
-   "run_style": "sync_standard"
+   "speed_boost": true
   },
   "Paldeck Sync": {
    "goal": "paldeck",
    "paldeck_count": 60,
-   "run_style": "sync_standard"
+   "speed_boost": true
   },
   "Async": {
    "goal": "towers",

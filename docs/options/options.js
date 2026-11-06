@@ -206,6 +206,10 @@
     var matches = sameValues(data, values, presetValues(data, preset));
     document.getElementById('preset-status').textContent = matches ? '' :
       'Changed from ' + (preset || 'the defaults') + '.';
+    // Speed Boost changes the player's own world settings (they stay in the world's save), so say so wherever it's on.
+    document.getElementById('speed-boost-warning').textContent = values.speed_boost !== 'true' ? '' :
+      'Speed Boost is on: the mod will change your world\'s EXP rate, work speed and gathering in World Settings, ' +
+      'and your world keeps them after the game. You can turn it off under Run Style.';
     // Range problems show as they're typed; the name's only once a download has been tried (see check).
     var problems = false;
     allOptions(data).filter(isRange).forEach(function (option) {
