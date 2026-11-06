@@ -1697,14 +1697,13 @@ expect(t and movement:GetWalkSpeedMultiplier() == 0.5, "a Slow Trap halves walki
 expect(told("Slow Trap from Friend: your legs feel heavy (1 minute).") and not told("Received Slow Trap"),
        "chat names the trap and its sender, with no 'Received' line")
 expect(saveText():find("given=9\nworld=AP_WORLD\ndeaths=0\ntraps=\n", 1, true), "applied: the save has it given and nothing waiting: " .. saveText())
--- Two at once: 15 s apart.
+-- Two at once: both fire together (2026-11-05: not staggered).
 trap("Hunger Trap", "Friend")
 trap("Fool Trap", "Friend")
 local h = ticksUntil("trap #10 Hunger Trap from Friend", 100)
-expect(h and h >= 50 and h <= 57, "the next trap waits 15 s: " .. tostring(h) .. " ticks")
+expect(h and h <= 8, "a trap fires as it arrives: " .. tostring(h) .. " ticks")
 expect(stomach.cur == 30 and logged("satiety 80%.0 of 100%.0, set to 30%.0, reads back 30"), "a Hunger Trap takes half the satiety: " .. stomach.cur)
-local f = ticksUntil("trap #11 Fool Trap from Friend: fake notice", 100)
-expect(f and f >= 50, "and the one after it 15 s later again: " .. tostring(f))
+expect(logged("trap #11 Fool Trap from Friend: fake notice"), "and the one that came with it fires on the same update")
 local fake
 for _, a in ipairs(announced) do if a:find("broke free and ran off!", 1, true) then fake = a end end
 expect(fake and not fake:find("Archipelago", 1, true), "a Fool Trap shows a plain-looking scare: " .. tostring(fake))
@@ -1786,17 +1785,20 @@ ticksUntil("trap #21 Slow Trap", 80)
 pawnAddress = 12288
 expect(ticksUntil("Slow Trap ended; the player character changed, nothing to restore", 220), "a new character is left alone")
 movement.mult = {}
--- Queued when the game quits: it is in the save file, and fires once after loading.
+-- Queued when the game quits: it is in the save file, and fires once after loading. (A Teleport Trap waiting in a
+-- dungeon is the one left waiting; the Fool Trap beside it fires at once.)
+inStage = true
 trap("Fool Trap", "Friend")
-trap("Hunger Trap", "Friend")
+trap("Teleport Trap", "Friend")
 ticksUntil("trap #22 Fool Trap", 80)
 run(7)
-expect(saveText():find("traps=Hunger Trap|23\n", 1, true), "a waiting trap is in the save file: " .. saveText():match("traps=[^\n]*"))
+expect(saveText():find("traps=Teleport Trap|23\n", 1, true), "a waiting trap is in the save file: " .. saveText():match("traps=[^\n]*"))
+inStage = false
 reload()
 expect(logged("1 trap%(s%) waiting"), "loaded with the save")
-expect(ticksUntil("trap #23 Hunger Trap from Friend", 80), "and it fires after loading, with its sender")
+expect(ticksUntil("trap #23 Teleport Trap from Friend", 80), "and it fires after loading, with its sender")
 run(200)
-expect(count("trap #23 ") == 1 and count("trap #22 ") == 1, "each trap fired once")
+expect(count("trap #23 Teleport Trap from") == 1 and count("trap #22 Fool Trap from") == 1, "each trap fired once")
 -- A reconnect sends every item again: no trap fires twice.
 local fired = count("^%[PalworldAP%] trap #")
 push("status", "disconnected")
@@ -1809,8 +1811,10 @@ for _ = 1, 12 do trap("Fool Trap", "Friend") end
 run(7)
 expect(told("2 trap(s) skipped: at most 10 wait at a time.") and logged("trap #24 Fool Trap dropped") and logged("trap #25 Fool Trap dropped"),
        "more than 10 traps at once: the oldest extras are skipped")
-run(700)
-expect(count("trap #3[0-5] Fool Trap from Friend: fake") == 6 and not logged("trap #2[45] Fool Trap from"), "the other ten fire")
+run(14)
+expect(count("trap #3[0-5] Fool Trap from Friend: fake") == 6 and not logged("trap #2[45] Fool Trap from"), "the other ten fire at once")
+run(40)
+expect(count("Just kidding%. Fool Trap from Friend%.") >= 10, "each Fool Trap gets its own punchline")
 -- The connection drops while a Slow Trap and a Fool Trap run: both still end on time.
 trap("Slow Trap", "Friend")
 expect(ticksUntil("trap #36 Slow Trap from Friend: player multiplier", 80), "(a Slow Trap fires)")
