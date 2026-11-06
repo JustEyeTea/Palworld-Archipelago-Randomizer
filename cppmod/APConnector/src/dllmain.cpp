@@ -21,6 +21,9 @@
 //                                        (see pal_gift.cpp; game thread only, so call it inside ExecuteInGameThread)
 //   AP_GivePalPoll() -> string           while a gift is pending, a report ending like AP_GivePal's; else ""
 //   (AP_GivePal and AP_GivePalPoll are untested in game.)
+//   AP_MapScreen(cmd, value) -> string  the world map screen, changed inside the game's own Setup so it never shows the
+//                                        game's version first: "body", path / "fog", "r,g,b,a" / "status" (map_screen.hpp;
+//                                        untested in game)
 #include <Windows.h>
 
 #include <cstdio>
@@ -35,6 +38,7 @@
 
 #include "ap_bridge.hpp"
 #include "image_tools.hpp"
+#include "map_screen.hpp"
 #include "pal_gift.hpp"
 
 using namespace RC;
@@ -193,6 +197,11 @@ namespace
             l.set_string(give_pal_poll());
             return 1;
         });
+        lua.register_function("AP_MapScreen", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto cmd = arg(l), value = arg(l);
+            l.set_string(map_screen::command(cmd, value));
+            return 1;
+        });
     }
 } // namespace
 
@@ -211,6 +220,11 @@ class APConnector : public CppUserModBase
     ~APConnector() override
     {
         g_bridge.reset();
+    }
+
+    auto on_unreal_init() -> void override
+    {
+        map_screen::install();
     }
 
     auto on_lua_start(StringViewType mod_name, LuaMadeSimple::Lua& lua, LuaMadeSimple::Lua& main_lua,

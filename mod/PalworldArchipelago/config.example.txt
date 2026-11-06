@@ -37,3 +37,7 @@ wall_scroll=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=
+# map_cpp=0: the mod's C++ part leaves the world map screen alone, and the map picture is set from Lua as in earlier
+# builds (the game's own map may show for a moment first). Empty: C++ sets the picture and the fog inside the game's own
+# set-up of the screen, so it never shows the game's version first. Test builds tint the fog parchment (a probe).
+map_cpp=

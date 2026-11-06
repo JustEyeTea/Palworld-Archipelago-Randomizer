@@ -838,19 +838,76 @@ end
 
 local mapShownAt = 0           -- map screens with a map image found on the last update (for the perf probe's replay)
 function W.mapShown() return mapShownAt > 0 end
+
+-- The map screen from C++ (APConnector's AP_MapScreen, map_screen.cpp; the user, 2026-11-06: Lua's swaps show, do the
+-- map in C++). It changes the screen inside the game's own Setup, before the screen draws; Lua hands it the picture and
+-- the fog's colour. Lua still puts the picture back as before when it finds the game's, but with C++ working it should
+-- never have to: each time it does is counted and logged (the swap the player sees).
+-- PROBE BUILD (untested in game): a parchment fog (FOG_TEST, linear light, alpha 0.6) to see whether the fog's colour
+-- alpha lets the map and the stamps show through; the explored mask is exported once (fog-mask.png) to see which way
+-- round it is, for the explorer's-chart fog (unexplored areas drawn as a chart, the user's idea).
+local FOG_TEST = "0.815,0.693,0.434,0.6"
+local cpp = { body = nil, fog = false, opened = 0, fixes = 0, maskDone = false }
+W.cppOff = false                     -- config.txt map_cpp=0 (main.lua): C++ leaves the screen alone; Lua alone, as before
+local function tellCpp()
+    if not AP_MapScreen then return end
+    if not cpp.fog then
+        cpp.fog = true
+        AP_MapScreen("enable", W.cppOff and "0" or "1")
+        AP_MapScreen("fog", FOG_TEST)
+    end
+    if mapRT and mapRT:IsValid() then
+        local full = mapRT:GetFullName()
+        local path = full:match("^%S+%s+(.+)$") or full            -- "Class /Path.Object" -> "/Path.Object"
+        if path ~= cpp.body then cpp.body = path; AP_MapScreen("body", path) end
+    end
+end
+-- What the fog is made of, and its explored mask exported (once a session).
+local function probeMask(screen)
+    local dmi = screen.MaskTextureMaterial
+    if not (dmi and dmi:IsValid()) then return "no fog material" end
+    local function tex(param)
+        local ok, t = pcall(function() return dmi:K2_GetTextureParameterValue(FName(param)) end)
+        return ok and t and t:IsValid() and t or nil
+    end
+    local rt, def = tex("TargetTexture"), tex("DefaultMaskTexture")
+    local info = "fog material " .. dmi:GetFullName() .. "; mask " .. (rt and (rt:GetFullName() .. " " .. tostring(rt.SizeX)
+        .. "x" .. tostring(rt.SizeY) .. " format " .. tostring(rt.RenderTargetFormat)) or "none")
+        .. "; default mask " .. (def and def:GetFullName() or "none")
+    local gi = owner()
+    if rt and gi then
+        local ok, err = pcall(function()
+            StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"):ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
+        end)
+        info = info .. (ok and "; exported to fog-mask.png" or ("; export failed: " .. tostring(err)))
+    end
+    return info
+end
 function W.updateMap(enabled, passes, ctx)
+    local wasShown = mapShownAt > 0                  -- whether the map was open at the last update
     mapShownAt = 0
     if not enabled then return end
     -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
     -- more than one real one (different menus), and a map screen sets its own picture again when it opens, so every
     -- one is checked each time and given the greyed map whenever it shows anything else.
-    local images = {}
+    local images, screens = {}, {}
     for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
-        if b:IsValid() and ok and img then images[#images + 1] = img end
+        if b:IsValid() and ok and img then images[#images + 1] = img; screens[#screens + 1] = b end
     end
     mapShownAt = #images
     if #images == 0 then return end
+    if AP_MapScreen and not wasShown then
+        cpp.opened = cpp.opened + 1
+        if cpp.opened <= 3 then
+            log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back " .. cpp.fixes .. "x")
+        end
+        if not cpp.maskDone then
+            cpp.maskDone = true
+            local ok, info = pcall(probeMask, screens[#screens])
+            log("map fog: " .. tostring(info))
+        end
+    end
     local locked = {}
     for _, name in ipairs(DATA.areas) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
@@ -879,6 +936,8 @@ function W.updateMap(enabled, passes, ctx)
         log("map: " .. #locked .. " locked area(s) greyed")
     end
     if not mapRT or not mapRT:IsValid() then return end
+    local okc, errc = pcall(tellCpp)
+    if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
     local want = tostring(mapRT:GetAddress())
     for _, image in ipairs(images) do
         local okr, shown = pcall(function()
@@ -893,6 +952,10 @@ function W.updateMap(enabled, passes, ctx)
             if okr and shown and current ~= want and not mapShownOn then
                 mapShownOn = true
                 log("map: the map screen was showing " .. tostring(select(2, pcall(function() return shown:GetFullName() end))))
+            end
+            if AP_MapScreen and not redrawn and current ~= want then
+                cpp.fixes = cpp.fixes + 1
+                if cpp.fixes <= 3 then log("map: Lua put the picture back (" .. cpp.fixes .. "x; C++ had not set it)") end
             end
             local ok, err = pcall(function() image:SetBrushResourceObject(mapRT) end)
             if not ok then once("mapshow", "map overlay: could not show it: " .. tostring(err)) end
