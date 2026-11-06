@@ -78,7 +78,14 @@ local pawn = { IsValid = function() return true end, GetAddress = function() ret
                K2_TeleportTo = function(_, loc) teleported = loc; pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z } end,
                GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
 playerDead = false
-local playerController = { IsValid = function() return true end, SelfKillPlayer = function() playerDead = true end }
+DL = { calls = {}, normalWorks = true }   -- how the mod fainted the player ("normal" / "self"); normalWorks false:
+                                          -- the normal death call runs but kills nobody (the fallback test)
+local playerController = { IsValid = function() return true end,
+    SelfKillPlayer = function() DL.calls[#DL.calls + 1] = "self"; playerDead = true end,
+    DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer = function()
+        DL.calls[#DL.calls + 1] = "normal"
+        if DL.normalWorks then playerDead = true end
+    end }
 local ps = {
     IsValid = function() return true end,
     IsPlayerDead = function() return playerDead end,
@@ -1073,8 +1080,31 @@ run(7)
 local deathTold = false
 for i = noticesBefore + 1, #announced do deathTold = deathTold or announced[i]:find("Ash fell off a cliff", 1, true) ~= nil end
 expect(playerDead and deathTold, "a linked death faints the player")
+expect(DL.calls[#DL.calls] == "normal", "through the normal death (the world's Death Penalty drops items): " .. tostring(DL.calls[#DL.calls]))
 run(7)
 expect(#bounces == 1, "and is not sent back")
+expect(logged("the normal death worked"), "the log says the normal death took")
+playerDead = false
+run(7)
+-- If the normal death kills nobody, the next run uses the self-kill: the death is never lost, and the self-kill is used
+-- for the rest of the session.
+DL.normalWorks = false
+push("bounce", "DeathLink", '{"cause":"Brock tripped.","source":"Brock","time":4}')
+run(7)
+expect(not playerDead and DL.calls[#DL.calls] == "normal", "first the normal death")
+run(7)
+expect(playerDead and DL.calls[#DL.calls] == "self" and logged("the normal death did not take"), "then the self-kill")
+run(7)
+expect(#bounces == 1, "and that death is not sent back either")
+playerDead = false
+run(7)
+do
+    local calls = #DL.calls
+    push("bounce", "DeathLink", '{"cause":"Brock tripped again.","source":"Brock","time":5}')
+    run(7)
+    expect(playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self", "later deaths go straight to the self-kill")
+end
+DL.normalWorks = true
 playerDead = false
 run(7)
 -- A death received while no player is in the world (the title, a load) does not faint the player in the next one.

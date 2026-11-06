@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.14"
+local VERSION = "0.14.0-dev.15"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -943,7 +943,7 @@ local preloaded = false
 local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
                 key = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper() }
 local wallsLogged = false
-local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil }
+local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil, pending = nil, normalFails = false }
 local DEATH_LATE = 20         -- ticks (6 s): a linked death older than this (received at the title, or while loading) is dropped
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
@@ -1189,12 +1189,30 @@ if RegisterKeyBind and Key and Key[hints.key] then
 end
 
 -- Death Link (the slot's death_link option): dying sends a death to everyone linked; a death from them faints the
--- player through the game's own self-kill. A death the link caused is not sent back, and neither counts towards nor
--- resets the amnesty.
+-- player. A death the link caused is not sent back, and neither counts towards nor resets the amnesty.
+-- How it faints (the user, 2026-11-06: a linked death killed them but dropped nothing, unlike a normal death): the game's
+-- self-kill (PalPlayerController:SelfKillPlayer) skips the world's Death Penalty, so a linked death now goes through the
+-- death the damage system sends (DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer), which should drop items as
+-- the world's Death Penalty says. Untested in game: if the player is still alive at the next run, the self-kill is used
+-- (no drop, but the death is never lost), and for the rest of the session.
 local function deathLink(ps)
     if not death.on then return end
     local okd, dead = pcall(function() return ps:IsPlayerDead() end)
     if not okd then return end
+    if death.pending then
+        local cause = death.pending
+        death.pending = nil
+        if dead then
+            once("dlnormal", "death link: the normal death worked (the world's Death Penalty applies)")
+        else
+            death.normalFails = true
+            death.caused = tick
+            local ok, err = pcall(function() FindFirstOf("PalPlayerController"):SelfKillPlayer() end)
+            log("death link: the normal death did not take; used the self-kill (nothing dropped): " .. cause
+                .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+            return
+        end
+    end
     if death.incoming then
         local cause = death.incoming
         death.incoming = nil
@@ -1203,9 +1221,18 @@ local function deathLink(ps)
         elseif not dead then
             death.caused = tick
             local pc = FindFirstOf("PalPlayerController")
-            local ok, err = pcall(function() pc:SelfKillPlayer() end)
+            local ok, err, how
+            if not death.normalFails then
+                ok, err = pcall(function() pc:DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer() end)
+                how = "normal death"
+                if ok then death.pending = cause else death.normalFails = true end
+            end
+            if not ok then
+                ok, err = pcall(function() pc:SelfKillPlayer() end)
+                how = "self-kill"
+            end
             notify("Death Link: " .. cause)
-            log("death link received: " .. cause .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+            log("death link received: " .. cause .. " (" .. how .. ")" .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
         end
     end
     if dead and not death.wasDead then

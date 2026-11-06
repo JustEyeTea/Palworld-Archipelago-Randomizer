@@ -122,8 +122,8 @@ job, chat says "<trap> fizzled" and nothing else happens.
 
 ## Death Link
 
-With Death Link on, fainting sends a death to everyone linked, and a death from them faints you (through the game's
-own faint). Death Link Amnesty forgives that many of your own faints before one is sent: with 2, every third faint is
+With Death Link on, fainting sends a death to everyone linked, and a death from them faints you like any other
+faint: you drop what your world's Death Penalty setting says. Death Link Amnesty forgives that many of your own faints before one is sent: with 2, every third faint is
 sent. Chat says when a faint is forgiven and how many are left. The count is kept with the seed's save, so quitting
 doesn't reset it. Deaths other players send you never count. Amnesty is untested in game so far.
 
