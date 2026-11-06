@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.11"
+local VERSION = "0.14.0-dev.12"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -25,6 +25,7 @@ local MENU = require("menu")
 local TECHSCAN = require("techscan")
 local MAIL = require("mailbox")
 local TRAPS = require("traps")
+local SYNC = require("sync")
 
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
@@ -176,7 +177,7 @@ local function loadSave()
         if n then ap.given = tonumber(n)
         elseif w then ap.world = w
         elseif d then ap.forgiven = tonumber(d)
-        elseif not TRAPS.load(line) and not CRATES.load(line) then MAIL.load(line) end
+        elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) then MAIL.load(line) end
     end
     local kinds, items = MAIL.count()
     log("save " .. path .. ": items applied up to index " .. ap.given .. "; " .. CRATES.count() .. " crate(s); mailbox " .. items .. " item(s) of " .. kinds
@@ -192,7 +193,7 @@ local function writeSave(always)
     if not path then return end
     -- One write holds everything that must agree: what was applied, and the traps and mailbox items it left.
     local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "")
-        .. "deaths=" .. ap.forgiven .. "\n" .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. "end\n"
+        .. "deaths=" .. ap.forgiven .. "\n" .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
     if not always and lastSave == path .. "\n" .. text then return end
     P.start("save")
     local f = io.open(path .. ".tmp", "w")
@@ -440,6 +441,29 @@ local function openCrate(kind)
     return kind, out
 end
 
+-- Run Style "Sync (Nomad)": a received tech also hands over what it makes (sync.lua). Gear goes to the bag, like a
+-- crate's (what the bag refuses waits with the crates' and is tried again); a stack goes to the mailbox. The recipe
+-- unlocks as in every style, so a hand-over that fails still leaves the tech.
+local function giveTechGift(it)
+    local gifts = SYNC.gifts(AP_SlotData, it.tech)
+    if not gifts then return end
+    local parts = {}
+    for _, g in ipairs(gifts) do
+        local id, n, name = g[1], g[2], MAIL.nameOf(g[1])
+        if g.bag or not MAIL.on() then
+            local okg, got = pcall(MAIL.give, id, n)
+            got = okg and got or 0
+            if got < n then CRATES.pending[#CRATES.pending + 1] = { id, n - got } end
+            parts[#parts + 1] = (n > 1 and (n .. " x ") or "") .. name .. (got < n and " (waits for room in your bag)" or " (in your bag)")
+        else
+            MAIL.add(id, n)
+            parts[#parts + 1] = n .. " x " .. name .. " (in the mailbox)"
+        end
+    end
+    log("nomad: " .. it.name .. " brought " .. table.concat(parts, ", "))
+    notify(it.name .. " brought " .. table.concat(parts, ", ") .. ".")
+end
+
 local function applyItems(ps)
     givePending()
     local i = ap.given + 1
@@ -454,6 +478,7 @@ local function applyItems(ps)
             break
         end
         if waiting == i then waiting = nil; log("bundle " .. it.name .. " given, now the bag has room") end
+        if it and it.kind == "tech" then giveTechGift(it) end
         if it and it.kind == "trap" then TRAPS.add(it.name, i) end      -- queued: traps.lua paces and fires them
         if it and it.kind == "relic" then
             local need = tonumber(AP_SlotData("relics_needed"))
@@ -963,6 +988,7 @@ local techScan = { report = nil, tries = 0, sent = false }   -- other mods' tech
 local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
     CRATES.reset()
+    SYNC.reset()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
     ap.world, seedWorld = nil, nil
     ap.from, ap.forgiven = {}, 0
@@ -1022,6 +1048,9 @@ local function onEvent(line)
                 log("Death Link on: amnesty " .. (tonumber(AP_SlotData("options.death_link_amnesty")) or 0) .. ", "
                     .. ap.forgiven .. " faint(s) forgiven so far")
             end
+            local style = SYNC.style(AP_SlotData)
+            if style ~= 0 then log("run style: " .. SYNC.NAMES[style] .. " (faster EXP and base building"
+                .. (style == 2 and "; techs also hand over what they make)" or ")")) end
             local chance = tonumber(AP_SlotData("options.trap_chance")) or 0
             if chance > 0 then log("traps: " .. chance .. "% of filler items are traps in this seed") end
         elseif f[2] == "connecting" then
@@ -1392,6 +1421,10 @@ local function update(ctx)
             P.stop("techs")
             if changed then refreshTree() end
             applyItems(ps)
+            if wallsWorld and worldTicks >= SETTLE then
+                local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld)
+                if not oks then onceErr("sync", news, "sync error: " .. tostring(news)) elseif news then writeSave() end
+            end
             local okdl, errdl = pcall(deathLink, ps)
             if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
             -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.

@@ -610,7 +610,8 @@ class PalworldWorld(World):
                                                 "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks",
                                                 "level_checks", "death_link", "death_link_amnesty", "trap_chance",
                                                 "crate_sphere_weight", "crate_food_weight", "crate_common_weight",
-                                                "crate_rare_weight", "crate_jackpot_weight"),
+                                                "crate_rare_weight", "crate_jackpot_weight", "run_style",
+                                                "sync_exp_rate", "sync_work_speed", "sync_gather_rate"),
                 "relics": self.relics, "relics_needed": self.relics_needed,
                 "check_level": self.cap,                                   # checks above it are not in this seed
                 "beyond_goal_areas": "|".join(self.beyond_goal_areas()),   # passes not in this seed (beyond_goal)

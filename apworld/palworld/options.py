@@ -200,6 +200,49 @@ class LevelChecks(Choice):
     default = 1
 
 
+class RunStyle(Choice):
+    """How the game is paced for the multiworld.
+    Async: Palworld as your world is set up. For games played over days.
+    Sync (Standard): for a game played in one sitting. The mod makes your world level up and build faster (the
+    multipliers below, set through Palworld's own world settings, so you don't have to know them); otherwise the same
+    as Async: a tech you receive unlocks its recipe.
+    Sync (Nomad): as Sync (Standard), and a tech you receive also hands over what it makes, so you don't need a base
+    that can craft it: a weapon, armour, glider, accessory or saddle (one, into your bag), or a stack of spheres, ammo,
+    grenades, materials or food (into the mailbox). Techs for buildings unlock as usual: a building can't be handed
+    over. The recipe always unlocks too.
+    The world keeps the faster speeds in its own save; set them back in World Settings to play it on without the mod."""
+    display_name = "Run Style"
+    option_async = 0
+    option_sync_standard = 1
+    option_sync_nomad = 2
+    default = 0
+
+
+class SyncExpRate(Range):
+    """Sync run styles only: how many times your world's EXP rate."""
+    display_name = "Sync EXP Multiplier"
+    range_start = 1
+    range_end = 10
+    default = 3
+
+
+class SyncWorkSpeed(Range):
+    """Sync run styles only: how many times your world's work speed (building, crafting and other work, by you and
+    your Pals)."""
+    display_name = "Sync Work Speed Multiplier"
+    range_start = 1
+    range_end = 5
+    default = 3
+
+
+class SyncGatherRate(Range):
+    """Sync run styles only: how many times your world's gathering drop rate (wood, stone, ore and the like)."""
+    display_name = "Sync Gathering Multiplier"
+    range_start = 1
+    range_end = 3
+    default = 2
+
+
 class DeathLinkAmnesty(Range):
     """Death Link: how many of your own faints are forgiven before one is sent to the multiworld. 0 sends every
     faint; 2 sends every third. Deaths other players send you never count."""
@@ -255,6 +298,10 @@ class FoolTrapWeight(Range):
 @dataclass
 class PalworldOptions(PerGameCommonOptions):
     goal: Goal
+    run_style: RunStyle
+    sync_exp_rate: SyncExpRate
+    sync_work_speed: SyncWorkSpeed
+    sync_gather_rate: SyncGatherRate
     tower_count: TowerCount
     paldeck_count: PaldeckCount
     relic_count: RelicCount
@@ -288,6 +335,7 @@ class PalworldOptions(PerGameCommonOptions):
 
 option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
+    OptionGroup("Run Style", [RunStyle, SyncExpRate, SyncWorkSpeed, SyncGatherRate]),
     OptionGroup("Progression", [AreaLocks, AreaSize, BeyondGoal, GearLogic, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
     OptionGroup("Filler", [CrateSphereWeight, CrateFoodWeight, CrateCommonWeight, CrateRareWeight, CrateJackpotWeight,
@@ -301,11 +349,14 @@ option_groups = [
 # 2026-11-05, 15 areas; 75 regions within a few): Short Sync 182, Sync 239, Long Sync 391, Relic Hunt Sync 357,
 # Paldeck Sync 247, Async 583, Full Game 1,148. A typical Archipelago game has about 180.
 options_presets = {
-    "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False},
-    "Sync": {"goal": "towers", "tower_count": 1},
-    "Long Sync": {"goal": "towers", "tower_count": 2},
-    "Relic Hunt Sync": {"goal": "relic_hunt", "relic_count": 20, "relics_needed": 75, "check_level": 25},
-    "Paldeck Sync": {"goal": "paldeck", "paldeck_count": 60},
+    "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False,
+                   "run_style": "sync_standard"},
+    "Sync": {"goal": "towers", "tower_count": 1, "run_style": "sync_standard"},
+    "Long Sync": {"goal": "towers", "tower_count": 2, "run_style": "sync_standard"},
+    "Nomad Sync": {"goal": "towers", "tower_count": 2, "run_style": "sync_nomad"},
+    "Relic Hunt Sync": {"goal": "relic_hunt", "relic_count": 20, "relics_needed": 75, "check_level": 25,
+                        "run_style": "sync_standard"},
+    "Paldeck Sync": {"goal": "paldeck", "paldeck_count": 60, "run_style": "sync_standard"},
     "Async": {"goal": "towers", "tower_count": 3},
     "Full Game Async": {"goal": "world_tree"},
 }

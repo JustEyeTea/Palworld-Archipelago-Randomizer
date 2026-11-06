@@ -2703,6 +2703,72 @@ end)()
     run(1)
     expect(kids[#kids].removed, "and it all goes with the chest window")
 end)()
+print("run style: Sync speeds and Nomad's hand-overs")
+;(function()
+    local MB = require("mailbox")
+    local ws = { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 }
+    local optionSub = { OptionWorldSettings = ws, sets = 0 }
+    function optionSub:IsValid() return true end
+    function optionSub:SetOptionWorldSettings() self.sets = self.sets + 1 end
+    util.GetOptionSubsystem = function() return optionSub end
+    local pawnWas = playerController.K2_GetPawn
+    playerController.K2_GetPawn = function() return pawn end      -- the bag is reached through the pawn
+    local function mailHas(id) local n = 0; for _, e in ipairs(MB.queue) do if e.id == id then n = n + e.n end end; return n end
+    local function newSeed(seed, extra)          -- as "the other goals" does (its helper is local to that part)
+        slotData.seed = seed
+        for k, v in pairs(extra) do slotData[k] = v end
+        push("status", "connected", "Other")
+        run(14)
+    end
+    -- Async: the world's settings are never touched, and a tech is a recipe only.
+    newSeed("70012", { ["options.run_style"] = "0" })
+    local bows = bagHas.WeakerBow or 0
+    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
+    run(40)
+    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1 and (bagHas.WeakerBow or 0) == bows and not logged("nomad:"),
+           "Async: world settings untouched, no bow handed over")
+    -- Sync (Standard): the world's own values times the multipliers, the base kept in the save, never compounding.
+    newSeed("70010", { ["options.run_style"] = "1", ["options.sync_exp_rate"] = "3", ["options.sync_work_speed"] = "3",
+                       ["options.sync_gather_rate"] = "2" })
+    run(40)
+    expect(ws.ExpRate == 3 and ws.WorkSpeedRate == 3 and ws.CollectionDropRate == 2
+           and logged("sync: Sync %(Standard%): ExpRate 1 %-> 3 %(the world's own 1 x3%); reads back 3"),
+           "Sync (Standard): EXP x3, work speed x3, gathering x2, logged with what reads back")
+    expect(io.open(MOD .. "/save-70010-Other.txt"):read("*a"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
+           "the world's own values are in the save")
+    run(40)
+    expect(ws.ExpRate == 3 and optionSub.sets == 0, "set again, it stays x3 (not x9), and the setter wasn't needed")
+    ws.ExpRate = 1                                     -- the world loaded again with its saved value
+    run(14)
+    expect(ws.ExpRate == 3, "a world that went back to its own value is sped up again")
+    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
+    run(14)
+    expect((bagHas.WeakerBow or 0) == bows, "Sync (Standard): a tech is a recipe only")
+    -- A struct that comes back as a copy (writes don't stick): the game's setter is tried once for that world.
+    local copySub = { sets = 0 }
+    function copySub:IsValid() return true end
+    setmetatable(copySub, { __index = function(_, k) if k == "OptionWorldSettings" then return { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 } end end })
+    function copySub:SetOptionWorldSettings() self.sets = self.sets + 1 end
+    util.GetOptionSubsystem = function() return copySub end
+    run(40)
+    expect(copySub.sets == 1 and logged("didn't change in place; SetOptionWorldSettings ran"),
+           "a copy that won't take: SetOptionWorldSettings once, logged")
+    util.GetOptionSubsystem = function() return optionSub end
+    -- Sync (Nomad): gear into the bag, a stack into the mailbox, the recipe as always.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    newSeed("70011", { ["options.run_style"] = "2", ["options.sync_exp_rate"] = "5" })
+    local spheres = mailHas("PalSphere")
+    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
+    push("item", "1", tostring(itemId["Tech: Pal Sphere"]), "6", "2", "1", "Tech: Pal Sphere", "Friend")
+    run(40)
+    expect((bagHas.WeakerBow or 0) == bows + 1 and logged("nomad: Tech: Old Bow brought"), "Nomad: the Old Bow itself, in the bag")
+    expect(mailHas("PalSphere") == spheres + 10, "Nomad: 10 Pal Spheres in the mailbox")
+    expect(ws.ExpRate == 5 and ws.WorkSpeedRate == 3, "Nomad is sped up too (EXP x5 from the YAML, work speed at its default)")
+    run(40)
+    expect((bagHas.WeakerBow or 0) == bows + 1 and mailHas("PalSphere") == spheres + 10, "handed over once, not every update")
+    slotData["options.run_style"] = "0"
+    playerController.K2_GetPawn = pawnWas
+end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

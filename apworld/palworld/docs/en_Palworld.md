@@ -70,6 +70,23 @@ Items you receive (material bundles and the like) wait in your Archipelago Mailb
 lands in your bag mid-fight. Open it from the Esc menu's Archipelago Mailbox button, or from the one at the right
 of your name on the Inventory page (new, not yet tried in game); it has no size limit.
 
+## Run Style
+
+How the game is paced for the multiworld:
+
+- **Async** (the default): Palworld as your world is set up. For games played over days.
+- **Sync (Standard)**: for a game played in one sitting. The mod makes your world level up and build faster through
+  Palworld's own world settings, so you don't need to know them: EXP ×3, work speed ×3 (building, crafting and
+  your Pals' work) and gathering drops ×2 by default (Sync EXP, Work Speed and Gathering Multiplier). A tech you
+  receive unlocks its recipe, as in Async.
+- **Sync (Nomad)**: as Sync (Standard), and a tech you receive also hands over what it makes, so you don't need a
+  base that can craft it first: a weapon, armour, glider, accessory or saddle (one, into your bag), or a stack of
+  spheres, ammo, grenades, materials or food (into the mailbox). Techs for buildings unlock as usual. The recipe
+  always unlocks too.
+
+The speeds are set again whenever you load the world, from the world's own values, so they never stack up. The world
+keeps them in its own save: set them back in World Settings to play it on without the mod.
+
 ## Traps
 
 Off by default. Trap Chance replaces that share of the filler items (bundles and tech points) with traps, picked by
@@ -80,8 +97,8 @@ the trap weights. None of them can make you faint:
 - **Teleport Trap**: back to the starting area. It waits while you are in a dungeon.
 - **Fool Trap**: an alarming notice, then "just kidding" a few seconds later. Nothing happens.
 
-Traps arrive at most one every 15 seconds, and wait while you are fainted, while the world is loading and while the
-mailbox is open. A chat line names each trap and who sent it. Traps are untested in game so far: if one can't do its
+Traps go off as they arrive, and wait while you are fainted, while the world is loading and while the mailbox is
+open. A Slow Trap shows a snail icon with its time left at the top of the screen. A chat line names each trap and who sent it. Traps are untested in game so far: if one can't do its
 job, chat says "<trap> fizzled" and nothing else happens.
 
 ## Death Link

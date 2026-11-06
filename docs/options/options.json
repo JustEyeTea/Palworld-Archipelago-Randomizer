@@ -1,7 +1,7 @@
 {
  "game": "Palworld",
  "game_yaml": "Palworld",
- "world_version": "0.7.0",
+ "world_version": "0.8.0",
  "archipelago_version": "0.6.8",
  "yaml_header": "# Q. What is this file?\n# A. This file contains options which allow you to configure your multiworld experience while allowing\n#    others to play how they want as well.\n#\n# Q. How do I use it?\n# A. The options in this file are weighted. This means the higher number you assign to a value, the\n#    more chances you have for that option to be chosen. For example, an option like this:\n#\n#    map_shuffle:\n#      on: 5\n#      off: 15\n#\n#    Means you have 5 chances for map shuffle to occur, and 15 chances for map shuffle to be turned\n#    off.\n#\n# Q. I've never seen a file like this before. What characters am I allowed to use?\n# A. This is a .yaml file. You are allowed to use most characters.\n#    To test if your yaml is valid or not, you can use this website:\n#        http://www.yamllint.com/\n#    You can also verify that your Archipelago options are valid at this site:\n#        https://archipelago.gg/check\n\n# Your name in-game, limited to 16 characters.\n#     {player} will be replaced with the player's slot number.\n#     {PLAYER} will be replaced with the player's slot number, if that slot number is greater than 1.\n#     {number} will be replaced with the counter value of the name.\n#     {NUMBER} will be replaced with the counter value of the name, if the counter value is greater than 1.\n",
  "descriptions": {
@@ -10,6 +10,7 @@
   "Short Sync": "Short Sync Preset for Palworld",
   "Sync": "Sync Preset for Palworld",
   "Long Sync": "Long Sync Preset for Palworld",
+  "Nomad Sync": "Nomad Sync Preset for Palworld",
   "Relic Hunt Sync": "Relic Hunt Sync Preset for Palworld",
   "Paldeck Sync": "Paldeck Sync Preset for Palworld",
   "Async": "Async Preset for Palworld",
@@ -123,6 +124,63 @@
      "min": 10,
      "max": 100,
      "default": 75
+    }
+   ]
+  },
+  {
+   "name": "Run Style",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "run_style",
+     "name": "Run Style",
+     "type": "Choice",
+     "help": "How the game is paced for the multiworld.\nAsync: Palworld as your world is set up. For games played over days.\nSync (Standard): for a game played in one sitting. The mod makes your world level up and build faster (the\nmultipliers below, set through Palworld's own world settings, so you don't have to know them); otherwise the same\nas Async: a tech you receive unlocks its recipe.\nSync (Nomad): as Sync (Standard), and a tech you receive also hands over what it makes, so you don't need a base\nthat can craft it: a weapon, armour, glider, accessory or saddle (one, into your bag), or a stack of spheres, ammo,\ngrenades, materials or food (into the mailbox). Techs for buildings unlock as usual: a building can't be handed\nover. The recipe always unlocks too.\nThe world keeps the faster speeds in its own save; set them back in World Settings to play it on without the mod.",
+     "choices": [
+      {
+       "name": "async",
+       "value": 0,
+       "yaml": "async"
+      },
+      {
+       "name": "sync_standard",
+       "value": 1,
+       "yaml": "sync_standard"
+      },
+      {
+       "name": "sync_nomad",
+       "value": 2,
+       "yaml": "sync_nomad"
+      }
+     ],
+     "default": "async"
+    },
+    {
+     "key": "sync_exp_rate",
+     "name": "Sync EXP Multiplier",
+     "type": "Range",
+     "help": "Sync run styles only: how many times your world's EXP rate.",
+     "min": 1,
+     "max": 10,
+     "default": 3
+    },
+    {
+     "key": "sync_work_speed",
+     "name": "Sync Work Speed Multiplier",
+     "type": "Range",
+     "help": "Sync run styles only: how many times your world's work speed (building, crafting and other work, by you and\nyour Pals).",
+     "min": 1,
+     "max": 5,
+     "default": 3
+    },
+    {
+     "key": "sync_gather_rate",
+     "name": "Sync Gathering Multiplier",
+     "type": "Range",
+     "help": "Sync run styles only: how many times your world's gathering drop rate (wood, stone, ore and the like).",
+     "min": 1,
+     "max": 3,
+     "default": 2
     }
    ]
   },
@@ -610,25 +668,35 @@
    "goal": "towers",
    "tower_count": 1,
    "level_checks": "every_5",
-   "fast_travel_checks": false
+   "fast_travel_checks": false,
+   "run_style": "sync_standard"
   },
   "Sync": {
    "goal": "towers",
-   "tower_count": 1
+   "tower_count": 1,
+   "run_style": "sync_standard"
   },
   "Long Sync": {
    "goal": "towers",
-   "tower_count": 2
+   "tower_count": 2,
+   "run_style": "sync_standard"
+  },
+  "Nomad Sync": {
+   "goal": "towers",
+   "tower_count": 2,
+   "run_style": "sync_nomad"
   },
   "Relic Hunt Sync": {
    "goal": "relic_hunt",
    "relic_count": 20,
    "relics_needed": 75,
-   "check_level": 25
+   "check_level": 25,
+   "run_style": "sync_standard"
   },
   "Paldeck Sync": {
    "goal": "paldeck",
-   "paldeck_count": 60
+   "paldeck_count": 60,
+   "run_style": "sync_standard"
   },
   "Async": {
    "goal": "towers",

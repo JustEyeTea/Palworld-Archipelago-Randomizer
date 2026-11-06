@@ -37,3 +37,18 @@ class TestRelicHuntRoom(PalworldTestBase):
     def test_refused(self):
         with self.assertRaises(OptionError):
             self.world_setup()
+
+
+class TestRunStyleNomad(PalworldTestBase):
+    """Sync (Nomad) changes nothing in the seed itself; the mod reads the style and speeds from the slot data."""
+    options = {"run_style": "sync_nomad", "sync_exp_rate": 5}
+
+    def test_slot_data(self):
+        opts = self.world.fill_slot_data()["options"]
+        self.assertEqual((opts["run_style"], opts["sync_exp_rate"], opts["sync_work_speed"], opts["sync_gather_rate"]),
+                         (2, 5, 3, 2))
+
+
+class TestRunStyleDefault(PalworldTestBase):
+    def test_async(self):
+        self.assertEqual(self.world.fill_slot_data()["options"]["run_style"], 0)
