@@ -1118,7 +1118,7 @@ escNoMain = false                                          -- the usual client f
 run(1)
 expect(#taskChildren == 3, "the HUD's mission list gets no button: " .. #taskChildren)
 local mailBtn = escChildren[4]
-expect(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text == "Archipelago Mailbox (50)",
+expect(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text == "Archipelago Mailbox (1)",
        "the Esc menu has a mailbox button in its own small style, with the count: " .. tostring(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text))
 expect(mailBtn and mailBtn.MenuType == 0 and mailBtn.padding and mailBtn.padding.Top == 10, "spaced as the game's, and harmless if bound")
 expect(logged("the Esc menu is WBP_MenuESC_C"), "found the Esc menu by its buttons")
@@ -1136,7 +1136,7 @@ run(3)
 mailBtn = escChildren[4]
 local addLines = 0
 for _, l in ipairs(printed) do if l:find("Mailbox button added", 1, true) then addLines = addLines + 1 end end
-expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (50)" and addLines == 1, "a new Esc menu gets its button; logged once: " .. addLines)
+expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and addLines == 1, "a new Esc menu gets its button; logged once: " .. addLines)
 -- No LogicMod: the hidden chest. It is made on first use, 300 slots, with the chest template put back after.
 chests, chestTemplates = {}, { { SlotNum = 54, GetFullName = function()
     return "PalMapObjectItemChestParameterComponent /Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04.BP_BuildObject_ItemChest_04_C:ItemChestParameter_GEN_VARIABLE" end } }
@@ -1507,7 +1507,7 @@ expect(emblemBox and emblemBox.child and emblemBox.child.texture and emblemBox.c
        and emblemBox.width == 24 and emblemBox.halign == 3 and emblemBox.padding and emblemBox.padding.Right == 236,
        "with the mailbox emblem just left of it, 24 high")
 expect(#barKids == 3 and invBox.width == 230 and invBox.height == 28 and invBtn and invBtn.Text_Main
-       and invBtn.Text_Main.text == "Archipelago Mailbox (5)",
+       and invBtn.Text_Main.text == "Archipelago Mailbox (1)",
        "the name bar gets the game's button, 230x28, with the count: " .. tostring(invBtn and invBtn.Text_Main and invBtn.Text_Main.text))
 expect(invBox and invBox.halign == 3 and invBox.valign == 0, "at the bar's right end, as tall as the Edit Name row")
 expect(linesWith("the inventory page is WBP_InventoryEquipment_C (via the main menu's CurrentContentWidget, tab 8)") == 1,
@@ -1538,7 +1538,7 @@ local page2, barKids2 = inventoryPage()
 mainMenu.CurrentContentWidget = inventoryTab(page2)
 run(1)
 local invBtn2 = barKids2[1] and barKids2[1].child
-expect(#barKids2 == 3 and #barKids == 3 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (5)"
+expect(#barKids2 == 3 and #barKids == 3 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (1)"
        and linesWith("Mailbox button added to the inventory page") == 1, "a new page gets its button, quietly; the old one none again")
 -- Palworld Crates: with a crate waiting, the page's Open button shows it, and a click opens it on the next update.
 ;(function()   -- (a function: the main chunk is at Lua's 200-local limit)
@@ -1580,7 +1580,7 @@ mainMenu = MainMenu(escMenu, 7)
 escOpen = true
 run(1)
 mailBtn = escChildren[4]
-expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (5)" and linesWith("Mailbox button added to the inventory page") == 1,
+expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and linesWith("Mailbox button added to the inventory page") == 1,
        "the Esc menu still gets its button; the Options tab no inventory one")
 shownBefore = #shown
 hooks[ESC_CLICK]({ get = function() return mailBtn end })
@@ -2632,8 +2632,10 @@ end)()
     clickHook({ get = function() return closeBtn end })
     run(2)
     local toggle = kids[#kids]
-    expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main and toggle.child.Text_Main.text == "Palworld Crates (3)",
-           "Close leaves the chest with a small Palworld Crates (3) button")
+    expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
+           "Close leaves the chest with an Open Palworld Crates (3) button")
+    expect(not toggle.slot or not toggle.slot.anchors or (toggle.slot.anchors.Minimum.X == 0.5 and toggle.slot.anchors.Minimum.Y == 0),
+           "at the top centre, where the player sees it (not the screen's corner)")
     clickHook({ get = function() return toggle.child end })
     run(2)
     expect(toggle.removed and kids[#kids].width == 800, "which brings the window back")

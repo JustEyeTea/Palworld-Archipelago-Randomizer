@@ -90,9 +90,11 @@ end
 -- could hold every trap back for the rest of the session.
 function M.busy() return (win or want or spawning or (view and view.how ~= "unknown")) and true or false end
 
+-- The count is the kinds waiting (a stack each in the chest), not the items: a crate's gold alone is thousands of
+-- coins (2026-11-05 run: "Archipelago Mailbox (10974)" for 6 stacks).
 function M.label()
-    local _, items = M.count()
-    return "Archipelago Mailbox" .. (items > 0 and (" (" .. items .. ")") or "")
+    local kinds = M.count()
+    return "Archipelago Mailbox" .. (kinds > 0 and (" (" .. kinds .. ")") or "")
 end
 
 ------------------------------------------------------------------------------------------------------------------------

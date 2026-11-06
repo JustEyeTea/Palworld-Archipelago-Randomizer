@@ -179,7 +179,7 @@ local function buildPanel(outer)
 end
 
 local function toggleButton(outer)
-    local box = button(outer, "Palworld Crates (" .. CRATES.count() .. ")", 230, 28, "show")
+    local box = button(outer, "Open Palworld Crates (" .. CRATES.count() .. ")", 300, 36, "show")
     return box
 end
 
@@ -213,8 +213,11 @@ local function build(widget)
     elseif CRATES.count() > 0 then
         local t = toggleButton(widget)
         local slot = canvas:AddChildToCanvas(t)
-        pcall(function() slot:SetAnchors({ Minimum = { X = 0, Y = 0 }, Maximum = { X = 0, Y = 0 } }) end)
-        pcall(function() slot:SetPosition({ X = 40, Y = 40 }) end)
+        -- Top centre, above the inventory and chest panels (2026-11-05 run: at the screen's top-left corner, 40,40, the
+        -- player never saw it and could not bring the window back).
+        pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0 }, Maximum = { X = 0.5, Y = 0 } }) end)
+        pcall(function() slot:SetAlignment({ X = 0.5, Y = 0 }) end)
+        pcall(function() slot:SetPosition({ X = 0, Y = 130 }) end)
         pcall(function() slot:SetAutoSize(true) end)
         pcall(function() slot:SetZOrder(1000) end)
         shown.toggle = t
