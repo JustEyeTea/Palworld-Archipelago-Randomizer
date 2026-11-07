@@ -452,6 +452,7 @@ StaticConstructObject = function(cls)
                          SetRenderOpacity = function(self, o) self.opacity = o end, SetVisibility = function(self, v) self.vis = v end,
                          GetVisibility = function(self) return self.vis or 0 end,
                          SetRenderTransformPivot = function(self, v) self.pivot = v end,
+                         SetRenderScale = function(self, v) self.scale = v end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
         self.child = c
@@ -2366,10 +2367,11 @@ expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK
 expect(pic.colour and pic.colour.R < 1, "the banner waits a little dim")
 openBtn.hovered = true
 run(1)
-expect(pic.colour.R == 1, "and lights up under the pointer")
+expect(pic.colour.R == 1 and bannerBox.scale and bannerBox.scale.X > 1 and tostring(pic.texture.path):find("ap%-title%-banner%-hover"),
+       "and lights up under the pointer: brighter, a little bigger, the hover picture (dev.22 test: it barely stood out)")
 openBtn.hovered = false
 run(1)
-expect(pic.colour.R < 1, "and dims again when it leaves")
+expect(pic.colour.R < 1 and bannerBox.scale.X == 1 and pic.texture.path == "ap-title-banner", "and goes back when it leaves")
 local function click(b) hooks[CLICK]({ get = function() return b end }) end
 local function okWith(text)
     pushed[#pushed].OutString = text

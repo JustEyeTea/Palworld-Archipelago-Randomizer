@@ -154,8 +154,11 @@ local DOT = { connected = { R = 0.074, G = 0.631, B = 0.195, A = 1 },      -- #4
 local TEXT_COLOUR = { R = 0.807, G = 0.905, B = 0.888, A = 1 }            -- #E8F4F2
 -- The banner's tint: a little dim, full when the pointer or the keyboard is on it (the user, dev.20 test: nothing showed
 -- that the banner could be clicked).
+-- dev.22 test: "It brightens slightly, but otherwise barely stands out": it also grows a little (a pop about its centre),
+-- and shows the Art lane's hover picture (art/ap-title-banner-hover.png) once there is one.
 local BANNER_DIM = { R = 0.78, G = 0.78, B = 0.78, A = 1 }
 local BANNER_LIT = { R = 1, G = 1, B = 1, A = 1 }
+local BANNER_POP, BANNER_REST = { X = 1.04, Y = 1.04 }, { X = 1, Y = 1 }
 -- Where the banner goes on the list's canvas: centred over the list, its bottom 8 above the list's top. Errors when
 -- the list's slot can't tell (no canvas slot, or anchors stretched across the canvas).
 local function bannerSpot(list)
@@ -989,6 +992,12 @@ local function bannerHover(m)
     if b.lit ~= on then
         b.lit = on
         pcall(function() b.pic:SetColorAndOpacity(on and BANNER_LIT or BANNER_DIM) end)
+        pcall(function() b.box:SetRenderScale(on and BANNER_POP or BANNER_REST) end)
+        if b.hoverTex == nil then b.hoverTex = ART.texture("ap-title-banner-hover") or false end
+        if b.hoverTex then
+            local tex = on and b.hoverTex or ART.texture("ap-title-banner")
+            if tex then pcall(function() b.pic:SetBrushFromTexture(tex, false) end) end
+        end
     end
 end
 
