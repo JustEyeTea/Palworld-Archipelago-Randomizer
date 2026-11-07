@@ -169,7 +169,28 @@ local mapBody = { IsValid = function() return true end, GetAddress = function() 
                                     Brush = { ResourceObject = { IsValid = function() return true end,      -- as the game
                                         GetAddress = function() return 8 end,                               -- opens it
                                         GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
-                                    SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
+                                    SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end },
+                  MapName = FNameOf("MainMap"), icons = {}, iconUpdates = 0 }
+-- The screen's icon canvases (pak, 2026-11-07): Add Icon By Location puts the icon on Canvas_ForIcon_NoMask when it
+-- ignores the mask, Canvas_ForIcon_Mask when not; Update Map Icons sets every icon's scale for the zoom.
+mapBody.Canvas_ForIcon_NoMask = { IsValid = function() return true end, GetFName = function() return FNameOf("Canvas_ForIcon_NoMask") end }
+mapBody.Canvas_ForIcon_Mask = { IsValid = function() return true end, GetFName = function() return FNameOf("Canvas_ForIcon_Mask") end }
+mapBody["Add Icon By Location"] = function(self, icon, loc, ignoreMask, toPriority, out)
+    assert(type(loc) == "table" and loc.X and loc.Y and loc.Z, "a world location")
+    icon.loc, icon.ignoreMask, icon.priority = loc, ignoreMask, toPriority
+    icon.parent = ignoreMask and self.Canvas_ForIcon_NoMask or self.Canvas_ForIcon_Mask
+    self.icons[#self.icons + 1] = icon
+    out.Added = true
+end
+mapBody["Update Map Icons"] = function(self) self.iconUpdates = self.iconUpdates + 1 end
+-- The World Tree's own screen (MapName "Tree"), built beside the main one; it shows T_WorldMap while it is set up.
+treeBody = { IsValid = function() return true end, GetAddress = function() return 78 end, MapName = FNameOf("Tree"), icons = {},
+             Image_MapBody = { IsValid = function() return true end,
+                               Brush = { ResourceObject = { IsValid = function() return true end, GetAddress = function() return 8 end,
+                                   GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
+                               SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
+treeBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
+treeBody["Update Map Icons"] = function() end
 lookups = {}                   -- global: class -> FindAllOf calls, "first:" .. class -> FindFirstOf calls
 FindAllOf = function(class)
     lookups[class] = (lookups[class] or 0) + 1
@@ -177,7 +198,10 @@ FindAllOf = function(class)
     if class == "WBP_TitleMenu_C" then return titleOpen and { titleMenu } or {} end
     if class == "WBP_Title_MenuButton_C" then return titleOpen and { gameTitleButton } or {} end
     if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
-        return mapOpen and { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody } or {}
+        if not mapOpen then return {} end
+        local list = { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody }
+        if treeOpen then list[#list + 1] = treeBody end              -- (global treeOpen: the World Tree's screen too)
+        return list
     end
     if class == "PalPlayerState" then return noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
     if class == "PalPlayerController" then                   -- the class default object comes first, as in the game
@@ -252,6 +276,7 @@ StaticFindObject = function(path)
         return { CountLocalPlayerInventoryItemNum64 = function(_, _, id) return bagHas[id:ToString()] or 0 end }
     end
     if path:find("^/Game/Mods/") then return logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
+    if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then return loaded[path:match("^[^.]+")] and Texture(path) or nil end
     if path:find("BP_BuildObject_ItemChest_04_C:", 1, true) then
         return loaded[path:match("^[^.]+")] and chestTemplates and chestTemplates[1] or nil
     end
@@ -366,6 +391,13 @@ wbl = { IsValid = function() return true end,   -- global: StaticFindObject abov
                                                     SetText = function(self, t) self.text = t.text end },
                                       WBP_PalInvisibleButton = Focusable() })
                   end
+                  if cls and tostring(cls.path):find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then   -- the map's plain icon
+                      local icon = Widget({ ChangeTexture = function(self, tex) self.tex = tex end,
+                                            SetVisibility = function(self, v) self.visibility = v end })
+                      function icon:GetParent() return self.parent end
+                      function icon:RemoveFromParent() self.parent = nil; self.removed = true end
+                      return icon
+                  end
                   if cls and tostring(cls.path):find("WBP_MenuESC_Button_S", 1, true) then   -- the Esc menu's small button
                       return Widget({ GetClass = function() return { GetFName = function() return FNameOf("WBP_MenuESC_Button_S_C") end } end,
                                       Text_Main = { IsValid = function() return true end, BindTextDatatableHandle = {},
@@ -477,6 +509,10 @@ print("loading the mod")
 local rf = io.open(MOD .. "/research.txt", "w")          -- the last seed's research list, from an earlier session
 rf:write("Torch,Lamp\n"); rf:close()
 dofile(MOD .. "/Scripts/main.lua")
+-- config.txt without map_icons: the locked areas are the map's own icons. The main run below keeps testing the stamps
+-- drawn into the picture (map_icons=0, also what a failure of the icons falls back to); the icons have their own tests.
+expect(require("walls").iconsOff == false, "map icons are on unless config.txt says map_icons=0")
+require("walls").iconsOff = true
 if PERF then
     expect(FindAllOf ~= harnessGlobals.FindAllOf and RegisterHook ~= harnessGlobals.RegisterHook, "perf_log=1: the probe counts lookups and hooks")
 else
@@ -984,6 +1020,7 @@ do
         end }
     local W6 = dofile(MOD .. "/Scripts/walls.lua")
     W6.dir, W6.keep = MOD, function() end
+    W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
     mapOpen = false
     W6.updateMap(true, {}, pawn)                                 -- closed: the chart is drawn in the background
     W6.updateMap(true, {}, pawn)
@@ -1067,6 +1104,65 @@ do
     mapOpen, AP_MapScreen = false, nil
     mapArt = mapArt - 1
     os.remove(saved); os.remove(saved .. ".txt")
+end
+-- The locked areas as the map's own icons (the user, 2026-11-07: stamps drawn into the picture grew with the zoom and
+-- sat in odd places): one WBP_WorldMap_IconBase_OnlyIcon per locked area, added with the screen's Add Icon By Location
+-- at the area's deepest point, ignoring the fog's mask, then Update Map Icons; nothing drawn into the picture. Only the
+-- main map's screen: the World Tree's keeps its own picture and gets none.
+do
+    local calls = {}
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    mapBody.icons, mapBody.iconUpdates = {}, 0
+    treeBody.icons, treeBody.Image_MapBody.shown = {}, nil
+    local stampsBefore = {}
+    for k, v in pairs(stampAt) do stampsBefore[k] = v end
+    local W9 = dofile(MOD .. "/Scripts/walls.lua")
+    W9.dir, W9.keep = MOD, function() end
+    for _ = 1, 3 do W9.updateMap(true, {}, pawn) end           -- the map not built yet: the picture is made, no icons
+    expect(#mapBody.icons == 0, "no icons before the map screen exists")
+    mapOpen, treeOpen = true, true
+    for _ = 1, 2 do W9.updateMap(true, {}, pawn) end
+    local job = composeJobs[#composeJobs]
+    local nLocked = job and select(2, job.locked:gsub(",", "")) + 1 or 0
+    local CENTRES = require("area_centres")
+    local first = mapBody.icons[1]
+    local locked1 = job and tonumber(job.locked:match("^(%d+)"))
+    local c = locked1 and CENTRES[locked1]                          -- (keyed by the 0-based area index, as drawStamps)
+    local at = c and W9.worldAt(c[1], c[2])
+    expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked area: " .. #mapBody.icons .. " of " .. nLocked)
+    expect(first and first.tex and tostring(first.tex.path):find("ap%-map%-stamp") and first.ignoreMask == true
+           and first.priority == false and first.visibility == 3 and first.parent == mapBody.Canvas_ForIcon_NoMask,
+           "each shows its area's stamp, on the canvas the fog never hides, and ignores the pointer")
+    expect(at and first.loc and math.abs(first.loc.X - at.X) < 1 and math.abs(first.loc.Y - at.Y) < 1 and first.loc.Z == 0,
+           "at the area's deepest point, as a world location")
+    expect(mapBody.iconUpdates == 1 and logged("map icons: " .. nLocked .. " locked area%(s%) added on Canvas_ForIcon_NoMask"),
+           "then the screen sizes them for its zoom, and the log says where they went")
+    local drawnNow = 0
+    for k, v in pairs(stampAt) do if stampsBefore[k] ~= v then drawnNow = drawnNow + 1 end end
+    expect(drawnNow == 0 and logged("locked areas are shown as map icons, not drawn on the picture"),
+           "with the icons, no stamp is drawn into the picture")
+    expect(#treeBody.icons == 0 and not treeBody.Image_MapBody.shown, "the World Tree's screen gets no icons and keeps its picture")
+    for _ = 1, 4 do W9.updateMap(true, {}, pawn) end
+    expect(#mapBody.icons == nLocked and mapBody.iconUpdates == 1, "added once, not every update")
+    local area4 = require("area_walls").areas[4]
+    for _ = 1, 3 do W9.updateMap(true, { [area4] = true }, pawn) end
+    expect(first.removed and #mapBody.icons == 2 * nLocked - 1, "a pass: the old icons go, and one fewer comes back")
+    -- The icons failing (here: the screen without the function): the stamps are drawn into the picture again.
+    mapBody.icons = {}
+    local add = mapBody["Add Icon By Location"]
+    mapBody["Add Icon By Location"] = nil
+    local W10 = dofile(MOD .. "/Scripts/walls.lua")
+    W10.dir, W10.keep = MOD, function() end
+    local jobs = #composeJobs
+    for _ = 1, 4 do W10.updateMap(true, {}, pawn) end
+    expect(logged("map icons: could not add them") and #composeJobs > jobs and composeJobs[#composeJobs].locked ~= nil,
+           "if the icons can't be added, the log says why and the picture is made again")
+    for _ = 1, 3 do W10.updateMap(true, {}, pawn) end
+    local drawnAgain = 0
+    for k, v in pairs(stampAt) do if stampsBefore[k] ~= v then drawnAgain = drawnAgain + 1 end end
+    expect(drawnAgain > 0, "with the stamps drawn in, as before: " .. drawnAgain)
+    mapBody["Add Icon By Location"] = add
+    mapOpen, treeOpen, AP_MapScreen = false, false, nil
 end
 
 print("a new world")

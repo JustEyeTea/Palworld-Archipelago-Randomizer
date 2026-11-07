@@ -603,14 +603,25 @@ local function lockedList(passes)
     end
     return out
 end
+-- The locked areas are shown as the map's own icons (placeIcons, below) unless config.txt has map_icons=0 or the icons
+-- failed; then the stamps are drawn into the picture and the chart fog, as before.
+W.iconsOff = false
+local iconsFailed = false
+local function iconsActive() return not W.iconsOff and not iconsFailed end
+-- An area beyond the goal: the sealed stamp; a region: its area's; the shared one when there is none.
+local function stampTexture(k)
+    local name = DATA.areas[k + 1]
+    if not name then return nil end
+    return (W.beyond[name] and ART.texture("ap-map-stamp-sealed"))
+        or (not W.beyond[name] and ART.texture("ap-map-stamp-" .. slugOf(W.parentOf(name))))
+        or ART.texture("ap-map-stamp")
+end
 local function drawStamps(canvas, krl, gi, locked)
+    if iconsActive() then once("stampsicons", "map: locked areas are shown as map icons, not drawn on the picture"); return end
     local n = 0
     for _, k in ipairs(locked) do
-        local c, name = CENTRES[k], DATA.areas[k + 1]
-        -- an area beyond the goal: the sealed stamp; a region: its area's; the shared one when there is none
-        local tex = c and name and ((W.beyond[name] and ART.texture("ap-map-stamp-sealed"))
-                                    or (not W.beyond[name] and ART.texture("ap-map-stamp-" .. slugOf(W.parentOf(name))))
-                                    or ART.texture("ap-map-stamp"))
+        local c = CENTRES[k]
+        local tex = c and stampTexture(k)
         if tex then
             local u, v = c[3] or c[1], c[4] or c[2]
             local px = stampSize(c)
@@ -974,6 +985,7 @@ local function exportMask(screen, krl, gi)
 end
 -- The stamps for the fog picture: "path|u|v|px;..." (as drawStamps places them on the 4096 map).
 local function stampList(locked)
+    if iconsActive() then return "" end
     local parts = {}
     for _, k in ipairs(locked) do
         local c, name = CENTRES[k], DATA.areas[k + 1]
@@ -1056,6 +1068,55 @@ local function chartTick(ctx, screens, opening, passes)
 end
 W.chartStatus = function() return chart end
 
+-- The locked areas as the map's own icons (the user, 2026-11-07: stamps drawn into the picture grew and shrank with
+-- the zoom, unlike the game's icons, and many sat in odd places). The map screen's "Add Icon By Location" (pak, 2026-11-07)
+-- puts an icon at a world location on one of its icon canvases at 64x64, and its "Update Map Icons" (run on every scroll
+-- and zoom) scales everything on those canvases by 1 / the map's scale, so icons keep one size on screen. IgnoreMask
+-- puts it on the canvas the fog never hides. The icon is the game's plain one (WBP_WorldMap_IconBase_OnlyIcon: an image
+-- and an invisible button; ChangeTexture sets the image). Each goes at its area's deepest point (the fog no longer hides
+-- it, so it no longer needs the side nearest the start). It ignores the pointer: hovering would open the game's info box
+-- with nothing in it. The map screen lasts until the world closes (dev.17 log: built at the first opening, destroyed at
+-- Return to title), so the icons are added once per screen, and again when a pass changes the locked set or the game
+-- drops them. UNTESTED IN GAME: if anything fails, the stamps are drawn into the picture again (iconsFailed).
+local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon.WBP_WorldMap_IconBase_OnlyIcon"
+local mapIcons = { screen = nil, key = nil, list = {} }
+-- A map point (0-1 across and down the 4096 map) as a world location (game-systems: pixel = ((Y + 724400) / 1448800,
+-- (349400 - X) / 1448800) of the map's width).
+local function worldAt(u, v) return { X = 349400 - v * 1448800, Y = u * 1448800 - 724400, Z = 0 } end
+W.worldAt = worldAt
+local function placeIcons(screen, passes, key)
+    local addr = tostring(screen:GetAddress())
+    local first = mapIcons.list[1]
+    local okp, still = pcall(function() return first:IsValid() and first:GetParent():IsValid() end)
+    if mapIcons.screen == addr and mapIcons.key == key and (not first or (okp and still)) then return end
+    for _, icon in ipairs(mapIcons.list) do pcall(function() if icon:IsValid() then icon:RemoveFromParent() end end) end
+    mapIcons.list, mapIcons.screen, mapIcons.key = {}, addr, key
+    local cls = StaticFindObject(ICON_ASSET .. "_C")
+    if not (cls and cls:IsValid()) then pcall(LoadAsset, ICON_ASSET); cls = StaticFindObject(ICON_ASSET .. "_C") end
+    if not (cls and cls:IsValid()) then error("no icon class " .. ICON_ASSET .. "_C") end
+    local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
+    local added, shown = 0, 0
+    for _, k in ipairs(lockedList(passes)) do
+        local c, tex = CENTRES[k], stampTexture(k)
+        if c and tex then
+            local icon = wbl:Create(screen, cls, nil)
+            if not (icon and icon:IsValid()) then error("could not make a map icon") end
+            icon:ChangeTexture(tex)
+            local out = {}
+            screen["Add Icon By Location"](screen, icon, worldAt(c[1], c[2]), true, false, out)
+            pcall(function() icon:SetVisibility(3) end)        -- HitTestInvisible
+            mapIcons.list[#mapIcons.list + 1] = icon
+            added = added + 1
+            if out.Added then shown = shown + 1 end
+        end
+    end
+    screen["Update Map Icons"](screen)          -- each icon's scale for the current zoom (the game does it on scroll/zoom)
+    local where = ""
+    local okw, parent = pcall(function() return mapIcons.list[1] and mapIcons.list[1]:GetParent():GetFName():ToString() end)
+    if okw and parent then where = " on " .. parent end
+    log("map icons: " .. added .. " locked area(s) added" .. where .. " (" .. shown .. " said visible)")
+end
+
 function W.updateMap(enabled, passes, ctx)
     local wasShown = mapShownAt > 0                  -- whether the map was open at the last update
     mapShownAt = 0
@@ -1063,10 +1124,14 @@ function W.updateMap(enabled, passes, ctx)
     -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
     -- more than one real one (different menus), and a map screen sets its own picture again when it opens, so every
     -- one is checked each time and given the greyed map whenever it shows anything else.
+    -- Only the main world's screen: the game also builds the World Tree's (MapName "Tree"), which shows T_WorldMap for a
+    -- moment as it is set up (dev.17 log, 2026-11-07); a screen whose name can't be read is kept, as before.
     local images, screens = {}, {}
     for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
-        if b:IsValid() and ok and img then images[#images + 1] = img; screens[#screens + 1] = b end
+        local okn, mapName = pcall(function() return b.MapName:ToString() end)
+        local main = not (okn and type(mapName) == "string" and mapName ~= "" and mapName ~= "None") or mapName:find("Main", 1, true)
+        if b:IsValid() and ok and img and main then images[#images + 1] = img; screens[#screens + 1] = b end
     end
     mapShownAt = #images
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
@@ -1091,7 +1156,9 @@ function W.updateMap(enabled, passes, ctx)
     for _, name in ipairs(DATA.areas) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
     end
-    local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "")   -- the stamps differ for areas beyond the goal
+    -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
+    -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
+    local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "") .. (iconsActive() and "#icons" or "#stamps")
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then
@@ -1119,6 +1186,15 @@ function W.updateMap(enabled, passes, ctx)
     local okc, errc = pcall(tellCpp)
     if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
     if #images == 0 then return end
+    if iconsActive() then
+        local oki, erri = pcall(placeIcons, screens[#screens], passes, key)
+        if not oki then
+            iconsFailed = true
+            for _, icon in ipairs(mapIcons.list) do pcall(function() if icon:IsValid() then icon:RemoveFromParent() end end) end
+            mapIcons.list = {}
+            log("map icons: could not add them (" .. tostring(erri) .. "); drawing the stamps on the map instead")
+        end
+    end
     local want = tostring(mapRT:GetAddress())
     for _, image in ipairs(images) do
         local okr, shown = pcall(function()

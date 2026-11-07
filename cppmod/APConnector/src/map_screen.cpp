@@ -118,8 +118,10 @@ namespace map_screen_unreal
             UObject* shown = image ? brush_resource(image) : nullptr;
             const std::string shown_name = shown ? to_string(shown->GetFullName()) : std::string("none");
             did << ", showing " << shown_name;
-            // Only the main world's map: the World Tree has a screen of its own (T_TreeMap), as walls.lua checks.
-            if (!body.empty() && image && shown_name.find("T_WorldMap") != std::string::npos)
+            // Only the main world's map: the World Tree has a screen of its own (MapName "Tree"), which also shows
+            // T_WorldMap while it is set up (dev.17 log, 2026-11-07: Setup #2, "map Tree", got the mod's picture).
+            const bool main_map = map.find("Main") != std::string::npos;
+            if (!body.empty() && image && main_map && shown_name.find("T_WorldMap") != std::string::npos)
             {
                 const StringType path = ensure_str(body);
                 UObject* picture = UObjectGlobals::StaticFindObject<UObject*>(nullptr, nullptr, path.c_str());
@@ -142,7 +144,7 @@ namespace map_screen_unreal
                 ++g_fogpics;
                 did << "; showed the chart fog";
             }
-            else if (!fog.empty() && material)
+            else if (!fog.empty() && material && main_map)
             {
                 set_fog(material, fog);
                 ++g_fogs;

@@ -44,3 +44,6 @@ map_cpp=
 # map_chart=0: keep the game's dark fog over unexplored parts of the world map. Empty: they are drawn as an explorer's
 # chart (made on your PC from the game's map, with the locked-area stamps on it), from the map's next opening.
 map_chart=
+# map_icons=0: draw the locked-area stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
+# are the map's own icons, one size at every zoom, like the game's.
+map_icons=
