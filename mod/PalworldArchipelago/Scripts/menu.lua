@@ -21,6 +21,9 @@ local UI = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
 local MENU = UI .. "WBP_TitleMenu.WBP_TitleMenu_C"
 local BUTTON = UI .. "WBP_Title_MenuButton.WBP_Title_MenuButton_C"
 local CLICK = BUTTON .. ":BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
+-- The same button's hover and unhover (kdump: OnButtonBaseHovered -> event 1, OnButtonBaseUnhovered -> event 2).
+local HOVER = BUTTON .. ":BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_1_CommonButtonBaseClicked__DelegateSignature"
+local UNHOVER = BUTTON .. ":BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_2_CommonButtonBaseClicked__DelegateSignature"
 local WINDOW = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C"
 local WINDOW_OK = WINDOW .. ":BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
 local PARAM = UI .. "BP_HUDDispatchParameter_WorldNameInput.BP_HUDDispatchParameter_WorldNameInput_C"
@@ -44,6 +47,8 @@ local ours = {}                -- our button address -> a title row's kind (ROWS
 local wanted = nil             -- a title row was clicked: its kind and menu, acted on at the next update (not in the hook)
 local draft = nil              -- what the Archipelago menu will connect with: { host, port, slot, password }
 local remembered = nil         -- the server last given to api.rememberServer
+local addFails = 0             -- failed attempts at the rows (logged, the first few)
+local applySoon                -- (below) a click or hover on our title buttons, acted on at the next game tick
 local crateWanted = false      -- the Inventory page's Open (crate) button was pressed: opened on the next update
 local cwAction = nil           -- a crate window button was pressed (crate_window.lua): its action, run on the next update
 local lastCrate = nil          -- the crate button addInventoryButton made last
@@ -159,7 +164,8 @@ local TEXT_COLOUR = { R = 0.807, G = 0.905, B = 0.888, A = 1 }            -- #E8
 local BANNER_DIM = { R = 0.78, G = 0.78, B = 0.78, A = 1 }
 local BANNER_LIT = { R = 1, G = 1, B = 1, A = 1 }
 local BANNER_POP, BANNER_REST = { X = 1.04, Y = 1.04 }, { X = 1, Y = 1 }
-local bannerPressed = 0           -- looks left at the banner's pressed picture after a click (3: ~0.2 s at the 60 ms look)
+local bannerPressed = false       -- the banner was just clicked: its pressed picture until the next update
+local bannerHovered = nil         -- the banner's button address while the pointer (or focus) is on it
 -- Where the banner goes on the list's canvas: centred over the list, its bottom 8 above the list's top. Errors when
 -- the list's slot can't tell (no canvas slot, or anchors stretched across the canvas).
 local function bannerSpot(list)
@@ -367,7 +373,17 @@ local function clicked(button)
     end
     -- A title row: acted on at the next update, never inside the click's hook.
     if ROW_KINDS[kind] and not asking then wanted = { kind = kind, button = button } end
-    if kind == "open" then bannerPressed = 3 end                 -- (only noted: the picture changes outside the hook)
+    if kind == "open" then bannerPressed = true end
+    local addr = tostring(button:GetAddress())
+    if ExecuteInGameThread and applySoon then ExecuteInGameThread(function() pcall(applySoon, addr) end) end
+end
+
+-- The pointer (or focus) on or off a title button: ours only.
+local function hovered(button, on)
+    local addr = tostring(button:GetAddress())
+    if ours[addr] ~= "open" then return end
+    if on then bannerHovered = addr elseif bannerHovered == addr then bannerHovered = nil end
+    if ExecuteInGameThread and applySoon then ExecuteInGameThread(function() pcall(applySoon, addr) end) end
 end
 
 local function okPressed()
@@ -920,9 +936,11 @@ local function addTextRow(menu, list, kind)
     pcall(function() label:SetText(FText(TYPED[kind] .. ":")) end)
     pcall(function() local f = label.Font; f.Size = 20; label:SetFont(f) end)
     pcall(function() label:SetColorAndOpacity({ SpecifiedColor = TEXT_COLOUR, ColorUseRule = 0 }) end)
-    local ls = row:AddChild(label)
+    local okA, ls = pcall(function() return row:AddChild(label) end)
+    if not okA then error("AddChild(TextBlock) on " .. className(row) .. ": " .. tostring(ls):gsub("^.-:%d+: ", "")) end
     pcall(function() ls:SetVerticalAlignment(2); ls:SetPadding({ Left = 0, Top = 0, Right = 12, Bottom = 0 }) end)  -- Centre
-    local es = row:AddChild(edit)
+    local okE, es = pcall(function() return row:AddChild(edit) end)
+    if not okE then error("AddChild(" .. className(edit) .. ") on " .. className(row) .. ": " .. tostring(es):gsub("^.-:%d+: ", "")) end
     pcall(function() es:SetSize({ SizeRule = 1, Value = 1 }); es:SetVerticalAlignment(2) end)                          -- Fill
     local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
     box:SetWidthOverride(600)
@@ -985,12 +1003,12 @@ local function pickOpen(m)
     if ok and focus then m.pickLinger = 5 elseif (m.pickLinger or 0) > 0 then m.pickLinger = m.pickLinger - 1 end
     return (m.pickLinger or 0) > 0
 end
--- The banner's tint follows its button: lit while the pointer or the keyboard is on it.
+-- The banner's tint follows its button's own hover and unhover events (hooked: never polled, so a menu the game has
+-- dropped is never touched; dev.24 polled every 60 ms and the game crashed on the title).
 local function bannerHover(m)
-    local b, btn = m.banner, m.openButton
-    if not (b and b.pic and btn) then return end
-    local ok, on = pcall(function() return btn:IsHovered() or btn:HasAnyUserFocus() or btn:HasFocusedDescendants() end)
-    on = ok and on == true and not m.open
+    local b = m.banner
+    if not (b and b.pic and m.openKey) then return end
+    local on = bannerHovered == m.openKey and not m.open
     if b.lit ~= on then
         b.lit = on
         pcall(function() b.pic:SetColorAndOpacity(on and BANNER_LIT or BANNER_DIM) end)
@@ -998,14 +1016,67 @@ local function bannerHover(m)
     end
     -- The picture: pressed for a moment after a click, hover while lit, the banner itself otherwise (the Art lane's
     -- pick A, 2026-11-07; without those files, the banner itself and the tint and the pop alone).
-    local pressed = bannerPressed > 0
-    if pressed then bannerPressed = bannerPressed - 1 end
-    local want = pressed and "ap-title-banner-pressed" or (on and "ap-title-banner-hover") or "ap-title-banner"
+    local want = bannerPressed and "ap-title-banner-pressed" or (on and "ap-title-banner-hover") or "ap-title-banner"
     if b.showing ~= want then
         b.showing = want
         local tex = ART.texture(want) or ART.texture("ap-title-banner")
         if tex then pcall(function() b.pic:SetBrushFromTexture(tex, false) end) end
     end
+end
+
+-- The rows as the menu stands: which show, their labels, the typed fields read back, the banner.
+local function refreshRows(m)
+    if m.open and m.edits then
+        local okr, errr = pcall(readEdits, m)
+        if not okr then once("readedits", "menu: reading the text boxes: " .. tostring(errr)) end
+    end
+    m.pickHosts = (m.open and m.edits and api.servers) and api.servers() or {}
+    local picking = m.open and m.edits ~= nil and pickOpen(m)
+    for kind, box in pairs(m.boxes) do
+        local show
+        if kind == "open" then show = not m.open
+        elseif kind:match("^pick") then show = picking and m.pickHosts[tonumber(kind:sub(5))] ~= nil
+        else show = m.open == true end
+        if m.shown[kind] ~= show then
+            m.shown[kind] = show
+            pcall(function() box:SetVisibility(show and 0 or 1) end)          -- Visible / Collapsed
+        end
+        local b = m.rows[kind]
+        if show and b then setText(b, rowLabel(kind, m)) end
+    end
+    pcall(bannerHover, m)
+end
+-- A click or hover on one of our title buttons, at the next game tick (scheduled from its hook; never inside it): only
+-- the menu that owns that button, which the event shows is there. So a click opens the menu at once (the user, dev.24
+-- test: "it should immediately open the next page"), not at the next 300 ms update.
+applySoon = function(addr)
+    for _, m in pairs(menus) do
+        local mine = false
+        for _, k in ipairs(m.keys) do if k == addr then mine = true end end
+        if mine and m.live then
+            if wanted then
+                local okw, waddr = pcall(function() return tostring(wanted.button:GetAddress()) end)
+                if okw and waddr == addr then
+                    local w = wanted
+                    wanted = nil
+                    local ok, err = pcall(act, m, w.kind, w.button)
+                    if not ok then log("menu: " .. w.kind .. " error: " .. tostring(err)) end
+                end
+            end
+            refreshRows(m)
+        end
+    end
+end
+
+-- A title menu entry given up (its rows gone): its addresses forgotten, never acted on again, and its banner (if still
+-- there) taken away, since a remake adds its own and two would stack, the lower one dead.
+local function forget(m)
+    for _, k in ipairs(m.keys) do ours[k] = nil end
+    m.live = false
+    local bb = m.banner and m.banner.box
+    m.banner = nil
+    local okb, bv = pcall(function() return bb and bb:IsValid() end)
+    if okb and bv and pcall(function() bb:RemoveFromParent() end) then log("menu: the old banner taken away") end
 end
 
 -- The banner's own button: an all-but-invisible title button over the whole banner, so a click on the banner opens the
@@ -1020,7 +1091,8 @@ local function bannerButton(menu, m)
     local s = b.over:AddChild(button)
     pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)     -- Fill, Fill: the whole banner
     pcall(function() button:SetRenderOpacity(0.02) end)    -- the banner shows through; the button still takes the click
-    ours[tostring(button:GetAddress())] = "open"
+    m.openKey = tostring(button:GetAddress())
+    ours[m.openKey] = "open"
     m.openButton = button
     m.keys[#m.keys + 1] = tostring(button:GetAddress())
 end
@@ -1077,6 +1149,8 @@ function M.update(ctx)
         if not oki then once("inv" .. tostring(erri), "menu: inventory page error: " .. tostring(erri)) end
     end
     hookOnce(CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
+    hookOnce(HOVER, function(self) pcall(hovered, self:get(), true) end)
+    hookOnce(UNHOVER, function(self) pcall(hovered, self:get(), false) end)
     if inWorld then
         hookOnce(ESC_CLICK, function(self) local ok, err = pcall(clicked, self:get()); if not ok then log("menu click error: " .. tostring(err)) end end)
         -- Fires for every WBP_CommonButton_C in the game (dialogs, Edit Name, Quick Stack); clicked() ignores all but ours.
@@ -1093,6 +1167,16 @@ function M.update(ctx)
         for key, m in pairs(menus) do
             local okv, valid = pcall(function() return m.rows.go:IsValid() end)
             if not live[key] or not (okv and valid) then
+                -- Our rows gone while the title menu is still there (dev.24: after Options and the Survival Guide): say
+                -- what is left, give the game's buttons back if the menu had them folded away, touch nothing else.
+                m.live = false
+                if live[key] then
+                    local okl, lv = pcall(function() return m.list:IsValid() end)
+                    log("menu: our rows are gone from a title menu still there (its list " .. ((okl and lv) and "valid" or "gone")
+                        .. "; the menu was " .. (m.open and "open" or "closed") .. "): making them again")
+                    if m.open and okl and lv then pcall(showGame, m, true) end
+                    forget(m)
+                end
                 for _, k in ipairs(m.keys) do ours[k] = nil end
                 menus[key] = nil
             end
@@ -1141,7 +1225,12 @@ function M.update(ctx)
         if menu:IsValid() and okb and list then
             local key = tostring(menu:GetAddress())
             local m = menus[key]
-            if not m or not m.rows.go:IsValid() then
+            local okg, goValid = pcall(function() return m and m.rows.go:IsValid() end)
+            if not m or not (okg and goValid) then
+                -- Made again; the old entry (if any) is never touched again, even if this fails (dev.24: after a failed
+                -- remake the old rows were still used, and the game crashed on the title 4.6 s later).
+                if m then forget(m) end
+                m, menus[key] = nil, nil
                 local rows, boxes, keys, edits, err, what = {}, {}, {}, {}, nil, nil
                 -- dev.21: the fields typed in the menu; should a text box (or a row) not be made, the dev.20 rows with
                 -- the text window instead.
@@ -1163,7 +1252,8 @@ function M.update(ctx)
                     for _, k in ipairs(keys) do ours[k] = nil end
                     rows, boxes, keys, edits, what = {}, {}, {}, nil, nil
                     local why = tostring(whyT):gsub("^.-:%d+: ", "")                     -- (the message, not where)
-                    once("typed" .. why, "menu: typed fields not made (" .. why .. "); the text window instead")
+                    addFails = addFails + 1
+                    if addFails <= 5 then log("menu: typed fields not made (" .. why .. "); the text window instead (try " .. addFails .. ")") end
                     for _, kind in ipairs(ROWS) do
                         local ok, b = pcall(addButton, menu, list, kind)
                         if not (ok and b) then err = b or "no button"; break end
@@ -1175,6 +1265,7 @@ function M.update(ctx)
                     m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {} }
                     menus[key] = m
                     added = true
+                    addFails = 0                                  -- (the next run of failures is logged again)
                     -- After the rows, once they are in (v0.13.5 playtest: before them, a menu whose buttons failed got a
                     -- new banner every update, 1,042 in five minutes).
                     local okB, banner = pcall(addBanner, menu, list)
@@ -1193,10 +1284,12 @@ function M.update(ctx)
                         .. (edits and ("; fields typed in " .. tostring(what)) or "; fields in the text window"))
                 else
                     for _, b in pairs(rows) do pcall(function() b:GetParent():RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
-                    once("menuadd", "menu: could not add the Archipelago menu's rows: " .. tostring(err))
+                    addFails = addFails + 1
+                    if addFails <= 5 then log("menu: could not add the Archipelago menu's rows: " .. tostring(err) .. " (try " .. addFails .. ")") end
                 end
             end
             if m then
+                m.live = true                                    -- (checked this update: applySoon may act on it)
                 local mine = false
                 if wanted then
                     local okw, addr = pcall(function() return tostring(wanted.button:GetAddress()) end)
@@ -1216,29 +1309,12 @@ function M.update(ctx)
                     m.closeOnConnect = nil
                 end
                 if m.banner then pcall(bannerStatus, m.banner) end
-                if m.open and m.edits then
-                    local okr, errr = pcall(readEdits, m)
-                    if not okr then once("readedits", "menu: reading the text boxes: " .. tostring(errr)) end
-                end
-                m.pickHosts = (m.open and m.edits and api.servers) and api.servers() or {}
-                local picking = m.open and m.edits ~= nil and pickOpen(m)
-                for kind, box in pairs(m.boxes) do
-                    local show
-                    if kind == "open" then show = not m.open
-                    elseif kind:match("^pick") then show = picking and m.pickHosts[tonumber(kind:sub(5))] ~= nil
-                    else show = m.open == true end
-                    if m.shown[kind] ~= show then
-                        m.shown[kind] = show
-                        pcall(function() box:SetVisibility(show and 0 or 1) end)          -- Visible / Collapsed
-                    end
-                    local b = m.rows[kind]
-                    if show and b then setText(b, rowLabel(kind, m)) end
-                end
-                pcall(bannerHover, m)
+                refreshRows(m)
             end
         end
     end
     wanted = nil                                         -- (a click on a menu that has gone: dropped)
+    bannerPressed = false                                -- (shown from the click until this update)
     -- The Esc menu is one tab of the in-game main menu (WBP_InGameMainMenu_C): its own CloseAction (what backing out
     -- of it does) tells the main menu to close (v0.11.3 playtest: Close shut only the tab; the menu stayed behind the
     -- chest window). Then a look at whether the main menu really went.
@@ -1280,14 +1356,5 @@ end
 
 function M.install(functions) api = functions end
 
--- The banner's tint, looked at every 60 ms while a title menu of ours is up (the 300 ms update would lag the pointer).
-if LoopAsync then
-    LoopAsync(60, function()
-        if next(menus) then
-            ExecuteInGameThread(function() for _, m in pairs(menus) do pcall(bannerHover, m) end end)
-        end
-        return false
-    end)
-end
 
 return M

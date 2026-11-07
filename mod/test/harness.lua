@@ -453,6 +453,7 @@ StaticConstructObject = function(cls)
                          GetVisibility = function(self) return self.vis or 0 end,
                          SetRenderTransformPivot = function(self, v) self.pivot = v end,
                          SetRenderScale = function(self, v) self.scale = v end,
+                         RemoveFromParent = function(self) self.removedFromParent = true end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
         self.child = c
@@ -2363,16 +2364,26 @@ expect(logged("Archipelago menu added to the title menu %(VerticalBox VerticalBo
        "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox/0 < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
--- dev.20 test: nothing showed the banner could be clicked. It waits a little dim and lights up under the pointer.
+-- menu.lua's ExecuteInGameThread runs at the next game tick, as in the game (the rest of the harness runs it at once).
+local queued, realGT = {}, ExecuteInGameThread
+ExecuteInGameThread = function(f)
+    if debug.getinfo(2, "S").source:find("menu.lua", 1, true) then queued[#queued + 1] = f else f() end
+end
+local function tick() local q = queued; queued = {}; for _, f in ipairs(q) do f() end end
+local HOVER, UNHOVER = CLICK:gsub("Event_0_", "Event_1_"), CLICK:gsub("Event_0_", "Event_2_")
+expect(hooks[HOVER] and hooks[UNHOVER], "the title button's hover and unhover are hooked (kdump: events 1 and 2)")
+-- dev.20 test: nothing showed the banner could be clicked. It waits a little dim and lights up under the pointer, from
+-- the button's own hover events (dev.24 polled it every 60 ms, and the game crashed on the title).
 expect(pic.colour and pic.colour.R < 1, "the banner waits a little dim")
-openBtn.hovered = true
-run(1)
+hooks[HOVER]({ get = function() return openBtn end })
+expect(pic.colour.R < 1, "nothing changes inside the hover's hook")
+tick()
 expect(pic.colour.R == 1 and bannerBox.scale and bannerBox.scale.X > 1 and tostring(pic.texture.path):find("ap%-title%-banner%-hover"),
        "and lights up under the pointer: brighter, a little bigger, the hover picture (dev.22 test: it barely stood out)")
-openBtn.hovered = false
-run(1)
+hooks[UNHOVER]({ get = function() return openBtn end })
+tick()
 expect(pic.colour.R < 1 and bannerBox.scale.X == 1 and pic.texture.path == "ap-title-banner", "and goes back when it leaves")
-local function click(b) hooks[CLICK]({ get = function() return b end }) end
+local function click(b) hooks[CLICK]({ get = function() return b end }); tick() end   -- (the click, then the next tick)
 local function okWith(text)
     pushed[#pushed].OutString = text
     hooks[WINDOW_OK]()
@@ -2380,12 +2391,13 @@ local function okWith(text)
     run(1)
 end
 local pushedBefore = #pushed
-click(openBtn)
+hooks[CLICK]({ get = function() return openBtn end })
 expect(gameButtonWrap.vis ~= 1 and pic.texture.path ~= "ap-title-banner-pressed", "nothing changes inside the click's hook")
-loop()                                                           -- one update alone (run() also runs the 60 ms look 10 times)
-expect(pic.texture.path == "ap-title-banner-pressed", "then the banner shows its pressed picture for a moment (the Art lane's pick A)")
-run(1)
-expect(pic.texture.path == "ap-title-banner", "and its own picture again a few looks later")
+tick()
+expect(gameButtonWrap.vis == 1 and rowBox(R.server).vis == 0 and pic.texture.path == "ap-title-banner-pressed",
+       "at the next tick the menu is open (the user, dev.24 test: at once, not at the next update), the banner pressed")
+run(2)
+expect(pic.texture.path == "ap-title-banner", "and its own picture again by the next update")
 expect(gameButtonWrap.vis == 1 and quitWrap.vis == 1 and rowBox(R.server).vis == 0 and rowBox(R.port).vis == 0
        and rowBox(R.go).vis == 0 and rowBox(R.back).vis == 0 and rowBox(R.pick).vis == 1 and logged("Archipelago menu opened"),
        "the banner opens the menu: the game's buttons fold away, the rows show (the saved servers not yet)")
@@ -2474,6 +2486,26 @@ click(btn(R.go)); run(1)
 push("status", "connected", "Other")
 run(2)
 local goBtn = btn(R.go)
+-- dev.24 crash (2026-11-07): after Options and the Survival Guide our rows were gone from the title menu, the remake
+-- failed, and the old rows were still used; the game crashed 4.6 s later. Now the old rows are never touched again.
+do
+    local deadTouched = false
+    for i = 2, 13 do
+        local b = rowBox(i)
+        if b then b.gone = true; b.SetVisibility = function() deadTouched = true end end
+        local inner = b and b.child
+        if inner then inner.gone = true end
+    end
+    local create = wbl.Create
+    wbl.Create = function() return nil end
+    run(3)
+    expect(not deadTouched and logged("our rows are gone from a title menu still there") and logged("could not add the Archipelago menu's rows: .*%(try %d%)") and logged("the old banner taken away"),
+           "our rows gone and the remake failing: logged, and the old rows never touched again")
+    wbl.Create = create
+    local before = #menuChildren
+    run(2)
+    expect(#menuChildren > before and logged("Archipelago menu added to the title menu"), "then made again once it can be")
+end
 -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
 -- 10 updates, logged, and looked for every update again.
 playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end
@@ -2496,7 +2528,7 @@ menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
 gameButtonWrap.vis, quitWrap.vis = 0, 0
 titleOpen = true
 run(2)
-expect(#menuChildren == 9 and logged("typed fields not made %(no text box class%); the text window instead")
+expect(#menuChildren == 9 and logged("typed fields not made %(no text box class%); the text window instead %(try %d%)")
        and logged("fields in the text window"), "no text box: the rows with the text window")
 click(titleCanvasKids[#titleCanvasKids].child.children[4]); run(1)
 click(menuChildren[4].child); run(1)                              -- Port (after Server and Type a server address)
@@ -2506,6 +2538,7 @@ expect(menuChildren[4].child.Test_Content.text == "Port: 40001", "and sets the p
 titleOpen = false
 run(1)
 palEditOk, umgEditOk = nil, nil
+ExecuteInGameThread = realGT
 end)()
 
 print("the other goals")
