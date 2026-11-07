@@ -735,6 +735,7 @@ local composingList = {}                                  -- that set's area ind
 -- A fingerprint of the map the game shows: 16 pixels of it drawn small. A mod that replaces the map's art changes it, so
 -- the saved colour map is made again (once a session, cheaply, instead of exporting the whole map every time).
 local printChecked, printNow = false, nil
+local colourSaved = false      -- colourMap saved the colour map again this session (the game's map changed)
 local function mapPrint(krl, tex, gi)
     local rt = krl:CreateRenderTarget2D(gi, 16, 16, 2, { R = 0, G = 0, B = 0, A = 1 }, false)
     local canvasOut, contextOut, extra = {}, {}, {}
@@ -778,6 +779,7 @@ local function colourMap(krl, tex, gi)
         { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
     krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
     krl:ExportRenderTarget(gi, rt, W.dir, COLOUR_FILE)
+    colourSaved = true
     if printNow then
         local out = io.open(path .. ".txt", "wb")
         if out then out:write(printNow); out:close() end
@@ -793,10 +795,25 @@ local function lockedIndexes(passes)
     return table.concat(out, ",")
 end
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
--- composing it failed.
-local function composeMap(ctx, passes, key)
+-- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
+-- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
+-- it was made, and C++ had nothing to show yet). Until the map opens, the colour map saved in an earlier session is used
+-- as it is, without loading the game's 8192 px map; at the first opening the game's map is checked against it once
+-- (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
+local function composeMap(ctx, passes, key, open)
     if not composing then                    -- the usual case: nothing to do, nothing to look up
-        if composedKey == key then return true end
+        if composedKey == key then
+            if open and not printChecked then
+                pcall(LoadAsset, MAP_TEXTURE)
+                local tex = StaticFindObject(MAP_TEXTURE)
+                local gi = owner()
+                if tex and tex:IsValid() and gi then
+                    colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
+                    if colourSaved then composedKey = nil; return false end     -- made again from the new colour map
+                end
+            end
+            return true
+        end
         if failedKey == key then return "failed" end
     end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
@@ -826,10 +843,15 @@ local function composeMap(ctx, passes, key)
         composedKey = done
         return done == key
     end
-    pcall(LoadAsset, MAP_TEXTURE)
-    local tex = StaticFindObject(MAP_TEXTURE)
-    if not tex or not tex:IsValid() then return false end
-    local colour = colourMap(krl, tex, gi)
+    local colour = W.dir .. "\\" .. COLOUR_FILE
+    local saved = io.open(colour, "rb")
+    if saved then saved:close() end
+    if open or printChecked or not saved then
+        pcall(LoadAsset, MAP_TEXTURE)
+        local tex = StaticFindObject(MAP_TEXTURE)
+        if not tex or not tex:IsValid() then return false end
+        colour = colourMap(krl, tex, gi)
+    end
     local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes),
         W.dir .. "\\map-composed.png", "0.4545")
     if err == "" then composing, composingList = key, lockedList(passes) elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
@@ -1050,8 +1072,11 @@ function W.updateMap(enabled, passes, ctx)
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
     local okt, errt = pcall(chartTick, ctx, screens, #images > 0 and not wasShown, passes)
     if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
-    if #images == 0 then return end
-    if AP_MapScreen and not wasShown then
+    -- C++ is switched on from the start, not once the picture is ready (dev.16 playtest, 2026-11-07: the map opened
+    -- 3 s before the picture was, and C++ logged "OFF; Setup ran 0x" though its hook saw Setup run).
+    local okc0, errc0 = pcall(tellCpp)
+    if not okc0 then once("cpperr", "map screen (C++): " .. tostring(errc0)) end
+    if AP_MapScreen and #images > 0 and not wasShown then
         cpp.opened = cpp.opened + 1
         if cpp.opened <= 3 then
             log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back " .. cpp.fixes .. "x")
@@ -1070,7 +1095,7 @@ function W.updateMap(enabled, passes, ctx)
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then
-        local ok, ready = pcall(composeMap, ctx, passes, key)
+        local ok, ready = pcall(composeMap, ctx, passes, key, #images > 0)
         if not ok then once("composeerr" .. tostring(ready), "map error: " .. tostring(ready)); ready = false end
         if ready == "failed" then
             compose = false
@@ -1083,6 +1108,7 @@ function W.updateMap(enabled, passes, ctx)
         end
     end
     if not compose and key ~= mapKey then
+        if #images == 0 then return end          -- without the compositor the map is drawn when it opens, as before
         local ok, done = pcall(drawMap, ctx, passes)
         if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return end
         if not done then return end
@@ -1092,6 +1118,7 @@ function W.updateMap(enabled, passes, ctx)
     if not mapRT or not mapRT:IsValid() then return end
     local okc, errc = pcall(tellCpp)
     if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
+    if #images == 0 then return end
     local want = tostring(mapRT:GetAddress())
     for _, image in ipairs(images) do
         local okr, shown = pcall(function()

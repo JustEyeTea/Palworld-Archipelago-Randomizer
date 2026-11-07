@@ -405,7 +405,11 @@ local hudWindows, pushed = {}, {}
 local hud = { Push = function(_, cls, param)
                   local id = "w" .. (#pushed + 1)
                   pushed[#pushed + 1] = param
-                  hudWindows[id] = Widget({ Text_Head = { SetText = function(self, t) self.text = t.text end },
+                  -- Text_Head as the game's: its Text field reads back as a value with no ToString (dev.16 log); GetText()
+                  -- gives the FText
+                  hudWindows[id] = Widget({ Text_Head = { SetText = function(self, t) self.text = t.text end, Text = 0,
+                                                          GetText = function(self) local s = self.text or ""; return { ToString = function() return s end } end,
+                                                          BindTextDatatableHandle = { RowName = FName("WorldName") } },
                                             PalEditableTextBox_0 = { SetIsPassword = function(self, on) self.password = on end } })
                   return id end,
               GetWidget = function(_, id) return hudWindows[id] end }
@@ -834,13 +838,13 @@ local sample = next(wallsUp)
 expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
 
 print("the world map")
+-- dev.16 playtest (2026-11-07): composed only once the map opened, the first opening showed the game's map for ~3 s.
+local jobs0 = #composeJobs
+expect(jobs0 >= 1 and composeJobs[jobs0].labels:find("area_labels.png") and composeJobs[jobs0].colour:find("map%-colour%-1.png"),
+       "the picture is composed in the background, from the colour map and the area labels, before the map ever opens")
 mapOpen = true
 run(1)
-expect(#composeJobs == 1 and composeJobs[1].labels:find("area_labels.png") and composeJobs[1].colour:find("map%-colour%-1.png"),
-       "composing starts from the saved colour map and the area labels")
-expect(not mapBody.Image_MapBody.shown, "the game's own map stays until the picture is ready")
-run(2)
-expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt, "then the composed map is shown")
+expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt, "so the first opening has the composed map at once")
 do  -- v0.13.5 playtest: stamps at each area's deepest point sat under the fog of war; now on the side facing home
     local c = require("area_centres")[3]                        -- Sea Breeze Archipelago, still locked
     local at = stampAt["ap-map-stamp-sea-breeze-archipelago"]
@@ -861,14 +865,14 @@ do  -- 2026-11-06 run: the full 88 px stamp buried a small region (Small Settlem
     end
     expect(small > 0 and tiny > 0, "the regions set has small regions that get a smaller stamp")
 end
-local lockedFirst = composeJobs[1].locked
+local lockedFirst = composeJobs[jobs0].locked
 expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
        "locked areas passed by index: " .. lockedFirst)
 push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
 run(3)
-expect(#composeJobs == 2 and select(2, composeJobs[2].locked:gsub(",", "")) == 11, "a pass recomposes with one fewer")
+expect(#composeJobs == jobs0 + 1 and select(2, composeJobs[jobs0 + 1].locked:gsub(",", "")) == 11, "a pass recomposes with one fewer")
 run(3)
-expect(#composeJobs == 2, "and not again while nothing changes")
+expect(#composeJobs == jobs0 + 1, "and not again while nothing changes")
 local owned = true
 for _, o in ipairs(rtOwners) do if o ~= gameInstance then owned = false end end
 expect(owned and #rtOwners >= 2 and exports == 1, "render targets belong to the game instance; colour map saved once")
@@ -1020,6 +1024,50 @@ do
     mapBody.MaskTextureMaterial = nil
 end
 mapOpen = false
+-- dev.16 playtest (2026-11-07): the picture was only started once the map opened, so the first opening showed the
+-- game's map for ~3 s, and C++ was still off ("OFF; Setup ran 0x"). Now, before the map ever opens: C++ is switched on,
+-- the picture is composed from the colour map saved in an earlier session (the game's 8192 px map not loaded), and C++
+-- is told its path; at the first opening the game's map is checked against the saved one once, and nothing is redone.
+do
+    local calls = {}
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    local saved = MOD .. "\\map-colour-1.png"                    -- (the mod's Windows path, as a file name here)
+    local f = io.open(saved, "w"); f:write("png"); f:close()
+    local fp = {}
+    for _ = 1, 16 do fp[#fp + 1] = mapArt .. ",90,60" end
+    f = io.open(saved .. ".txt", "w"); f:write(table.concat(fp, ";")); f:close()
+    loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
+    local jobsBefore = #composeJobs
+    local W7 = dofile(MOD .. "/Scripts/walls.lua")
+    W7.dir, W7.keep = MOD, function() end
+    W7.updateMap(true, {}, pawn)
+    local said = table.concat(calls, " | ")
+    expect(said:find("enable=1", 1, true), "C++ is switched on at the first update, before any picture or map: " .. said)
+    for _ = 1, 3 do W7.updateMap(true, {}, pawn) end
+    said = table.concat(calls, " | ")
+    local job = composeJobs[jobsBefore + 1]
+    expect(job and job.colour == saved and not loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"],
+           "the map closed: the picture is composed from the saved colour map, without loading the game's map")
+    expect(said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
+           "and C++ has the picture before the map first opens: " .. said)
+    mapOpen = true
+    for _ = 1, 3 do W7.updateMap(true, {}, pawn) end
+    expect(loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] and #composeJobs == jobsBefore + 1,
+           "at the first opening the game's map is checked against the saved one, and an unchanged map is not composed again")
+    mapOpen = false
+    mapArt = mapArt + 1                                            -- another session, another mod's map art
+    local W8 = dofile(MOD .. "/Scripts/walls.lua")
+    W8.dir, W8.keep = MOD, function() end
+    for _ = 1, 3 do W8.updateMap(true, {}, pawn) end
+    local early = #composeJobs
+    mapOpen = true
+    for _ = 1, 4 do W8.updateMap(true, {}, pawn) end
+    expect(#composeJobs == early + 1 and composeJobs[#composeJobs].colour == saved and logged("the game's map picture changed"),
+           "a changed map art found at the first opening: the colour map is saved again and the picture made again")
+    mapOpen, AP_MapScreen = false, nil
+    mapArt = mapArt - 1
+    os.remove(saved); os.remove(saved .. ".txt")
+end
 
 print("a new world")
 -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
@@ -2147,6 +2195,8 @@ hudWindows["w1"].Text_Head.text = "World Name"                     -- the game p
 run(1)
 expect(hudWindows["w1"].Text_Head.text == "Archipelago server (host:port)", "the window keeps our heading: "
        .. tostring(hudWindows["w1"].Text_Head.text))
+expect(logged("window heading reads 'Archipelago server %(host:port%) %(row None%)'") and not logged("window heading reads '%?"),
+       "the heading diagnostic reads the heading through GetText (the Text field errored in game)")
 okWith("archipelago.gg:40000")
 expect(#pushed == 2 and pushed[2].DefaultInputName == "Tester", "then the slot")
 okWith("Other")

@@ -926,7 +926,8 @@ function M.update(ctx)
             if asking.headLogs <= 3 then                 -- does our heading stick? (diagnostic, first window ticks)
                 local okt, t = pcall(function()
                     local h = w.Text_Head
-                    return h.Text:ToString() .. " (row " .. h.BindTextDatatableHandle.RowName:ToString() .. ")"
+                    -- GetText(), not the Text field: the field came back as a value with no ToString (dev.16 log)
+                    return h:GetText():ToString() .. " (row " .. h.BindTextDatatableHandle.RowName:ToString() .. ")"
                 end)
                 log("menu: window heading reads '" .. tostring(okt and t or ("? " .. tostring(t))) .. "'"
                     .. (hooked[WINDOW_OK] and "" or " (OK not hooked yet)"))

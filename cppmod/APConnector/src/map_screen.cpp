@@ -11,14 +11,18 @@
 // Blueprint call passes through them, so each compares one pointer and returns. The Setup function exists only once
 // its class has loaded; an engine-tick callback (game thread, as EventViewer.cpp's) looks for it every 60 frames.
 //
-// FIRST BUILD IS A PROBE (untested in game): it logs the screen's functions in the order they run with the frame
-// number, so the next build knows the right moment if Setup is not it, and whether a change made here showed at once.
+// A PROBE TOO: it logs the screen's functions in the order they run with the frame number, so a build knows the right
+// moment if Setup is not it. dev.16 (2026-11-07, first run in game): the class was found at world load, Setup ran (twice,
+// "script" route) in the frame the map first opened, just after OnInitialized, and nothing crashed; but Lua had not
+// switched this on yet, so it changed nothing. Still open: does Setup run again at a later opening, and does a change
+// made here show from the first frame?
 #include "map_screen.hpp"
 #include "reflect.hpp"
 
 #include <atomic>
 #include <mutex>
 #include <sstream>
+#include <unordered_set>
 
 #include <Unreal/FFrame.hpp>
 #include <Unreal/Hooks/Hooks.hpp>
@@ -28,7 +32,11 @@ namespace map_screen_unreal
     using namespace ap_reflect;
 
     constexpr auto SETUP_PATH = STR("/Game/Pal/Blueprint/UI/UserInterface/Map/WBP_Map_Body.WBP_Map_Body_C:Setup");
-    constexpr int LOG_CALLS = 80;              // the screen's own functions logged per session (the probe)
+    // The probe: the screen's own functions, each name once per burst of calls (an opening), for the first openings.
+    // (dev.16 log, 2026-11-07: a flat 80-call limit was used up by the first opening's 64 icon calls, so it could not
+    // tell whether Setup runs again when the map is opened a second time.)
+    constexpr int LOG_BURSTS = 8;              // bursts logged per session
+    constexpr uint64_t BURST_GAP = 30;         // frames without a call to the screen that end a burst
 
     std::mutex g_lock;                         // guards what Lua sets and the counters' text
     std::string g_body;                        // the picture's object path ("" = the game's own)
@@ -39,7 +47,11 @@ namespace map_screen_unreal
     std::atomic<UFunction*> g_setup{nullptr};
     std::atomic<UObject*> g_class{nullptr};    // WBP_Map_Body_C, for logging its functions
     std::atomic<uint64_t> g_frame{0};
-    std::atomic<int> g_setups{0}, g_bodies{0}, g_fogs{0}, g_fogpics{0}, g_logged{0};
+    std::atomic<int> g_setups{0}, g_bodies{0}, g_fogs{0}, g_fogpics{0};
+    std::mutex g_probe_lock;                   // guards the probe's burst state below
+    std::unordered_set<std::string> g_burst_names;
+    uint64_t g_burst_frame = 0;
+    int g_bursts = 0;
     std::atomic<bool> g_hooked{false};
     std::atomic<bool> g_enabled{false};        // off until Lua turns it on (config.txt map_cpp=0 keeps it off)
 
@@ -148,17 +160,30 @@ namespace map_screen_unreal
         if (n <= 5 || n % 50 == 0) say(did.str());
     }
 
+    // One of the screen's own functions ran: logged the first time its name shows up in this burst of calls.
+    auto probe(UFunction* fn, const char* route) -> void
+    {
+        const uint64_t frame = g_frame.load(std::memory_order_relaxed);
+        std::lock_guard<std::mutex> guard(g_probe_lock);
+        if (g_bursts == 0 || frame > g_burst_frame + BURST_GAP)
+        {
+            ++g_bursts;
+            g_burst_names.clear();
+            if (g_bursts <= LOG_BURSTS) say("burst " + std::to_string(g_bursts) + " of the screen's calls from frame " + std::to_string(frame));
+        }
+        g_burst_frame = frame;
+        if (g_bursts > LOG_BURSTS) return;
+        const std::string name = to_string(fn->GetName());
+        if (g_burst_names.insert(name).second) say("frame " + std::to_string(frame) + ": " + name + " (" + route + ")");
+    }
+
     // Every Blueprint call: Setup is acted on; the probe logs the map screen's own functions in the order they run.
     auto seen(UObject* context, UFunction* fn, const char* route) -> void
     {
         if (!fn) return;
         if (fn == g_setup.load(std::memory_order_relaxed) && g_enabled.load(std::memory_order_relaxed)) on_setup(context, route);
         UObject* cls = g_class.load(std::memory_order_relaxed);
-        if (cls && fn->GetOuterPrivate() == cls && g_logged.load(std::memory_order_relaxed) < LOG_CALLS)
-        {
-            ++g_logged;
-            say("frame " + std::to_string(g_frame.load()) + ": " + to_string(fn->GetName()) + " (" + route + ")");
-        }
+        if (cls && fn->GetOuterPrivate() == cls) probe(fn, route);
     }
 
     auto script_post(Hook::TCallbackIterationData<void>&, UObject* context, FFrame& stack, void*) -> void
