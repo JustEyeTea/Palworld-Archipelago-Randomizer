@@ -1000,11 +1000,12 @@ local function stampList(locked)
 end
 -- The areas on the chart (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?";
 -- go): a border between neighbouring areas and a hatch over locked ones, drawn by the C++ compositor from the area
--- labels (dev.29's DLL; an older one ignores it). The Art lane's hatch tile (art/ap-chart-hatch.png) once there is one,
--- a plain diagonal hatch in the ink until then; the line's style is a stand-in until the user picks the Art lane's.
+-- labels (dev.29's DLL; an older one ignores it). The user's picks in the Art lane (2026-11-07): "dashed brown ink"
+-- (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and the single diagonal hatch (art/ap-chart-hatch.png, at
+-- 0.45; a plain hatch in the ink if the file is missing).
 -- config.txt map_regions=0: none.
 W.regionsOff = false
-local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,190", 2, 10, 6, 0.22
+local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.45
 local function regionSpec(passes)
     if W.regionsOff then return "" end
     return table.concat({ W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes), artFile("ap-chart-hatch"),

@@ -1082,8 +1082,8 @@ do
            "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
     local rf = {}
     for part in ((fog and fog.regions or "") .. "|"):gmatch("([^|]*)|") do rf[#rf + 1] = part end
-    expect(#rf == 8 and rf[1]:find("area_labels%.png$") and select(2, rf[2]:gsub(",", "")) >= 9 and rf[4] == "59,42,26,190"
-           and tonumber(rf[5]) == 2 and tonumber(rf[8]) > 0,
+    expect(#rf == 8 and rf[1]:find("area_labels%.png$") and select(2, rf[2]:gsub(",", "")) >= 9 and rf[4] == "59,42,26,210"
+           and tonumber(rf[5]) == 3 and tonumber(rf[6]) == 14 and tonumber(rf[7]) == 8 and tonumber(rf[8]) == 0.45,
            "the fog is made with the areas' borders and the locked areas' hatch (labels, locked indexes, ink, width, hatch): "
            .. tostring(fog and fog.regions))
     local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
@@ -1200,7 +1200,8 @@ do
     expect(#mapBody.icons == nLocked and mapBody.iconUpdates == 1, "added once, not every update")
     local area4 = require("area_walls").areas[4]
     for _ = 1, 3 do W9.updateMap(true, { [area4] = true }, pawn) end
-    expect(first.removed and #mapBody.icons == 2 * nLocked - 1, "a pass: the old icons go, and one fewer comes back")
+    expect(first.removed and #mapBody.icons == 2 * nLocked and logged("1 open not yet visited"),
+           "a pass: the old icons go; one locked stamp fewer comes back, and an open one where the pass is (art/ap-map-stamp-open-*)")
     -- An unlocked area not stood in yet: an open stamp there (the Art lane's ap-map-stamp-open, once the mod has it).
     local openArt = require("art").dir .. "\\art\\ap-map-stamp-open.png"   -- (where the mod looks for its art)
     local fa = io.open(openArt, "w"); fa:write("png"); fa:close()
