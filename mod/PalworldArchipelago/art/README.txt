@@ -1,6 +1,9 @@
 Round-1 art from the Art & Assets lane (2026-11-04; the user picked each design). Untested in game.
   ap-title-banner.png         1200x300, shown at 600x150 above the title menu's buttons, and opens the Archipelago menu (menu.lua);
                               the connection status is drawn into its pill.
+  ap-title-banner-hover.png   1200x300, the banner while the pointer or the keyboard is on it: a teal rim and glow, a
+                              lighter plate (the user's pick A, 2026-11-07); everything else placed as the banner's.
+  ap-title-banner-pressed.png 1200x300, the banner for a moment as it is clicked: a darker plate, a dimmed rim.
   ap-status-dot.png           24x24 white dot in the pill, tinted green / amber / red by the connection state.
   ap-map-stamp.png            256x256, drawn 88 px wide at the centre of each locked area on the map (walls.lua,
                               Scripts/area_centres.lua from tools/area_centres.py).

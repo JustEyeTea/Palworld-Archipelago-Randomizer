@@ -159,6 +159,7 @@ local TEXT_COLOUR = { R = 0.807, G = 0.905, B = 0.888, A = 1 }            -- #E8
 local BANNER_DIM = { R = 0.78, G = 0.78, B = 0.78, A = 1 }
 local BANNER_LIT = { R = 1, G = 1, B = 1, A = 1 }
 local BANNER_POP, BANNER_REST = { X = 1.04, Y = 1.04 }, { X = 1, Y = 1 }
+local bannerPressed = 0           -- looks left at the banner's pressed picture after a click (3: ~0.2 s at the 60 ms look)
 -- Where the banner goes on the list's canvas: centred over the list, its bottom 8 above the list's top. Errors when
 -- the list's slot can't tell (no canvas slot, or anchors stretched across the canvas).
 local function bannerSpot(list)
@@ -366,6 +367,7 @@ local function clicked(button)
     end
     -- A title row: acted on at the next update, never inside the click's hook.
     if ROW_KINDS[kind] and not asking then wanted = { kind = kind, button = button } end
+    if kind == "open" then bannerPressed = 3 end                 -- (only noted: the picture changes outside the hook)
 end
 
 local function okPressed()
@@ -993,11 +995,16 @@ local function bannerHover(m)
         b.lit = on
         pcall(function() b.pic:SetColorAndOpacity(on and BANNER_LIT or BANNER_DIM) end)
         pcall(function() b.box:SetRenderScale(on and BANNER_POP or BANNER_REST) end)
-        if b.hoverTex == nil then b.hoverTex = ART.texture("ap-title-banner-hover") or false end
-        if b.hoverTex then
-            local tex = on and b.hoverTex or ART.texture("ap-title-banner")
-            if tex then pcall(function() b.pic:SetBrushFromTexture(tex, false) end) end
-        end
+    end
+    -- The picture: pressed for a moment after a click, hover while lit, the banner itself otherwise (the Art lane's
+    -- pick A, 2026-11-07; without those files, the banner itself and the tint and the pop alone).
+    local pressed = bannerPressed > 0
+    if pressed then bannerPressed = bannerPressed - 1 end
+    local want = pressed and "ap-title-banner-pressed" or (on and "ap-title-banner-hover") or "ap-title-banner"
+    if b.showing ~= want then
+        b.showing = want
+        local tex = ART.texture(want) or ART.texture("ap-title-banner")
+        if tex then pcall(function() b.pic:SetBrushFromTexture(tex, false) end) end
     end
 end
 

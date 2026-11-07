@@ -2381,8 +2381,11 @@ local function okWith(text)
 end
 local pushedBefore = #pushed
 click(openBtn)
-expect(gameButtonWrap.vis ~= 1, "nothing changes inside the click's hook")
+expect(gameButtonWrap.vis ~= 1 and pic.texture.path ~= "ap-title-banner-pressed", "nothing changes inside the click's hook")
+loop()                                                           -- one update alone (run() also runs the 60 ms look 10 times)
+expect(pic.texture.path == "ap-title-banner-pressed", "then the banner shows its pressed picture for a moment (the Art lane's pick A)")
 run(1)
+expect(pic.texture.path == "ap-title-banner", "and its own picture again a few looks later")
 expect(gameButtonWrap.vis == 1 and quitWrap.vis == 1 and rowBox(R.server).vis == 0 and rowBox(R.port).vis == 0
        and rowBox(R.go).vis == 0 and rowBox(R.back).vis == 0 and rowBox(R.pick).vis == 1 and logged("Archipelago menu opened"),
        "the banner opens the menu: the game's buttons fold away, the rows show (the saved servers not yet)")
