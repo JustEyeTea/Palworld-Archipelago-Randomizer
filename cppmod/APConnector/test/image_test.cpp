@@ -119,7 +119,11 @@ int main()
     const auto derr = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_dashed.png", 256, "",
                                   "/tmp/fog_labels.png|||255,0,0,255|1|4|4|0");
     unsigned char* dg = derr.empty() ? stbi_load("/tmp/fog_dashed.png", &w, &h, &n, 4) : nullptr;
-    for (int y = 40; y < 216 && dg; ++y) if (dg[(y * 256 + 63) * 4 + 1] == 0 && dg[(y * 256 + 63) * 4] == 255) ++on;
+    for (int y = 40; y < 216 && dg; ++y)          // (a softened 1 px line: red over the paper, not pure red)
+    {
+        const unsigned char* q = &dg[(y * 256 + 63) * 4];
+        if (q[0] - (q[1] + q[2]) / 2 > 60) ++on;
+    }
     const bool dashed = dg && on > 60 && on < 120;
     const bool badSpec = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_bad2.png", 256, "",
                                      "/tmp/fog_labels.png|2") != "";
@@ -128,5 +132,28 @@ int main()
                 regionsOk ? "ok" : "FAIL", rerr.empty() ? "written" : rerr.c_str(), derr.empty() ? "written" : derr.c_str(),
                 rg ? rp(63, 128)[0] : -1, redness(127, 128), redness(96, 128), redness(100, 128), redness(30, 130),
                 redness(34, 130), on);
-    return regionsOk ? 0 : 1;
+    if (!regionsOk) return 1;
+
+    // Land only (the user, dev.30 test: borders and hatch ran out over the sea): a colour map with land (tan) on x 0-23
+    // of 64 and sea (teal) beyond. Area 2 (x 16-31) is land on 16-23 and sea on 24-31: the hatch only on its land part;
+    // the border between areas 1 and 2 (both land) still drawn.
+    std::vector<unsigned char> lm(64 * 64 * 4);
+    for (int i = 0; i < 64 * 64; ++i)
+    {
+        const bool landPx = (i % 64) < 24;
+        lm[i * 4] = landPx ? 204 : 26; lm[i * 4 + 1] = landPx ? 178 : 102; lm[i * 4 + 2] = landPx ? 128 : 128; lm[i * 4 + 3] = 255;
+    }
+    stbi_write_png("/tmp/fog_colour.png", 64, 64, 4, lm.data(), 64 * 4);
+    const auto lerr = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_land.png", 256, "",
+                                  "/tmp/fog_labels.png|2||255,0,0,255|2|0|0|0.5|/tmp/fog_colour.png|1.0");
+    unsigned char* lg = lerr.empty() ? stbi_load("/tmp/fog_land.png", &w, &h, &n, 4) : nullptr;
+    auto lred = [&](int x, int y) { return lg ? lg[(y * 256 + x) * 4] - (lg[(y * 256 + x) * 4 + 1] + lg[(y * 256 + x) * 4 + 2]) / 2 : -999; };
+    const bool landBorder = lg && lg[(128 * 256 + 63) * 4] > 200 && lg[(128 * 256 + 63) * 4 + 1] < 60;
+    const bool landHatch = lred(68, 128) > lred(71, 128) + 40 && lred(82, 128) > lred(85, 128) + 40;   // lines on land (x+y = 0 mod 14)
+    int seaHatch = 0;
+    for (int x = 104; x < 124; ++x) if (lred(x, 128) - lred(x + 1, 128) > 40) ++seaHatch;           // none on the sea
+    const bool landOk = landBorder && landHatch && seaHatch == 0;
+    std::printf("%s fog regions on land: %s, border %d, hatch lines on the sea %d\n", landOk ? "ok" : "FAIL",
+                lerr.empty() ? "written" : lerr.c_str(), lg ? lg[(128 * 256 + 63) * 4] : -1, seaHatch);
+    return landOk ? 0 : 1;
 }

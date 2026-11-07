@@ -44,9 +44,11 @@ auto sample_png(const std::string& path, double u, double v) -> std::string;
 // width on a 4096 map; "" for none), so they show on the chart. Returns "" on success, else what went wrong.
 // regions (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?"): borders between
 // neighbouring areas and a hatch over locked ones, drawn on the chart before the explored parts are cut out.
-// "labels|locked|hatch|r,g,b,a|width|dash|gap|hatchop": labels the area label PNG (as compose_map), locked "3,7,12",
-// hatch a tile PNG ("" for a plain diagonal hatch in the ink), ink 0-255, width/dash/gap in px at this size (dash 0: a
-// solid line; dashes are measured along the border, so they stay even round curves), hatchop 0..1. "" for none.
+// "labels|locked|hatch|r,g,b,a|width|dash|gap|hatchop[|colour|gamma]": labels the area label PNG (as compose_map),
+// locked "3,7,12", hatch a tile PNG ("" for a plain diagonal hatch in the ink), ink 0-255, width/dash/gap in px at this
+// size (dash 0: a solid line; dashes are measured along the border, so they stay even round curves; the line's edge is
+// softened), hatchop 0..1; colour and gamma: the map as compose_chart reads it, to keep both to land (the user, dev.30
+// test: they ran out over the sea; without them, everywhere). "" for none.
 auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
                  const std::string& spec, const std::string& out, int size, const std::string& stamps = "",
                  const std::string& regions = "") -> std::string;

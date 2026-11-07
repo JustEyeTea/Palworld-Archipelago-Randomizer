@@ -1082,8 +1082,8 @@ do
            "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
     local rf = {}
     for part in ((fog and fog.regions or "") .. "|"):gmatch("([^|]*)|") do rf[#rf + 1] = part end
-    expect(#rf == 8 and rf[1]:find("area_labels%.png$") and select(2, rf[2]:gsub(",", "")) >= 9 and rf[4] == "59,42,26,210"
-           and tonumber(rf[5]) == 3 and tonumber(rf[6]) == 14 and tonumber(rf[7]) == 8 and tonumber(rf[8]) == 0.45,
+    expect(#rf == 10 and rf[1]:find("area_labels%.png$") and rf[10] == "0.4545" and select(2, rf[2]:gsub(",", "")) >= 9 and rf[4] == "59,42,26,210"
+           and tonumber(rf[5]) == 3 and tonumber(rf[6]) == 14 and tonumber(rf[7]) == 8 and tonumber(rf[8]) == 0.28,
            "the fog is made with the areas' borders and the locked areas' hatch (labels, locked indexes, ink, width, hatch): "
            .. tostring(fog and fog.regions))
     local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))

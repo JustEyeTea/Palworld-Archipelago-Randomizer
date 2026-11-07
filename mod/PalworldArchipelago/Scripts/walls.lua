@@ -1001,15 +1001,18 @@ end
 -- The areas on the chart (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?";
 -- go): a border between neighbouring areas and a hatch over locked ones, drawn by the C++ compositor from the area
 -- labels (dev.29's DLL; an older one ignores it). The user's picks in the Art lane (2026-11-07): "dashed brown ink"
--- (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and the single diagonal hatch (art/ap-chart-hatch.png, at
--- 0.45; a plain hatch in the ink if the file is missing).
+-- (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and the single diagonal hatch (art/ap-chart-hatch.png; a
+-- plain hatch in the ink if the file is missing). dev.30 test: both ran out over the sea (an area's labels take in its
+-- waters), the hatch made the map busy, and the line stair-stepped zoomed in: now on land only (the colour map tells
+-- land from sea, as for the chart), the hatch at 0.28 (was 0.45), and the line's edge softened (dev.31's DLL).
 -- config.txt map_regions=0: none.
 W.regionsOff = false
-local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.45
+local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.28
 local function regionSpec(passes)
     if W.regionsOff then return "" end
     return table.concat({ W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes), artFile("ap-chart-hatch"),
-        REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH) }, "|")
+        REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH),
+        exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", "0.4545" }, "|")
 end
 W.regionSpec = regionSpec
 local function startFog(stamps, regions)
