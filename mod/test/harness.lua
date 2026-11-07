@@ -286,7 +286,12 @@ StaticFindObject = function(path)
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
     if path:find("WidgetBlueprintLibrary") then return wbl end
+    -- The text boxes (globals palEditOk / umgEditOk false: the class is not there, as the fallback test needs).
+    if path == "/Script/Pal.PalEditableTextBox" then return palEditOk ~= false and Widget({ umg = "PalEditableTextBox" }) or nil end
+    if path == "/Script/UMG.EditableTextBox" and umgEditOk == false then return nil end
     if path:match("^/Script/UMG%.%a+$") then return Widget({ umg = path:match("%.(%a+)$") }) end   -- SizeBox, Image, ...
+    -- The world-name window's own text box, as its class keeps it (its look is copied).
+    if path:find(":WidgetTree.PalEditableTextBox_0", 1, true) then return Widget({ WidgetStyle = { look = "world-name" } }) end
     if path:find("KismetMaterialLibrary") then return materialLib end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("KismetSystemLibrary") then return systemLib end
@@ -415,11 +420,24 @@ wbl = { IsValid = function() return true end,   -- global: StaticFindObject abov
                   end
                   return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
                                   SetVisibility = function(self, v) self.visibility = v end,
-                                  SetRenderOpacity = function(self, o) self.opacity = o end }) end }
+                                  SetRenderOpacity = function(self, o) self.opacity = o end,
+                                  IsHovered = function(self) return self.hovered == true end,
+                                  HasAnyUserFocus = function() return false end,
+                                  HasFocusedDescendants = function(self) return self.focused == true end }) end }
 -- UMG widgets the mod makes (SizeBox, Overlay, Image, TextBlock): one stand-in that records what is done to it.
 bannerTexts = {}                                             -- every text a made TextBlock was given, in order
+-- A text box: what is in it reads back from its Text (an FText); typing is the test setting Text; focus the test's.
+local function TextOf(s) return { ToString = function() return s end } end
+function EditBox(kind)   -- global: StaticConstructObject below makes them
+    return Widget({ GetClass = function() return classed(kind) end, kind = kind, Text = TextOf(""),
+                    SetText = function(self, t) self.Text = TextOf(t.text) end,
+                    SetIsPassword = function(self, on) self.password = on end,
+                    HasKeyboardFocus = function(self) return self.focus == true end,
+                    SetVisibility = function(self, v) self.vis = v end, GetVisibility = function(self) return self.vis or 0 end })
+end
 StaticConstructObject = function(cls)
     local kind = type(cls) == "table" and cls.umg or "SizeBox"
+    if kind == "PalEditableTextBox" or kind == "EditableTextBox" then return EditBox(kind) end
     local box = Widget({ GetClass = function() return classed(kind) end, kind = kind, children = {}, Font = { Size = 24 },
                          SetWidthOverride = function(self, w) self.width = w end, SetHeightOverride = function(self, h) self.height = h end,
                          SetBrushFromTexture = function(self, t) self.texture = t end,
@@ -2282,10 +2300,12 @@ pawn.GetCharacterParameterComponent = ParamComponent
 
 end
 do   -- (its own block, as above)
+;(function()   -- (a function of its own: the main chunk is at Lua's 200 locals)
 print("the title menu's Archipelago menu")
--- dev.20 (the user, 2026-11-07): the banner opens one Archipelago menu, the game's own title buttons swapped for ours in
--- the same list (Server, Type a server address, Port, Slot, Password, Connect/Disconnect, Back); a field opens the text
--- window for that field alone; archipelago.gg and every server connected to are offered.
+-- The banner opens one Archipelago menu (the user, 2026-11-07), the game's own title buttons swapped for ours in the same
+-- list. dev.21 (the user, dev.20 test: "those should just be typable in the menu"): Server, Port, Slot and Password are
+-- the game's own text box in the menu; the saved servers show under Server while it has the keyboard; the banner
+-- brightens under the pointer. Without a text box class, the dev.20 rows and the text window (tested at the end).
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
 titleOpen = true
 -- v0.13.5 playtest: a title menu whose buttons could not be made got a new banner every update (1,042 of them).
@@ -2309,24 +2329,39 @@ expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.a
        and bs.position.X == 0 and bs.position.Y == -588 and bs.size.X == 600 and bs.auto == false and buttonBox.prepassed,
        "its bottom 8 above the list's top, centred over it, with the list's anchors")
 expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
-local function row(i) return menuChildren[i + 1] and menuChildren[i + 1].child end      -- (1-7, after Start Game)
-local function rowBox(i) return menuChildren[i + 1] end
+-- The list: Start Game (the game's), Server, six picks, Port, Slot, Password, Connect, Back, then Quit Game.
+local R = { server = 2, pick = 3, port = 9, slot = 10, password = 11, go = 12, back = 13 }
+local function rowBox(i) return menuChildren[i] end
+local function btn(i) return menuChildren[i] and menuChildren[i].child end
+local function edit(i) return menuChildren[i].child.children[2] end
+local function typed(i) return edit(i).Text:ToString() end
+local function typeInto(i, s) edit(i).Text = { ToString = function() return s end } end
 local allCollapsed = true
-for i = 1, 7 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
-expect(#menuChildren == 9 and menuChildren[9] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
-       "seven rows in the title's own list, Quit Game moved back to the end with its padding")
+for i = 2, 13 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
+expect(#menuChildren == 14 and menuChildren[14] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+       "the menu's rows in the title's own list, Quit Game moved back to the end with its padding")
+expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).WidgetStyle and edit(R.server).WidgetStyle.look == "world-name"
+       and edit(R.password).password and rowBox(R.server).child.children[1].text == "Server:" and rowBox(R.port).child.children[1].text == "Port:",
+       "Server, Port, Slot and Password: a label and the game's own text box, in the world-name window's look (the password hidden)")
+expect(logged("text box look copied from the world%-name window's box") and logged("fields typed in PalEditableTextBox"), "and the log says so")
 expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows wait collapsed; the game's buttons show")
 expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
 local moves = bs and bs.moves
 run(3)
-expect(#menuChildren == 9 and #titleCanvasKids == 1, "added once")
+expect(#menuChildren == 14 and #titleCanvasKids == 1, "added once")
 expect(bs and bs.moves == moves, "and the banner left where it is while the list keeps its size")
 expect(logged("Archipelago menu added to the title menu %(VerticalBox VerticalBox_Menu%); the banner opens it"),
        "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox/0 < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
-expect(logged("could not hook BndEvt__WBP_Title_WorldSettings_NameWindow.* yet %(will retry%)")
-       and logged("hooked BndEvt__WBP_Title_WorldSettings_NameWindow.*%(try 11%)"), "a failed hook is retried")
+-- dev.20 test: nothing showed the banner could be clicked. It waits a little dim and lights up under the pointer.
+expect(pic.colour and pic.colour.R < 1, "the banner waits a little dim")
+openBtn.hovered = true
+run(1)
+expect(pic.colour.R == 1, "and lights up under the pointer")
+openBtn.hovered = false
+run(1)
+expect(pic.colour.R < 1, "and dims again when it leaves")
 local function click(b) hooks[CLICK]({ get = function() return b end }) end
 local function okWith(text)
     pushed[#pushed].OutString = text
@@ -2334,51 +2369,50 @@ local function okWith(text)
     for id, w in pairs(hudWindows) do w.gone = true end           -- the game closes the window
     run(1)
 end
+local pushedBefore = #pushed
 click(openBtn)
 expect(gameButtonWrap.vis ~= 1, "nothing changes inside the click's hook")
 run(1)
-local allShown = true
-for i = 1, 7 do if rowBox(i).vis ~= 0 then allShown = false end end
-expect(gameButtonWrap.vis == 1 and quitWrap.vis == 1 and allShown and logged("Archipelago menu opened"),
-       "the banner opens the menu: the game's buttons fold away, the rows show")
-expect(row(1).Test_Content.text == "Server: localhost   (click: next of 2)" and row(2).Test_Content.text == "Type a server address..."
-       and row(3).Test_Content.text == "Port: 38281" and row(4).Test_Content.text == "Slot: Tester"
-       and row(5).Test_Content.text == "Password: none" and row(6).Test_Content.text == "Disconnect (connected as Tester)"
-       and row(7).Test_Content.text == "Back",
-       "the rows show the connection's server, port, slot and password: " .. tostring(row(1).Test_Content.text))
+expect(gameButtonWrap.vis == 1 and quitWrap.vis == 1 and rowBox(R.server).vis == 0 and rowBox(R.port).vis == 0
+       and rowBox(R.go).vis == 0 and rowBox(R.back).vis == 0 and rowBox(R.pick).vis == 1 and logged("Archipelago menu opened"),
+       "the banner opens the menu: the game's buttons fold away, the rows show (the saved servers not yet)")
+expect(typed(R.server) == "localhost" and typed(R.port) == "38281" and typed(R.slot) == "Tester" and typed(R.password) == ""
+       and btn(R.go).Test_Content.text == "Disconnect (connected as Tester)" and btn(R.back).Test_Content.text == "Back",
+       "the boxes hold the connection's server, port, slot and password: " .. typed(R.server))
 expect(io.open(MOD .. "/config.txt"):read("*a"):find("servers=localhost", 1, true) and logged("servers: remembered localhost"),
        "a server connected to is remembered (archipelago.gg is always offered)")
-click(row(1))
+edit(R.server).focus = true
 run(1)
-expect(row(1).Test_Content.text:find("^Server: archipelago%.gg") and row(6).Test_Content.text == "Connect to archipelago.gg:38281 as Tester",
-       "Server steps to the next saved server, and the last row offers to connect there: " .. row(6).Test_Content.text)
-click(row(3))
+expect(rowBox(R.pick).vis == 0 and rowBox(R.pick + 1).vis == 0 and rowBox(R.pick + 2).vis == 1
+       and btn(R.pick).Test_Content.text:find("archipelago.gg", 1, true) and btn(R.pick + 1).Test_Content.text:find("localhost   (chosen)", 1, true),
+       "while the Server box has the keyboard, the saved servers show under it")
+edit(R.server).focus = false                                      -- the click on a saved server takes the keyboard away
+click(btn(R.pick))
 run(1)
-expect(#pushed == 1 and pushed[1].DefaultInputName == "38281", "Port opens the text window for the port alone, filled in")
-hudWindows["w1"].Text_Head.text = "World Name"                     -- the game puts its own heading back
+expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Connect to archipelago.gg:38281 as Tester",
+       "a saved server picked fills the Server box; the last row offers to connect there")
+run(6)
+expect(rowBox(R.pick).vis == 1, "then the saved servers fold away")
+typeInto(R.port, "40000"); typeInto(R.slot, "Other"); typeInto(R.password, "secret")
 run(1)
-expect(hudWindows["w1"].Text_Head.text == "Port (the number after the colon in the room's address)", "the window keeps our heading: "
-       .. tostring(hudWindows["w1"].Text_Head.text))
-expect(logged("window heading reads 'Port %(the number after the colon in the room's address%) %(row None%)'") and not logged("window heading reads '%?"),
-       "the heading diagnostic reads the heading through GetText (the Text field errored in game)")
-okWith("40000")
-expect(row(3).Test_Content.text == "Port: 40000", "the port is set: " .. row(3).Test_Content.text)
+expect(btn(R.go).Test_Content.text == "Connect to archipelago.gg:40000 as Other" and #pushed == pushedBefore,
+       "typed in the menu: no text window")
+edit(R.server).focus = true
+typeInto(R.server, "72.60.29.30:38281")
+run(1)
+expect(typed(R.server) == "72.60.29.30:38281" and btn(R.go).Test_Content.text == "Connect to 72.60.29.30:38281 as Other",
+       "host:port typed in the Server box counts at once, and is left as typed while the box has the keyboard")
+edit(R.server).focus = false
+run(1)
+expect(typed(R.server) == "72.60.29.30" and typed(R.port) == "38281", "left, the port moves to its own box")
+typeInto(R.server, "archipelago.gg"); typeInto(R.port, "40000")
+run(1)
 local connectsBefore = #connects
-click(row(4)); run(1)
-expect(#pushed == 2 and pushed[2].DefaultInputName == "Tester", "Slot: the slot")
-okWith("Other")
-click(row(5)); run(1)
-expect(#pushed == 3 and hudWindows["w3"].PalEditableTextBox_0.password, "Password: hidden")
-okWith("secret")
-expect(row(5).Test_Content.text == "Password: ******" and #connects == connectsBefore, "shown as stars; still nothing connects")
-click(row(4)); run(1)
-for id, w in pairs(hudWindows) do w.gone = true end               -- Esc: closed without OK
-run(2)
-expect(row(4).Test_Content.text == "Slot: Other" and logged("menu: cancelled"), "closing a window cancels")
-expect(row(6).Test_Content.text == "Connect to archipelago.gg:40000 as Other", "the last row says where it will connect")
-click(row(6)); run(1)
+click(btn(R.go))
+run(1)
 local c = connects[#connects]
-expect(c and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret", "and connects with them, replacing the connection there was")
+expect(#connects == connectsBefore + 1 and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret",
+       "Connect connects with them, replacing the connection there was")
 local cfgText = io.open(MOD .. "/config.txt"):read("*a")
 expect(cfgText:find("server=archipelago.gg:40000", 1, true) and cfgText:find("slot=Other", 1, true) and cfgText:find("servers=localhost", 1, true),
        "saved to config.txt, the saved servers kept")
@@ -2389,16 +2423,15 @@ local forgot = false
 for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1, true) then forgot = true end end
 expect(forgot, "a different seed starts afresh")
 run(1)
-expect(gameButtonWrap.vis == 0 and rowBox(1).vis == 1 and logged("Archipelago menu closed"),
-       "connected: back to the title's own buttons")
+expect(gameButtonWrap.vis == 0 and rowBox(R.server).vis == 1 and logged("Archipelago menu closed"), "connected: back to the title's own buttons")
 expect(not io.open(MOD .. "/config.txt"):read("*a"):find("archipelago.gg,", 1, true), "archipelago.gg is not saved: it is always there")
 -- A slot the server refuses: what is in memory is still Other's, and is saved as Other's, not under the refused name.
 require("mailbox").add("Wood", 10)
 run(7)
 click(openBtn); run(1)
-click(row(4)); run(1); okWith("Typo")
-click(row(5)); run(1); okWith("")
-click(row(6)); run(1)
+typeInto(R.slot, "Typo"); typeInto(R.password, "")
+run(1)
+click(btn(R.go)); run(1)
 push("status", "refused", "InvalidSlot")
 run(1)
 expect(gameButtonWrap.vis == 1, "refused: the menu stays open to fix it")
@@ -2407,26 +2440,27 @@ local took = require("mailbox").takeAll()
 playerController.K2_GetPawn = nil
 expect(took == 10 and io.open(MOD .. "/save-67890-Other.txt"):read("*a"):find("mail=\n", 1, true)
        and not io.open(MOD .. "/save-67890-Typo.txt"), "a refused slot: the take is saved in the connected slot's file")
-click(row(4)); run(1); okWith("Other")
-click(row(6)); run(1)
+typeInto(R.slot, "Other")
+run(1)
+click(btn(R.go)); run(1)
 push("status", "connected", "Other")
 run(2)
--- Type a server address: host and port in one go; Back closes without connecting.
+-- Back closes without connecting; reopened, the menu starts from the connection, and its last row disconnects.
 click(openBtn); run(1)
-click(row(2)); run(1)
-expect(pushed[#pushed].DefaultInputName == "archipelago.gg:40000", "Type a server address: filled in with host:port")
-okWith("72.60.29.30:38281")
-expect(row(1).Test_Content.text:find("^Server: 72%.60%.29%.30") and row(3).Test_Content.text == "Port: 38281", "sets the host and the port")
+typeInto(R.server, "72.60.29.30")
+run(1)
 local cb = #connects
-click(row(7)); run(1)
+click(btn(R.back)); run(1)
 expect(gameButtonWrap.vis == 0 and #connects == cb and logged("Archipelago menu closed"), "Back: the game's buttons again, nothing connected")
 click(openBtn); run(1)
-click(row(6)); run(1)
-expect(disconnects == 1 and row(6).Test_Content.text:find("^Connect to archipelago%.gg:40000 as Other"),
-       "reopened, it starts from the connection; its last row disconnects: " .. row(6).Test_Content.text)
-click(row(6)); run(1)
+expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Disconnect (connected as Other)",
+       "reopened, it starts from the connection: " .. typed(R.server))
+click(btn(R.go)); run(1)
+expect(disconnects == 1 and btn(R.go).Test_Content.text:find("^Connect to archipelago%.gg:40000 as Other"), "its last row disconnects")
+click(btn(R.go)); run(1)
 push("status", "connected", "Other")
 run(2)
+local goBtn = btn(R.go)
 -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
 -- 10 updates, logged, and looked for every update again.
 playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end
@@ -2437,10 +2471,29 @@ titleOpen = false
 run(1)
 -- In a world the title menu is gone; a game title button made later at a freed address of ours is not ours.
 local disconnectsBefore, pushedBefore = disconnects, #pushed
-hooks[CLICK]({ get = function() return Widget({ addr = row(6).addr }) end })
+hooks[CLICK]({ get = function() return Widget({ addr = goBtn.addr }) end })
 hooks[CLICK]({ get = function() return Widget({ addr = openBtn.addr }) end })
 run(1)
 expect(disconnects == disconnectsBefore and #pushed == pushedBefore, "our old title buttons' addresses are forgotten")
+-- Without a text box class (neither the game's nor UMG's): the dev.20 rows, each field in the text window (whose heading
+-- is set where the window has one).
+palEditOk, umgEditOk = false, false
+for i = #menuChildren, 1, -1 do menuChildren[i] = nil end
+menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+gameButtonWrap.vis, quitWrap.vis = 0, 0
+titleOpen = true
+run(2)
+expect(#menuChildren == 9 and logged("typed fields not made %(no text box class%); the text window instead")
+       and logged("fields in the text window"), "no text box: the rows with the text window")
+click(titleCanvasKids[#titleCanvasKids].child.children[4]); run(1)
+click(menuChildren[4].child); run(1)                              -- Port (after Server and Type a server address)
+expect(#pushed == pushedBefore + 1 and pushed[#pushed].DefaultInputName == "40000", "Port opens the text window, filled in")
+okWith("40001")
+expect(menuChildren[4].child.Test_Content.text == "Port: 40001", "and sets the port")
+titleOpen = false
+run(1)
+palEditOk, umgEditOk = nil, nil
+end)()
 
 print("the other goals")
 local function newSeed(seed, extra)

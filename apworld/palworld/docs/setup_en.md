@@ -44,8 +44,8 @@ with `[PalworldAP]`.
 
 1. Start Palworld. On the title screen, click the **Archipelago banner** above the menu. The title's buttons make way
    for the Archipelago menu:
-   - **Server**: click to step through archipelago.gg and every server you have connected to before, or use **Type a
-     server address** for a new one (`host` or `host:port`).
+   - **Server**: type the host (or paste `host:port`, and the port moves to its own box). While you are in this box,
+     archipelago.gg and every server you have connected to before show under it: click one to use it.
    - **Port**: the number after the colon in your room's address (`archipelago.gg:38281` has port 38281).
    - **Slot** and **Password**: your slot name, and the room's password (leave it empty if there is none).
    - **Connect** connects and takes you back to the title's buttons; the banner then shows **Connected** with your

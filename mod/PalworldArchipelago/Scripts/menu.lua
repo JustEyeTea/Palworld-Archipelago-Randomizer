@@ -1,8 +1,12 @@
 -- The title menu's Archipelago menu (the user, 2026-11-07: make the big banner clickable and do it all in one menu, not a
 -- chain of pop-ups; keep archipelago.gg and every server connected to before in a list). Clicking the banner (an
 -- invisible title button over it) swaps the title's own buttons for ours, the game's title buttons in the same list:
--- Server (click: the next saved server), Type a server address, Port, Slot, Password, Connect or Disconnect, Back. A
--- field opens the game's own text window (the world-name window) for that field alone. Untested in game (dev.20).
+-- Server, Port, Slot and Password are typed in the menu itself (dev.21; the user, dev.20 test: "those should just be
+-- typable in the menu. No need for popups"), in the game's own text box (UPalEditableTextBox, styled as the world-name
+-- window's); while the Server box has the keyboard, the saved servers show under it as rows to pick from. Then Connect
+-- or Disconnect, and Back. Should a text box not be made, the dev.20 rows come back: each field opens the game's text
+-- window (the world-name window) alone, and Server steps through the saved servers. The banner brightens while the
+-- pointer (or the keyboard's focus) is on it. Untested in game (dev.21).
 -- In a world, the Esc menu and the Inventory page each get an "Archipelago Mailbox" button (mailbox.lua).
 -- Built from the game's own widgets: a WBP_Title_MenuButton added to the title menu's button list, a
 -- WBP_MenuESC_Button_S (the Esc menu's own small button) in the Esc menu, and a WBP_CommonButton (the class of the
@@ -148,6 +152,10 @@ local DOT = { connected = { R = 0.074, G = 0.631, B = 0.195, A = 1 },      -- #4
               connecting = { R = 0.839, G = 0.515, B = 0.155, A = 1 },     -- #ECBE6E
               other = { R = 0.863, G = 0.144, B = 0.105, A = 1 } }         -- #EF6A5B
 local TEXT_COLOUR = { R = 0.807, G = 0.905, B = 0.888, A = 1 }            -- #E8F4F2
+-- The banner's tint: a little dim, full when the pointer or the keyboard is on it (the user, dev.20 test: nothing showed
+-- that the banner could be clicked).
+local BANNER_DIM = { R = 0.78, G = 0.78, B = 0.78, A = 1 }
+local BANNER_LIT = { R = 1, G = 1, B = 1, A = 1 }
 -- Where the banner goes on the list's canvas: centred over the list, its bottom 8 above the list's top. Errors when
 -- the list's slot can't tell (no canvas slot, or anchors stretched across the canvas).
 local function bannerSpot(list)
@@ -175,7 +183,8 @@ local function addBanner(menu, list)
     box:AddChild(over)
     local s0 = over:AddChild(img)
     pcall(function() s0:SetHorizontalAlignment(0); s0:SetVerticalAlignment(0) end)   -- Fill, Fill: not the brush's 32x32
-    local b = { box = box, list = list, over = over }
+    local b = { box = box, list = list, over = over, pic = img }
+    pcall(function() img:SetColorAndOpacity(BANNER_DIM) end)
     local dotBox, dot = ART.box(menu, "ap-status-dot", 12, 12)
     if dotBox then
         local s = over:AddChild(dotBox)
@@ -290,9 +299,13 @@ local function quitLast(menu, list)
 end
 
 -- The Archipelago menu's rows, top to bottom; "open" is the banner's own button (or, without a banner, a row of its own).
-local ROWS = { "server", "addr", "port", "slot", "password", "go", "back" }
+local ROWS = { "server", "addr", "port", "slot", "password", "go", "back" }                   -- (with the text window)
+local TEXT_ROWS = { "server", "pick1", "pick2", "pick3", "pick4", "pick5", "pick6", "port", "slot", "password", "go", "back" }
+local TYPED = { server = "Server", port = "Port", slot = "Slot", password = "Password" }      -- typed in the menu
+local PICKS = 6                                       -- saved servers offered under the Server box, at most
 local ROW_KINDS = { open = true }
 for _, k in ipairs(ROWS) do ROW_KINDS[k] = true end
+for i = 1, PICKS do ROW_KINDS["pick" .. i] = true end
 -- The fields the Archipelago menu edits in the text window, one at a time.
 local FIELDS = {
     addr = { key = "addr", title = "Server address (host, or host:port)" },
@@ -772,6 +785,7 @@ end
 -- controller, as FindFirstOf("PalPlayerController") found it; ctx.hasPawn, what its K2_GetPawn gave (an object).
 -- Buttons other modules make (crate_window.lua): their clicks come here like ours, as cw:<action>.
 -- The Archipelago menu on the title screen (see the top of this file).
+local writeEdit, fillEdits                -- (the typed fields, below; setOpen and act use them)
 local function splitServer(server)
     local host, port = (server or ""):match("^%s*([^:%s]*):?(%d*)%s*$")
     return host or "", port or ""
@@ -789,8 +803,13 @@ local function target(d) return d.host .. (d.port ~= "" and (":" .. d.port) or "
 local function isCurrent(d)
     return api.status() == "connected" and target(d):lower() == api.server():lower() and d.slot == api.slot()
 end
-local function rowLabel(kind)
+local function rowLabel(kind, m)
     local d, st = draftNow(), api.status()
+    local pick = kind:match("^pick(%d)$")
+    if pick then
+        local host = m and m.pickHosts and m.pickHosts[tonumber(pick)] or ""
+        return "      " .. host .. (host == d.host:lower() and "   (chosen)" or "")
+    end
     if kind == "server" then
         local n = #(api.servers and api.servers() or {})
         return "Server: " .. d.host .. (n > 1 and ("   (click: next of " .. n .. ")") or "")
@@ -828,7 +847,11 @@ end
 local function setOpen(m, open)
     if m.open == open then return end
     m.open = open
-    if open then draft = nil; draftNow() end
+    if open then
+        draft = nil
+        draftNow()
+        if m.edits then m.typed = {}; fillEdits(m) end
+    end
     showGame(m, not open)
     log("menu: Archipelago menu " .. (open and "opened" or "closed"))
 end
@@ -840,7 +863,11 @@ local function ask(button, field, value, done)
 end
 local function act(m, kind, button)
     local d = draftNow()
-    if kind == "open" then setOpen(m, true)
+    local pick = kind:match("^pick(%d)$")
+    if pick then
+        local host = m.pickHosts and m.pickHosts[tonumber(pick)]
+        if host then d.host = host; writeEdit(m, "server", host); m.pickLinger = 0 end
+    elseif kind == "open" then setOpen(m, true)
     elseif kind == "back" then setOpen(m, false)
     elseif kind == "server" then
         local list = api.servers and api.servers() or { d.host }
@@ -868,6 +895,116 @@ local function act(m, kind, button)
         end
     end
 end
+-- A field typed in the menu: a label and the game's own text box in a row as wide and tall as the title buttons. The
+-- box is the game's UPalEditableTextBox, its look copied from the world-name window's own box (the template its class
+-- keeps); without that class, UMG's EditableTextBox. Errors when a box can't be made (the menu then uses the text window).
+local styleFrom, styleTried = nil, false
+local function editLook()
+    if not styleTried then
+        styleTried = true
+        find(WINDOW)
+        local o = StaticFindObject(WINDOW .. ":WidgetTree.PalEditableTextBox_0")
+        styleFrom = o and o:IsValid() and o or nil
+        log("menu: text box look " .. (styleFrom and "copied from the world-name window's box" or "not found (the box keeps its own)"))
+    end
+    return styleFrom
+end
+local function titleFont(menu)
+    local ok, f = pcall(function() return menu.WBP_Title_MenuButton_StartLocalGame.Test_Content.Font end)
+    return ok and f or nil
+end
+local function addTextRow(menu, list, kind)
+    local cls, what = StaticFindObject("/Script/Pal.PalEditableTextBox"), "PalEditableTextBox"
+    if not (cls and cls:IsValid()) then cls, what = StaticFindObject("/Script/UMG.EditableTextBox"), "EditableTextBox" end
+    if not (cls and cls:IsValid()) then error("no text box class") end
+    local edit = StaticConstructObject(cls, menu)
+    if not (edit and edit:IsValid()) then error("could not make a " .. what) end
+    local look = editLook()
+    if look then pcall(function() edit.WidgetStyle = look.WidgetStyle end) end
+    if kind == "password" then pcall(function() edit:SetIsPassword(true) end) end
+    local row = StaticConstructObject(StaticFindObject("/Script/UMG.HorizontalBox"), menu)
+    local label = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), menu)
+    pcall(function() label:SetText(FText(TYPED[kind] .. ":")) end)
+    local font = titleFont(menu)
+    if font then pcall(function() label:SetFont(font) end) end
+    pcall(function() label:SetColorAndOpacity({ SpecifiedColor = TEXT_COLOUR, ColorUseRule = 0 }) end)
+    local ls = row:AddChild(label)
+    pcall(function() ls:SetVerticalAlignment(2); ls:SetPadding({ Left = 0, Top = 0, Right = 12, Bottom = 0 }) end)  -- Centre
+    local es = row:AddChild(edit)
+    pcall(function() es:SetSize({ SizeRule = 1, Value = 1 }); es:SetVerticalAlignment(2) end)                          -- Fill
+    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
+    box:SetWidthOverride(600)
+    box:SetHeightOverride(38)
+    box:AddChild(row)
+    local slot = list:AddChild(box)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 3 }); slot:SetHorizontalAlignment(0) end)
+    return box, edit, what
+end
+-- What a text box holds now (nil when it can't be read).
+local function readEdit(edit)
+    local ok, s = pcall(function() return edit.Text:ToString() end)
+    if ok and type(s) == "string" then return s end
+    ok, s = pcall(function() return edit:GetText():ToString() end)
+    if ok and type(s) == "string" then return s end
+    return nil
+end
+writeEdit = function(m, kind, value)
+    local e = m.edits and m.edits[kind]
+    if not e then return end
+    pcall(function() e:SetText(FText(value)) end)
+    m.typed[kind] = value
+end
+-- Puts the draft into the boxes (when the menu opens), and the boxes into the draft (every update while it shows). A
+-- Server typed as host:port moves the port into its own box.
+fillEdits = function(m)
+    local d = draftNow()
+    writeEdit(m, "server", d.host)
+    writeEdit(m, "port", d.port)
+    writeEdit(m, "slot", d.slot)
+    writeEdit(m, "password", d.password)
+end
+local function readEdits(m)
+    local d = draftNow()
+    for kind, e in pairs(m.edits) do
+        local s = readEdit(e)
+        if s == nil then
+            once("editread", "menu: a text box can't be read back from Lua")
+        elseif s ~= m.typed[kind] or (kind == "server" and s:find(":", 1, true)) then
+            m.typed[kind] = s
+            s = s:match("^%s*(.-)%s*$")
+            if kind == "server" then
+                -- host:port: the port goes to its own box once the Server box is left (not while typing in it)
+                local host, port = splitServer(s)
+                d.host = host
+                if port ~= "" then d.port = port end
+                local okf, focus = pcall(function() return e:HasKeyboardFocus() end)
+                if s:find(":", 1, true) and not (okf and focus) then writeEdit(m, "server", host); writeEdit(m, "port", d.port) end
+            elseif kind == "port" then d.port = s:match("^(%d*)") or ""
+            elseif kind == "slot" then d.slot = s
+            elseif kind == "password" then d.password = s
+            end
+        end
+    end
+end
+-- The Server box has the keyboard (or had it a moment ago, so a click on a saved server still lands): its picks show.
+local function pickOpen(m)
+    local e = m.edits and m.edits.server
+    local ok, focus = pcall(function() return e:HasKeyboardFocus() end)
+    if ok and focus then m.pickLinger = 5 elseif (m.pickLinger or 0) > 0 then m.pickLinger = m.pickLinger - 1 end
+    return (m.pickLinger or 0) > 0
+end
+-- The banner's tint follows its button: lit while the pointer or the keyboard is on it.
+local function bannerHover(m)
+    local b, btn = m.banner, m.openButton
+    if not (b and b.pic and btn) then return end
+    local ok, on = pcall(function() return btn:IsHovered() or btn:HasAnyUserFocus() or btn:HasFocusedDescendants() end)
+    on = ok and on == true and not m.open
+    if b.lit ~= on then
+        b.lit = on
+        pcall(function() b.pic:SetColorAndOpacity(on and BANNER_LIT or BANNER_DIM) end)
+    end
+end
+
 -- The banner's own button: an all-but-invisible title button over the whole banner, so a click on the banner opens the
 -- menu (and a controller can reach it as it reaches the other title buttons).
 local function bannerButton(menu, m)
@@ -1002,15 +1139,37 @@ function M.update(ctx)
             local key = tostring(menu:GetAddress())
             local m = menus[key]
             if not m or not m.rows.go:IsValid() then
-                local rows, boxes, keys, err = {}, {}, {}, nil
-                for _, kind in ipairs(ROWS) do
-                    local ok, b = pcall(addButton, menu, list, kind)
-                    if not (ok and b) then err = b or "no button"; break end
-                    rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
-                    pcall(function() boxes[kind]:SetVisibility(1) end)             -- collapsed until the menu opens
+                local rows, boxes, keys, edits, err, what = {}, {}, {}, {}, nil, nil
+                -- dev.21: the fields typed in the menu; should a text box (or a row) not be made, the dev.20 rows with
+                -- the text window instead.
+                local okT, whyT = pcall(function()
+                    for _, kind in ipairs(TEXT_ROWS) do
+                        if TYPED[kind] then
+                            local box, edit, cls = addTextRow(menu, list, kind)
+                            boxes[kind], edits[kind], what = box, edit, cls
+                        else
+                            local b = addButton(menu, list, kind)
+                            if not b then error("no button for " .. kind) end
+                            rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                        end
+                        pcall(function() boxes[kind]:SetVisibility(1) end)                -- collapsed until the menu opens
+                    end
+                end)
+                if not okT then
+                    for _, box in pairs(boxes) do pcall(function() list:RemoveChild(box) end) end
+                    for _, k in ipairs(keys) do ours[k] = nil end
+                    rows, boxes, keys, edits, what = {}, {}, {}, nil, nil
+                    local why = tostring(whyT):gsub("^.-:%d+: ", "")                     -- (the message, not where)
+                    once("typed" .. why, "menu: typed fields not made (" .. why .. "); the text window instead")
+                    for _, kind in ipairs(ROWS) do
+                        local ok, b = pcall(addButton, menu, list, kind)
+                        if not (ok and b) then err = b or "no button"; break end
+                        rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                        pcall(function() boxes[kind]:SetVisibility(1) end)
+                    end
                 end
                 if not err then
-                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {} }
+                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {} }
                     menus[key] = m
                     added = true
                     -- After the rows, once they are in (v0.13.5 playtest: before them, a menu whose buttons failed got a
@@ -1027,7 +1186,8 @@ function M.update(ctx)
                     if not okq or whyq then log("menu: Quit Game left where it was: " .. tostring(whyq)) end
                     pcall(logLayout, menu, rows.server)
                     log("menu: Archipelago menu added to the title menu (" .. className(list) .. " " .. nameOf(list) .. ")"
-                        .. (m.openButton and "; the banner opens it" or ""))
+                        .. (m.openButton and "; the banner opens it" or "")
+                        .. (edits and ("; fields typed in " .. tostring(what)) or "; fields in the text window"))
                 else
                     for _, b in pairs(rows) do pcall(function() b:GetParent():RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
                     once("menuadd", "menu: could not add the Archipelago menu's rows: " .. tostring(err))
@@ -1053,14 +1213,25 @@ function M.update(ctx)
                     m.closeOnConnect = nil
                 end
                 if m.banner then pcall(bannerStatus, m.banner) end
-                for kind, b in pairs(m.rows) do
-                    local show = (kind == "open") ~= (m.open == true)
+                if m.open and m.edits then
+                    local okr, errr = pcall(readEdits, m)
+                    if not okr then once("readedits", "menu: reading the text boxes: " .. tostring(errr)) end
+                end
+                m.pickHosts = (m.open and m.edits and api.servers) and api.servers() or {}
+                local picking = m.open and m.edits ~= nil and pickOpen(m)
+                for kind, box in pairs(m.boxes) do
+                    local show
+                    if kind == "open" then show = not m.open
+                    elseif kind:match("^pick") then show = picking and m.pickHosts[tonumber(kind:sub(5))] ~= nil
+                    else show = m.open == true end
                     if m.shown[kind] ~= show then
                         m.shown[kind] = show
-                        pcall(function() m.boxes[kind]:SetVisibility(show and 0 or 1) end)   -- Visible / Collapsed
+                        pcall(function() box:SetVisibility(show and 0 or 1) end)          -- Visible / Collapsed
                     end
-                    if show then setText(b, rowLabel(kind)) end
+                    local b = m.rows[kind]
+                    if show and b then setText(b, rowLabel(kind, m)) end
                 end
+                pcall(bannerHover, m)
             end
         end
     end
@@ -1105,5 +1276,15 @@ function M.update(ctx)
 end
 
 function M.install(functions) api = functions end
+
+-- The banner's tint, looked at every 60 ms while a title menu of ours is up (the 300 ms update would lag the pointer).
+if LoopAsync then
+    LoopAsync(60, function()
+        if next(menus) then
+            ExecuteInGameThread(function() for _, m in pairs(menus) do pcall(bannerHover, m) end end)
+        end
+        return false
+    end)
+end
 
 return M
