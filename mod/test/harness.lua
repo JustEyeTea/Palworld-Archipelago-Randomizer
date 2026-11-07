@@ -78,14 +78,17 @@ local pawn = { IsValid = function() return true end, GetAddress = function() ret
                K2_TeleportTo = function(_, loc) teleported = loc; pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z } end,
                GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
 playerDead = false
-DL = { calls = {}, normalWorks = true }   -- how the mod fainted the player ("normal" / "self"); normalWorks false:
-                                          -- the normal death call runs but kills nobody (the fallback test)
+-- How the mod fainted the player: "poison" (lethal slip damage on the pawn's damage component), "drop" (the Death
+-- Penalty manager's bag), "self" (the self-kill). poisonWorks false: the slip damage runs but kills nobody. The old
+-- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer is not offered: in game it fainted nobody (dev.17, 2026-11-07).
+DL = { calls = {}, poisonWorks = true }
+pawn.DamageReactionComponent = { SlipDamage = function(_, damage, shieldIgnore, deadType, clearShield)
+    DL.calls[#DL.calls + 1] = "poison"
+    DL.slip = { damage = damage, shieldIgnore = shieldIgnore, deadType = deadType, clearShield = clearShield }
+    if DL.poisonWorks then playerDead = true end
+end }
 local playerController = { IsValid = function() return true end,
-    SelfKillPlayer = function() DL.calls[#DL.calls + 1] = "self"; playerDead = true end,
-    DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer = function()
-        DL.calls[#DL.calls + 1] = "normal"
-        if DL.normalWorks then playerDead = true end
-    end }
+    SelfKillPlayer = function() DL.calls[#DL.calls + 1] = "self"; playerDead = true end }
 local ps = {
     IsValid = function() return true end,
     IsPlayerDead = function() return playerDead end,
@@ -1219,25 +1222,32 @@ expect(not playerDead, "our own death coming back is ignored")
 -- (Announced among this run's notices, not necessarily last: the pawn stands at a wall here, and its notice can come
 -- after the death within the same 7 updates now that Death Link runs two updates after the records.)
 local noticesBefore = #announced
+DL.pawnBefore = playerController.K2_GetPawn
+playerController.K2_GetPawn = function() return pawn end           -- (a player in the world has a pawn)
 push("bounce", "DeathLink", '{"cause":"Ash fell off a cliff.","source":"Ash","time":2}')
 run(7)
 local deathTold = false
 for i = noticesBefore + 1, #announced do deathTold = deathTold or announced[i]:find("Ash fell off a cliff", 1, true) ~= nil end
 expect(playerDead and deathTold, "a linked death faints the player")
-expect(DL.calls[#DL.calls] == "normal", "through the normal death (the world's Death Penalty drops items): " .. tostring(DL.calls[#DL.calls]))
+expect(DL.calls[#DL.calls] == "poison" and DL.slip.damage >= 99999 and DL.slip.shieldIgnore == true and DL.slip.deadType == 5
+       and DL.slip.clearShield == true,
+       "through lethal poison damage, an ordinary death, so the world's Death Penalty drops items: " .. tostring(DL.calls[#DL.calls]))
 run(7)
 expect(#bounces == 1, "and is not sent back")
-expect(logged("the normal death worked"), "the log says the normal death took")
+expect(logged("death link: the poison worked"), "the log says the poison took")
 playerDead = false
 run(7)
--- If the normal death kills nobody, the next run uses the self-kill: the death is never lost, and the self-kill is used
--- for the rest of the session.
-DL.normalWorks = false
+-- If the poison kills nobody, the next run drops the Death Penalty's bag and self-kills; that route is kept for the
+-- session. (dev.17 test, 2026-11-07: the previous "normal death" call fainted nobody, and the self-kill dropped nothing.)
+DL.poisonWorks = false
+DL.penaltyFor = nil
+util.GetDeathPenaltyManager = function() return { DropDeathPenaltyChest = function(_, who) DL.calls[#DL.calls + 1] = "drop"; DL.penaltyFor = who end } end
 push("bounce", "DeathLink", '{"cause":"Brock tripped.","source":"Brock","time":4}')
 run(7)
-expect(not playerDead and DL.calls[#DL.calls] == "normal", "first the normal death")
+expect(not playerDead and DL.calls[#DL.calls] == "poison", "first the poison")
 run(7)
-expect(playerDead and DL.calls[#DL.calls] == "self" and logged("the normal death did not take"), "then the self-kill")
+expect(playerDead and DL.calls[#DL.calls - 1] == "drop" and DL.calls[#DL.calls] == "self" and DL.penaltyFor == pawn
+       and logged("the poison did not faint the player; used the penalty drop"), "then the Death Penalty's bag for the player, and the self-kill")
 run(7)
 expect(#bounces == 1, "and that death is not sent back either")
 playerDead = false
@@ -1246,9 +1256,33 @@ do
     local calls = #DL.calls
     push("bounce", "DeathLink", '{"cause":"Brock tripped again.","source":"Brock","time":5}')
     run(7)
-    expect(playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self", "later deaths go straight to the self-kill")
+    expect(playerDead and #DL.calls == calls + 2 and DL.calls[calls + 1] == "drop", "later deaths go straight to the bag and the self-kill")
+    run(7)                                                       -- (checked while still down: a faint lasts longer than a run)
+    expect(logged("death link: the penalty drop worked"), "the log says the bag and the self-kill took")
+    playerDead = false
+    run(7)
+    -- A world whose Death Penalty is None: no bag, only the faint.
+    local sub = util.GetOptionSubsystem
+    util.GetOptionSubsystem = function() return { IsValid = function() return true end, OptionWorldSettings = { DeathPenalty = 0 } } end
+    calls = #DL.calls
+    push("bounce", "DeathLink", '{"cause":"Brock tripped once more.","source":"Brock","time":6}')
+    run(7)
+    expect(playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self" and logged("Death Penalty is None"),
+           "with the world's Death Penalty None, no bag is dropped")
+    util.GetOptionSubsystem = sub
+    run(7)
+    playerDead = false
+    run(7)
+    -- The bag failing (an error) falls to the self-kill at once: the death is never lost.
+    util.GetDeathPenaltyManager = function() error("no manager") end
+    push("bounce", "DeathLink", '{"cause":"Brock, finally.","source":"Brock","time":7}')
+    run(7)
+    expect(playerDead and DL.calls[#DL.calls] == "self" and logged("penalty drop failed: .*no manager.*trying self%-kill"),
+           "a route that errors falls to the next at once")
 end
-DL.normalWorks = true
+util.GetDeathPenaltyManager = nil
+playerController.K2_GetPawn = DL.pawnBefore
+DL.poisonWorks = true
 playerDead = false
 run(7)
 -- A death received while no player is in the world (the title, a load) does not faint the player in the next one.
@@ -3070,6 +3104,24 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     run(40)
     expect(ws.ExpRate == 25 and warned("Speed Boost changed your World Settings: EXP Rate 25"),
            "a world already sped up by hand is taken as its own (5 x5), and the warning says so")
+    -- dev.17 test (2026-11-07): the warning came 2 s after the world loaded, behind the loading screen. Now the speeds
+    -- change at once but the warning waits until the character has moved 3 m (or a minute has passed).
+    local addrWas, atWas = pawnAddress, pawnAt
+    pawnAddress, pawnAt = 16400, { X = atWas.X, Y = atWas.Y, Z = atWas.Z }   -- the world loaded again (a new pawn), where it stood
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    local before = #announced
+    local function newWarning()
+        for i = before + 1, #announced do
+            if announced[i]:find("Speed Boost changed your World Settings: EXP Rate 3,", 1, true) then return true end
+        end
+    end
+    newSeed("70014", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
+    run(40)
+    expect(ws.ExpRate == 3 and not newWarning(), "a world just loaded: the speeds change at once, the warning waits")
+    pawnAt = { X = atWas.X + 500, Y = atWas.Y, Z = atWas.Z }
+    run(14)
+    expect(newWarning() and logged("held notice%(s%) shown %(the player moved%)"), "and is shown once the player moves")
+    pawnAddress, pawnAt = addrWas, atWas
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     playerController.K2_GetPawn = pawnWas
 end)()

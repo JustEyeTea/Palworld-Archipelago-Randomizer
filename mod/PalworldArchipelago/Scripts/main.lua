@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.18"
+local VERSION = "0.14.0-dev.19"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -944,11 +944,37 @@ local preloaded = false
 local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
                 key = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper() }
 local wallsLogged = false
-local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil, pending = nil, normalFails = false }
+local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil, pending = nil, route = 1 }
 local DEATH_LATE = 20         -- ticks (6 s): a linked death older than this (received at the title, or while loading) is dropped
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
 local SETTLE = 17
+-- Notices that would come while the loading screen is still up (Speed Boost's, 2026-11-07 test: sent 2 s after the world
+-- loaded, before the player could see it; they found it later in chat): held until the player's character has moved
+-- MOVED_CM from where it first stood in this world, or LATER_TICKS have passed (~1 min), then shown. Dropped if the world
+-- changes first.
+local later = { list = {}, world = nil, from = nil }
+local MOVED_CM, LATER_TICKS = 300, 200
+local function noticeLater(msg)
+    if later.world ~= wallsWorld then later.list, later.world, later.from = {}, wallsWorld, nil end
+    later.list[#later.list + 1] = msg
+end
+local function showLater(pawn)
+    if #later.list == 0 then return end
+    if later.world ~= wallsWorld then later.list, later.from = {}, nil; return end
+    local ok, at = pcall(function() return pawn:K2_GetActorLocation() end)
+    local moved = false
+    if ok and at and at.X then
+        if not later.from then later.from = { X = at.X, Y = at.Y } end
+        local dx, dy = at.X - later.from.X, at.Y - later.from.Y
+        moved = dx * dx + dy * dy >= MOVED_CM * MOVED_CM
+    end
+    if moved or worldTicks >= SETTLE + LATER_TICKS then
+        for _, msg in ipairs(later.list) do notify(msg) end
+        log("held notice(s) shown (" .. (moved and "the player moved" or "a minute in the world") .. "): " .. #later.list)
+        later.list, later.from = {}, nil
+    end
+end
 -- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
 -- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
 local areaLocks = false
@@ -1191,11 +1217,53 @@ end
 
 -- Death Link (the slot's death_link option): dying sends a death to everyone linked; a death from them faints the
 -- player. A death the link caused is not sent back, and neither counts towards nor resets the amnesty.
--- How it faints (the user, 2026-11-06: a linked death killed them but dropped nothing, unlike a normal death): the game's
--- self-kill (PalPlayerController:SelfKillPlayer) skips the world's Death Penalty, so a linked death now goes through the
--- death the damage system sends (DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer), which should drop items as
--- the world's Death Penalty says. Untested in game: if the player is still alive at the next run, the self-kill is used
--- (no drop, but the death is never lost), and for the rest of the session.
+-- How it faints (the user, 2026-11-06: a linked death killed them but dropped nothing, unlike a normal death). The
+-- game's self-kill (PalPlayerController:SelfKillPlayer) dies as EPalDeadType Sucide and skips the world's Death Penalty.
+-- dev.17 test (2026-11-07): DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer did not faint the player at all.
+-- So, in order, each tried until one works, and the one that worked kept for the session (death.route):
+--   1. "poison": lethal slip damage through the player's own damage component (SlipDamage, EPalDeadType Poison 5,
+--      shield ignored and cleared), an ordinary death to the game, so its Death Penalty should apply. UNTESTED.
+--   2. "penalty drop": the Death Penalty manager's own DropDeathPenaltyChest(player) (the bag on the ground), then the
+--      self-kill; skipped when the world's Death Penalty is None (the drop might not check it itself). UNTESTED.
+--   3. "self-kill": nothing dropped, but the death is never lost.
+-- A route that ran without error is checked at the next run (~2 s): still alive means it failed, and the next is tried.
+local ROUTES = { "poison", "penalty drop", "self-kill" }
+local function deathPenalty(ps)                       -- the world's EPalOptionWorldDeathPenalty (0 None), or nil
+    local ok, v = pcall(function()
+        return tonumber(StaticFindObject("/Script/Pal.Default__PalUtility"):GetOptionSubsystem(ps).OptionWorldSettings.DeathPenalty)
+    end)
+    return ok and v or nil
+end
+local function faint(route, ps)
+    local pc = FindFirstOf("PalPlayerController")
+    if route == 1 then
+        local pawn = pc:K2_GetPawn()
+        pawn.DamageReactionComponent:SlipDamage(999999, true, 5, true)
+    elseif route == 2 then
+        local penalty = deathPenalty(ps)
+        if penalty == 0 then
+            log("death link: the world's Death Penalty is None: nothing to drop")
+        else
+            local pawn = pc:K2_GetPawn()
+            StaticFindObject("/Script/Pal.Default__PalUtility"):GetDeathPenaltyManager(ps):DropDeathPenaltyChest(pawn)
+            log("death link: dropped the Death Penalty's bag (the world's Death Penalty " .. tostring(penalty) .. ")")
+        end
+        pc:SelfKillPlayer()
+    else
+        pc:SelfKillPlayer()
+    end
+end
+-- Faints by death.route; a route that errors falls to the next at once. Returns ok, error, the route's name.
+local function faintNow(ps)
+    local ok, err
+    while true do
+        ok, err = pcall(faint, death.route, ps)
+        if ok or death.route >= #ROUTES then break end
+        log("death link: " .. ROUTES[death.route] .. " failed: " .. tostring(err) .. "; trying " .. ROUTES[death.route + 1])
+        death.route = death.route + 1
+    end
+    return ok, err, ROUTES[death.route]
+end
 local function deathLink(ps)
     if not death.on then return end
     local okd, dead = pcall(function() return ps:IsPlayerDead() end)
@@ -1204,12 +1272,14 @@ local function deathLink(ps)
         local cause = death.pending
         death.pending = nil
         if dead then
-            once("dlnormal", "death link: the normal death worked (the world's Death Penalty applies)")
-        else
-            death.normalFails = true
+            once("dlworked" .. death.route, "death link: the " .. ROUTES[death.route] .. " worked")
+        elseif death.route < #ROUTES then
+            local failed = ROUTES[death.route]
+            death.route = death.route + 1
             death.caused = tick
-            local ok, err = pcall(function() FindFirstOf("PalPlayerController"):SelfKillPlayer() end)
-            log("death link: the normal death did not take; used the self-kill (nothing dropped): " .. cause
+            local ok, err, how = faintNow(ps)
+            if ok and death.route < #ROUTES then death.pending = cause end
+            log("death link: the " .. failed .. " did not faint the player; used the " .. how .. ": " .. cause
                 .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
             return
         end
@@ -1221,17 +1291,8 @@ local function deathLink(ps)
             log("death link received while no player was in the world (" .. (tick - death.at) .. " updates ago): not applied: " .. cause)
         elseif not dead then
             death.caused = tick
-            local pc = FindFirstOf("PalPlayerController")
-            local ok, err, how
-            if not death.normalFails then
-                ok, err = pcall(function() pc:DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer() end)
-                how = "normal death"
-                if ok then death.pending = cause else death.normalFails = true end
-            end
-            if not ok then
-                ok, err = pcall(function() pc:SelfKillPlayer() end)
-                how = "self-kill"
-            end
+            local ok, err, how = faintNow(ps)
+            if ok and death.route < #ROUTES then death.pending = cause end
             notify("Death Link: " .. cause)
             log("death link received: " .. cause .. " (" .. how .. ")" .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
         end
@@ -1452,8 +1513,10 @@ local function update(ctx)
             if changed then refreshTree() end
             applyItems(ps)
             if wallsWorld and worldTicks >= SETTLE then
-                local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld, notify)
+                local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld, noticeLater)
                 if not oks then onceErr("sync", news, "sync error: " .. tostring(news)) elseif news then writeSave() end
+                local okl, errl = pcall(showLater, safe(function() return ps:GetPawn() end))
+                if not okl then onceErr("later", errl, "notice error: " .. tostring(errl)) end
             end
             local okdl, errdl = pcall(deathLink, ps)
             if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
