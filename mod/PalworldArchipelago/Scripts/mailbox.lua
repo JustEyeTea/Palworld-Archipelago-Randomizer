@@ -90,9 +90,11 @@ end
 -- could hold every trap back for the rest of the session.
 function M.busy() return (win or want or spawning or (view and view.how ~= "unknown")) and true or false end
 
+-- The count is the kinds waiting (a stack each in the chest), not the items: a crate's gold alone is thousands of
+-- coins (2026-11-05 run: "Archipelago Mailbox (10974)" for 6 stacks).
 function M.label()
-    local _, items = M.count()
-    return "Archipelago Mailbox" .. (items > 0 and (" (" .. items .. ")") or "")
+    local kinds = M.count()
+    return "Archipelago Mailbox" .. (kinds > 0 and (" (" .. kinds .. ")") or "")
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -168,6 +170,8 @@ local function itemName(id)
     names[id] = name
     return name
 end
+
+M.nameOf = itemName
 
 local function bagCount(ps, id)
     local ok, n = pcall(function()
@@ -906,6 +910,12 @@ end
 
 -- The chest view is open (for the perf probe's state field).
 function M.viewOpen() return view ~= nil end
+-- The chest window the mailbox has open (crate_window.lua draws over it), or nil.
+function M.chestWidget()
+    if not view then return nil end
+    local ok, w = pcall(function() return view.hud:GetWidget(view.id) end)
+    return ok and w or nil
+end
 
 -- env: { notify = fn(text), save = fn(), cfg = config table, connected = fn() -> bool }
 function M.install(e)

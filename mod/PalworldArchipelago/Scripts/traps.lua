@@ -6,14 +6,15 @@
 --  * Fool Trap      an alarming notice, then "just kidding" 8 s later
 -- Like bundles, each trap is applied once per item index: main.lua queues it as it applies items, and the queue is kept
 -- in the per-seed save file (traps=Slow Trap|12,...), so a trap received just before quitting still fires next time.
--- They fire at most one every 15 s, and wait while the player is fainted, the world is loading or the mailbox is open.
+-- They fire as they arrive (2026-11-05 run, the user: traps should not be staggered; it was one every 15 s), and wait
+-- while the player is fainted, the world is loading or the mailbox is open.
 -- Firing waits for the connection; a Slow Trap or Fool Trap already running ends on time without it (T.tick).
 -- UNTESTED IN GAME (only Teleport's K2_TeleportTo and the notices are calls verified before): every trap logs what it
 -- read and what came back, and a trap that fails says "<name> fizzled." in chat and is never retried.
 local T = {}
+local DEBUFFS = require("debuffs")
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 
-local GAP = 50              -- ticks (15 s) between two traps
 local CAP = 10              -- traps waiting at most: a mass release should not mean an hour of traps
 local GIVE_UP = 200         -- ticks (60 s) a trap waits for game objects that are missing (a world still loading)
 local STAGE_WAIT = 2000     -- ticks (10 min) a Teleport Trap waits for the player to leave a dungeon
@@ -23,10 +24,9 @@ local FOOL_PALS = { "Lamball", "Chikipi", "Cattiva", "Foxparks" }
 
 local env                   -- notify(text), announce(text), save(), sender(index), home(), start()
 T.queue = {}                -- { { name, index } } in arrival order; index is the item's (negative: a test tools trap)
-local lastFire = -1e9
 local dropped = 0
 local slow = nil            -- { untilTick, pawn = address, comps = { { comp, label, address } } }: a Slow Trap running
-local fool = nil            -- { at = tick, text }: a Fool Trap's punchline
+local fools = {}            -- { { at = tick, text } }: Fool Trap punchlines to come (several can fire at once)
 local heldSince, heldLogged = nil, false  -- the tick the mailbox started holding back waiting traps; logged after 30 s
 local HELD_LOG = 100        -- ticks (30 s)
 
@@ -88,6 +88,7 @@ TRAPS["Slow Trap"] = {
             local ok, err = pcall(function() apply(m:GetPalCharacterMovementComponent(), "mount") end)
             if not ok then parts[#parts + 1] = "mount not slowed: " .. tostring(err) end
         end
+        DEBUFFS.set("slow", "ap-debuff-slow", "SLOW", s.untilTick)              -- the icon and its timer at the top
         return table.concat(parts, ", ") .. (m and "" or " (not riding)"), "Slow Trap" .. from(e) .. ": your legs feel heavy (1 minute)."
     end,
 }
@@ -158,7 +159,7 @@ TRAPS["Fool Trap"] = {
     run = function(c, e)
         local fake = "Oh no! Your " .. FOOL_PALS[math.random(#FOOL_PALS)] .. " broke free and ran off!"
         env.announce(fake)                                   -- as a plain game line, without the mod's prefix
-        fool = { at = c.tick + FOOL_TICKS, text = "...Just kidding. Fool Trap" .. from(e) .. "." }
+        fools[#fools + 1] = { at = c.tick + FOOL_TICKS, text = "...Just kidding. Fool Trap" .. from(e) .. "." }
         return "fake notice: " .. fake, nil
     end,
 }
@@ -175,13 +176,12 @@ function T.add(name, index)
     end
 end
 
--- A test tools hotkey: the trap goes first and fires on the next update the gates allow (pacing skipped).
+-- A test tools hotkey: the trap goes first and fires on the next update the gates allow.
 function T.test(name)
     if not TRAPS[name] then return false end
     local n = -1
     for _, e in ipairs(T.queue) do if e.index <= n then n = e.index - 1 end end
     table.insert(T.queue, 1, { name = name, index = n })
-    lastFire = -1e9
     return true
 end
 
@@ -202,7 +202,7 @@ end
 
 -- A different seed or slot: its traps are forgotten. A Slow Trap or Fool Trap already running still ends normally.
 function T.reset()
-    T.queue, dropped, lastFire = {}, 0, -1e9
+    T.queue, dropped = {}, 0
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -210,6 +210,7 @@ local function endSlow(c)
     if not valid(c.pawn) then return end                      -- no character this moment: try again next update
     local s = slow
     slow = nil
+    DEBUFFS.clear("slow")
     if addr(c.pawn) ~= s.pawn then
         -- A new character (fainted, or the world reloaded) starts without the multiplier: nothing to set back.
         log("trap: Slow Trap ended; the player character changed, nothing to restore")
@@ -236,9 +237,8 @@ end
 -- Called every 7 ticks, connected or not: a running Slow Trap or Fool Trap ends on time even if the connection drops
 -- (otherwise the player could stay at half speed until reconnecting). c: { tick, pawn (or nil) }.
 function T.tick(c)
-    if fool and c.tick >= fool.at then
-        env.notify(fool.text)
-        fool = nil
+    while fools[1] and c.tick >= fools[1].at do
+        env.notify(table.remove(fools, 1).text)
     end
     if slow and c.tick >= slow.untilTick then endSlow(c) end
 end
@@ -260,8 +260,10 @@ function T.update(c)
     else
         heldSince, heldLogged = nil, false
     end
-    if #T.queue == 0 or not c.settled or c.dead or c.busy or c.tick - lastFire < GAP then return end
-    for i, e in ipairs(T.queue) do
+    if #T.queue == 0 or not c.settled or c.dead or c.busy then return end
+    -- Every trap that can go goes now, in arrival order; one that must wait (a dungeon, a world still loading) waits
+    -- alone, without holding the others back.
+    for _, e in ipairs({ table.unpack(T.queue) }) do
         e.from = env.sender(e.index)
         local def = TRAPS[e.name]
         local okw, why, limit = true, nil, nil
@@ -271,24 +273,23 @@ function T.update(c)
             okw, why, limit = pcall(def.wait, c)
             if not okw then why, limit = "error: " .. tostring(why), GIVE_UP end
         end
+        local function take()
+            for i, q in ipairs(T.queue) do if q == e then table.remove(T.queue, i); break end end
+            env.save()
+        end
         if why then
-            -- It waits (logged when it starts waiting or the reason changes); a later trap may go meanwhile.
+            -- It waits (logged when it starts waiting or the reason changes).
             if e.why ~= why then
                 e.why, e.since = why, e.since or c.tick
                 log("trap #" .. e.index .. " " .. e.name .. " waits: " .. why)
             end
             if c.tick - e.since >= (limit or GIVE_UP) then
-                table.remove(T.queue, i)
-                lastFire = c.tick
-                env.save()
+                take()
                 fizzle(e, "waited too long (" .. why .. ")")
-                return
             end
         else
             -- Out of the queue and saved before it runs: a crash inside the effect loses this trap, never repeats it.
-            table.remove(T.queue, i)
-            lastFire = c.tick
-            env.save()
+            take()
             local ok, found, notice = pcall(def.run, c, e)
             if not ok then
                 fizzle(e, tostring(found))
@@ -296,7 +297,6 @@ function T.update(c)
                 log("trap #" .. e.index .. " " .. e.name .. from(e) .. ": " .. tostring(found))
                 if notice then env.notify(notice) end
             end
-            return
         end
     end
 end

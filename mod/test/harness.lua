@@ -65,7 +65,7 @@ inv.MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 
 local record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
     PaldeckUnlockFlag = FastArray({ { "Blueplatypus", true } }),
-    TowerBossDefeatFlag = FastArray({ { "EPalBossType::GrassBoss", true } }),
+    TowerBossDefeatFlag = FastArray({ { "BOSS_BATTLE_NAME_GrassBoss", true } }),   -- the key as 1.0.5 writes it
     NormalBossDefeatFlag = FastArray({ { "yamijima_IceLand_pink_D_BOSS", true }, { "mystery_boss", true } }),
     FastTravelPointUnlockFlag = FastArray({ { "6E03F8464BAD9E458B843AA30BE1CC8F", true } }),
 }
@@ -78,7 +78,17 @@ local pawn = { IsValid = function() return true end, GetAddress = function() ret
                K2_TeleportTo = function(_, loc) teleported = loc; pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z } end,
                GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
 playerDead = false
-local playerController = { IsValid = function() return true end, SelfKillPlayer = function() playerDead = true end }
+-- How the mod fainted the player: "poison" (lethal slip damage on the pawn's damage component), "drop" (the Death
+-- Penalty manager's bag), "self" (the self-kill). poisonWorks false: the slip damage runs but kills nobody. The old
+-- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer is not offered: in game it fainted nobody (dev.17, 2026-11-07).
+DL = { calls = {}, poisonWorks = true }
+pawn.DamageReactionComponent = { SlipDamage = function(_, damage, shieldIgnore, deadType, clearShield)
+    DL.calls[#DL.calls + 1] = "poison"
+    DL.slip = { damage = damage, shieldIgnore = shieldIgnore, deadType = deadType, clearShield = clearShield }
+    if DL.poisonWorks then playerDead = true end
+end }
+local playerController = { IsValid = function() return true end,
+    SelfKillPlayer = function() DL.calls[#DL.calls + 1] = "self"; playerDead = true end }
 local ps = {
     IsValid = function() return true end,
     IsPlayerDead = function() return playerDead end,
@@ -118,7 +128,8 @@ cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels 
 local function Texture(path) return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end,
                                        SRGB = true, UpdateResource = function(self) self.updated = true end,
                                        -- (no GetSurfaceWidth: C++ only, not callable from Lua on the client; v0.13.5 playtest)
-                                       Blueprint_GetSizeX = function() return 512 end, Blueprint_GetSizeY = function() return 512 end } end
+                                       Blueprint_GetSizeX = function() return 512 end, Blueprint_GetSizeY = function() return 512 end,
+                                       GetFullName = function() return "Texture2D /Engine/Transient." .. tostring(path) end } end
 local kept = {}
 worldDir = "AP_WORLD"                                        -- the loaded world's save folder
 local gameInstance = { IsValid = function() return true end,
@@ -161,15 +172,40 @@ local mapBody = { IsValid = function() return true end, GetAddress = function() 
                                     Brush = { ResourceObject = { IsValid = function() return true end,      -- as the game
                                         GetAddress = function() return 8 end,                               -- opens it
                                         GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
-                                    SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
+                                    SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end },
+                  MapName = FNameOf("MainMap"), icons = {}, iconUpdates = 0 }
+-- The screen's icon canvases (pak, 2026-11-07): Add Icon By Location puts the icon on Canvas_ForIcon_NoMask when it
+-- ignores the mask, Canvas_ForIcon_Mask when not; Update Map Icons sets every icon's scale for the zoom.
+mapBody.Canvas_ForIcon_NoMask = { IsValid = function() return true end, GetFName = function() return FNameOf("Canvas_ForIcon_NoMask") end }
+mapBody.Canvas_ForIcon_Mask = { IsValid = function() return true end, GetFName = function() return FNameOf("Canvas_ForIcon_Mask") end }
+mapBody["Add Icon By Location"] = function(self, icon, loc, ignoreMask, toPriority, out)
+    assert(type(loc) == "table" and loc.X and loc.Y and loc.Z, "a world location")
+    icon.loc, icon.ignoreMask, icon.priority = loc, ignoreMask, toPriority
+    icon.parent = ignoreMask and self.Canvas_ForIcon_NoMask or self.Canvas_ForIcon_Mask
+    self.icons[#self.icons + 1] = icon
+    out.Added = true
+end
+mapBody["Update Map Icons"] = function(self) self.iconUpdates = self.iconUpdates + 1 end
+-- The World Tree's own screen (MapName "Tree"), built beside the main one; it shows T_WorldMap while it is set up.
+treeBody = { IsValid = function() return true end, GetAddress = function() return 78 end, MapName = FNameOf("Tree"), icons = {},
+             Image_MapBody = { IsValid = function() return true end,
+                               Brush = { ResourceObject = { IsValid = function() return true end, GetAddress = function() return 8 end,
+                                   GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
+                               SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
+treeBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
+treeBody["Update Map Icons"] = function() end
 lookups = {}                   -- global: class -> FindAllOf calls, "first:" .. class -> FindFirstOf calls
 FindAllOf = function(class)
     lookups[class] = (lookups[class] or 0) + 1
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
-    if class == "WBP_TitleMenu_C" then return titleOpen and { titleMenu } or {} end
+    -- (the template the title screen's asset keeps comes first, as FindAllOf can give it: dev.25 log)
+    if class == "WBP_TitleMenu_C" then return titleOpen and { titleTemplate, titleMenu } or {} end
     if class == "WBP_Title_MenuButton_C" then return titleOpen and { gameTitleButton } or {} end
     if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
-        return mapOpen and { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody } or {}
+        if not mapOpen then return {} end
+        local list = { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody }
+        if treeOpen then list[#list + 1] = treeBody end              -- (global treeOpen: the World Tree's screen too)
+        return list
     end
     if class == "PalPlayerState" then return noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
     if class == "PalPlayerController" then                   -- the class default object comes first, as in the game
@@ -203,7 +239,8 @@ local renderLib = { IsValid = function() return true end,
                     ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end,
                     CreateRenderTarget2D = function(_, owner) rtOwners = rtOwners or {}; rtOwners[#rtOwners + 1] = owner
                                                return { IsValid = function() return true end, rt = true,
-                                                        GetAddress = function() return 555 end } end,
+                                                        GetAddress = function() return 555 end,
+                                                        GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3" end } end,
                     ReadRenderTargetPixel = function() return { R = mapArt, G = 90, B = 60, A = 255 } end,
                     ExportRenderTarget = function(_, _, _, dir, name) exports = (exports or 0) + 1
                                              local f = io.open(dir .. "/" .. name, "w"); f:write("png"); f:close() end,
@@ -228,7 +265,8 @@ local gameplay = { IsValid = function() return true end,
                        function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
                        function a:SetActorEnableCollision(on) self.collision = on end
                        function a:SetActorHiddenInGame(on) self.hidden = on end
-                       function a:K2_SetActorLocation(loc) self.sankTo = loc.Z end
+                       function a:K2_SetActorLocation() error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS (2026-11-05)") end
+                       function a:SetActorScale3D(sc) self.shrunkTo = sc.Z; assert(sc.X > 0 and sc.Y > 0, "only the height shrinks") end
                        return a
                    end,
                    FinishSpawningActor = function(_, a) wallsUp[a] = true end,
@@ -242,13 +280,19 @@ StaticFindObject = function(path)
         return { CountLocalPlayerInventoryItemNum64 = function(_, _, id) return bagHas[id:ToString()] or 0 end }
     end
     if path:find("^/Game/Mods/") then return logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
+    if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then return loaded[path:match("^[^.]+")] and Texture(path) or nil end
     if path:find("BP_BuildObject_ItemChest_04_C:", 1, true) then
         return loaded[path:match("^[^.]+")] and chestTemplates and chestTemplates[1] or nil
     end
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
     if path:find("WidgetBlueprintLibrary") then return wbl end
+    -- The text boxes (globals palEditOk / umgEditOk false: the class is not there, as the fallback test needs).
+    if path == "/Script/Pal.PalEditableTextBox" then return palEditOk ~= false and Widget({ umg = "PalEditableTextBox" }) or nil end
+    if path == "/Script/UMG.EditableTextBox" and umgEditOk == false then return nil end
     if path:match("^/Script/UMG%.%a+$") then return Widget({ umg = path:match("%.(%a+)$") }) end   -- SizeBox, Image, ...
+    -- The world-name window's own text box, as its class keeps it (its look is copied).
+    if path:find(":WidgetTree.PalEditableTextBox_0", 1, true) then return Widget({ WidgetStyle = { look = "world-name" } }) end
     if path:find("KismetMaterialLibrary") then return materialLib end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("KismetSystemLibrary") then return systemLib end
@@ -321,7 +365,8 @@ local titleCanvas = Widget({ GetClass = function() return classed("CanvasPanel")
 function titleCanvas:AddChildToCanvas(w)
     local slot = { SetAnchors = function(s, a) s.anchors = a end, SetAlignment = function(s, a) s.alignment = a end,
                    SetPosition = function(s, p) s.position = p; s.moves = (s.moves or 0) + 1 end,
-                   SetAutoSize = function(s, v) s.auto = v end, SetSize = function(s, v) s.size = v end }
+                   SetAutoSize = function(s, v) s.auto = v end, SetSize = function(s, v) s.size = v end,
+                   SetZOrder = function(s, z) s.zorder = z end }
     w.canvasSlot = slot
     titleCanvasKids[#titleCanvasKids + 1] = w
     return slot
@@ -332,15 +377,25 @@ buttonBox.GetDesiredSize = function(self) return self.desired end
 buttonBox.ForceLayoutPrepass = function(self) self.prepassed = true end
 buttonBox.Slot = { GetAnchors = function() return { Minimum = { X = 0.5, Y = 1 }, Maximum = { X = 0.5, Y = 1 } } end,
                    GetAlignment = function() return { X = 0.5, Y = 1 } end, GetPosition = function() return { X = 0, Y = -80 } end }
-local gameButtonWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end })
+local function visible(w)              -- a widget whose visibility can be read back (0 Visible until set)
+    w.GetVisibility = function(self) return self.vis or 0 end
+    w.SetVisibility = function(self, v) self.vis = v end
+    return w
+end
+gameButtonWrap = visible(Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end }))   -- global: the title tests look at it
 gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
 -- Quit Game, last in the list until our buttons go in (v0.11.2 playtest: ours sat below it).
-local quitWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end,
-                          Slot = { Padding = { Left = 0, Top = 0, Right = 0, Bottom = 7 }, HorizontalAlignment = 2 } })
-menuChildren[1] = quitWrap
+local quitWrap = visible(Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end,
+                          Slot = { Padding = { Left = 0, Top = 0, Right = 0, Bottom = 7 }, HorizontalAlignment = 2 } }))
+menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap    -- Start Game (and the rest), then Quit Game, last
+function buttonBox:GetChildrenCount() return #menuChildren end
+function buttonBox:GetChildAt(i) return menuChildren[i + 1] end
 titleMenu = Widget({ WBP_Title_MenuButton_StartLocalGame = gameTitleButton,
                      WBP_Title_MenuButton_ExitGame = Widget({ GetParent = function() return quitWrap end }),
                      VerticalBox_0 = Widget({ AddChild = function() error("buttons belong with the game's") end }) })
+-- The title screen asset's own WBP_TitleMenu (a template): not live, never to be touched.
+titleTemplate = Widget({ GetFullName = function() return "WBP_TitleMenu_C /Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title.WBP_Title_C:WidgetTree.WBP_TitleMenu" end,
+                         WBP_Title_MenuButton_StartLocalGame = gameTitleButton })
 titleOpen = false
 -- A widget that can take focus (UWidget:HasAnyUserFocus and HasFocusedDescendants, both in LuaTypes).
 function Focusable()   -- global: wbl.Create below and the inventory page use it
@@ -356,23 +411,57 @@ wbl = { IsValid = function() return true end,   -- global: StaticFindObject abov
                                                     SetText = function(self, t) self.text = t.text end },
                                       WBP_PalInvisibleButton = Focusable() })
                   end
+                  if cls and tostring(cls.path):find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then   -- the map's plain icon
+                      local icon = Widget({ ChangeTexture = function(self, tex) self.tex = tex end,
+                                            SetVisibility = function(self, v) self.visibility = v end })
+                      function icon:GetParent() return self.parent end
+                      function icon:RemoveFromParent() self.parent = nil; self.removed = true end
+                      return icon
+                  end
                   if cls and tostring(cls.path):find("WBP_MenuESC_Button_S", 1, true) then   -- the Esc menu's small button
                       return Widget({ GetClass = function() return { GetFName = function() return FNameOf("WBP_MenuESC_Button_S_C") end } end,
                                       Text_Main = { IsValid = function() return true end, BindTextDatatableHandle = {},
                                                     SetText = function(self, t) self.text = t.text end } })
                   end
                   return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
-                                  SetVisibility = function(self, v) self.visibility = v end }) end }
+                                  SetVisibility = function(self, v) self.visibility = v end,
+                                  SetRenderOpacity = function(self, o) self.opacity = o end,
+                                  IsHovered = function(self) return self.hovered == true end,
+                                  HasAnyUserFocus = function() return false end,
+                                  HasFocusedDescendants = function(self) return self.focused == true end }) end }
 -- UMG widgets the mod makes (SizeBox, Overlay, Image, TextBlock): one stand-in that records what is done to it.
 bannerTexts = {}                                             -- every text a made TextBlock was given, in order
+-- A text box: what is in it reads back from its Text (an FText); typing is the test setting Text; focus the test's.
+local function TextOf(s) return { ToString = function() return s end } end
+-- Assigning its WidgetStyle from another box crashed the game (dev.21, 2026-11-07): an error here, as strict as that.
+function EditBox(kind)   -- global: StaticConstructObject below makes them
+    local e = Widget({ GetClass = function() return classed(kind) end, kind = kind, Text = TextOf(""),
+                       SetText = function(self, t) self.Text = TextOf(t.text) end,
+                       SetIsPassword = function(self, on) self.password = on end,
+                       SetForegroundColor = function(self, c) self.colour = c end,
+                       HasKeyboardFocus = function(self) return self.focus == true end,
+                       SetVisibility = function(self, v) self.vis = v end, GetVisibility = function(self) return self.vis or 0 end })
+    -- its own style, whose colours the mod writes field by field (FSlateColor: SpecifiedColor and ColorUseRule)
+    local function slate() return { SpecifiedColor = { R = 1, G = 1, B = 1, A = 1 }, ColorUseRule = 1 } end
+    rawset(e, "WidgetStyle", { BackgroundColor = slate(), ForegroundColor = slate(), FocusedForegroundColor = slate() })
+    return setmetatable(e, { __newindex = function(self, k, v)
+        if k == "WidgetStyle" then styleAssigned = true; error("WidgetStyle assigned from Lua: this crashed the game (dev.21)") end
+        rawset(self, k, v)
+    end })
+end
 StaticConstructObject = function(cls)
     local kind = type(cls) == "table" and cls.umg or "SizeBox"
+    if kind == "PalEditableTextBox" or kind == "EditableTextBox" then return EditBox(kind) end
     local box = Widget({ GetClass = function() return classed(kind) end, kind = kind, children = {}, Font = { Size = 24 },
                          SetWidthOverride = function(self, w) self.width = w end, SetHeightOverride = function(self, h) self.height = h end,
                          SetBrushFromTexture = function(self, t) self.texture = t end,
                          SetFont = function(self, f) self.fontSize = f.Size end,
                          SetColorAndOpacity = function(self, c) self.colour = c end,
+                         SetRenderOpacity = function(self, o) self.opacity = o end, SetVisibility = function(self, v) self.vis = v end,
+                         GetVisibility = function(self) return self.vis or 0 end,
                          SetRenderTransformPivot = function(self, v) self.pivot = v end,
+                         SetRenderScale = function(self, v) self.scale = v end,
+                         RemoveFromParent = function(self) self.removedFromParent = true end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
         self.child = c
@@ -394,7 +483,11 @@ local hudWindows, pushed = {}, {}
 local hud = { Push = function(_, cls, param)
                   local id = "w" .. (#pushed + 1)
                   pushed[#pushed + 1] = param
-                  hudWindows[id] = Widget({ Text_Head = { SetText = function(self, t) self.text = t.text end },
+                  -- Text_Head as the game's: its Text field reads back as a value with no ToString (dev.16 log); GetText()
+                  -- gives the FText
+                  hudWindows[id] = Widget({ Text_Head = { SetText = function(self, t) self.text = t.text end, Text = 0,
+                                                          GetText = function(self) local s = self.text or ""; return { ToString = function() return s end } end,
+                                                          BindTextDatatableHandle = { RowName = FName("WorldName") } },
                                             PalEditableTextBox_0 = { SetIsPassword = function(self, on) self.password = on end } })
                   return id end,
               GetWidget = function(_, id) return hudWindows[id] end }
@@ -462,6 +555,10 @@ print("loading the mod")
 local rf = io.open(MOD .. "/research.txt", "w")          -- the last seed's research list, from an earlier session
 rf:write("Torch,Lamp\n"); rf:close()
 dofile(MOD .. "/Scripts/main.lua")
+-- config.txt without map_icons: the locked areas are the map's own icons. The main run below keeps testing the stamps
+-- drawn into the picture (map_icons=0, also what a failure of the icons falls back to); the icons have their own tests.
+expect(require("walls").iconsOff == false, "map icons are on unless config.txt says map_icons=0")
+require("walls").iconsOff = true
 if PERF then
     expect(FindAllOf ~= harnessGlobals.FindAllOf and RegisterHook ~= harnessGlobals.RegisterHook, "perf_log=1: the probe counts lookups and hooks")
 else
@@ -502,7 +599,8 @@ expect(td.TechnologyPoint == 12, "Tech Points +2 applied: " .. td.TechnologyPoin
 expect(checks[D.levels[2]] and checks[D.levels[4]] and not checks[D.levels[5]], "levels 2-4 checked, not 5")
 expect(checks[D.captures.chickenpal] and not checks[D.captures.sheepball], "capture by count, not zero count")
 expect(checks[D.captures.blueplatypus], "capture by Paldeck flag (case-insensitive)")
-expect(checks[D.towers.GrassBoss], "tower checked")
+expect(checks[D.towers.GrassBoss] and not logged("tower record key not mapped"),
+       "tower checked from its 1.0.5 record key (BOSS_BATTLE_NAME_GrassBoss)")
 expect(goals == 1, "goal sent once")
 expect(checks[D.alpha_spawners.yamijima_iceland_pink_d_boss[1]], "alpha checked by spawner id")
 expect(checks[D.fast_travel.FTPoint101], "fast travel mapped from its instance id")
@@ -692,6 +790,8 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
     W.cycleSkin(); run(1)
     expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d" and a.Cube.mat.scalars.TilingU_01 == 10, "then b3d tiled 10x6")
     W.cycleSkin(); run(1)
+    expect(logged("wall skin area: colours ") and a.Cube.mat ~= wallRed, "then the area colours")
+    W.cycleSkin(); run(1)
     expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
     W.setSkin("c")
     expect(logged("wall skin c: unknown"), "an unknown skin is refused")
@@ -811,35 +911,50 @@ end)()
 local saidBefore = #said
 keyBinds["key:H"]()
 expect(#said == saidBefore, "no offer pending, nothing asked")
-expect(lastGone and lastGone.collision == false and lastGone.sankTo and lastGone.sankTo < 50000 - 290000,
-       "an opened wall sinks out of sight, stops blocking on the way down, then goes: " .. tostring(lastGone and lastGone.sankTo))
+expect(lastGone and lastGone.collision == false and lastGone.shrunkTo and lastGone.shrunkTo < 1,
+       "an opened wall shrinks to nothing (no K2_SetActorLocation: its FHitResult crashed UE4SS), stops blocking on the way, then goes: "
+       .. tostring(lastGone and lastGone.shrunkTo))
 expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),
        "an Area Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)
 expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
 
 print("the world map")
+-- dev.16 playtest (2026-11-07): composed only once the map opened, the first opening showed the game's map for ~3 s.
+local jobs0 = #composeJobs
+expect(jobs0 >= 1 and composeJobs[jobs0].labels:find("area_labels.png") and composeJobs[jobs0].colour:find("map%-colour%-1.png"),
+       "the picture is composed in the background, from the colour map and the area labels, before the map ever opens")
 mapOpen = true
 run(1)
-expect(#composeJobs == 1 and composeJobs[1].labels:find("area_labels.png") and composeJobs[1].colour:find("map%-colour%-1.png"),
-       "composing starts from the saved colour map and the area labels")
-expect(not mapBody.Image_MapBody.shown, "the game's own map stays until the picture is ready")
-run(2)
-expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt, "then the composed map is shown")
+expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt, "so the first opening has the composed map at once")
 do  -- v0.13.5 playtest: stamps at each area's deepest point sat under the fog of war; now on the side facing home
     local c = require("area_centres")[3]                        -- Sea Breeze Archipelago, still locked
     local at = stampAt["ap-map-stamp-sea-breeze-archipelago"]
     expect(at and c[3] and math.abs(at.X - (c[3] * 4096 - 44)) < 0.01 and math.abs(at.Y - (c[4] * 4096 - 44)) < 0.01
            and (c[3] ~= c[1] or c[4] ~= c[2]), "a locked area's stamp goes on its side nearest the start, not its middle")
 end
-local lockedFirst = composeJobs[1].locked
+do  -- 2026-11-06 run: the full 88 px stamp buried a small region (Small Settlement); a small one is drawn smaller
+    local W = require("walls")
+    expect(W.stampSize({ 0, 0, 0, 0 }) == 88 and W.stampSize({ 0, 0, 0, 0, 120 }) == 88,
+           "an area with room (or data without the field) keeps the full 88 px stamp")
+    expect(W.stampSize({ 0, 0, 0, 0, 30 }) == 60 and W.stampSize({ 0, 0, 0, 0, 9 }) == 28,
+           "a small region's stamp is about as wide as the region, but at least 28 px")
+    local small, tiny = 0, 0
+    for _, c in pairs(dofile(MOD .. "/Scripts/area_centres_regions.lua")) do
+        expect(c[5], "every region's centre carries its room")
+        if c[5] and W.stampSize(c) < 88 then small = small + 1 end
+        if c[5] and c[5] < 14 then tiny = tiny + 1 end
+    end
+    expect(small > 0 and tiny > 0, "the regions set has small regions that get a smaller stamp")
+end
+local lockedFirst = composeJobs[jobs0].locked
 expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
        "locked areas passed by index: " .. lockedFirst)
 push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
 run(3)
-expect(#composeJobs == 2 and select(2, composeJobs[2].locked:gsub(",", "")) == 11, "a pass recomposes with one fewer")
+expect(#composeJobs == jobs0 + 1 and select(2, composeJobs[jobs0 + 1].locked:gsub(",", "")) == 11, "a pass recomposes with one fewer")
 run(3)
-expect(#composeJobs == 2, "and not again while nothing changes")
+expect(#composeJobs == jobs0 + 1, "and not again while nothing changes")
 local owned = true
 for _, o in ipairs(rtOwners) do if o ~= gameInstance then owned = false end end
 expect(owned and #rtOwners >= 2 and exports == 1, "render targets belong to the game instance; colour map saved once")
@@ -875,7 +990,226 @@ for _ = 1, 4 do W3.updateMap(true, {}, pawn) end
 composeFails = false
 expect(logged("composing failed: error: could not write") and greyBoxes > drawn and mapBody.Image_MapBody.Brush.ResourceObject.rt,
        "a failed composition: the map is drawn without the compositor")
+-- The map screen from C++ (map_screen.cpp, AP_MapScreen): Lua hands it the picture (by path) and the fog colour, logs
+-- its status when the map opens, and probes the fog once (its material, the explored mask exported to fog-mask.png).
+do
+    local calls = {}
+    AP_MapScreen = function(cmd, v)
+        calls[#calls + 1] = cmd .. "=" .. tostring(v)
+        return cmd == "status" and "hooked; Setup ran 1x, picture set 1x, fog set 1x" or ""
+    end
+    local maskRT = { IsValid = function() return true end, SizeX = 1024, SizeY = 1024, RenderTargetFormat = 2,
+                     GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.TextureRenderTarget2D_9" end }
+    mapBody.MaskTextureMaterial = { IsValid = function() return true end,
+        GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_1" end,
+        K2_GetTextureParameterValue = function(_, name)
+            if name:ToString() == "TargetTexture" then return maskRT end
+            if name:ToString() == "DefaultMaskTexture" then
+                return { IsValid = function() return true end, Blueprint_GetSizeX = function() return 512 end,
+                         Blueprint_GetSizeY = function() return 512 end,
+                         GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_MainWorld5_DefaultMask.T_MainWorld5_DefaultMask" end }
+            end
+        end }
+    local W5 = dofile(MOD .. "/Scripts/walls.lua")
+    W5.dir, W5.keep = MOD, function() end
+    local before = exports
+    for _ = 1, 4 do W5.updateMap(true, {}, pawn) end
+    local said = table.concat(calls, " | ")
+    expect(said:find("enable=1", 1, true), "C++ is switched on (config.txt has no map_cpp=0)")
+    expect(said:find("fog=0.815,0.693,0.434,0.6", 1, true)
+           and said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
+           "C++ is told the fog colour and the picture's path (without its class): " .. said)
+    expect(logged("map screen %(C%+%+%): hooked; Setup ran 1x") and logged("map fog: fog material .*MaterialInstanceDynamic_1; mask .*1024x1024.*exported to fog%-mask%.png")
+           and logged("default mask 512x512 exported to fog%-default%-mask%.png")
+           and exports == before + 2, "the map's opening logs C++'s status, and the fog is probed and both masks exported once")
+    for _ = 1, 3 do W5.updateMap(true, {}, pawn) end
+    local bodies = 0
+    for _, c in ipairs(calls) do if c:find("^body=") then bodies = bodies + 1 end end
+    expect(bodies == 1 and exports == before + 2, "told the picture once, not every update; the masks exported once")
+    local statuses = 0
+    for _, c in ipairs(calls) do if c:find("^status=") then statuses = statuses + 1 end end
+    expect(statuses == 1, "C++'s status is logged when the map opens, not every update: " .. statuses)
+    AP_MapScreen, mapBody.MaskTextureMaterial = nil, nil
+end
+-- The explorer's-chart fog: the chart drawn once from the colour map with the Art lane's pieces; when the map opens the
+-- explored mask is exported, read once at the player and beyond the world's edge (which channel, which way round),
+-- the fog picture made with the locked areas' stamps, loaded and handed to C++ for the next opening; a pass remakes it
+-- from the same mask with one stamp fewer.
+do
+    local calls, jobs = {}, {}
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    AP_ComposeChart = function(colour, paper, sea, compass, out, size, gamma)
+        jobs[#jobs + 1] = { kind = "chart", colour = colour, paper = paper, compass = compass, out = out, size = size }
+        local f = io.open(out, "w"); f:write("chart"); f:close()
+        return ""
+    end
+    AP_ChartStatus = function() return "done" end
+    AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps)
+        jobs[#jobs + 1] = { kind = "fog", chart = chartFile, mask = mask, spec = spec, out = out, stamps = stamps }
+        local f = io.open(out, "w"); f:write("fog"); f:close()
+        return ""
+    end
+    AP_FogStatus = function() return "done" end
+    local sampled = {}
+    AP_SamplePNG = function(path, u, v)
+        sampled[#sampled + 1] = u .. "," .. v
+        return u == "0.02" and "0,0,0,255" or "0,0,0,40"         -- explored where alpha is LOW (the made-up mask)
+    end
+    os.remove(MOD .. "/map-fog.png")
+    mapBody.MaskTextureMaterial = { IsValid = function() return true end,
+        GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_2" end,
+        K2_GetTextureParameterValue = function(_, name)
+            if name:ToString() == "TargetTexture" then
+                return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
+                         GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
+            end
+        end }
+    local W6 = dofile(MOD .. "/Scripts/walls.lua")
+    W6.dir, W6.keep = MOD, function() end
+    W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
+    mapOpen = false
+    W6.updateMap(true, {}, pawn)                                 -- closed: the chart is drawn in the background
+    W6.updateMap(true, {}, pawn)
+    local chartJob = jobs[1]
+    expect(chartJob and chartJob.kind == "chart" and chartJob.colour:find("map%-colour%-1%.png") and chartJob.paper:find("ap%-chart%-paper%.png")
+           and chartJob.compass:find("ap%-chart%-compass%.png") and chartJob.size == "2048" and logged("map chart: drawn"),
+           "the chart is drawn once from the saved colour map with the Art lane's paper, sea and compass")
+    mapOpen = true
+    for _ = 1, 4 do W6.updateMap(true, {}, pawn) end              -- the map opens
+    local fog
+    for _, j in ipairs(jobs) do if j.kind == "fog" then fog = fog or j end end
+    expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png") and logged("explored reads a%-"),
+           "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
+    local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
+    expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked areas' stamps go on the fog: " .. stamps)
+    local fogpic
+    for _, c in ipairs(calls) do if c:find("^fogpic=") then fogpic = c end end
+    expect(fogpic and fogpic:find("map%-fog", 1) and logged("the fog picture is ready"),
+           "the fog picture is loaded and handed to C++ for the next opening: " .. tostring(fogpic))
+    local fogs = 0
+    for _, j in ipairs(jobs) do if j.kind == "fog" then fogs = fogs + 1 end end
+    for _ = 1, 10 do W6.updateMap(true, {}, pawn) end
+    local again = 0
+    for _, j in ipairs(jobs) do if j.kind == "fog" then again = again + 1 end end
+    expect(again == fogs, "while the map stays open nothing is remade")
+    local open1 = {}
+    for _, a in ipairs(require("area_walls").areas) do open1[a] = true end
+    W6.updateMap(true, { [require("area_walls").areas[4]] = true }, pawn)
+    W6.updateMap(true, { [require("area_walls").areas[4]] = true }, pawn)
+    local last
+    for _, j in ipairs(jobs) do if j.kind == "fog" then last = j end end
+    local fewer = select(2, (last and last.stamps or ""):gsub("ap%-map%-stamp", ""))
+    expect(last ~= fog and fewer == stamps - 1, "a pass remakes the fog from the same mask with one stamp fewer: " .. fewer)
+    local nChart = 0
+    for _, j in ipairs(jobs) do if j.kind == "chart" then nChart = nChart + 1 end end
+    expect(nChart == 1, "the chart itself is drawn once a session")
+    AP_MapScreen, AP_ComposeChart, AP_ChartStatus, AP_ComposeFog, AP_FogStatus, AP_SamplePNG = nil, nil, nil, nil, nil, nil
+    mapBody.MaskTextureMaterial = nil
+end
 mapOpen = false
+-- dev.16 playtest (2026-11-07): the picture was only started once the map opened, so the first opening showed the
+-- game's map for ~3 s, and C++ was still off ("OFF; Setup ran 0x"). Now, before the map ever opens: C++ is switched on,
+-- the picture is composed from the colour map saved in an earlier session (the game's 8192 px map not loaded), and C++
+-- is told its path; at the first opening the game's map is checked against the saved one once, and nothing is redone.
+do
+    local calls = {}
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    local saved = MOD .. "\\map-colour-1.png"                    -- (the mod's Windows path, as a file name here)
+    local f = io.open(saved, "w"); f:write("png"); f:close()
+    local fp = {}
+    for _ = 1, 16 do fp[#fp + 1] = mapArt .. ",90,60" end
+    f = io.open(saved .. ".txt", "w"); f:write(table.concat(fp, ";")); f:close()
+    loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
+    local jobsBefore = #composeJobs
+    local W7 = dofile(MOD .. "/Scripts/walls.lua")
+    W7.dir, W7.keep = MOD, function() end
+    W7.updateMap(true, {}, pawn)
+    local said = table.concat(calls, " | ")
+    expect(said:find("enable=1", 1, true), "C++ is switched on at the first update, before any picture or map: " .. said)
+    for _ = 1, 3 do W7.updateMap(true, {}, pawn) end
+    said = table.concat(calls, " | ")
+    local job = composeJobs[jobsBefore + 1]
+    expect(job and job.colour == saved and not loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"],
+           "the map closed: the picture is composed from the saved colour map, without loading the game's map")
+    expect(said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
+           "and C++ has the picture before the map first opens: " .. said)
+    mapOpen = true
+    for _ = 1, 3 do W7.updateMap(true, {}, pawn) end
+    expect(loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] and #composeJobs == jobsBefore + 1,
+           "at the first opening the game's map is checked against the saved one, and an unchanged map is not composed again")
+    mapOpen = false
+    mapArt = mapArt + 1                                            -- another session, another mod's map art
+    local W8 = dofile(MOD .. "/Scripts/walls.lua")
+    W8.dir, W8.keep = MOD, function() end
+    for _ = 1, 3 do W8.updateMap(true, {}, pawn) end
+    local early = #composeJobs
+    mapOpen = true
+    for _ = 1, 4 do W8.updateMap(true, {}, pawn) end
+    expect(#composeJobs == early + 1 and composeJobs[#composeJobs].colour == saved and logged("the game's map picture changed"),
+           "a changed map art found at the first opening: the colour map is saved again and the picture made again")
+    mapOpen, AP_MapScreen = false, nil
+    mapArt = mapArt - 1
+    os.remove(saved); os.remove(saved .. ".txt")
+end
+-- The locked areas as the map's own icons (the user, 2026-11-07: stamps drawn into the picture grew with the zoom and
+-- sat in odd places): one WBP_WorldMap_IconBase_OnlyIcon per locked area, added with the screen's Add Icon By Location
+-- at the area's deepest point, ignoring the fog's mask, then Update Map Icons; nothing drawn into the picture. Only the
+-- main map's screen: the World Tree's keeps its own picture and gets none.
+do
+    local calls = {}
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    mapBody.icons, mapBody.iconUpdates = {}, 0
+    treeBody.icons, treeBody.Image_MapBody.shown = {}, nil
+    local stampsBefore = {}
+    for k, v in pairs(stampAt) do stampsBefore[k] = v end
+    local W9 = dofile(MOD .. "/Scripts/walls.lua")
+    W9.dir, W9.keep = MOD, function() end
+    for _ = 1, 3 do W9.updateMap(true, {}, pawn) end           -- the map not built yet: the picture is made, no icons
+    expect(#mapBody.icons == 0, "no icons before the map screen exists")
+    mapOpen, treeOpen = true, true
+    for _ = 1, 2 do W9.updateMap(true, {}, pawn) end
+    local job = composeJobs[#composeJobs]
+    local nLocked = job and select(2, job.locked:gsub(",", "")) + 1 or 0
+    local CENTRES = require("area_centres")
+    local first = mapBody.icons[1]
+    local locked1 = job and tonumber(job.locked:match("^(%d+)"))
+    local c = locked1 and CENTRES[locked1]                          -- (keyed by the 0-based area index, as drawStamps)
+    local at = c and W9.worldAt(c[1], c[2])
+    expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked area: " .. #mapBody.icons .. " of " .. nLocked)
+    expect(first and first.tex and tostring(first.tex.path):find("ap%-map%-stamp") and first.ignoreMask == true
+           and first.priority == false and first.visibility == 3 and first.parent == mapBody.Canvas_ForIcon_NoMask,
+           "each shows its area's stamp, on the canvas the fog never hides, and ignores the pointer")
+    expect(at and first.loc and math.abs(first.loc.X - at.X) < 1 and math.abs(first.loc.Y - at.Y) < 1 and first.loc.Z == 0,
+           "at the area's deepest point, as a world location")
+    expect(mapBody.iconUpdates == 1 and logged("map icons: " .. nLocked .. " locked area%(s%) added on Canvas_ForIcon_NoMask"),
+           "then the screen sizes them for its zoom, and the log says where they went")
+    local drawnNow = 0
+    for k, v in pairs(stampAt) do if stampsBefore[k] ~= v then drawnNow = drawnNow + 1 end end
+    expect(drawnNow == 0 and logged("locked areas are shown as map icons, not drawn on the picture"),
+           "with the icons, no stamp is drawn into the picture")
+    expect(#treeBody.icons == 0 and not treeBody.Image_MapBody.shown, "the World Tree's screen gets no icons and keeps its picture")
+    for _ = 1, 4 do W9.updateMap(true, {}, pawn) end
+    expect(#mapBody.icons == nLocked and mapBody.iconUpdates == 1, "added once, not every update")
+    local area4 = require("area_walls").areas[4]
+    for _ = 1, 3 do W9.updateMap(true, { [area4] = true }, pawn) end
+    expect(first.removed and #mapBody.icons == 2 * nLocked - 1, "a pass: the old icons go, and one fewer comes back")
+    -- The icons failing (here: the screen without the function): the stamps are drawn into the picture again.
+    mapBody.icons = {}
+    local add = mapBody["Add Icon By Location"]
+    mapBody["Add Icon By Location"] = nil
+    local W10 = dofile(MOD .. "/Scripts/walls.lua")
+    W10.dir, W10.keep = MOD, function() end
+    local jobs = #composeJobs
+    for _ = 1, 4 do W10.updateMap(true, {}, pawn) end
+    expect(logged("map icons: could not add them") and #composeJobs > jobs and composeJobs[#composeJobs].locked ~= nil,
+           "if the icons can't be added, the log says why and the picture is made again")
+    for _ = 1, 3 do W10.updateMap(true, {}, pawn) end
+    local drawnAgain = 0
+    for k, v in pairs(stampAt) do if stampsBefore[k] ~= v then drawnAgain = drawnAgain + 1 end end
+    expect(drawnAgain > 0, "with the stamps drawn in, as before: " .. drawnAgain)
+    mapBody["Add Icon By Location"] = add
+    mapOpen, treeOpen, AP_MapScreen = false, false, nil
+end
 
 print("a new world")
 -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
@@ -931,13 +1265,67 @@ expect(not playerDead, "our own death coming back is ignored")
 -- (Announced among this run's notices, not necessarily last: the pawn stands at a wall here, and its notice can come
 -- after the death within the same 7 updates now that Death Link runs two updates after the records.)
 local noticesBefore = #announced
+DL.pawnBefore = playerController.K2_GetPawn
+playerController.K2_GetPawn = function() return pawn end           -- (a player in the world has a pawn)
 push("bounce", "DeathLink", '{"cause":"Ash fell off a cliff.","source":"Ash","time":2}')
 run(7)
 local deathTold = false
 for i = noticesBefore + 1, #announced do deathTold = deathTold or announced[i]:find("Ash fell off a cliff", 1, true) ~= nil end
 expect(playerDead and deathTold, "a linked death faints the player")
+expect(DL.calls[#DL.calls] == "poison" and DL.slip.damage >= 99999 and DL.slip.shieldIgnore == true and DL.slip.deadType == 5
+       and DL.slip.clearShield == true,
+       "through lethal poison damage, an ordinary death, so the world's Death Penalty drops items: " .. tostring(DL.calls[#DL.calls]))
 run(7)
 expect(#bounces == 1, "and is not sent back")
+expect(logged("death link: the poison worked"), "the log says the poison took")
+playerDead = false
+run(7)
+-- If the poison kills nobody, the next run drops the Death Penalty's bag and self-kills; that route is kept for the
+-- session. (dev.17 test, 2026-11-07: the previous "normal death" call fainted nobody, and the self-kill dropped nothing.)
+DL.poisonWorks = false
+DL.penaltyFor = nil
+util.GetDeathPenaltyManager = function() return { DropDeathPenaltyChest = function(_, who) DL.calls[#DL.calls + 1] = "drop"; DL.penaltyFor = who end } end
+push("bounce", "DeathLink", '{"cause":"Brock tripped.","source":"Brock","time":4}')
+run(7)
+expect(not playerDead and DL.calls[#DL.calls] == "poison", "first the poison")
+run(7)
+expect(playerDead and DL.calls[#DL.calls - 1] == "drop" and DL.calls[#DL.calls] == "self" and DL.penaltyFor == pawn
+       and logged("the poison did not faint the player; used the penalty drop"), "then the Death Penalty's bag for the player, and the self-kill")
+run(7)
+expect(#bounces == 1, "and that death is not sent back either")
+playerDead = false
+run(7)
+do
+    local calls = #DL.calls
+    push("bounce", "DeathLink", '{"cause":"Brock tripped again.","source":"Brock","time":5}')
+    run(7)
+    expect(playerDead and #DL.calls == calls + 2 and DL.calls[calls + 1] == "drop", "later deaths go straight to the bag and the self-kill")
+    run(7)                                                       -- (checked while still down: a faint lasts longer than a run)
+    expect(logged("death link: the penalty drop worked"), "the log says the bag and the self-kill took")
+    playerDead = false
+    run(7)
+    -- A world whose Death Penalty is None: no bag, only the faint.
+    local sub = util.GetOptionSubsystem
+    util.GetOptionSubsystem = function() return { IsValid = function() return true end, OptionWorldSettings = { DeathPenalty = 0 } } end
+    calls = #DL.calls
+    push("bounce", "DeathLink", '{"cause":"Brock tripped once more.","source":"Brock","time":6}')
+    run(7)
+    expect(playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self" and logged("Death Penalty is None"),
+           "with the world's Death Penalty None, no bag is dropped")
+    util.GetOptionSubsystem = sub
+    run(7)
+    playerDead = false
+    run(7)
+    -- The bag failing (an error) falls to the self-kill at once: the death is never lost.
+    util.GetDeathPenaltyManager = function() error("no manager") end
+    push("bounce", "DeathLink", '{"cause":"Brock, finally.","source":"Brock","time":7}')
+    run(7)
+    expect(playerDead and DL.calls[#DL.calls] == "self" and logged("penalty drop failed: .*no manager.*trying self%-kill"),
+           "a route that errors falls to the next at once")
+end
+util.GetDeathPenaltyManager = nil
+playerController.K2_GetPawn = DL.pawnBefore
+DL.poisonWorks = true
 playerDead = false
 run(7)
 -- A death received while no player is in the world (the title, a load) does not faint the player in the next one.
@@ -1099,7 +1487,7 @@ escNoMain = false                                          -- the usual client f
 run(1)
 expect(#taskChildren == 3, "the HUD's mission list gets no button: " .. #taskChildren)
 local mailBtn = escChildren[4]
-expect(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text == "Archipelago Mailbox (50)",
+expect(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text == "Archipelago Mailbox (1)",
        "the Esc menu has a mailbox button in its own small style, with the count: " .. tostring(mailBtn and mailBtn.Text_Main and mailBtn.Text_Main.text))
 expect(mailBtn and mailBtn.MenuType == 0 and mailBtn.padding and mailBtn.padding.Top == 10, "spaced as the game's, and harmless if bound")
 expect(logged("the Esc menu is WBP_MenuESC_C"), "found the Esc menu by its buttons")
@@ -1117,7 +1505,7 @@ run(3)
 mailBtn = escChildren[4]
 local addLines = 0
 for _, l in ipairs(printed) do if l:find("Mailbox button added", 1, true) then addLines = addLines + 1 end end
-expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (50)" and addLines == 1, "a new Esc menu gets its button; logged once: " .. addLines)
+expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and addLines == 1, "a new Esc menu gets its button; logged once: " .. addLines)
 -- No LogicMod: the hidden chest. It is made on first use, 300 slots, with the chest template put back after.
 chests, chestTemplates = {}, { { SlotNum = 54, GetFullName = function()
     return "PalMapObjectItemChestParameterComponent /Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04.BP_BuildObject_ItemChest_04_C:ItemChestParameter_GEN_VARIABLE" end } }
@@ -1487,17 +1875,19 @@ local emblemBox = barKids[2]                               -- the mailbox emblem
 expect(emblemBox and emblemBox.child and emblemBox.child.texture and emblemBox.child.texture.path == "ap-mailbox-emblem-64"
        and emblemBox.width == 24 and emblemBox.halign == 3 and emblemBox.padding and emblemBox.padding.Right == 236,
        "with the mailbox emblem just left of it, 24 high")
-expect(#barKids == 2 and invBox.width == 230 and invBox.height == 28 and invBtn and invBtn.Text_Main
-       and invBtn.Text_Main.text == "Archipelago Mailbox (5)",
+expect(#barKids == 3 and invBox.width == 230 and invBox.height == 28 and invBtn and invBtn.Text_Main
+       and invBtn.Text_Main.text == "Archipelago Mailbox (1)",
        "the name bar gets the game's button, 230x28, with the count: " .. tostring(invBtn and invBtn.Text_Main and invBtn.Text_Main.text))
 expect(invBox and invBox.halign == 3 and invBox.valign == 0, "at the bar's right end, as tall as the Edit Name row")
 expect(linesWith("the inventory page is WBP_InventoryEquipment_C (via the main menu's CurrentContentWidget, tab 8)") == 1,
        "says it found the page through the main menu, with the tab")
-expect(logged("Mailbox button added to the inventory page %(WBP_CommonButton_C%) | %?:SizeBox < Overlay_0:Overlay < CanvasPanelChara:CanvasPanel < CanvasPanel_0:CanvasPanel"),
+expect(logged("Mailbox button added to the inventory page %(WBP_CommonButton_C%) | %?:SizeBox/0 < Overlay_0:Overlay < CanvasPanelChara:CanvasPanel < CanvasPanel_0:CanvasPanel"),
        "logged where it went, once")
 expect(hooks[COMMON_CLICK], "its click is hooked")
 run(4)
-expect(#barKids == 2, "added once")
+expect(#barKids == 3, "added once (the mailbox button, its emblem, the crate button)")
+expect(barKids[3] and barKids[3].vis == 1 and barKids[3].padding and barKids[3].padding.Right == 268,
+       "the crate button waits, collapsed, left of the emblem until there is a crate")
 -- Focus probes: which of the bar's buttons a player reached, and with what input.
 inputSubsystems = { named("CommonInputSubsystem_0", "CommonInputSubsystem", { GetCurrentInputType = function() return 1 end }) }
 editName.WBP_PalInvisibleButton.focused = true
@@ -1517,8 +1907,28 @@ local page2, barKids2 = inventoryPage()
 mainMenu.CurrentContentWidget = inventoryTab(page2)
 run(1)
 local invBtn2 = barKids2[1] and barKids2[1].child
-expect(#barKids2 == 2 and #barKids == 2 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (5)"
+expect(#barKids2 == 3 and #barKids == 3 and invBtn2 and invBtn2.Text_Main.text == "Archipelago Mailbox (1)"
        and linesWith("Mailbox button added to the inventory page") == 1, "a new page gets its button, quietly; the old one none again")
+-- Palworld Crates: with a crate waiting, the page's Open button shows it, and a click opens it on the next update.
+;(function()   -- (a function: the main chunk is at Lua's 200-local limit)
+    local CR, MB = require("crates"), require("mailbox")
+    local saved, mailSaved = CR.list, {}
+    for _, e in ipairs(MB.queue) do mailSaved[#mailSaved + 1] = { id = e.id, n = e.n } end
+    CR.list = { "sphere" }
+    run(1)
+    local crateBox = barKids2[3]
+    local crateBtn = crateBox and crateBox.child
+    expect(crateBox and crateBox.vis == 0 and crateBtn and crateBtn.Text_Main and crateBtn.Text_Main.text == "Open: Sphere Crate",
+           "the Inventory page shows Open with the next crate: " .. tostring(crateBtn and crateBtn.Text_Main and crateBtn.Text_Main.text))
+    if crateBtn then commonClick(crateBtn) end
+    expect(#CR.list == 1, "nothing opens inside the click's hook")
+    run(1)
+    expect(#CR.list == 0 and logged("crate: opened a Sphere Crate at level %d+: %d+ x ") and table.concat(announced, "|"):find("Opened a Sphere Crate: ", 1, true),
+           "the next update opens it into the mailbox and says what was inside")
+    run(1)
+    expect(crateBox and crateBox.vis == 1, "with no crate left the button folds away")
+    CR.list, MB.queue = saved, mailSaved               -- as it was, for the tests below
+end)()
 commonClick(invBtn)                                        -- the old page's button: no longer ours
 run(1)
 expect(not mainMenu.closed, "a button on a page the menu let go of does nothing")
@@ -1539,7 +1949,7 @@ mainMenu = MainMenu(escMenu, 7)
 escOpen = true
 run(1)
 mailBtn = escChildren[4]
-expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (5)" and linesWith("Mailbox button added to the inventory page") == 1,
+expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and linesWith("Mailbox button added to the inventory page") == 1,
        "the Esc menu still gets its button; the Options tab no inventory one")
 shownBefore = #shown
 hooks[ESC_CLICK]({ get = function() return mailBtn end })
@@ -1655,14 +2065,13 @@ expect(t and movement:GetWalkSpeedMultiplier() == 0.5, "a Slow Trap halves walki
 expect(told("Slow Trap from Friend: your legs feel heavy (1 minute).") and not told("Received Slow Trap"),
        "chat names the trap and its sender, with no 'Received' line")
 expect(saveText():find("given=9\nworld=AP_WORLD\ndeaths=0\ntraps=\n", 1, true), "applied: the save has it given and nothing waiting: " .. saveText())
--- Two at once: 15 s apart.
+-- Two at once: both fire together (2026-11-05: not staggered).
 trap("Hunger Trap", "Friend")
 trap("Fool Trap", "Friend")
 local h = ticksUntil("trap #10 Hunger Trap from Friend", 100)
-expect(h and h >= 50 and h <= 57, "the next trap waits 15 s: " .. tostring(h) .. " ticks")
+expect(h and h <= 8, "a trap fires as it arrives: " .. tostring(h) .. " ticks")
 expect(stomach.cur == 30 and logged("satiety 80%.0 of 100%.0, set to 30%.0, reads back 30"), "a Hunger Trap takes half the satiety: " .. stomach.cur)
-local f = ticksUntil("trap #11 Fool Trap from Friend: fake notice", 100)
-expect(f and f >= 50, "and the one after it 15 s later again: " .. tostring(f))
+expect(logged("trap #11 Fool Trap from Friend: fake notice"), "and the one that came with it fires on the same update")
 local fake
 for _, a in ipairs(announced) do if a:find("broke free and ran off!", 1, true) then fake = a end end
 expect(fake and not fake:find("Archipelago", 1, true), "a Fool Trap shows a plain-looking scare: " .. tostring(fake))
@@ -1744,17 +2153,20 @@ ticksUntil("trap #21 Slow Trap", 80)
 pawnAddress = 12288
 expect(ticksUntil("Slow Trap ended; the player character changed, nothing to restore", 220), "a new character is left alone")
 movement.mult = {}
--- Queued when the game quits: it is in the save file, and fires once after loading.
+-- Queued when the game quits: it is in the save file, and fires once after loading. (A Teleport Trap waiting in a
+-- dungeon is the one left waiting; the Fool Trap beside it fires at once.)
+inStage = true
 trap("Fool Trap", "Friend")
-trap("Hunger Trap", "Friend")
+trap("Teleport Trap", "Friend")
 ticksUntil("trap #22 Fool Trap", 80)
 run(7)
-expect(saveText():find("traps=Hunger Trap|23\n", 1, true), "a waiting trap is in the save file: " .. saveText():match("traps=[^\n]*"))
+expect(saveText():find("traps=Teleport Trap|23\n", 1, true), "a waiting trap is in the save file: " .. saveText():match("traps=[^\n]*"))
+inStage = false
 reload()
 expect(logged("1 trap%(s%) waiting"), "loaded with the save")
-expect(ticksUntil("trap #23 Hunger Trap from Friend", 80), "and it fires after loading, with its sender")
+expect(ticksUntil("trap #23 Teleport Trap from Friend", 80), "and it fires after loading, with its sender")
 run(200)
-expect(count("trap #23 ") == 1 and count("trap #22 ") == 1, "each trap fired once")
+expect(count("trap #23 Teleport Trap from") == 1 and count("trap #22 Fool Trap from") == 1, "each trap fired once")
 -- A reconnect sends every item again: no trap fires twice.
 local fired = count("^%[PalworldAP%] trap #")
 push("status", "disconnected")
@@ -1767,8 +2179,10 @@ for _ = 1, 12 do trap("Fool Trap", "Friend") end
 run(7)
 expect(told("2 trap(s) skipped: at most 10 wait at a time.") and logged("trap #24 Fool Trap dropped") and logged("trap #25 Fool Trap dropped"),
        "more than 10 traps at once: the oldest extras are skipped")
-run(700)
-expect(count("trap #3[0-5] Fool Trap from Friend: fake") == 6 and not logged("trap #2[45] Fool Trap from"), "the other ten fire")
+run(14)
+expect(count("trap #3[0-5] Fool Trap from Friend: fake") == 6 and not logged("trap #2[45] Fool Trap from"), "the other ten fire at once")
+run(40)
+expect(count("Just kidding%. Fool Trap from Friend%.") >= 10, "each Fool Trap gets its own punchline")
 -- The connection drops while a Slow Trap and a Fool Trap run: both still end on time.
 trap("Slow Trap", "Friend")
 expect(ticksUntil("trap #36 Slow Trap from Friend: player multiplier", 80), "(a Slow Trap fires)")
@@ -1902,20 +2316,32 @@ pawn.GetCharacterParameterComponent = ParamComponent
 
 end
 do   -- (its own block, as above)
-print("the title menu's Archipelago buttons")
+;(function()   -- (a function of its own: the main chunk is at Lua's 200 locals)
+print("the title menu's Archipelago menu")
+-- The banner opens one Archipelago menu (the user, 2026-11-07), the game's own title buttons swapped for ours in the same
+-- list. dev.21 (the user, dev.20 test: "those should just be typable in the menu"): Server, Port, Slot and Password are
+-- the game's own text box in the menu; the saved servers show under Server while it has the keyboard; the banner
+-- brightens under the pointer. Without a text box class, the dev.20 rows and the text window (tested at the end).
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
 titleOpen = true
 -- v0.13.5 playtest: a title menu whose buttons could not be made got a new banner every update (1,042 of them).
 local realCreate = wbl.Create
 wbl.Create = function() return nil end
 run(3)
-expect(#titleCanvasKids == 0 and #menuChildren == 1 and not logged("title banner added"), "no buttons, no banner")
+expect(#titleCanvasKids == 0 and #menuChildren == 2 and not logged("title banner added"), "no rows, no banner")
 wbl.Create = realCreate
 run(1)
-local bannerBox = titleCanvasKids[1]                        -- the title banner, on the list's canvas
-expect(#titleCanvasKids == 1 and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
-       and #bannerBox.child.children == 3 and bannerBox.child.children[1].texture.path == "ap-title-banner",
-       "the banner (600x150: picture, status dot, text) goes on the canvas the buttons sit on")
+-- On the list's canvas: the title banner (a 600 wide box) and the saved servers' panel (an Overlay).
+local bannerBox, drop
+for _, k in ipairs(titleCanvasKids) do
+    if k.kind == "Overlay" then drop = drop or k elseif k.width == 600 then bannerBox = bannerBox or k end
+end
+expect(#titleCanvasKids == 2 and bannerBox and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
+       and #bannerBox.child.children == 4 and bannerBox.child.children[1].texture.path == "ap-title-banner",
+       "the banner (600x150: picture, status dot, text, its button) goes on the canvas the buttons sit on")
+local openBtn = bannerBox and bannerBox.child.children[4]
+expect(openBtn and openBtn.Test_Content and openBtn.slot.h == 0 and openBtn.slot.v == 0 and openBtn.opacity == 0.02,
+       "a title button over the whole banner, all but invisible")
 local pic = bannerBox and bannerBox.child.children[1]
 expect(pic and pic.slot.h == 0 and pic.slot.v == 0, "its picture fills it (v0.13.5 playtest: it kept the brush's 32x32)")
 local bs = bannerBox and bannerBox.canvasSlot
@@ -1923,81 +2349,199 @@ expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.a
        and bs.position.X == 0 and bs.position.Y == -588 and bs.size.X == 600 and bs.auto == false and buttonBox.prepassed,
        "its bottom 8 above the list's top, centred over it, with the list's anchors")
 expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
-local connectBtn, disconnectBtn = menuChildren[1] and menuChildren[1].child, menuChildren[2] and menuChildren[2].child
-expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as Tester" and disconnectBtn.visibility == 0,
-       "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
-expect(menuChildren[3] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
-       "Quit Game moved back to the end, with its padding")
+-- The list: Start Game (the game's), Server, six picks, Port, Slot, Password, Connect, Back, then Quit Game.
+local R = { server = 2, port = 3, slot = 4, password = 5, go = 6, back = 7 }
+-- The saved servers: their panel on the canvas, its rows in its VerticalBox.
+local function pickBox(i) return drop.children[2].children[i] end
+local function pick(i) return pickBox(i).child end
+local function rowBox(i) return menuChildren[i] end
+local function btn(i) return menuChildren[i] and menuChildren[i].child end
+local function edit(i) return menuChildren[i].child.children[2] end
+local function typed(i) return edit(i).Text:ToString() end
+local function typeInto(i, s) edit(i).Text = { ToString = function() return s end } end
+local allCollapsed = true
+for i = 2, 7 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
+expect(#menuChildren == 8 and menuChildren[8] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+       "the menu's rows in the title's own list, Quit Game moved back to the end with its padding")
+expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).colour and edit(R.password).password
+       and rowBox(R.server).child.children[1].text == "Server:" and rowBox(R.port).child.children[1].text == "Port:"
+       and rowBox(R.server).child.children[1].fontSize == 20,
+       "Server, Port, Slot and Password: a label and the game's own text box, its text colour set (its style never copied)")
+expect(logged("fields typed in PalEditableTextBox"), "and the log says so")
+expect(logged("not a live title menu %(a template%), left alone: .*/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title"),
+       "the title screen asset's template (dev.25 log: rows tried on it every update) is left alone")
+expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
+expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows wait collapsed; the game's buttons show")
+expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
 local moves = bs and bs.moves
 run(3)
-expect(#menuChildren == 3 and #titleCanvasKids == 1, "added once")
-expect(bs and bs.moves == moves, "and left where it is while the list keeps its size")
-buttonBox.desired = { X = 600, Y = 459 }                    -- Disconnect hidden: the list is shorter
-run(1)
-expect(bs and bs.position.Y == -547, "the list got shorter: the banner follows its top")
-buttonBox.desired = { X = 600, Y = 500 }
-run(1)
-expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
-expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
+expect(#menuChildren == 8 and #titleCanvasKids == 2, "added once")
+expect(drop and drop.kind == "Overlay" and drop.vis == 1 and #drop.children[2].children == 6 and drop.canvasSlot.zorder == 20,
+       "the saved servers wait in a panel of their own on the canvas, folded away (dev.25 test: in the list they pushed the rows down)")
+local st = edit(R.server).WidgetStyle
+expect(st.BackgroundColor.SpecifiedColor.A == 0.88 and st.BackgroundColor.SpecifiedColor.R < 0.1 and st.BackgroundColor.ColorUseRule == 0
+       and st.FocusedForegroundColor.SpecifiedColor.R > 0.8 and logged("text boxes coloured"),
+       "the boxes: a dark backing and light text, focused or not (dev.25 test: white boxes, pale text), written field by field")
+expect(bs and bs.moves == moves, "and the banner left where it is while the list keeps its size")
+expect(logged("Archipelago menu added to the title menu %(VerticalBox VerticalBox_Menu%); the banner opens it"),
+       "found the box the Start Game button sits in")
+expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox/0 < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
-expect(logged("could not hook BndEvt__WBP_Title_WorldSettings_NameWindow.* yet %(will retry%)")
-       and logged("hooked BndEvt__WBP_Title_WorldSettings_NameWindow.*%(try 11%)"), "a failed hook is retried")
+-- menu.lua's ExecuteInGameThread runs at the next game tick, as in the game (the rest of the harness runs it at once).
+local queued, realGT = {}, ExecuteInGameThread
+ExecuteInGameThread = function(f)
+    if debug.getinfo(2, "S").source:find("menu.lua", 1, true) then queued[#queued + 1] = f else f() end
+end
+local function tick() local q = queued; queued = {}; for _, f in ipairs(q) do f() end end
+local HOVER, UNHOVER = CLICK:gsub("Event_0_", "Event_1_"), CLICK:gsub("Event_0_", "Event_2_")
+expect(hooks[HOVER] and hooks[UNHOVER], "the title button's hover and unhover are hooked (kdump: events 1 and 2)")
+-- dev.20 test: nothing showed the banner could be clicked. It waits a little dim and lights up under the pointer, from
+-- the button's own hover events (dev.24 polled it every 60 ms, and the game crashed on the title).
+expect(pic.colour and pic.colour.R < 1, "the banner waits a little dim")
+hooks[HOVER]({ get = function() return openBtn end })
+expect(pic.colour.R < 1, "nothing changes inside the hover's hook")
+tick()
+expect(pic.colour.R == 1 and bannerBox.scale and bannerBox.scale.X > 1 and tostring(pic.texture.path):find("ap%-title%-banner%-hover"),
+       "and lights up under the pointer: brighter, a little bigger, the hover picture (dev.22 test: it barely stood out)")
+hooks[UNHOVER]({ get = function() return openBtn end })
+tick()
+expect(pic.colour.R < 1 and bannerBox.scale.X == 1 and pic.texture.path == "ap-title-banner", "and goes back when it leaves")
+local function click(b) hooks[CLICK]({ get = function() return b end }); tick() end   -- (the click, then the next tick)
 local function okWith(text)
     pushed[#pushed].OutString = text
     hooks[WINDOW_OK]()
     for id, w in pairs(hudWindows) do w.gone = true end           -- the game closes the window
     run(1)
 end
-hooks[CLICK]({ get = function() return connectBtn end })
-expect(#pushed == 1 and pushed[1].DefaultInputName == "localhost:38281", "clicking asks for the server, filled in")
-hudWindows["w1"].Text_Head.text = "World Name"                     -- the game puts its own heading back
-run(1)
-expect(hudWindows["w1"].Text_Head.text == "Archipelago server (host:port)", "the window keeps our heading: "
-       .. tostring(hudWindows["w1"].Text_Head.text))
-okWith("archipelago.gg:40000")
-expect(#pushed == 2 and pushed[2].DefaultInputName == "Tester", "then the slot")
-okWith("Other")
-expect(#pushed == 3 and hudWindows["w3"].PalEditableTextBox_0.password, "then the password, hidden")
-okWith("secret")
-local c = connects[#connects]
-expect(c and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret", "and connects with them")
-local cfgText = io.open(MOD .. "/config.txt"):read("*a")
-expect(cfgText:find("server=archipelago.gg:40000", 1, true) and cfgText:find("slot=Other", 1, true), "saved to config.txt")
-local before = #connects
-hooks[CLICK]({ get = function() return connectBtn end })
-for id, w in pairs(hudWindows) do w.gone = true end               -- Esc: closed without OK
+local pushedBefore = #pushed
+hooks[CLICK]({ get = function() return openBtn end })
+expect(gameButtonWrap.vis ~= 1 and pic.texture.path ~= "ap-title-banner-pressed", "nothing changes inside the click's hook")
+tick()
+expect(gameButtonWrap.vis == 1 and rowBox(R.server).vis == 0 and pic.texture.path == "ap-title-banner-pressed",
+       "at the next tick the menu is open (the user, dev.24 test: at once, not at the next update), the banner pressed")
 run(2)
-expect(#connects == before, "closing a window cancels")
-hooks[CLICK]({ get = function() return disconnectBtn end })
+expect(pic.texture.path == "ap-title-banner", "and its own picture again by the next update")
+expect(gameButtonWrap.vis == 1 and quitWrap.vis == 1 and rowBox(R.server).vis == 0 and rowBox(R.port).vis == 0
+       and rowBox(R.go).vis == 0 and rowBox(R.back).vis == 0 and drop.vis == 1 and logged("Archipelago menu opened"),
+       "the banner opens the menu: the game's buttons fold away, the rows show (the saved servers not yet)")
+expect(typed(R.server) == "localhost" and typed(R.port) == "38281" and typed(R.slot) == "Tester" and typed(R.password) == ""
+       and btn(R.go).Test_Content.text == "Disconnect (connected as Tester)" and btn(R.back).Test_Content.text == "Back",
+       "the boxes hold the connection's server, port, slot and password: " .. typed(R.server))
+expect(io.open(MOD .. "/config.txt"):read("*a"):find("servers=localhost", 1, true) and logged("servers: remembered localhost"),
+       "a server connected to is remembered (archipelago.gg is always offered)")
+edit(R.server).focus = true
 run(1)
-expect(disconnects == 1 and connectBtn.Test_Content.text == "Archipelago: not connected" and disconnectBtn.visibility == 1,
-       "disconnect button disconnects: " .. tostring(connectBtn.Test_Content.text))
+expect(drop.vis == 0 and pickBox(1).vis == 0 and pickBox(2).vis == 0 and pickBox(3).vis == 1 and pickBox(1).width == 420
+       and pick(1).Test_Content.text:find("archipelago.gg", 1, true) and pick(2).Test_Content.text:find("localhost   (chosen)", 1, true)
+       and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 41 and drop.canvasSlot.alignment.Y == 0,
+       "while the Server box has the keyboard, the saved servers show in their panel just under it")
+-- dev.27 test ("why does it still stick around at all?"): they stay while the pointer is on one of them (pressing it
+-- takes the keyboard from the box before the click lands), and go at the next update otherwise.
+edit(R.server).focus = false
+hooks[HOVER]({ get = function() return pick(2) end }); tick()
+run(1)
+expect(drop.vis == 0, "the Server box left with the pointer on a saved server: they stay")
+hooks[UNHOVER]({ get = function() return pick(2) end }); tick()
+run(1)
+expect(drop.vis == 1, "the pointer gone too: they go at the next update")
+edit(R.server).focus = true
+run(1)
+edit(R.server).focus = false                                      -- the click on a saved server takes the keyboard away
+hooks[HOVER]({ get = function() return pick(1) end }); tick()
+click(pick(1))
+run(1)
+expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Connect to archipelago.gg:38281 as Tester",
+       "a saved server picked fills the Server box; the last row offers to connect there")
+run(1)
+expect(drop.vis == 1, "then the saved servers fold away at the next update (dev.25 and dev.27 tests: they lingered)")
+typeInto(R.port, "40000"); typeInto(R.slot, "Other"); typeInto(R.password, "secret")
+run(1)
+expect(btn(R.go).Test_Content.text == "Connect to archipelago.gg:40000 as Other" and #pushed == pushedBefore,
+       "typed in the menu: no text window")
+edit(R.server).focus = true
+typeInto(R.server, "72.60.29.30:38281")
+run(1)
+expect(typed(R.server) == "72.60.29.30:38281" and btn(R.go).Test_Content.text == "Connect to 72.60.29.30:38281 as Other",
+       "host:port typed in the Server box counts at once, and is left as typed while the box has the keyboard")
+edit(R.server).focus = false
+run(1)
+expect(typed(R.server) == "72.60.29.30" and typed(R.port) == "38281", "left, the port moves to its own box")
+typeInto(R.server, "archipelago.gg"); typeInto(R.port, "40000")
+run(1)
+local connectsBefore = #connects
+click(btn(R.go))
+run(1)
+local c = connects[#connects]
+expect(#connects == connectsBefore + 1 and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret",
+       "Connect connects with them, replacing the connection there was")
+local cfgText = io.open(MOD .. "/config.txt"):read("*a")
+expect(cfgText:find("server=archipelago.gg:40000", 1, true) and cfgText:find("slot=Other", 1, true) and cfgText:find("servers=localhost", 1, true),
+       "saved to config.txt, the saved servers kept")
 slotData.seed = "67890"
 push("status", "connected", "Other")
 run(1)
 local forgot = false
 for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1, true) then forgot = true end end
-expect(forgot and connectBtn.Test_Content.text == "Archipelago: connected as Other", "a different seed starts afresh")
+expect(forgot, "a different seed starts afresh")
+run(1)
+expect(gameButtonWrap.vis == 0 and rowBox(R.server).vis == 1 and logged("Archipelago menu closed"), "connected: back to the title's own buttons")
+expect(not io.open(MOD .. "/config.txt"):read("*a"):find("archipelago.gg,", 1, true), "archipelago.gg is not saved: it is always there")
 -- A slot the server refuses: what is in memory is still Other's, and is saved as Other's, not under the refused name.
 require("mailbox").add("Wood", 10)
 run(7)
-hooks[CLICK]({ get = function() return connectBtn end })
-okWith("archipelago.gg:40000")
-okWith("Typo")
-okWith("")
+click(openBtn); run(1)
+typeInto(R.slot, "Typo"); typeInto(R.password, "")
+run(1)
+click(btn(R.go)); run(1)
 push("status", "refused", "InvalidSlot")
 run(1)
+expect(gameButtonWrap.vis == 1, "refused: the menu stays open to fix it")
 playerController.K2_GetPawn = function() return pawn end
 local took = require("mailbox").takeAll()
 playerController.K2_GetPawn = nil
 expect(took == 10 and io.open(MOD .. "/save-67890-Other.txt"):read("*a"):find("mail=\n", 1, true)
        and not io.open(MOD .. "/save-67890-Typo.txt"), "a refused slot: the take is saved in the connected slot's file")
-hooks[CLICK]({ get = function() return connectBtn end })
-okWith("archipelago.gg:40000")
-okWith("Other")
-okWith("")
-push("status", "connected", "Other")
+typeInto(R.slot, "Other")
 run(1)
+click(btn(R.go)); run(1)
+push("status", "connected", "Other")
+run(2)
+-- Back closes without connecting; reopened, the menu starts from the connection, and its last row disconnects.
+click(openBtn); run(1)
+typeInto(R.server, "72.60.29.30")
+run(1)
+local cb = #connects
+click(btn(R.back)); run(1)
+expect(gameButtonWrap.vis == 0 and #connects == cb and logged("Archipelago menu closed"), "Back: the game's buttons again, nothing connected")
+click(openBtn); run(1)
+expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Disconnect (connected as Other)",
+       "reopened, it starts from the connection: " .. typed(R.server))
+click(btn(R.go)); run(1)
+expect(disconnects == 1 and btn(R.go).Test_Content.text:find("^Connect to archipelago%.gg:40000 as Other"), "its last row disconnects")
+click(btn(R.go)); run(1)
+push("status", "connected", "Other")
+run(2)
+local goBtn = btn(R.go)
+-- dev.24 crash (2026-11-07): after Options and the Survival Guide our rows were gone from the title menu, the remake
+-- failed, and the old rows were still used; the game crashed 4.6 s later. Now the old rows are never touched again.
+do
+    local deadTouched = false
+    for i = 2, 7 do
+        local b = rowBox(i)
+        if b then b.gone = true; b.SetVisibility = function() deadTouched = true end end
+        local inner = b and b.child
+        if inner then inner.gone = true end
+    end
+    local create = wbl.Create
+    wbl.Create = function() return nil end
+    run(3)
+    expect(not deadTouched and logged("our rows are gone from a title menu still there") and logged("could not add the Archipelago menu's rows: .*%(try %d%)") and logged("the old banner taken away"),
+           "our rows gone and the remake failing: logged, and the old rows never touched again")
+    wbl.Create = create
+    local before = #menuChildren
+    run(2)
+    expect(#menuChildren > before and logged("Archipelago menu added to the title menu"), "then made again once it can be")
+end
 -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
 -- 10 updates, logged, and looked for every update again.
 playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end
@@ -2008,10 +2552,30 @@ titleOpen = false
 run(1)
 -- In a world the title menu is gone; a game title button made later at a freed address of ours is not ours.
 local disconnectsBefore, pushedBefore = disconnects, #pushed
-hooks[CLICK]({ get = function() return Widget({ addr = disconnectBtn.addr }) end })
-hooks[CLICK]({ get = function() return Widget({ addr = connectBtn.addr }) end })
+hooks[CLICK]({ get = function() return Widget({ addr = goBtn.addr }) end })
+hooks[CLICK]({ get = function() return Widget({ addr = openBtn.addr }) end })
 run(1)
 expect(disconnects == disconnectsBefore and #pushed == pushedBefore, "our old title buttons' addresses are forgotten")
+-- Without a text box class (neither the game's nor UMG's): the dev.20 rows, each field in the text window (whose heading
+-- is set where the window has one).
+palEditOk, umgEditOk = false, false
+for i = #menuChildren, 1, -1 do menuChildren[i] = nil end
+menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+gameButtonWrap.vis, quitWrap.vis = 0, 0
+titleOpen = true
+run(2)
+expect(#menuChildren == 9 and logged("typed fields not made %(no text box class%); the text window instead %(try %d%)")
+       and logged("fields in the text window"), "no text box: the rows with the text window")
+click(titleCanvasKids[#titleCanvasKids].child.children[4]); run(1)
+click(menuChildren[4].child); run(1)                              -- Port (after Server and Type a server address)
+expect(#pushed == pushedBefore + 1 and pushed[#pushed].DefaultInputName == "40000", "Port opens the text window, filled in")
+okWith("40001")
+expect(menuChildren[4].child.Test_Content.text == "Port: 40001", "and sets the port")
+titleOpen = false
+run(1)
+palEditOk, umgEditOk = nil, nil
+ExecuteInGameThread = realGT
+end)()
 
 print("the other goals")
 local function newSeed(seed, extra)
@@ -2044,6 +2608,15 @@ local towerList = record.TowerBossDefeatFlag.Items.list
 towerList[#towerList + 1] = { Key = FNameOf("EPalBossType::WorldTreeBoss"), Value = true }
 run(14)
 expect(goals == before + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
+-- 2026-11-05 run: a two-tower seed, both towers beaten, keys as 1.0.5 writes them; the goal never went out.
+newSeed("70009", { ["options.goal"] = "0", ["options.tower_count"] = "2" })
+before = goals
+run(14)
+expect(goals == before, "two towers: one beaten is not the goal")
+towerList[#towerList + 1] = { Key = FNameOf("BOSS_BATTLE_NAME_ForestBoss"), Value = true }
+run(14)
+expect(goals == before + 1 and logged("Goal complete: 2 tower%(s%) beaten!") and checks[D.towers.ForestBoss],
+       "two towers: the second (BOSS_BATTLE_NAME_ForestBoss) is counted, checked, and wins")
 print("mailbox off: bundles straight to the bag")
 local MB = require("mailbox")
 local mailOn = MB.on
@@ -2342,6 +2915,407 @@ do  -- the Art & Assets lane's round-1 art (art.lua): the title banner with its 
            "the mailbox emblem goes beside the chest window's heading (the mailbox's own window)")
     expect(not logged("art: could not load"), "every art file loads")
 end
+do  -- area_size regions: every named region of the game its own, opened by a Region Pass (slot data options.area_size)
+    local RD = dofile(MOD .. "/Scripts/area_walls_regions.lua")
+    local W = require("walls")
+    slotData["options.area_size"] = "1"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+    run(80)
+    expect(logged("area locks: regions %(75 regions, " .. #RD.walls .. " border pieces%)") and W.layout == "regions"
+           and W.passName("Golden Hills") == "Region Pass: Golden Hills", "a regions seed: the regions' walls and passes")
+    local up = wallCount()
+    expect(up > 1000 and up <= #RD.walls, "the regions' walls go up (the areas' came down): " .. up)
+    push("item", "9000", tostring(itemId["Region Pass: Golden Hills"]), "1", "1", "1", "Region Pass: Golden Hills", "Tester")
+    run(60)
+    expect(wallCount() < up, "a Region Pass takes its region's walls down: " .. up .. " -> " .. wallCount())
+    expect(W.parentOf("Golden Hills") == "Bamboo Groves" and W.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
+           "a region wears its area's colour, ticket and stamp (area_parents_regions.lua)")
+    slotData["options.area_size"] = nil                          -- an areas seed again (and seeds made before the option)
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(W.layout == "areas" and logged("area locks: areas %(15 areas"), "back to an areas seed: the areas' walls")
+end
+do  -- Areas beyond the goal (slot data beyond_goal_areas and options.beyond_goal): sealed for good, or open from the start
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = hintArea, "0"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(logged("areas beyond the goal: 1, sealed for good"), "a locked area beyond the goal is logged")
+    local up = wallCount()
+    local before = #announced
+    pawnAt = hintAt
+    run(420)
+    local said, offered = false, false
+    for i = before + 1, #announced do
+        if announced[i]:find(hintArea .. " is beyond this seed's goal: its walls stay up.", 1, true) then said = true end
+        if announced[i]:find("needs Area Pass: " .. hintArea, 1, true) then offered = true end
+    end
+    expect(said and not offered, "its wall says it is beyond the goal, and offers no hint for a pass that isn't there")
+    slotData["options.beyond_goal"] = "2"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(logged("areas beyond the goal: 1, open from the start") and wallCount() < up,
+           "open: its walls come down without a pass: " .. up .. " -> " .. wallCount())
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
+end
+;(function()  -- area-coloured walls, sealed walls beyond the goal, the hint pop-up (v0.14.0-dev.3)
+    local W = require("walls")
+    local openedBeyond = hintArea                -- the open-beyond test above opened it
+    local hudKids = {}
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("CanvasPanel_179") end })
+    function canvas:AddChildToCanvas(w)
+        hudKids[#hudKids + 1] = w
+        w.RemoveFromParent = function(self) self.removed = true end
+        local slot = { SetAnchors = function(sl, v) sl.anchors = v end, SetAlignment = function(sl, v) sl.alignment = v end,
+                       SetPosition = function(sl, v) sl.position = v end, SetAutoSize = function() end,
+                       SetZOrder = function(sl, z) sl.z = z end }
+        w.canvasSlot = slot
+        return slot
+    end
+    -- As on the client (v0.13.9 playtest): SafeZone_0 holding CanvasPanel_179.
+    local safe = Widget({ GetClass = function() return classed("SafeZone") end, GetChildAt = function() return canvas end })
+    local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = safe } })
+    local savedFAO = FindAllOf
+    FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
+    local function actorOf(w)
+        for a in pairs(wallsUp) do if a.t.Translation.X == w[1] and a.t.Translation.Y == w[2] then return a end end
+    end
+    local function pieceBetween(x, y)
+        for _, w in ipairs(WD.walls) do
+            local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+            if (a1 == x and a2 == y) or (a1 == y and a2 == x) then
+                local a = actorOf(w)
+                if a then return a end
+            end
+        end
+    end
+    local function close(c, d) return c and d and math.abs(c.R - d.R) < 1e-3 and math.abs(c.G - d.G) < 1e-3 and math.abs(c.B - d.B) < 1e-3 end
+    local function popupAfter(n)
+        for _ = 1, 450 do
+            if #hudKids > n then return hudKids[n + 1] end
+            run(1)
+        end
+    end
+    W.setSkin(nil); run(3)
+    -- An area beside the start still locked (the open-beyond test above opened the hint test's area), and a spot on
+    -- the start's side of one of its walls.
+    local area, at, piece
+    for _, w in ipairs(WD.walls) do
+        local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        local other = (x == WD.start and y) or (y == WD.start and x)
+        if other and W.AREA_COLOURS[other] and w[3] > 5000 and actorOf(w) then
+            local yaw = math.rad(w[4])
+            for _, side in ipairs({ 1, -1 }) do
+                local px, py = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
+                if WALLS.areaAt(px, py) == WD.start then area, at, piece = other, { X = px, Y = py, Z = 0 }, actorOf(w) end
+            end
+            if area then break end
+        end
+    end
+    local hintArea, hintAt = area, at
+    local want = hintArea and W.linearOf(W.AREA_COLOURS[hintArea])
+    expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes" and close(piece.Cube.mat.vectors.Color, want)
+           and logged("wall skin area: colours "), "by default a wall wears the paw holes in the colour of the area it keeps you out of")
+    -- The hint pop-up at that wall: centred, a little transparent, gone after 6 s.
+    pawnAt = hintAt
+    local box = popupAfter(#hudKids)
+    local over = box and box.child
+    expect(box and box.width == 380 and box.height == 84 and box.opacity == 0.8 and box.vis == 4
+           and box.canvasSlot.anchors.Minimum.X == 0.5 and box.canvasSlot.anchors.Minimum.Y == 0.5
+           and box.canvasSlot.alignment.X == 0.5 and box.canvasSlot.position.Y == 0,
+           "walking up to a wall shows the hint pop-up in the middle of the screen at 0.8 opacity")
+    expect(over and over.children[1].child.texture.path == "ap-hint-plate-short" and over.children[2].text == hintArea .. " is sealed"
+           and over.children[3].text == "Not enough points for a hint: 3 of 121" and over.children[4] and over.children[4].width == 9,
+           "on the not-enough-points plate, with its two lines and the bar: "
+           .. tostring(over and over.children[3] and over.children[3].text))
+    run(21)
+    expect(box and box.removed, "and goes away after 6 s")
+    -- Beyond the goal: the sealed walls (slate grey; the sealed pattern when its file is found) and the pop-up says so.
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = hintArea, "0"
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    local m = piece.Cube.mat
+    expect(m and (m.textures.MainTexture01.path == "ap-wall-pattern-sealed" or m.textures.MainTexture01.path == "ap-wall-pattern-a")
+           and close(m.vectors.Color, { R = 0.3231, G = 0.3663, B = 0.4564 }), "a wall to an area beyond the goal wears the sealed grey")
+    local sealedBox = popupAfter(#hudKids)
+    expect(sealedBox and sealedBox.child.children[2].text == hintArea .. " is beyond the goal"
+           and sealedBox.child.children[3].text == "Its walls stay up for good." and not sealedBox.child.children[4],
+           "its pop-up says it is beyond the goal, with no points bar")
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(close(piece.Cube.mat.vectors.Color, want), "and back to its area's colour when it is not")
+    -- A pass that opens one side of a piece still up turns it to the other side's colour.
+    local a1, a2, between
+    for _, w in ipairs(WD.walls) do
+        local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        if W.AREA_COLOURS[x] and W.AREA_COLOURS[y] and not open[x] and not open[y] and x ~= openedBeyond
+           and y ~= openedBeyond and actorOf(w) then
+            a1, a2, between = x, y, actorOf(w)
+            break
+        end
+    end
+    local colourOf = function(area) return W.linearOf(W.AREA_COLOURS[area]) end
+    local before = between and between.Cube.mat.vectors.Color
+    push("item", "9300", tostring(itemId["Area Pass: " .. tostring(a1)]), "1", "1", "1", "Area Pass: " .. tostring(a1), "Tester")
+    run(80)
+    expect(between and (close(before, colourOf(a1)) or close(before, colourOf(a2))) and close(between.Cube.mat.vectors.Color, colourOf(a2))
+           and not between.gone, "a piece between " .. tostring(a1) .. " and " .. tostring(a2) .. " turns to "
+           .. tostring(a2) .. "'s colour when " .. tostring(a1) .. " opens")
+    FindAllOf = savedFAO
+end)()
+; (function()  -- debuff icons with their timers at the top of the HUD (the user, 2026-11-05)
+    local hudKids = {}
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function canvas:AddChildToCanvas(w)
+        hudKids[#hudKids + 1] = w
+        w.RemoveFromParent = function(self) self.removed = true end
+        local slot = { SetAnchors = function(sl, v) sl.anchors = v end, SetAlignment = function(sl, v) sl.alignment = v end,
+                       SetPosition = function(sl, v) sl.position = v end, SetAutoSize = function() end, SetZOrder = function() end }
+        w.canvasSlot = slot
+        return slot
+    end
+    local safe = Widget({ GetClass = function() return classed("SafeZone") end, GetChildAt = function() return canvas end })
+    local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = safe } })
+    local savedFAO = FindAllOf
+    FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
+    local DB = require("debuffs")
+    expect(DB.clock(200, 0) == "1:00" and DB.clock(100, 0) == "0:30" and DB.clock(5, 10) == "0:00", "the timer reads m:ss")
+    require("traps").test("Slow Trap")                     -- the test tools route: it goes on the next update
+    local row
+    for _ = 1, 40 do
+        for _, k in ipairs(hudKids) do if not k.removed then row = k end end
+        if row then break end
+        run(1)
+    end
+    local over = row and row.child
+    local timer = over and over.children[#over.children].child          -- the timer is the last piece of a tile
+    expect(row and row.canvasSlot.anchors.Minimum.X == 0.5 and row.canvasSlot.anchors.Minimum.Y == 0
+           and row.canvasSlot.position.Y == 112 and row.vis == 4,
+           "a Slow Trap puts its icon at the top centre of the HUD, never taking a click")
+    -- (The harness's ImportFileAsTexture2D makes any file; in game a missing ap-debuff-slow.png gives a plain SLOW tile.)
+    local icon = over and over.children[1].child
+    expect(icon and icon.texture and icon.texture.path == "ap-debuff-slow" and icon.ownerW == nil and over.children[1].width == 44,
+           "the Art lane's ap-debuff-slow icon, 44 px")
+    local first = timer and timer.text
+    expect(first == "1:00" or first == "0:59", "with its time left under it: " .. tostring(first))
+    run(10)
+    expect(timer.text ~= first and #hudKids == 1, "the timer counts down without rebuilding the row: " .. tostring(timer.text))
+    local ended = false
+    for _ = 1, 220 do
+        run(1)
+        if logged("Slow Trap ended") and row.removed then ended = true; break end
+    end
+    expect(ended and #DB.active() == 0,
+           "and the icon goes when the Slow Trap ends")
+    FindAllOf = savedFAO
+end)()
+;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time
+    local CR = require("crates")
+    slotData.seed = "70200"                     -- a seed of its own (as newSeed in the goals tests)
+    push("status", "connected", "Other")
+    run(14)
+    local before = CR.count()
+    push("item", "0", tostring(itemId["Palworld Crate"]), "1", "1", "1", "Palworld Crate", "Friend")
+    run(20)
+    expect(CR.count() == before + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
+           "a Palworld Crate arrives as one of the five crates, and says which")
+    expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS), "the same seed and index roll the same crate")
+    local n = {}
+    for i = 1, 10000 do local k = CR.kindFor("seed", i, CR.DEFAULT_WEIGHTS); n[k] = (n[k] or 0) + 1 end
+    expect(math.abs(n.sphere - 3000) < 300 and math.abs(n.food - 2500) < 300 and math.abs(n.rare - 1200) < 200
+           and math.abs(n.jackpot - 300) < 120, string.format("over 10,000 the chances hold: %d %d %d %d %d",
+           n.sphere, n.food, n.common, n.rare, n.jackpot))
+    expect(CR.kindFor("x", 1, { sphere = 0, food = 0, common = 0, rare = 0, jackpot = 5 }) == "jackpot", "the slot's weights are used")
+    local ok = true
+    for _, kind in ipairs(CR.KINDS) do
+        for _, lv in ipairs({ 1, 20, 50 }) do
+            CR.list = { kind }
+            local k, out = CR.openNext(lv)
+            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then ok = false; print("  bad roll", kind, lv) end
+        end
+    end
+    expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
+end)()
+;(function()  -- the Palworld Crates window over the mailbox's chest window (v0.14.0-dev.5)
+    local CR, MB, CW = require("crates"), require("mailbox"), require("crate_window")
+    local kids = {}
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function canvas:AddChildToCanvas(w)
+        kids[#kids + 1] = w
+        w.RemoveFromParent = function(self) self.removed = true end
+        local slot = { SetAnchors = function(sl, v) sl.anchors = v end, SetAlignment = function(sl, v) sl.alignment = v end,
+                       SetPosition = function(sl, v) sl.position = v end, SetAutoSize = function() end, SetZOrder = function() end }
+        w.canvasSlot = slot
+        return slot
+    end
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedCW, savedList = MB.chestWidget, CR.list
+    MB.chestWidget = function() return chestWin end
+    CR.list = { "rare", "sphere", "rare", "jackpot" }
+    run(1)
+    local panel = kids[#kids]
+    local over = panel and panel.child
+    local function texts(o)
+        local t = {}
+        for _, c in ipairs(o and o.children or {}) do
+            if c.text then t[#t + 1] = c.text end
+            if c.child and c.child.text then t[#t + 1] = c.child.text end
+        end
+        return table.concat(t, "|")
+    end
+    local all = texts(over)
+    expect(panel and panel.width == 800 and panel.height == 500 and panel.canvasSlot.anchors.Minimum.X == 0.5
+           and logged("crate window: shown over the mailbox %(4 crate%(s%)%)"),
+           "with crates waiting, the mailbox shows the crate window, 800x500, centred")
+    expect(over and over.children[1].child and over.children[1].child.texture and over.children[1].child.texture.path == "ap-mailbox-window",
+           "on the Art lane's window plate")
+    expect(all:find("Sphere Crate|1 waiting", 1, true) and all:find("Rare Supply Crate|2 waiting", 1, true)
+           and all:find("Jackpot Supply Crate|1 waiting", 1, true) and not all:find("Food Crate", 1, true),
+           "one row per kind waiting, with its count: " .. all)
+    -- The rows' Open buttons: find the Rare row's and click it.
+    local clickHook
+    for k, f in pairs(hooks) do if k:find("WBP_CommonButton_C:BndEvt", 1, true) then clickHook = f end end
+    local rareOpen
+    for _, c in ipairs(over.children) do
+        local b = c.child
+        if b and b.Text_Main and b.Text_Main.text == "Open" and not rareOpen then
+            -- rows follow the kinds' order: sphere first, then rare
+        end
+    end
+    local opens = {}
+    for _, c in ipairs(over.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then opens[#opens + 1] = c.child end end
+    rareOpen = opens[2]
+    expect(#opens == 3 and clickHook, "each row has the game's button to open one: " .. #opens)
+    clickHook({ get = function() return rareOpen end })
+    expect(#CR.list == 4, "nothing opens inside the click's hook")
+    run(1)
+    run(1)
+    local n = 0
+    for _, k in ipairs(CR.list) do if k == "rare" then n = n + 1 end end
+    expect(#CR.list == 3 and n == 1 and logged("crate: opened a Rare Supply Crate"), "the row's Open opens one of its kind")
+    local panel2 = kids[#kids]
+    local all2 = texts(panel2 and panel2.child)
+    expect(panel ~= panel2 and panel.removed and all2:find("Last opened: Rare Supply Crate", 1, true),
+           "the window is rebuilt with the contents of the crate just opened: " .. all2)
+    -- Close: the small button brings it back.
+    local closeBtn
+    for _, c in ipairs(panel2.child.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "X" then closeBtn = c.child end end
+    clickHook({ get = function() return closeBtn end })
+    run(2)
+    local toggle = kids[#kids]
+    expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
+           "Close leaves the chest with an Open Palworld Crates (3) button")
+    expect(not toggle.slot or not toggle.slot.anchors or (toggle.slot.anchors.Minimum.X == 0.5 and toggle.slot.anchors.Minimum.Y == 0),
+           "at the top centre, where the player sees it (not the screen's corner)")
+    clickHook({ get = function() return toggle.child end })
+    run(2)
+    expect(toggle.removed and kids[#kids].width == 800, "which brings the window back")
+    MB.chestWidget, CR.list = savedCW, savedList
+    run(1)
+    expect(kids[#kids].removed, "and it all goes with the chest window")
+end)()
+print("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning")
+;(function()
+    local MB = require("mailbox")
+    local ws = { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 }
+    local optionSub = { OptionWorldSettings = ws, sets = 0 }
+    function optionSub:IsValid() return true end
+    function optionSub:SetOptionWorldSettings() self.sets = self.sets + 1; error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer") end
+    util.GetOptionSubsystem = function() return optionSub end
+    local pawnWas = playerController.K2_GetPawn
+    playerController.K2_GetPawn = function() return pawn end      -- the bag is reached through the pawn
+    local function mailHas(id) local n = 0; for _, e in ipairs(MB.queue) do if e.id == id then n = n + e.n end end; return n end
+    local function warned(pattern) for _, t in ipairs(announced) do if t:find(pattern) then return true end end end
+    local function newSeed(seed, extra)          -- as "the other goals" does (its helper is local to that part)
+        slotData.seed = seed
+        for k, v in pairs(extra) do slotData[k] = v end
+        push("status", "connected", "Other")
+        run(14)
+    end
+    -- The defaults (Standard, no Speed Boost): the world's settings are never touched, and a tech is a recipe only.
+    newSeed("70012", { ["options.run_style"] = "0", ["options.speed_boost"] = "0" })
+    local bows = bagHas.WeakerBow or 0
+    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
+    run(40)
+    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1 and (bagHas.WeakerBow or 0) == bows and not logged("nomad:")
+           and not warned("Speed Boost"), "defaults: world settings untouched, no warning, no bow handed over")
+    -- Speed Boost: the world's own values times the multipliers, the base kept in the save, never compounding, and
+    -- the player told in game what changed and the values to set back.
+    newSeed("70010", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3", ["options.boost_work_speed"] = "3",
+                       ["options.boost_gather_rate"] = "2" })
+    run(40)
+    expect(ws.ExpRate == 3 and ws.WorkSpeedRate == 3 and ws.CollectionDropRate == 2
+           and logged("sync: Speed Boost: ExpRate 1 %-> 3 %(the world's own 1 x3%); reads back 3"),
+           "Speed Boost: EXP x3, work speed x3, gathering x2, logged with what reads back")
+    expect(warned("Speed Boost changed your World Settings: EXP Rate 3, Work Speed Multiplier 3, Gatherable Items "
+                  .. "Multiplier 2 %(your world's own: 1, 1, 1%)%. Your world keeps these in its save; set them back"),
+           "the player is warned in game, with the values to set back")
+    expect(io.open(MOD .. "/save-70010-Other.txt"):read("*a"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
+           "the world's own values are in the save")
+    local warnings = #announced
+    run(40)
+    expect(ws.ExpRate == 3 and optionSub.sets == 0 and #announced == warnings,
+           "set again, it stays x3 (not x9), the setter wasn't needed, and the warning isn't repeated")
+    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
+    run(14)
+    expect((bagHas.WeakerBow or 0) == bows, "Standard with Speed Boost: a tech is still a recipe only")
+    -- A struct that comes back as a copy (writes don't stick): reported once for that world; the game's setter is never
+    -- called from Lua (its struct is bigger than UE4SS Lua's 0x200-byte call buffer: in game that is a crash, not an error).
+    local copySub = { sets = 0 }
+    function copySub:IsValid() return true end
+    setmetatable(copySub, { __index = function(_, k) if k == "OptionWorldSettings" then return { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 } end end })
+    function copySub:SetOptionWorldSettings() self.sets = self.sets + 1; error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer") end
+    util.GetOptionSubsystem = function() return copySub end
+    run(40)
+    expect(copySub.sets == 0 and logged("didn't change in place; not calling SetOptionWorldSettings from Lua"),
+           "a copy that won't take: reported, and SetOptionWorldSettings never called from Lua")
+    util.GetOptionSubsystem = function() return optionSub end
+    -- Nomad without Speed Boost: gear into the bag, a stack into the mailbox, the recipe as always; speeds untouched.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    newSeed("70011", { ["options.run_style"] = "1", ["options.speed_boost"] = "0" })
+    local spheres = mailHas("PalSphere")
+    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
+    push("item", "1", tostring(itemId["Tech: Pal Sphere"]), "6", "2", "1", "Tech: Pal Sphere", "Friend")
+    run(40)
+    expect((bagHas.WeakerBow or 0) == bows + 1 and logged("nomad: Tech: Old Bow brought"), "Nomad: the Old Bow itself, in the bag")
+    expect(mailHas("PalSphere") == spheres + 10, "Nomad: 10 Pal Spheres in the mailbox")
+    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1, "Nomad alone leaves the world's settings alone")
+    run(40)
+    expect((bagHas.WeakerBow or 0) == bows + 1 and mailHas("PalSphere") == spheres + 10, "handed over once, not every update")
+    -- The Nomad Sync preset (Nomad and Speed Boost) in a world already sped up from before: a reminder, not a change.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 5, 3, 2
+    newSeed("70013", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "5" })
+    run(40)
+    expect(ws.ExpRate == 25 and warned("Speed Boost changed your World Settings: EXP Rate 25"),
+           "a world already sped up by hand is taken as its own (5 x5), and the warning says so")
+    -- dev.17 test (2026-11-07): the warning came 2 s after the world loaded, behind the loading screen. Now the speeds
+    -- change at once but the warning waits until the character has moved 3 m (or a minute has passed).
+    local addrWas, atWas = pawnAddress, pawnAt
+    pawnAddress, pawnAt = 16400, { X = atWas.X, Y = atWas.Y, Z = atWas.Z }   -- the world loaded again (a new pawn), where it stood
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    local before = #announced
+    local function newWarning()
+        for i = before + 1, #announced do
+            if announced[i]:find("Speed Boost changed your World Settings: EXP Rate 3,", 1, true) then return true end
+        end
+    end
+    newSeed("70014", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
+    run(40)
+    expect(ws.ExpRate == 3 and not newWarning(), "a world just loaded: the speeds change at once, the warning waits")
+    pawnAt = { X = atWas.X + 500, Y = atWas.Y, Z = atWas.Z }
+    run(14)
+    expect(newWarning() and logged("held notice%(s%) shown %(the player moved%)"), "and is shown once the player moves")
+    pawnAddress, pawnAt = addrWas, atWas
+    slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
+    playerController.K2_GetPawn = pawnWas
+end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

@@ -1,0 +1,4035 @@
+{
+ "alphas": [
+  {
+   "area": "Frozen Coral Hill",
+   "character": "BOSS_Horus_Water",
+   "level": 66,
+   "row": 0
+  },
+  {
+   "area": "Loess Plains",
+   "character": "BOSS_GrimGirl",
+   "level": 65,
+   "row": 1
+  },
+  {
+   "area": "Scorched Hill",
+   "character": "BOSS_HerculesBeetle_Ground",
+   "level": 64,
+   "row": 2
+  },
+  {
+   "area": "Loess Plains",
+   "character": "BOSS_GoldenHorse",
+   "level": 63,
+   "row": 3
+  },
+  {
+   "area": "Scorched Ashland",
+   "character": "BOSS_MysteryMask",
+   "level": 60,
+   "row": 4
+  },
+  {
+   "area": "Deserted Ash Plateau",
+   "character": "BOSS_WhiteTiger_Ground",
+   "level": 62,
+   "row": 5
+  },
+  {
+   "area": "Loess Plains",
+   "character": "BOSS_NightBlueHorse",
+   "level": 63,
+   "row": 6
+  },
+  {
+   "area": "Scorched Hill",
+   "character": "BOSS_RaijinDaughter_Water",
+   "level": 60,
+   "row": 7
+  },
+  {
+   "area": "Emberstone Plateau",
+   "character": "BOSS_AmaterasuWolf_Dark",
+   "level": 65,
+   "row": 8
+  },
+  {
+   "area": "Frozen Coral Hill",
+   "character": "BOSS_BlueThunderHorse",
+   "level": 66,
+   "row": 9
+  },
+  {
+   "area": "Crystalized Ancient Tree",
+   "character": "BOSS_WhiteDeer",
+   "level": 65,
+   "row": 10
+  },
+  {
+   "area": "Scorched Hill",
+   "character": "BOSS_BadCatgirl",
+   "level": 60,
+   "row": 11
+  },
+  {
+   "area": "Scorched Hill",
+   "character": "BOSS_WhiteShieldDragon",
+   "level": 62,
+   "row": 12
+  },
+  {
+   "area": "Scorched Hill",
+   "character": "BOSS_FengyunDeeper_Electric",
+   "level": 60,
+   "row": 13
+  },
+  {
+   "area": "Frozen Coral Hill",
+   "character": "BOSS_Werewolf_Ice",
+   "level": 66,
+   "row": 14
+  },
+  {
+   "area": "Foot of the World Tree",
+   "character": "BOSS_GrassGolem",
+   "level": 75,
+   "row": 15
+  },
+  {
+   "area": "Foot of the World Tree",
+   "character": "BOSS_WhiteDeer_Dark",
+   "level": 79,
+   "row": 16
+  },
+  {
+   "area": "Foot of the World Tree",
+   "character": "BOSS_IceNarwhal_Fire",
+   "level": 74,
+   "row": 17
+  },
+  {
+   "area": "Foot of the World Tree",
+   "character": "BOSS_MushroomLady",
+   "level": 78,
+   "row": 18
+  },
+  {
+   "area": "Foot of the World Tree",
+   "character": "BOSS_VolcanoDragon_Ice",
+   "level": 78,
+   "row": 19
+  },
+  {
+   "area": "Foot of the World Tree",
+   "character": "BOSS_KabukiMan",
+   "level": 78,
+   "row": 20
+  },
+  {
+   "area": "Foot of the World Tree",
+   "character": "BOSS_DomeArmorDragon",
+   "level": 79,
+   "row": 21
+  },
+  {
+   "area": "Verdant Stream",
+   "character": "BOSS_FlowerDinosaur_Electric",
+   "level": 47,
+   "row": 22
+  },
+  {
+   "area": "Desiccated Dunes",
+   "character": "BOSS_Suzaku",
+   "level": 45,
+   "row": 23
+  },
+  {
+   "area": "Desiccated Dunes",
+   "character": "BOSS_DarkScorpion",
+   "level": 44,
+   "row": 24
+  },
+  {
+   "area": "Desiccated Dunes",
+   "character": "BOSS_CubeTurtle",
+   "level": 55,
+   "row": 25
+  },
+  {
+   "area": "Desiccated Dunes",
+   "character": "BOSS_SaintCentaur",
+   "level": 60,
+   "row": 26
+  },
+  {
+   "area": "Bicornis Islet",
+   "character": "BOSS_VolcanoDragon",
+   "level": 70,
+   "row": 27
+  },
+  {
+   "area": "Flamepulse Islet",
+   "character": "BOSS_RockBeast",
+   "level": 50,
+   "row": 28
+  },
+  {
+   "area": "Scouring Islet",
+   "character": "BOSS_CactusDoll",
+   "level": 40,
+   "row": 29
+  },
+  {
+   "area": "Sandstone Gate Islet",
+   "character": "BOSS_ScorpionMan_Electric",
+   "level": 70,
+   "row": 30
+  },
+  {
+   "area": "Glacial Memento Islet",
+   "character": "BOSS_GrassGolem_Dark",
+   "level": 70,
+   "row": 31
+  },
+  {
+   "area": "Islet of Circular Ruins",
+   "character": "BOSS_GrassGolem",
+   "level": 55,
+   "row": 32
+  },
+  {
+   "area": "Astral Mountains",
+   "character": "BOSS_KingAlpaca_Ice",
+   "level": 46,
+   "row": 33
+  },
+  {
+   "area": "Open sea",
+   "character": "BOSS_IceNarwhal",
+   "level": 55,
+   "row": 34
+  },
+  {
+   "area": "Astral Mountains",
+   "character": "BOSS_IceHorse",
+   "level": 60,
+   "row": 35
+  },
+  {
+   "area": "Sakurajima - Northern Rock Field",
+   "character": "BOSS_LilyQueen",
+   "level": 58,
+   "row": 36
+  },
+  {
+   "area": "Sakurajima - Northern Rock Field",
+   "character": "BOSS_DarkScorpion_Ground",
+   "level": 55,
+   "row": 37
+  },
+  {
+   "area": "Sakurajima - Northern Rock Field",
+   "character": "BOSS_LilyQueen_Dark",
+   "level": 58,
+   "row": 38
+  },
+  {
+   "area": "Enchanted Firmament",
+   "character": "BOSS_FoxExorcist",
+   "level": 68,
+   "row": 39
+  },
+  {
+   "area": "Waterlily Gorge",
+   "character": "BOSS_GhostDragon",
+   "level": 69,
+   "row": 40
+  },
+  {
+   "area": "The Azure Tapestry",
+   "character": "BOSS_JetDragon",
+   "level": 70,
+   "row": 41
+  },
+  {
+   "area": "Enchanted Firmament",
+   "character": "BOSS_ThunderFluffyBird",
+   "level": 67,
+   "row": 42
+  },
+  {
+   "area": "Farcry Marsh",
+   "character": "BOSS_ElecLizard",
+   "level": 66,
+   "row": 43
+  },
+  {
+   "area": "Waterlily Gorge",
+   "character": "BOSS_LotusDragon",
+   "level": 69,
+   "row": 44
+  },
+  {
+   "area": "Crystalline Archipelago",
+   "character": "BOSS_ElecSnail",
+   "level": 65,
+   "row": 45
+  },
+  {
+   "area": "Twilight Dunes",
+   "character": "BOSS_Anubis",
+   "level": 55,
+   "row": 46
+  },
+  {
+   "area": "Windswept Island",
+   "character": "BOSS_GrassMammoth",
+   "level": 38,
+   "row": 47
+  },
+  {
+   "area": "Windswept Island",
+   "character": "BOSS_WeaselDragon",
+   "level": 11,
+   "row": 48
+  },
+  {
+   "area": "Bamboo Groves",
+   "character": "BOSS_FengyunDeeper",
+   "level": 25,
+   "row": 49
+  },
+  {
+   "area": "Sea Breeze Archipelago",
+   "character": "BOSS_Kirin",
+   "level": 31,
+   "row": 50
+  },
+  {
+   "area": "Verdant Stream",
+   "character": "BOSS_ThunderBird",
+   "level": 37,
+   "row": 51
+  },
+  {
+   "area": "Deep Bamboo Thicket",
+   "character": "BOSS_BlueDragon",
+   "level": 40,
+   "row": 52
+  },
+  {
+   "area": "Marsh Island",
+   "character": "BOSS_NaughtyCat",
+   "level": 17,
+   "row": 53
+  },
+  {
+   "area": "Windswept Island",
+   "character": "BOSS_KingAlpaca",
+   "level": 23,
+   "row": 54
+  },
+  {
+   "area": "Sea Breeze Archipelago",
+   "character": "BOSS_SakuraSaurus",
+   "level": 23,
+   "row": 55
+  },
+  {
+   "area": "Scars of War",
+   "character": "BOSS_Umihebi",
+   "level": 55,
+   "row": 56
+  },
+  {
+   "area": "Crescent Moon Shore",
+   "character": "BOSS_FairyDragon",
+   "level": 30,
+   "row": 57
+  },
+  {
+   "area": "Isle of Murmurs",
+   "character": "Boss_LazyCatFish",
+   "level": 14,
+   "row": 58
+  },
+  {
+   "area": "Isle of Murmurs",
+   "character": "BOSS_HawkBird",
+   "level": 18,
+   "row": 59
+  },
+  {
+   "area": "Deep Bamboo Thicket",
+   "character": "BOSS_PurpleSpider",
+   "level": 35,
+   "row": 60
+  },
+  {
+   "area": "Sea Breeze Archipelago",
+   "character": "BOSS_PlantSlime",
+   "level": 11,
+   "row": 61
+  },
+  {
+   "area": "Sea Breeze Archipelago",
+   "character": "BOSS_MopKing",
+   "level": 11,
+   "row": 62
+  },
+  {
+   "area": "Eastern Wild Island",
+   "character": "BOSS_GrassPanda_Electric",
+   "level": 31,
+   "row": 63
+  },
+  {
+   "area": "Eastern Wild Island",
+   "character": "BOSS_Yeti_Grass",
+   "level": 38,
+   "row": 64
+  },
+  {
+   "area": "Verdant Stream",
+   "character": "BOSS_QueenBee",
+   "level": 39,
+   "row": 65
+  },
+  {
+   "area": "Ruined Fortress City",
+   "character": "BOSS_WingGolem",
+   "level": 55,
+   "row": 66
+  },
+  {
+   "area": "Mount Obsidian",
+   "character": "BOSS_VolcanicMonster",
+   "level": 50,
+   "row": 67
+  },
+  {
+   "area": "Mount Obsidian",
+   "character": "BOSS_KingBahamut",
+   "level": 52,
+   "row": 68
+  },
+  {
+   "area": "No. 2 Wildlife Sanctuary",
+   "character": "BOSS_BlackMetalDragon",
+   "level": 55,
+   "row": 69
+  },
+  {
+   "area": "No. 1 Wildlife Sanctuary",
+   "character": "BOSS_ElecPanda",
+   "level": 30,
+   "row": 70
+  },
+  {
+   "area": "No. 3 Wildlife Sanctuary",
+   "character": "BOSS_IceHorse_Dark",
+   "level": 65,
+   "row": 71
+  },
+  {
+   "area": "Isle of the Glacial Core",
+   "character": "BOSS_PoseidonOrca",
+   "level": 60,
+   "row": 105
+  },
+  {
+   "area": "Verdant Stream",
+   "character": "BOSS_GrassRabbitMan",
+   "level": 35,
+   "row": 106
+  },
+  {
+   "area": "Autumn Rocks",
+   "character": "BOSS_CaptainPenguin",
+   "level": 15,
+   "row": 107
+  },
+  {
+   "area": "Sea Breeze Archipelago",
+   "character": "BOSS_BerryGoat_Dark",
+   "level": 23,
+   "row": 108
+  },
+  {
+   "area": "Scorched Hill",
+   "character": "BOSS_GhostRabbit",
+   "level": 60,
+   "row": 109
+  },
+  {
+   "area": "Loess Plains",
+   "character": "BOSS_BlackPuppy",
+   "level": 60,
+   "row": 110
+  },
+  {
+   "area": "Gobfin's Turf",
+   "character": "BOSS_FoxMage",
+   "level": 28,
+   "row": 111
+  },
+  {
+   "area": "Marsh Island",
+   "character": "Boss_IceFox",
+   "level": 15,
+   "row": 112
+  },
+  {
+   "area": "Verdant Stream",
+   "character": "BOSS_Mutant",
+   "level": 35,
+   "row": 113
+  },
+  {
+   "area": "Frostbound Mountains",
+   "character": "BOSS_WhiteMoth",
+   "level": 40,
+   "row": 114
+  },
+  {
+   "area": "Ancient Ritual Site",
+   "character": "BOSS_VioletFairy",
+   "level": 27,
+   "row": 115
+  },
+  {
+   "area": "Azure Woodland",
+   "character": "BOSS_MoonChild",
+   "level": 66,
+   "row": 116
+  },
+  {
+   "area": "Bamboo Groves",
+   "character": "BOSS_Ronin",
+   "level": 25,
+   "row": 117
+  },
+  {
+   "area": "The Oculus Gate, Tower in Sight",
+   "character": "BOSS_CubeTurtle_Neutral",
+   "level": 60,
+   "row": 118
+  },
+  {
+   "area": "Deep Bamboo Thicket",
+   "character": "BOSS_Manticore",
+   "level": 30,
+   "row": 119
+  },
+  {
+   "area": "Bamboo Groves",
+   "character": "BOSS_FlameBuffalo",
+   "level": 15,
+   "row": 120
+  },
+  {
+   "area": "Deserted Ash Plateau",
+   "character": "BOSS_BlueberryFairy",
+   "level": 63,
+   "row": 121
+  },
+  {
+   "area": "Isle of Silence",
+   "character": "BOSS_Kitsunebi_Ice",
+   "level": 15,
+   "row": 122
+  }
+ ],
+ "areas": {
+  "Abandoned Ruins": {
+   "alphas": [],
+   "effigies": 6,
+   "fast_travel": 0,
+   "levels": 39.333333333333336,
+   "spawners": 45
+  },
+  "Ancient Ritual Site": {
+   "alphas": [
+    27
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 23.0,
+   "spawners": 26
+  },
+  "Astral Mountains": {
+   "alphas": [
+    46,
+    60
+   ],
+   "effigies": 34,
+   "fast_travel": 8,
+   "levels": 40.5,
+   "spawners": 314
+  },
+  "Autumn Rocks": {
+   "alphas": [
+    15
+   ],
+   "effigies": 1,
+   "fast_travel": 3,
+   "levels": 11.2,
+   "spawners": 61
+  },
+  "Azure Woodland": {
+   "alphas": [
+    66
+   ],
+   "effigies": 3,
+   "fast_travel": 0,
+   "levels": 65.5,
+   "spawners": 37
+  },
+  "Bamboo Groves": {
+   "alphas": [
+    15,
+    25,
+    25
+   ],
+   "effigies": 11,
+   "fast_travel": 7,
+   "levels": 15.15,
+   "spawners": 243
+  },
+  "Bicornis Islet": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 66.5,
+   "spawners": 37
+  },
+  "Crescent Moon Shore": {
+   "alphas": [
+    30
+   ],
+   "effigies": 17,
+   "fast_travel": 6,
+   "levels": 23.0,
+   "spawners": 300
+  },
+  "Crescent Moon Shore (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Crystalized Ancient Tree": {
+   "alphas": [
+    65
+   ],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 62.285714285714285,
+   "spawners": 23
+  },
+  "Crystalline Archipelago": {
+   "alphas": [
+    65
+   ],
+   "effigies": 11,
+   "fast_travel": 1,
+   "levels": 66.125,
+   "spawners": 72
+  },
+  "Dancing Sakura Shrine": {
+   "alphas": [],
+   "effigies": 13,
+   "fast_travel": 1,
+   "levels": 54.25,
+   "spawners": 98
+  },
+  "Deep Bamboo Thicket": {
+   "alphas": [
+    30,
+    35,
+    40
+   ],
+   "effigies": 9,
+   "fast_travel": 5,
+   "levels": 14.0,
+   "spawners": 322
+  },
+  "Deserted Ash Plateau": {
+   "alphas": [
+    62,
+    63
+   ],
+   "effigies": 3,
+   "fast_travel": 3,
+   "levels": 62.166666666666664,
+   "spawners": 197
+  },
+  "Desiccated Dunes": {
+   "alphas": [
+    44,
+    45,
+    55,
+    60
+   ],
+   "effigies": 40,
+   "fast_travel": 13,
+   "levels": 35.60526315789474,
+   "spawners": 702
+  },
+  "Dry Sandy Beach": {
+   "alphas": [],
+   "effigies": 13,
+   "fast_travel": 5,
+   "levels": 30.0,
+   "spawners": 143
+  },
+  "Duneshelter": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 35.60526315789474,
+   "spawners": 8
+  },
+  "Eastern Wild Island": {
+   "alphas": [
+    31,
+    38
+   ],
+   "effigies": 0,
+   "fast_travel": 2,
+   "levels": 11.3125,
+   "spawners": 134
+  },
+  "Emberstone Plateau": {
+   "alphas": [
+    65
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 62.4,
+   "spawners": 47
+  },
+  "Enchanted Firmament": {
+   "alphas": [
+    67,
+    68
+   ],
+   "effigies": 10,
+   "fast_travel": 2,
+   "levels": 66.41666666666667,
+   "spawners": 69
+  },
+  "Farcry Marsh": {
+   "alphas": [
+    66
+   ],
+   "effigies": 3,
+   "fast_travel": 1,
+   "levels": 65.5,
+   "spawners": 40
+  },
+  "Feybreak Shipwreck": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Feybreak Tower": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Fisherman's Point": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 25.75,
+   "spawners": 1
+  },
+  "Flamepulse Islet": {
+   "alphas": [
+    50
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 44.666666666666664,
+   "spawners": 17
+  },
+  "Flying Fish Coast": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 12.0,
+   "spawners": 22
+  },
+  "Foot of the Astral Mountains": {
+   "alphas": [],
+   "effigies": 8,
+   "fast_travel": 4,
+   "levels": 36.75,
+   "spawners": 98
+  },
+  "Foot of the Volcano": {
+   "alphas": [],
+   "effigies": 8,
+   "fast_travel": 3,
+   "levels": 26.071428571428573,
+   "spawners": 96
+  },
+  "Foot of the World Tree": {
+   "alphas": [
+    74,
+    75,
+    78,
+    78,
+    78,
+    79,
+    79
+   ],
+   "effigies": 47,
+   "fast_travel": 18,
+   "levels": 76.57142857142857,
+   "spawners": 418
+  },
+  "Fortress Ruins": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 8.833333333333334,
+   "spawners": 21
+  },
+  "Frostbitten Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 16.7,
+   "spawners": 8
+  },
+  "Frostbound Mountains": {
+   "alphas": [
+    40
+   ],
+   "effigies": 7,
+   "fast_travel": 2,
+   "levels": 33.666666666666664,
+   "spawners": 50
+  },
+  "Frozen Coral Hill": {
+   "alphas": [
+    66,
+    66,
+    66
+   ],
+   "effigies": 12,
+   "fast_travel": 6,
+   "levels": 64.9,
+   "spawners": 249
+  },
+  "Glacial Memento Islet": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 63.0,
+   "spawners": 9
+  },
+  "Gobfin's Turf": {
+   "alphas": [
+    28
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 23.0,
+   "spawners": 54
+  },
+  "Gobfin's Turf (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 24.625,
+   "spawners": 1
+  },
+  "Golden Hills": {
+   "alphas": [],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 11.5,
+   "spawners": 68
+  },
+  "Hidden Passage to the Oculus Gate": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 64.05,
+   "spawners": 2
+  },
+  "Isle of Decayed Treasures": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 15.0,
+   "spawners": 11
+  },
+  "Isle of Eternal Summer": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 35.0,
+   "spawners": 7
+  },
+  "Isle of Murmurs": {
+   "alphas": [
+    14,
+    18
+   ],
+   "effigies": 0,
+   "fast_travel": 2,
+   "levels": 10.357142857142858,
+   "spawners": 145
+  },
+  "Isle of Silence": {
+   "alphas": [
+    15
+   ],
+   "effigies": 1,
+   "fast_travel": 3,
+   "levels": 10.357142857142858,
+   "spawners": 143
+  },
+  "Isle of the Glacial Core": {
+   "alphas": [
+    60
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 55.0,
+   "spawners": 8
+  },
+  "Islet of Circular Ruins": {
+   "alphas": [
+    55
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 52.0,
+   "spawners": 14
+  },
+  "Loess Plains": {
+   "alphas": [
+    60,
+    63,
+    63,
+    65
+   ],
+   "effigies": 2,
+   "fast_travel": 3,
+   "levels": 53.5,
+   "spawners": 165
+  },
+  "Marsh Island": {
+   "alphas": [
+    15,
+    17
+   ],
+   "effigies": 3,
+   "fast_travel": 5,
+   "levels": 11.833333333333334,
+   "spawners": 185
+  },
+  "Mount Obsidian": {
+   "alphas": [
+    50,
+    52
+   ],
+   "effigies": 16,
+   "fast_travel": 5,
+   "levels": 37.714285714285715,
+   "spawners": 235
+  },
+  "No. 1 Wildlife Sanctuary": {
+   "alphas": [
+    30
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 22.916666666666668,
+   "spawners": 12
+  },
+  "No. 2 Wildlife Sanctuary": {
+   "alphas": [
+    55
+   ],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 39.333333333333336,
+   "spawners": 13
+  },
+  "No. 3 Wildlife Sanctuary": {
+   "alphas": [
+    65
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 51.083333333333336,
+   "spawners": 11
+  },
+  "Oasis Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 45.0,
+   "spawners": 7
+  },
+  "Open sea": {
+   "alphas": [
+    55
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": null,
+   "spawners": 0
+  },
+  "Phantom Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 35.0,
+   "spawners": 10
+  },
+  "Rayne Syndicate Test Drilling Rig": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 24.625,
+   "spawners": 9
+  },
+  "Ruined Fortress City": {
+   "alphas": [
+    55
+   ],
+   "effigies": 6,
+   "fast_travel": 1,
+   "levels": 34.5,
+   "spawners": 18
+  },
+  "Sakurajima - Mushroom Wetlands": {
+   "alphas": [],
+   "effigies": 19,
+   "fast_travel": 3,
+   "levels": 47.875,
+   "spawners": 87
+  },
+  "Sakurajima - Northern Rock Field": {
+   "alphas": [
+    55,
+    58,
+    58
+   ],
+   "effigies": 5,
+   "fast_travel": 2,
+   "levels": 47.611111111111114,
+   "spawners": 111
+  },
+  "Sakurajima - Southern Sandbar": {
+   "alphas": [],
+   "effigies": 9,
+   "fast_travel": 2,
+   "levels": 47.5,
+   "spawners": 89
+  },
+  "Sandstone Gate Islet": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 67.375,
+   "spawners": 36
+  },
+  "Scars of War": {
+   "alphas": [
+    55
+   ],
+   "effigies": 3,
+   "fast_travel": 2,
+   "levels": 19.333333333333332,
+   "spawners": 13
+  },
+  "Scorched Ashland": {
+   "alphas": [
+    60
+   ],
+   "effigies": 2,
+   "fast_travel": 2,
+   "levels": 57.611111111111114,
+   "spawners": 151
+  },
+  "Scorched Hill": {
+   "alphas": [
+    60,
+    60,
+    60,
+    60,
+    62,
+    64
+   ],
+   "effigies": 15,
+   "fast_travel": 9,
+   "levels": 62.4,
+   "spawners": 637
+  },
+  "Scouring Islet": {
+   "alphas": [
+    40
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 35.75,
+   "spawners": 14
+  },
+  "Sea Breeze Archipelago": {
+   "alphas": [
+    11,
+    11,
+    23,
+    23,
+    31
+   ],
+   "effigies": 1,
+   "fast_travel": 5,
+   "levels": 11.625,
+   "spawners": 324
+  },
+  "Small Settlement": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Stone Pillar Cave": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 64.05,
+   "spawners": 15
+  },
+  "Stone Pillar Cave (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 57.2,
+   "spawners": 11
+  },
+  "Stone Pillar Cave (3)": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 57.2,
+   "spawners": 4
+  },
+  "Stone Pillar Cave (4)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 57.2,
+   "spawners": 1
+  },
+  "Suncrest Islet": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 57.5,
+   "spawners": 27
+  },
+  "Sunlit Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 5.5,
+   "spawners": 6
+  },
+  "The Azure Tapestry": {
+   "alphas": [
+    70
+   ],
+   "effigies": 10,
+   "fast_travel": 2,
+   "levels": 67.21428571428571,
+   "spawners": 68
+  },
+  "The Oculus Gate, Tower in Sight": {
+   "alphas": [
+    60
+   ],
+   "effigies": 3,
+   "fast_travel": 1,
+   "levels": 64.75,
+   "spawners": 51
+  },
+  "Twilight Dunes": {
+   "alphas": [
+    55
+   ],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 33.75,
+   "spawners": 99
+  },
+  "Verdant Stream": {
+   "alphas": [
+    35,
+    35,
+    37,
+    39,
+    47
+   ],
+   "effigies": 13,
+   "fast_travel": 6,
+   "levels": 33.642857142857146,
+   "spawners": 229
+  },
+  "Waterlily Gorge": {
+   "alphas": [
+    69,
+    69
+   ],
+   "effigies": 9,
+   "fast_travel": 1,
+   "levels": 66.41666666666667,
+   "spawners": 50
+  },
+  "Windswept Island": {
+   "alphas": [
+    11,
+    23,
+    38
+   ],
+   "effigies": 11,
+   "fast_travel": 3,
+   "levels": 8.833333333333334,
+   "spawners": 189
+  },
+  "Windswept Island (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 11.3125,
+   "spawners": 3
+  },
+  "Withered Seaside": {
+   "alphas": [],
+   "effigies": 4,
+   "fast_travel": 1,
+   "levels": 57.611111111111114,
+   "spawners": 93
+  }
+ },
+ "borders": [
+  [
+   "Abandoned Ruins",
+   "Astral Mountains"
+  ],
+  [
+   "Abandoned Ruins",
+   "Crescent Moon Shore (2)"
+  ],
+  [
+   "Abandoned Ruins",
+   "Foot of the Astral Mountains"
+  ],
+  [
+   "Abandoned Ruins",
+   "Isle of Murmurs"
+  ],
+  [
+   "Ancient Ritual Site",
+   "Crescent Moon Shore"
+  ],
+  [
+   "Astral Mountains",
+   "Desiccated Dunes"
+  ],
+  [
+   "Astral Mountains",
+   "Foot of the Astral Mountains"
+  ],
+  [
+   "Astral Mountains",
+   "Frostbound Mountains"
+  ],
+  [
+   "Astral Mountains",
+   "Isle of Murmurs"
+  ],
+  [
+   "Astral Mountains",
+   "Open sea"
+  ],
+  [
+   "Astral Mountains",
+   "Sakurajima - Mushroom Wetlands"
+  ],
+  [
+   "Astral Mountains",
+   "Sakurajima - Northern Rock Field"
+  ],
+  [
+   "Astral Mountains",
+   "Verdant Stream"
+  ],
+  [
+   "Autumn Rocks",
+   "Bamboo Groves"
+  ],
+  [
+   "Autumn Rocks",
+   "Crescent Moon Shore"
+  ],
+  [
+   "Autumn Rocks",
+   "Fortress Ruins"
+  ],
+  [
+   "Autumn Rocks",
+   "Gobfin's Turf"
+  ],
+  [
+   "Autumn Rocks",
+   "Rayne Syndicate Test Drilling Rig"
+  ],
+  [
+   "Autumn Rocks",
+   "Windswept Island"
+  ],
+  [
+   "Azure Woodland",
+   "Enchanted Firmament"
+  ],
+  [
+   "Azure Woodland",
+   "Farcry Marsh"
+  ],
+  [
+   "Azure Woodland",
+   "Open sea"
+  ],
+  [
+   "Bamboo Groves",
+   "Crescent Moon Shore"
+  ],
+  [
+   "Bamboo Groves",
+   "Deep Bamboo Thicket"
+  ],
+  [
+   "Bamboo Groves",
+   "Foot of the Volcano"
+  ],
+  [
+   "Bamboo Groves",
+   "Golden Hills"
+  ],
+  [
+   "Bamboo Groves",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Bamboo Groves",
+   "Windswept Island"
+  ],
+  [
+   "Bicornis Islet",
+   "Open sea"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Deep Bamboo Thicket"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Foot of the Astral Mountains"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Gobfin's Turf"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Twilight Dunes"
+  ],
+  [
+   "Crescent Moon Shore",
+   "Verdant Stream"
+  ],
+  [
+   "Crescent Moon Shore (2)",
+   "Foot of the Astral Mountains"
+  ],
+  [
+   "Crescent Moon Shore (2)",
+   "Isle of Murmurs"
+  ],
+  [
+   "Crescent Moon Shore (2)",
+   "Twilight Dunes"
+  ],
+  [
+   "Crystalized Ancient Tree",
+   "Loess Plains"
+  ],
+  [
+   "Crystalized Ancient Tree",
+   "Scorched Hill"
+  ],
+  [
+   "Crystalline Archipelago",
+   "Enchanted Firmament"
+  ],
+  [
+   "Crystalline Archipelago",
+   "Farcry Marsh"
+  ],
+  [
+   "Crystalline Archipelago",
+   "Open sea"
+  ],
+  [
+   "Crystalline Archipelago",
+   "The Azure Tapestry"
+  ],
+  [
+   "Crystalline Archipelago",
+   "Waterlily Gorge"
+  ],
+  [
+   "Dancing Sakura Shrine",
+   "Sakurajima - Mushroom Wetlands"
+  ],
+  [
+   "Dancing Sakura Shrine",
+   "Sakurajima - Northern Rock Field"
+  ],
+  [
+   "Dancing Sakura Shrine",
+   "Sakurajima - Southern Sandbar"
+  ],
+  [
+   "Deep Bamboo Thicket",
+   "Foot of the Volcano"
+  ],
+  [
+   "Deep Bamboo Thicket",
+   "Isle of Murmurs"
+  ],
+  [
+   "Deep Bamboo Thicket",
+   "Isle of Silence"
+  ],
+  [
+   "Deep Bamboo Thicket",
+   "Twilight Dunes"
+  ],
+  [
+   "Deserted Ash Plateau",
+   "Frozen Coral Hill"
+  ],
+  [
+   "Deserted Ash Plateau",
+   "Open sea"
+  ],
+  [
+   "Deserted Ash Plateau",
+   "Scorched Hill"
+  ],
+  [
+   "Deserted Ash Plateau",
+   "Stone Pillar Cave"
+  ],
+  [
+   "Desiccated Dunes",
+   "Duneshelter"
+  ],
+  [
+   "Desiccated Dunes",
+   "Eastern Wild Island"
+  ],
+  [
+   "Desiccated Dunes",
+   "Flamepulse Islet"
+  ],
+  [
+   "Desiccated Dunes",
+   "Isle of the Glacial Core"
+  ],
+  [
+   "Desiccated Dunes",
+   "No. 3 Wildlife Sanctuary"
+  ],
+  [
+   "Desiccated Dunes",
+   "Oasis Isle"
+  ],
+  [
+   "Desiccated Dunes",
+   "Open sea"
+  ],
+  [
+   "Desiccated Dunes",
+   "Scars of War"
+  ],
+  [
+   "Desiccated Dunes",
+   "Verdant Stream"
+  ],
+  [
+   "Dragonmark Peak",
+   "The Azure Tapestry"
+  ],
+  [
+   "Dragonmark Peak",
+   "Waterlily Gorge"
+  ],
+  [
+   "Dry Sandy Beach",
+   "Fisherman's Point"
+  ],
+  [
+   "Dry Sandy Beach",
+   "Isle of Eternal Summer"
+  ],
+  [
+   "Dry Sandy Beach",
+   "Mount Obsidian"
+  ],
+  [
+   "Dry Sandy Beach",
+   "Open sea"
+  ],
+  [
+   "Dry Sandy Beach",
+   "Scorched Ashland"
+  ],
+  [
+   "Dry Sandy Beach",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Eastern Wild Island",
+   "Isle of Decayed Treasures"
+  ],
+  [
+   "Eastern Wild Island",
+   "Marsh Island"
+  ],
+  [
+   "Eastern Wild Island",
+   "Open sea"
+  ],
+  [
+   "Eastern Wild Island",
+   "Scars of War"
+  ],
+  [
+   "Eastern Wild Island",
+   "Verdant Stream"
+  ],
+  [
+   "Emberstone Plateau",
+   "Loess Plains"
+  ],
+  [
+   "Emberstone Plateau",
+   "Scorched Hill"
+  ],
+  [
+   "Emberstone Plateau",
+   "The Azure Tapestry"
+  ],
+  [
+   "Emberstone Plateau",
+   "Waterlily Gorge"
+  ],
+  [
+   "Emberstone Plateau",
+   "Withered Seaside"
+  ],
+  [
+   "Enchanted Firmament",
+   "Farcry Marsh"
+  ],
+  [
+   "Enchanted Firmament",
+   "Open sea"
+  ],
+  [
+   "Farcry Marsh",
+   "Open sea"
+  ],
+  [
+   "Farcry Marsh",
+   "The Azure Tapestry"
+  ],
+  [
+   "Feybreak Shipwreck",
+   "Frozen Coral Hill"
+  ],
+  [
+   "Feybreak Shipwreck",
+   "Open sea"
+  ],
+  [
+   "Feybreak Tower",
+   "Frozen Coral Hill"
+  ],
+  [
+   "Fisherman's Point",
+   "Isle of Eternal Summer"
+  ],
+  [
+   "Flamepulse Islet",
+   "No. 3 Wildlife Sanctuary"
+  ],
+  [
+   "Flamepulse Islet",
+   "Open sea"
+  ],
+  [
+   "Flying Fish Coast",
+   "No. 1 Wildlife Sanctuary"
+  ],
+  [
+   "Flying Fish Coast",
+   "Open sea"
+  ],
+  [
+   "Flying Fish Coast",
+   "Windswept Island"
+  ],
+  [
+   "Foot of the Astral Mountains",
+   "Frostbound Mountains"
+  ],
+  [
+   "Foot of the Astral Mountains",
+   "Twilight Dunes"
+  ],
+  [
+   "Foot of the Astral Mountains",
+   "Verdant Stream"
+  ],
+  [
+   "Foot of the Volcano",
+   "Isle of Silence"
+  ],
+  [
+   "Foot of the Volcano",
+   "Mount Obsidian"
+  ],
+  [
+   "Foot of the Volcano",
+   "Ruined Fortress City"
+  ],
+  [
+   "Foot of the Volcano",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Foot of the World Tree",
+   "Open sea"
+  ],
+  [
+   "Fortress Ruins",
+   "Marsh Island"
+  ],
+  [
+   "Fortress Ruins",
+   "Rayne Syndicate Test Drilling Rig"
+  ],
+  [
+   "Fortress Ruins",
+   "Windswept Island"
+  ],
+  [
+   "Frostbitten Isle",
+   "Open sea"
+  ],
+  [
+   "Frostbound Mountains",
+   "Verdant Stream"
+  ],
+  [
+   "Frozen Coral Hill",
+   "Loess Plains"
+  ],
+  [
+   "Frozen Coral Hill",
+   "Open sea"
+  ],
+  [
+   "Frozen Coral Hill",
+   "Scorched Hill"
+  ],
+  [
+   "Frozen Coral Hill",
+   "Stone Pillar Cave"
+  ],
+  [
+   "Frozen Coral Hill",
+   "The Oculus Gate, Tower in Sight"
+  ],
+  [
+   "Glacial Memento Islet",
+   "Open sea"
+  ],
+  [
+   "Glacial Memento Islet (2)",
+   "Open sea"
+  ],
+  [
+   "Gobfin's Turf",
+   "Rayne Syndicate Test Drilling Rig"
+  ],
+  [
+   "Gobfin's Turf",
+   "Verdant Stream"
+  ],
+  [
+   "Gobfin's Turf (2)",
+   "Rayne Syndicate Test Drilling Rig"
+  ],
+  [
+   "Gobfin's Turf (2)",
+   "Verdant Stream"
+  ],
+  [
+   "Golden Hills",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Golden Hills",
+   "Small Settlement"
+  ],
+  [
+   "Golden Hills",
+   "Windswept Island"
+  ],
+  [
+   "Golden Hills",
+   "Windswept Island (2)"
+  ],
+  [
+   "Hidden Passage to the Oculus Gate",
+   "Scorched Hill"
+  ],
+  [
+   "Hidden Passage to the Oculus Gate",
+   "The Oculus Gate, Tower in Sight"
+  ],
+  [
+   "Isle of Decayed Treasures",
+   "Open sea"
+  ],
+  [
+   "Isle of Eternal Summer",
+   "Open sea"
+  ],
+  [
+   "Isle of Eternal Summer",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Isle of Murmurs",
+   "Isle of Silence"
+  ],
+  [
+   "Isle of Murmurs",
+   "Sakurajima - Mushroom Wetlands"
+  ],
+  [
+   "Isle of Murmurs",
+   "Twilight Dunes"
+  ],
+  [
+   "Isle of Silence",
+   "No. 2 Wildlife Sanctuary"
+  ],
+  [
+   "Isle of Silence",
+   "Ruined Fortress City"
+  ],
+  [
+   "Isle of Silence",
+   "Sakurajima - Mushroom Wetlands"
+  ],
+  [
+   "Isle of Silence",
+   "Sakurajima - Southern Sandbar"
+  ],
+  [
+   "Isle of the Glacial Core",
+   "Open sea"
+  ],
+  [
+   "Islet of Circular Ruins",
+   "Open sea"
+  ],
+  [
+   "Loess Plains",
+   "Open sea"
+  ],
+  [
+   "Loess Plains",
+   "Scorched Hill"
+  ],
+  [
+   "Loess Plains",
+   "The Oculus Gate, Tower in Sight"
+  ],
+  [
+   "Loess Plains",
+   "Waterlily Gorge"
+  ],
+  [
+   "Marsh Island",
+   "Open sea"
+  ],
+  [
+   "Marsh Island",
+   "Rayne Syndicate Oil Rig"
+  ],
+  [
+   "Marsh Island",
+   "Rayne Syndicate Test Drilling Rig"
+  ],
+  [
+   "Marsh Island",
+   "Sunlit Isle"
+  ],
+  [
+   "Marsh Island",
+   "Verdant Stream"
+  ],
+  [
+   "Marsh Island",
+   "Windswept Island"
+  ],
+  [
+   "Mount Obsidian",
+   "No. 2 Wildlife Sanctuary"
+  ],
+  [
+   "Mount Obsidian",
+   "Open sea"
+  ],
+  [
+   "Mount Obsidian",
+   "Phantom Isle"
+  ],
+  [
+   "Mount Obsidian",
+   "Ruined Fortress City"
+  ],
+  [
+   "Mount Obsidian",
+   "Scorched Ashland"
+  ],
+  [
+   "Mount Obsidian",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "No. 1 Wildlife Sanctuary",
+   "Open sea"
+  ],
+  [
+   "No. 1 Wildlife Sanctuary",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "No. 1 Wildlife Sanctuary",
+   "Windswept Island"
+  ],
+  [
+   "No. 2 Wildlife Sanctuary",
+   "Open sea"
+  ],
+  [
+   "No. 2 Wildlife Sanctuary",
+   "Phantom Isle"
+  ],
+  [
+   "No. 2 Wildlife Sanctuary",
+   "Ruined Fortress City"
+  ],
+  [
+   "No. 2 Wildlife Sanctuary",
+   "Sakurajima - Southern Sandbar"
+  ],
+  [
+   "No. 3 Wildlife Sanctuary",
+   "Open sea"
+  ],
+  [
+   "Oasis Isle",
+   "Open sea"
+  ],
+  [
+   "Open sea",
+   "Phantom Isle"
+  ],
+  [
+   "Open sea",
+   "Rayne Syndicate Oil Rig"
+  ],
+  [
+   "Open sea",
+   "Rayne Syndicate Platform Oil Rig"
+  ],
+  [
+   "Open sea",
+   "Sakurajima - Northern Rock Field"
+  ],
+  [
+   "Open sea",
+   "Sakurajima - Southern Sandbar"
+  ],
+  [
+   "Open sea",
+   "Sandstone Gate Islet"
+  ],
+  [
+   "Open sea",
+   "Scorched Ashland"
+  ],
+  [
+   "Open sea",
+   "Scorched Hill"
+  ],
+  [
+   "Open sea",
+   "Scouring Islet"
+  ],
+  [
+   "Open sea",
+   "Sea Breeze Archipelago"
+  ],
+  [
+   "Open sea",
+   "Suncrest Islet"
+  ],
+  [
+   "Open sea",
+   "Sunlit Isle"
+  ],
+  [
+   "Open sea",
+   "The Azure Tapestry"
+  ],
+  [
+   "Open sea",
+   "Waterlily Gorge"
+  ],
+  [
+   "Open sea",
+   "Windswept Island"
+  ],
+  [
+   "Open sea",
+   "Withered Seaside"
+  ],
+  [
+   "Rayne Syndicate Oil Rig",
+   "Sunlit Isle"
+  ],
+  [
+   "Rayne Syndicate Test Drilling Rig",
+   "Verdant Stream"
+  ],
+  [
+   "Sakurajima - Mushroom Wetlands",
+   "Sakurajima - Northern Rock Field"
+  ],
+  [
+   "Sakurajima - Mushroom Wetlands",
+   "Sakurajima - Southern Sandbar"
+  ],
+  [
+   "Sakurajima - Northern Rock Field",
+   "Sakurajima - Southern Sandbar"
+  ],
+  [
+   "Scars of War",
+   "Verdant Stream"
+  ],
+  [
+   "Scorched Ashland",
+   "Scorched Hill"
+  ],
+  [
+   "Scorched Ashland",
+   "Withered Seaside"
+  ],
+  [
+   "Scorched Hill",
+   "Stone Pillar Cave"
+  ],
+  [
+   "Scorched Hill",
+   "Stone Pillar Cave (2)"
+  ],
+  [
+   "Scorched Hill",
+   "Stone Pillar Cave (3)"
+  ],
+  [
+   "Scorched Hill",
+   "Stone Pillar Cave (4)"
+  ],
+  [
+   "Scorched Hill",
+   "The Oculus Gate, Tower in Sight"
+  ],
+  [
+   "Scorched Hill",
+   "Withered Seaside"
+  ],
+  [
+   "Sea Breeze Archipelago",
+   "Windswept Island"
+  ],
+  [
+   "Sea Breeze Archipelago",
+   "Windswept Island (2)"
+  ],
+  [
+   "Small Settlement",
+   "Windswept Island"
+  ],
+  [
+   "Stone Pillar Cave (4)",
+   "Withered Seaside"
+  ],
+  [
+   "Sunlit Isle",
+   "Windswept Island"
+  ],
+  [
+   "The Azure Tapestry",
+   "Waterlily Gorge"
+  ],
+  [
+   "The Azure Tapestry",
+   "Withered Seaside"
+  ]
+ ],
+ "fast_travel": {
+  "BOSS_KingWhale": "Crescent Moon Shore (2)",
+  "Boss_Forest": "Crescent Moon Shore",
+  "FTPoint1": "Mount Obsidian",
+  "FTPoint100": "Frostbound Mountains",
+  "FTPoint101": "Desiccated Dunes",
+  "FTPoint102": "Desiccated Dunes",
+  "FTPoint103": "Desiccated Dunes",
+  "FTPoint104": "Desiccated Dunes",
+  "FTPoint105": "Desiccated Dunes",
+  "FTPoint106": "Desiccated Dunes",
+  "FTPoint107": "Desiccated Dunes",
+  "FTPoint108": "Desiccated Dunes",
+  "FTPoint109": "Foot of the Volcano",
+  "FTPoint11": "Verdant Stream",
+  "FTPoint110": "Mount Obsidian",
+  "FTPoint111": "Dry Sandy Beach",
+  "FTPoint112": "Foot of the Volcano",
+  "FTPoint113": "Astral Mountains",
+  "FTPoint114": "Astral Mountains",
+  "FTPoint115": "Astral Mountains",
+  "FTPoint116": "Sakurajima - Southern Sandbar",
+  "FTPoint117": "Withered Seaside",
+  "FTPoint118": "Scorched Ashland",
+  "FTPoint119": "Scorched Hill",
+  "FTPoint12": "Duneshelter",
+  "FTPoint120": "Scorched Hill",
+  "FTPoint121": "Scorched Hill",
+  "FTPoint122": "Crystalized Ancient Tree",
+  "FTPoint123": "Loess Plains",
+  "FTPoint124": "Deserted Ash Plateau",
+  "FTPoint125": "Frozen Coral Hill",
+  "FTPoint126": "Frozen Coral Hill",
+  "FTPoint127": "Frozen Coral Hill",
+  "FTPoint128": "Frozen Coral Hill",
+  "FTPoint129": "Frozen Coral Hill",
+  "FTPoint13": "Desiccated Dunes",
+  "FTPoint14": "Foot of the Astral Mountains",
+  "FTPoint15": "Foot of the Astral Mountains",
+  "FTPoint16": "Foot of the Astral Mountains",
+  "FTPoint17": "Astral Mountains",
+  "FTPoint18": "Astral Mountains",
+  "FTPoint20": "Astral Mountains",
+  "FTPoint21": "Windswept Island",
+  "FTPoint22": "Autumn Rocks",
+  "FTPoint23": "Windswept Island",
+  "FTPoint24": "Small Settlement",
+  "FTPoint25": "Bamboo Groves",
+  "FTPoint26": "Foot of the Volcano",
+  "FTPoint27": "Autumn Rocks",
+  "FTPoint28": "Fortress Ruins",
+  "FTPoint29": "Bamboo Groves",
+  "FTPoint3": "Mount Obsidian",
+  "FTPoint30": "Deep Bamboo Thicket",
+  "FTPoint31": "Ancient Ritual Site",
+  "FTPoint32": "Crescent Moon Shore",
+  "FTPoint33": "Crescent Moon Shore",
+  "FTPoint34": "Crescent Moon Shore",
+  "FTPoint35": "Verdant Stream",
+  "FTPoint36": "Verdant Stream",
+  "FTPoint37": "Frostbound Mountains",
+  "FTPoint38": "Verdant Stream",
+  "FTPoint39": "Verdant Stream",
+  "FTPoint4": "Dry Sandy Beach",
+  "FTPoint40": "Gobfin's Turf",
+  "FTPoint41": "Crescent Moon Shore",
+  "FTPoint42": "Bamboo Groves",
+  "FTPoint43": "Deep Bamboo Thicket",
+  "FTPoint44": "Deep Bamboo Thicket",
+  "FTPoint45": "Windswept Island",
+  "FTPoint48": "Astral Mountains",
+  "FTPoint49": "Isle of Silence",
+  "FTPoint5": "Dry Sandy Beach",
+  "FTPoint50": "Isle of Murmurs",
+  "FTPoint51": "Isle of Silence",
+  "FTPoint52": "Sea Breeze Archipelago",
+  "FTPoint53": "Sea Breeze Archipelago",
+  "FTPoint54": "Sea Breeze Archipelago",
+  "FTPoint55": "Marsh Island",
+  "FTPoint56": "Marsh Island",
+  "FTPoint57": "Eastern Wild Island",
+  "FTPoint58": "Marsh Island",
+  "FTPoint59": "Isle of Silence",
+  "FTPoint6": "Dry Sandy Beach",
+  "FTPoint60": "Marsh Island",
+  "FTPoint61": "Autumn Rocks",
+  "FTPoint62": "Bamboo Groves",
+  "FTPoint63": "Desiccated Dunes",
+  "FTPoint64": "Sakurajima - Mushroom Wetlands",
+  "FTPoint65": "Sakurajima - Southern Sandbar",
+  "FTPoint67": "Dancing Sakura Shrine",
+  "FTPoint68": "Sakurajima - Mushroom Wetlands",
+  "FTPoint69": "Sakurajima - Northern Rock Field",
+  "FTPoint7": "Mount Obsidian",
+  "FTPoint70": "Sakurajima - Northern Rock Field",
+  "FTPoint71": "Scorched Ashland",
+  "FTPoint72": "Scorched Hill",
+  "FTPoint73": "Loess Plains",
+  "FTPoint74": "Scorched Hill",
+  "FTPoint75": "The Oculus Gate, Tower in Sight",
+  "FTPoint76": "Feybreak Tower",
+  "FTPoint78": "Scorched Hill",
+  "FTPoint79": "Deserted Ash Plateau",
+  "FTPoint8": "Ruined Fortress City",
+  "FTPoint80": "Emberstone Plateau",
+  "FTPoint81": "Scorched Hill",
+  "FTPoint83": "Feybreak Shipwreck",
+  "FTPoint84": "Sunlit Isle",
+  "FTPoint85": "Oasis Isle",
+  "FTPoint86": "Isle of the Glacial Core",
+  "FTPoint87": "Frostbitten Isle",
+  "FTPoint88": "Phantom Isle",
+  "FTPoint89": "Isle of Decayed Treasures",
+  "FTPoint9": "Desiccated Dunes",
+  "FTPoint90": "Isle of Eternal Summer",
+  "FTPoint91": "Isle of Murmurs",
+  "FTPoint92": "Twilight Dunes",
+  "FTPoint93": "Bamboo Groves",
+  "FTPoint94": "Deep Bamboo Thicket",
+  "FTPoint95": "Bamboo Groves",
+  "FTPoint96": "Sea Breeze Archipelago",
+  "FTPoint97": "Scars of War",
+  "FTPoint98": "Scars of War",
+  "FTPoint99": "Marsh Island",
+  "FootOfWorldTree": "Foot of the World Tree",
+  "New_SmallIsland01": "Islet of Circular Ruins",
+  "New_SmallIsland02": "Flamepulse Islet",
+  "New_SmallIsland03": "Scouring Islet",
+  "New_SmallIsland04": "Bicornis Islet",
+  "New_SmallIsland05": "Glacial Memento Islet",
+  "New_SmallIsland06": "Sandstone Gate Islet",
+  "New_SmallIsland07": "Suncrest Islet",
+  "SkyIsland_A": "Enchanted Firmament",
+  "SkyIsland_B": "Crystalline Archipelago",
+  "SkyIsland_BOSS": "The Azure Tapestry",
+  "SkyIsland_C": "Waterlily Gorge",
+  "SkyIsland_D": "The Azure Tapestry",
+  "SkyIsland_E": "Farcry Marsh",
+  "WatchTower_1": "Golden Hills",
+  "WatchTower_10": "Sea Breeze Archipelago",
+  "WatchTower_11": "Deep Bamboo Thicket",
+  "WatchTower_12": "Sakurajima - Mushroom Wetlands",
+  "WatchTower_13": "Mount Obsidian",
+  "WatchTower_15": "Dry Sandy Beach",
+  "WatchTower_17": "Loess Plains",
+  "WatchTower_18": "Scorched Hill",
+  "WatchTower_19": "Deserted Ash Plateau",
+  "WatchTower_2": "Eastern Wild Island",
+  "WatchTower_20": "Frozen Coral Hill",
+  "WatchTower_21": "Scorched Hill",
+  "WatchTower_22": "Enchanted Firmament",
+  "WatchTower_3": "Crescent Moon Shore",
+  "WatchTower_4": "Desiccated Dunes",
+  "WatchTower_5": "Desiccated Dunes",
+  "WatchTower_6": "Verdant Stream",
+  "WatchTower_7": "Foot of the Astral Mountains",
+  "WatchTower_8": "Astral Mountains",
+  "WatchTower_9": "Bamboo Groves",
+  "WatchTower_WorldTree_1": "Foot of the World Tree",
+  "WatchTower_WorldTree_2": "Foot of the World Tree",
+  "WorldTree_A": "Foot of the World Tree",
+  "WorldTree_B": "Foot of the World Tree",
+  "WorldTree_C_1": "Foot of the World Tree",
+  "WorldTree_C_2": "Foot of the World Tree",
+  "WorldTree_D": "Foot of the World Tree",
+  "WorldTree_E": "Foot of the World Tree",
+  "WorldTree_I": "Foot of the World Tree",
+  "WorldTree_L": "Foot of the World Tree",
+  "WorldTree_LastBoss": "Foot of the World Tree",
+  "WorldTree_M": "Foot of the World Tree",
+  "WorldTree_MiddleBoss_1": "Foot of the World Tree",
+  "WorldTree_MiddleBoss_2": "Foot of the World Tree",
+  "WorldTree_MiddleBoss_3": "Foot of the World Tree",
+  "WorldTree_N": "Foot of the World Tree",
+  "WorldTree_lab": "Foot of the World Tree"
+ },
+ "paldeck": {
+  "001": {
+   "Eastern Wild Island": 1,
+   "Flying Fish Coast": 1,
+   "Fortress Ruins": 3,
+   "Golden Hills": 1,
+   "Sea Breeze Archipelago": 1,
+   "Verdant Stream": 1,
+   "Windswept Island": 1,
+   "Windswept Island (2)": 1
+  },
+  "002": {
+   "Fortress Ruins": 3,
+   "Golden Hills": 3,
+   "Isle of Murmurs": 1,
+   "Isle of Silence": 1,
+   "Sea Breeze Archipelago": 1,
+   "Windswept Island": 1,
+   "Windswept Island (2)": 1
+  },
+  "003": {
+   "Eastern Wild Island": 1,
+   "Flying Fish Coast": 1,
+   "Fortress Ruins": 3,
+   "Golden Hills": 1,
+   "Verdant Stream": 1,
+   "Windswept Island": 1
+  },
+  "004": {
+   "Bamboo Groves": 4,
+   "Fortress Ruins": 5,
+   "Isle of Murmurs": 4,
+   "Marsh Island": 1,
+   "Sea Breeze Archipelago": 4,
+   "Windswept Island": 5
+  },
+  "005": {
+   "Autumn Rocks": 10,
+   "Bamboo Groves": 10,
+   "Golden Hills": 10,
+   "Marsh Island": 10
+  },
+  "005B": {
+   "Mount Obsidian": 32
+  },
+  "006": {
+   "Sea Breeze Archipelago": 1,
+   "Windswept Island": 5
+  },
+  "007": {
+   "Autumn Rocks": 9,
+   "Bamboo Groves": 2,
+   "Deep Bamboo Thicket": 10,
+   "Eastern Wild Island": 2,
+   "Flying Fish Coast": 2,
+   "Fortress Ruins": 4,
+   "Isle of Murmurs": 2,
+   "Isle of Silence": 2,
+   "Marsh Island": 2,
+   "Sea Breeze Archipelago": 2,
+   "Windswept Island": 2
+  },
+  "007B": {
+   "Astral Mountains": 26,
+   "Desiccated Dunes": 26,
+   "Verdant Stream": 26
+  },
+  "008": {
+   "Isle of Murmurs": 1,
+   "Isle of Silence": 1,
+   "Marsh Island": 1,
+   "Sea Breeze Archipelago": 1,
+   "Windswept Island (2)": 1
+  },
+  "009": {
+   "Fortress Ruins": 4,
+   "Marsh Island": 10,
+   "Sakurajima - Mushroom Wetlands": 47,
+   "Windswept Island": 4
+  },
+  "009B": {
+   "Crystalized Ancient Tree": 61,
+   "Deserted Ash Plateau": 61,
+   "Emberstone Plateau": 61,
+   "Hidden Passage to the Oculus Gate": 61,
+   "Loess Plains": 61,
+   "Scorched Hill": 61,
+   "Stone Pillar Cave": 61
+  },
+  "010": {
+   "Deep Bamboo Thicket": 10,
+   "Isle of Eternal Summer": 32,
+   "Isle of Murmurs": 10,
+   "Isle of Silence": 10,
+   "Oasis Isle": 40,
+   "Sunlit Isle": 1,
+   "Twilight Dunes": 10,
+   "Windswept Island": 5
+  },
+  "011": {
+   "Eastern Wild Island": 2,
+   "Isle of Silence": 2,
+   "Marsh Island": 2,
+   "Sea Breeze Archipelago": 2,
+   "Windswept Island": 2,
+   "Windswept Island (2)": 2
+  },
+  "012": {
+   "Eastern Wild Island": 4,
+   "Fortress Ruins": 5,
+   "Marsh Island": 4,
+   "Windswept Island": 2
+  },
+  "013": {
+   "Windswept Island": 2
+  },
+  "014": {
+   "Golden Hills": 3,
+   "Windswept Island": 3
+  },
+  "015": {
+   "Golden Hills": 4,
+   "Windswept Island": 4
+  },
+  "015B": {
+   "Bamboo Groves": 20,
+   "Deep Bamboo Thicket": 20,
+   "Frostbitten Isle": 10
+  },
+  "016": {
+   "Bamboo Groves": 13,
+   "Deep Bamboo Thicket": 18,
+   "Eastern Wild Island": 4,
+   "Foot of the Volcano": 13,
+   "Golden Hills": 5,
+   "Marsh Island": 4,
+   "Verdant Stream": 4,
+   "Windswept Island": 5
+  },
+  "017": {
+   "Abandoned Ruins": 35,
+   "Astral Mountains": 35,
+   "Autumn Rocks": 9,
+   "Eastern Wild Island": 2,
+   "Foot of the Astral Mountains": 35,
+   "Fortress Ruins": 4,
+   "Frostbitten Isle": 10,
+   "Isle of Murmurs": 2,
+   "Sea Breeze Archipelago": 2,
+   "Verdant Stream": 2,
+   "Windswept Island": 2
+  },
+  "017B": {},
+  "018": {
+   "Abandoned Ruins": 39,
+   "Astral Mountains": 39,
+   "Foot of the Astral Mountains": 39,
+   "Frostbitten Isle": 22,
+   "No. 1 Wildlife Sanctuary": 20
+  },
+  "018B": {},
+  "019": {
+   "Bamboo Groves": 18,
+   "Deep Bamboo Thicket": 18,
+   "Foot of the Volcano": 18,
+   "Fortress Ruins": 5,
+   "Sea Breeze Archipelago": 4,
+   "Windswept Island": 5,
+   "Windswept Island (2)": 4
+  },
+  "020": {
+   "Autumn Rocks": 10,
+   "Eastern Wild Island": 14,
+   "Golden Hills": 7,
+   "Marsh Island": 14,
+   "Sea Breeze Archipelago": 14,
+   "Verdant Stream": 14,
+   "Windswept Island": 7,
+   "Windswept Island (2)": 14
+  },
+  "021": {
+   "Foot of the World Tree": 80
+  },
+  "021B": {},
+  "022": {
+   "Flying Fish Coast": 4,
+   "Golden Hills": 4,
+   "Sea Breeze Archipelago": 12,
+   "Windswept Island": 4
+  },
+  "023": {
+   "Autumn Rocks": 10,
+   "Isle of Silence": 4,
+   "Sea Breeze Archipelago": 4
+  },
+  "023B": {
+   "Autumn Rocks": 10
+  },
+  "024": {
+   "Isle of Murmurs": 4,
+   "Isle of Silence": 4,
+   "Windswept Island": 5
+  },
+  "025": {
+   "Bamboo Groves": 4,
+   "Eastern Wild Island": 4,
+   "Foot of the Volcano": 18,
+   "Isle of Silence": 4,
+   "Mount Obsidian": 22,
+   "Scars of War": 10,
+   "Sea Breeze Archipelago": 4
+  },
+  "026": {
+   "Autumn Rocks": 9,
+   "Isle of Murmurs": 4,
+   "Marsh Island": 4,
+   "Scars of War": 10,
+   "Sea Breeze Archipelago": 4
+  },
+  "027": {},
+  "027B": {},
+  "028": {
+   "Autumn Rocks": 10,
+   "Golden Hills": 5,
+   "Marsh Island": 10,
+   "Sea Breeze Archipelago": 10,
+   "Windswept Island": 5
+  },
+  "029": {
+   "Fortress Ruins": 5,
+   "Golden Hills": 5,
+   "Windswept Island": 5
+  },
+  "029B": {
+   "Astral Mountains": 30
+  },
+  "030": {
+   "Abandoned Ruins": 34,
+   "Deserted Ash Plateau": 60,
+   "Foot of the Astral Mountains": 34,
+   "Scorched Ashland": 56,
+   "Scorched Hill": 56
+  },
+  "030B": {
+   "Astral Mountains": 24,
+   "Desiccated Dunes": 24,
+   "Verdant Stream": 24
+  },
+  "031": {
+   "Deep Bamboo Thicket": 28,
+   "Desiccated Dunes": 31,
+   "Isle of Murmurs": 28,
+   "Twilight Dunes": 28,
+   "Verdant Stream": 31
+  },
+  "032": {
+   "Autumn Rocks": 11,
+   "Bamboo Groves": 11,
+   "Foot of the Volcano": 11,
+   "Foot of the World Tree": 80,
+   "Marsh Island": 11,
+   "Windswept Island": 9
+  },
+  "032B": {
+   "Foot of the World Tree": 80,
+   "No. 1 Wildlife Sanctuary": 20
+  },
+  "033": {
+   "Autumn Rocks": 10,
+   "Bamboo Groves": 10,
+   "Deep Bamboo Thicket": 11,
+   "Foot of the Volcano": 10,
+   "Golden Hills": 10,
+   "Isle of Murmurs": 11,
+   "Isle of Silence": 11,
+   "Marsh Island": 10,
+   "Sea Breeze Archipelago": 11,
+   "Twilight Dunes": 11,
+   "Windswept Island": 10,
+   "Windswept Island (2)": 10
+  },
+  "034": {
+   "Crescent Moon Shore": 23,
+   "Foot of the Astral Mountains": 23,
+   "Fortress Ruins": 14,
+   "Gobfin's Turf (2)": 20,
+   "Golden Hills": 14,
+   "Isle of Murmurs": 20,
+   "Isle of Silence": 20,
+   "Marsh Island": 20,
+   "Rayne Syndicate Test Drilling Rig": 20,
+   "Verdant Stream": 20,
+   "Windswept Island": 14
+  },
+  "034B": {
+   "Crystalized Ancient Tree": 56,
+   "Loess Plains": 52,
+   "Scorched Hill": 56
+  },
+  "035": {
+   "Astral Mountains": 30,
+   "Bamboo Groves": 18,
+   "Crescent Moon Shore": 18,
+   "Deep Bamboo Thicket": 18
+  },
+  "036": {
+   "Astral Mountains": 37,
+   "Bamboo Groves": 25,
+   "Crescent Moon Shore": 25,
+   "Deep Bamboo Thicket": 25
+  },
+  "037": {
+   "Abandoned Ruins": 30,
+   "Foot of the Astral Mountains": 30,
+   "Isle of Decayed Treasures": 10,
+   "Mount Obsidian": 34,
+   "No. 2 Wildlife Sanctuary": 36
+  },
+  "037B": {
+   "Dancing Sakura Shrine": 46,
+   "Mount Obsidian": 40,
+   "No. 2 Wildlife Sanctuary": 42,
+   "Sakurajima - Mushroom Wetlands": 46,
+   "Sakurajima - Southern Sandbar": 46
+  },
+  "038": {
+   "Autumn Rocks": 9,
+   "Bamboo Groves": 9,
+   "Crescent Moon Shore": 18,
+   "Deep Bamboo Thicket": 18,
+   "Foot of the Volcano": 18,
+   "Windswept Island": 9
+  },
+  "038B": {
+   "Abandoned Ruins": 32,
+   "Astral Mountains": 32,
+   "Foot of the Astral Mountains": 32
+  },
+  "039": {
+   "Bamboo Groves": 9,
+   "Foot of the Volcano": 9
+  },
+  "039B": {
+   "Suncrest Islet": 55
+  },
+  "040": {
+   "Fortress Ruins": 9,
+   "Marsh Island": 10,
+   "Windswept Island": 9
+  },
+  "041": {
+   "Bamboo Groves": 35,
+   "Deep Bamboo Thicket": 35,
+   "Foot of the World Tree": 80
+  },
+  "041B": {
+   "Foot of the World Tree": 80,
+   "Isle of the Glacial Core": 50
+  },
+  "042": {
+   "Golden Hills": 10,
+   "Windswept Island": 10,
+   "Windswept Island (2)": 10
+  },
+  "043": {
+   "Autumn Rocks": 9,
+   "Bamboo Groves": 9,
+   "Deep Bamboo Thicket": 10,
+   "Foot of the Volcano": 10,
+   "Fortress Ruins": 9,
+   "Golden Hills": 9,
+   "Isle of Silence": 10,
+   "Marsh Island": 9,
+   "Rayne Syndicate Test Drilling Rig": 9,
+   "Sea Breeze Archipelago": 10
+  },
+  "043B": {
+   "Dry Sandy Beach": 20,
+   "Fisherman's Point": 20,
+   "Mount Obsidian": 20
+  },
+  "044": {
+   "Crescent Moon Shore": 22,
+   "Deep Bamboo Thicket": 10,
+   "Eastern Wild Island": 1,
+   "Flying Fish Coast": 1,
+   "Foot of the Astral Mountains": 22,
+   "Foot of the Volcano": 18,
+   "Golden Hills": 1,
+   "Isle of Murmurs": 1,
+   "Isle of Silence": 1,
+   "Marsh Island": 1,
+   "Verdant Stream": 1,
+   "Windswept Island": 1
+  },
+  "044B": {
+   "Bamboo Groves": 18,
+   "Crescent Moon Shore": 28,
+   "Deep Bamboo Thicket": 18,
+   "Foot of the Astral Mountains": 28,
+   "Foot of the Volcano": 20,
+   "Verdant Stream": 28
+  },
+  "045": {
+   "Frostbitten Isle": 10,
+   "Scorched Ashland": 50,
+   "Scorched Hill": 50,
+   "Withered Seaside": 56
+  },
+  "046": {
+   "Deserted Ash Plateau": 56,
+   "Phantom Isle": 30,
+   "Scorched Ashland": 50,
+   "Scorched Hill": 50,
+   "Withered Seaside": 56
+  },
+  "047": {
+   "Autumn Rocks": 9,
+   "Bamboo Groves": 9,
+   "Crystalline Archipelago": 64,
+   "Enchanted Firmament": 64,
+   "Golden Hills": 9,
+   "Waterlily Gorge": 64
+  },
+  "048": {
+   "Deserted Ash Plateau": 56,
+   "Isle of Decayed Treasures": 10,
+   "Scorched Ashland": 50,
+   "Scorched Hill": 56,
+   "Withered Seaside": 56
+  },
+  "048B": {
+   "Crystalline Archipelago": 65,
+   "Waterlily Gorge": 65
+  },
+  "049": {
+   "Ancient Ritual Site": 16,
+   "Autumn Rocks": 16,
+   "Crescent Moon Shore": 16,
+   "Deep Bamboo Thicket": 11,
+   "Gobfin's Turf": 16,
+   "Isle of Murmurs": 11,
+   "Isle of Silence": 11,
+   "Twilight Dunes": 11
+  },
+  "050": {
+   "Autumn Rocks": 11,
+   "Bamboo Groves": 11,
+   "Foot of the World Tree": 71,
+   "Golden Hills": 11,
+   "Marsh Island": 11,
+   "Windswept Island": 11,
+   "Windswept Island (2)": 11
+  },
+  "051": {
+   "Autumn Rocks": 12,
+   "Bamboo Groves": 12,
+   "Deep Bamboo Thicket": 12,
+   "Foot of the Volcano": 12,
+   "Isle of Silence": 12,
+   "Marsh Island": 12
+  },
+  "052": {
+   "Autumn Rocks": 12,
+   "Bamboo Groves": 12,
+   "Golden Hills": 12,
+   "Marsh Island": 13,
+   "Windswept Island": 12,
+   "Windswept Island (2)": 12
+  },
+  "053": {
+   "Astral Mountains": 25,
+   "Dancing Sakura Shrine": 46,
+   "Deep Bamboo Thicket": 30,
+   "Desiccated Dunes": 25,
+   "Duneshelter": 30,
+   "Gobfin's Turf": 20,
+   "Isle of Murmurs": 30,
+   "Sakurajima - Mushroom Wetlands": 46,
+   "Sakurajima - Northern Rock Field": 46,
+   "Sakurajima - Southern Sandbar": 46,
+   "Twilight Dunes": 30,
+   "Verdant Stream": 20
+  },
+  "054": {
+   "Bamboo Groves": 20,
+   "Deep Bamboo Thicket": 20,
+   "Foot of the World Tree": 80
+  },
+  "054B": {
+   "Foot of the World Tree": 75
+  },
+  "055": {
+   "Deep Bamboo Thicket": 14,
+   "Foot of the Volcano": 22,
+   "Gobfin's Turf": 20,
+   "Isle of Silence": 14,
+   "Verdant Stream": 20
+  },
+  "055B": {
+   "Mount Obsidian": 34
+  },
+  "056": {
+   "Ancient Ritual Site": 25,
+   "Autumn Rocks": 25,
+   "Bamboo Groves": 14,
+   "Crescent Moon Shore": 25,
+   "Deep Bamboo Thicket": 15,
+   "Foot of the Astral Mountains": 25,
+   "Foot of the Volcano": 14,
+   "Frostbound Mountains": 34,
+   "Gobfin's Turf": 23,
+   "Gobfin's Turf (2)": 25,
+   "Isle of Murmurs": 15,
+   "Isle of Silence": 15,
+   "Marsh Island": 25,
+   "Rayne Syndicate Test Drilling Rig": 25,
+   "Twilight Dunes": 15,
+   "Verdant Stream": 23
+  },
+  "056B": {
+   "Abandoned Ruins": 40,
+   "Astral Mountains": 40,
+   "Desiccated Dunes": 40,
+   "Foot of the Astral Mountains": 40,
+   "Frozen Coral Hill": 64,
+   "Scorched Hill": 64,
+   "The Oculus Gate, Tower in Sight": 64
+  },
+  "057": {
+   "Astral Mountains": 28,
+   "Bamboo Groves": 14,
+   "Crescent Moon Shore": 25,
+   "Dancing Sakura Shrine": 54,
+   "Deep Bamboo Thicket": 15,
+   "Desiccated Dunes": 28,
+   "Duneshelter": 31,
+   "Emberstone Plateau": 56,
+   "Foot of the Volcano": 14,
+   "Isle of Murmurs": 15,
+   "Isle of Silence": 15,
+   "Scorched Ashland": 56,
+   "Scorched Hill": 56,
+   "Stone Pillar Cave (2)": 56,
+   "Stone Pillar Cave (3)": 56,
+   "Stone Pillar Cave (4)": 56,
+   "Twilight Dunes": 15,
+   "Verdant Stream": 28,
+   "Withered Seaside": 56
+  },
+  "058": {
+   "Foot of the Volcano": 20,
+   "Gobfin's Turf (2)": 20,
+   "Marsh Island": 20,
+   "Mount Obsidian": 25,
+   "Rayne Syndicate Test Drilling Rig": 20,
+   "Sea Breeze Archipelago": 20,
+   "Verdant Stream": 20
+  },
+  "059": {
+   "Ancient Ritual Site": 15,
+   "Autumn Rocks": 15,
+   "Crescent Moon Shore": 15,
+   "Crystalline Archipelago": 64,
+   "Gobfin's Turf": 15,
+   "Waterlily Gorge": 64
+  },
+  "060": {
+   "Ancient Ritual Site": 16,
+   "Autumn Rocks": 16,
+   "Crescent Moon Shore": 16,
+   "Gobfin's Turf": 16
+  },
+  "061": {
+   "Ancient Ritual Site": 16,
+   "Autumn Rocks": 16,
+   "Crescent Moon Shore": 16,
+   "Gobfin's Turf": 16
+  },
+  "062": {
+   "Bamboo Groves": 18,
+   "Deep Bamboo Thicket": 18,
+   "The Azure Tapestry": 64
+  },
+  "063": {
+   "Ancient Ritual Site": 25,
+   "Autumn Rocks": 25,
+   "Crescent Moon Shore": 25,
+   "Foot of the World Tree": 80,
+   "Gobfin's Turf": 25,
+   "No. 1 Wildlife Sanctuary": 20
+  },
+  "063B": {
+   "Dancing Sakura Shrine": 53,
+   "Foot of the World Tree": 80,
+   "Frostbound Mountains": 33,
+   "Sakurajima - Southern Sandbar": 53
+  },
+  "064": {
+   "Bamboo Groves": 20,
+   "Deep Bamboo Thicket": 30,
+   "Deserted Ash Plateau": 58,
+   "Dry Sandy Beach": 30,
+   "Emberstone Plateau": 57,
+   "Mount Obsidian": 30,
+   "Scorched Ashland": 57,
+   "Scorched Hill": 57,
+   "Stone Pillar Cave (3)": 57,
+   "Withered Seaside": 57
+  },
+  "064B": {
+   "Astral Mountains": 36,
+   "Bamboo Groves": 23,
+   "Deep Bamboo Thicket": 33,
+   "Frostbound Mountains": 30,
+   "Frozen Coral Hill": 65,
+   "Scorched Hill": 65,
+   "The Oculus Gate, Tower in Sight": 65
+  },
+  "065": {
+   "Frozen Coral Hill": 63,
+   "Scorched Hill": 63,
+   "The Oculus Gate, Tower in Sight": 63
+  },
+  "066": {
+   "Dancing Sakura Shrine": 55,
+   "No. 1 Wildlife Sanctuary": 20,
+   "Sakurajima - Northern Rock Field": 55
+  },
+  "067": {
+   "Crescent Moon Shore": 28,
+   "Frostbound Mountains": 28,
+   "Verdant Stream": 28
+  },
+  "068": {
+   "Crescent Moon Shore": 34,
+   "Frostbound Mountains": 34,
+   "Verdant Stream": 34
+  },
+  "069": {
+   "Astral Mountains": 30,
+   "Deep Bamboo Thicket": 34,
+   "Desiccated Dunes": 30,
+   "Duneshelter": 34,
+   "Isle of Murmurs": 34,
+   "Twilight Dunes": 34,
+   "Verdant Stream": 30
+  },
+  "070": {
+   "Ancient Ritual Site": 25,
+   "Autumn Rocks": 25,
+   "Crescent Moon Shore": 25,
+   "Foot of the Astral Mountains": 25,
+   "Frostbound Mountains": 32,
+   "Gobfin's Turf": 25,
+   "Gobfin's Turf (2)": 25,
+   "Marsh Island": 25,
+   "Rayne Syndicate Test Drilling Rig": 25,
+   "Sakurajima - Mushroom Wetlands": 46,
+   "Verdant Stream": 25
+  },
+  "071": {
+   "Crescent Moon Shore": 32,
+   "Frostbound Mountains": 32,
+   "Verdant Stream": 32
+  },
+  "072": {
+   "Abandoned Ruins": 35,
+   "Astral Mountains": 33,
+   "Foot of the Astral Mountains": 35
+  },
+  "072B": {
+   "Suncrest Islet": 55
+  },
+  "073": {
+   "Astral Mountains": 28,
+   "Desiccated Dunes": 28,
+   "Dry Sandy Beach": 22,
+   "Duneshelter": 31,
+   "Foot of the Volcano": 21,
+   "Mount Obsidian": 30,
+   "Sea Breeze Archipelago": 21,
+   "Verdant Stream": 28
+  },
+  "073B": {
+   "Foot of the Volcano": 28,
+   "Mount Obsidian": 28
+  },
+  "074": {
+   "Foot of the World Tree": 80,
+   "Frostbound Mountains": 30,
+   "Verdant Stream": 30
+  },
+  "074B": {
+   "Desiccated Dunes": 35,
+   "Foot of the World Tree": 80,
+   "Verdant Stream": 35
+  },
+  "075": {
+   "Astral Mountains": 24,
+   "Bamboo Groves": 12,
+   "Desiccated Dunes": 24,
+   "Foot of the Astral Mountains": 30,
+   "Gobfin's Turf": 24,
+   "Marsh Island": 20,
+   "Rayne Syndicate Test Drilling Rig": 20,
+   "Verdant Stream": 24
+  },
+  "075B": {
+   "Astral Mountains": 31,
+   "Deserted Ash Plateau": 61,
+   "Desiccated Dunes": 31,
+   "Duneshelter": 31,
+   "Scorched Ashland": 52,
+   "Scorched Hill": 52,
+   "Verdant Stream": 31
+  },
+  "076": {
+   "Marsh Island": 30,
+   "Verdant Stream": 30
+  },
+  "076B": {
+   "Astral Mountains": 32,
+   "Desiccated Dunes": 32,
+   "Duneshelter": 32,
+   "Verdant Stream": 32
+  },
+  "077": {
+   "Crescent Moon Shore": 22,
+   "Foot of the Astral Mountains": 22,
+   "Verdant Stream": 22
+  },
+  "078": {
+   "Dry Sandy Beach": 23,
+   "Mount Obsidian": 23,
+   "Ruined Fortress City": 30,
+   "Scars of War": 32,
+   "Sea Breeze Archipelago": 23
+  },
+  "078B": {
+   "Dancing Sakura Shrine": 46,
+   "Sakurajima - Mushroom Wetlands": 46,
+   "Sakurajima - Northern Rock Field": 46,
+   "Sakurajima - Southern Sandbar": 46
+  },
+  "079": {
+   "Abandoned Ruins": 32,
+   "Ancient Ritual Site": 25,
+   "Astral Mountains": 43,
+   "Autumn Rocks": 25,
+   "Crescent Moon Shore": 25,
+   "Foot of the Astral Mountains": 25,
+   "Frostbound Mountains": 32,
+   "Gobfin's Turf": 25,
+   "Gobfin's Turf (2)": 25,
+   "Marsh Island": 25,
+   "Rayne Syndicate Test Drilling Rig": 25,
+   "Verdant Stream": 25
+  },
+  "079B": {},
+  "080": {
+   "Ancient Ritual Site": 25,
+   "Autumn Rocks": 25,
+   "Crescent Moon Shore": 25,
+   "Crystalized Ancient Tree": 62,
+   "Deserted Ash Plateau": 62,
+   "Emberstone Plateau": 62,
+   "Foot of the Astral Mountains": 25,
+   "Foot of the World Tree": 80,
+   "Frostbound Mountains": 34,
+   "Frozen Coral Hill": 63,
+   "Gobfin's Turf": 24,
+   "Gobfin's Turf (2)": 25,
+   "Hidden Passage to the Oculus Gate": 62,
+   "Loess Plains": 62,
+   "Marsh Island": 25,
+   "Rayne Syndicate Test Drilling Rig": 25,
+   "Scorched Hill": 62,
+   "Stone Pillar Cave": 62,
+   "The Oculus Gate, Tower in Sight": 63,
+   "Verdant Stream": 24
+  },
+  "080B": {
+   "Foot of the World Tree": 80,
+   "Sakurajima - Northern Rock Field": 47
+  },
+  "081": {
+   "Bamboo Groves": 24,
+   "Deep Bamboo Thicket": 24,
+   "Foot of the World Tree": 80,
+   "No. 1 Wildlife Sanctuary": 24
+  },
+  "081B": {
+   "Foot of the World Tree": 75
+  },
+  "082": {
+   "Abandoned Ruins": 36,
+   "Astral Mountains": 46,
+   "Dry Sandy Beach": 25,
+   "Foot of the Astral Mountains": 36,
+   "Mount Obsidian": 25,
+   "No. 1 Wildlife Sanctuary": 25,
+   "Sea Breeze Archipelago": 25
+  },
+  "083": {
+   "Foot of the World Tree": 80,
+   "No. 3 Wildlife Sanctuary": 45
+  },
+  "083B": {
+   "Emberstone Plateau": 57,
+   "Foot of the World Tree": 80,
+   "Scorched Ashland": 57,
+   "Scorched Hill": 57,
+   "Stone Pillar Cave (2)": 57,
+   "Stone Pillar Cave (3)": 57,
+   "Stone Pillar Cave (4)": 57,
+   "Withered Seaside": 57
+  },
+  "084": {
+   "Desiccated Dunes": 32,
+   "Eastern Wild Island": 25,
+   "Flying Fish Coast": 25,
+   "Golden Hills": 25,
+   "Marsh Island": 25,
+   "Sea Breeze Archipelago": 25,
+   "Verdant Stream": 25,
+   "Windswept Island": 25,
+   "Windswept Island (2)": 25
+  },
+  "084B": {
+   "Astral Mountains": 34,
+   "Desiccated Dunes": 34,
+   "Duneshelter": 34,
+   "Verdant Stream": 34
+  },
+  "085": {
+   "Abandoned Ruins": 32,
+   "Astral Mountains": 30,
+   "Dancing Sakura Shrine": 47,
+   "Desiccated Dunes": 30,
+   "Dry Sandy Beach": 27,
+   "Duneshelter": 34,
+   "Foot of the Astral Mountains": 32,
+   "Foot of the Volcano": 25,
+   "Mount Obsidian": 28,
+   "No. 3 Wildlife Sanctuary": 50,
+   "Ruined Fortress City": 30,
+   "Sakurajima - Mushroom Wetlands": 47,
+   "Sakurajima - Northern Rock Field": 47,
+   "Sakurajima - Southern Sandbar": 47,
+   "Sea Breeze Archipelago": 25,
+   "Verdant Stream": 30
+  },
+  "085B": {
+   "Crystalized Ancient Tree": 56,
+   "Dancing Sakura Shrine": 47,
+   "Deserted Ash Plateau": 56,
+   "Emberstone Plateau": 56,
+   "Frozen Coral Hill": 63,
+   "Hidden Passage to the Oculus Gate": 63,
+   "Loess Plains": 53,
+   "Sakurajima - Mushroom Wetlands": 47,
+   "Sakurajima - Northern Rock Field": 47,
+   "Sakurajima - Southern Sandbar": 47,
+   "Scorched Ashland": 50,
+   "Scorched Hill": 50,
+   "Stone Pillar Cave": 63,
+   "Stone Pillar Cave (2)": 56,
+   "Stone Pillar Cave (3)": 56,
+   "Stone Pillar Cave (4)": 56,
+   "The Oculus Gate, Tower in Sight": 63,
+   "Withered Seaside": 56
+  },
+  "086": {
+   "Astral Mountains": 32,
+   "Frostbitten Isle": 10
+  },
+  "087": {
+   "Abandoned Ruins": 36,
+   "Astral Mountains": 36,
+   "Bamboo Groves": 26,
+   "Deep Bamboo Thicket": 26,
+   "Desiccated Dunes": 36,
+   "Flying Fish Coast": 33,
+   "Foot of the Astral Mountains": 36,
+   "Foot of the Volcano": 26,
+   "Foot of the World Tree": 80,
+   "Fortress Ruins": 33,
+   "Golden Hills": 33,
+   "Windswept Island": 33
+  },
+  "087B": {
+   "Astral Mountains": 36,
+   "Desiccated Dunes": 36,
+   "Foot of the World Tree": 80
+  },
+  "088": {
+   "Isle of Eternal Summer": 32,
+   "Sunlit Isle": 1
+  },
+  "088B": {},
+  "089": {
+   "Crescent Moon Shore": 28,
+   "Dancing Sakura Shrine": 55,
+   "Foot of the Astral Mountains": 28,
+   "Sakurajima - Northern Rock Field": 55,
+   "Verdant Stream": 28
+  },
+  "089B": {
+   "Foot of the World Tree": 71
+  },
+  "090": {
+   "Enchanted Firmament": 67,
+   "Marsh Island": 28,
+   "Verdant Stream": 28
+  },
+  "091": {
+   "Foot of the Volcano": 33,
+   "Mount Obsidian": 30
+  },
+  "091B": {
+   "No. 2 Wildlife Sanctuary": 37
+  },
+  "092": {
+   "Deep Bamboo Thicket": 30,
+   "Desiccated Dunes": 32,
+   "Isle of Murmurs": 30,
+   "Twilight Dunes": 30,
+   "Verdant Stream": 32
+  },
+  "092B": {
+   "Scorched Ashland": 56,
+   "Scorched Hill": 50,
+   "Stone Pillar Cave (2)": 56,
+   "Stone Pillar Cave (3)": 56,
+   "Stone Pillar Cave (4)": 56,
+   "Waterlily Gorge": 65,
+   "Withered Seaside": 56
+  },
+  "093": {
+   "Foot of the Volcano": 32,
+   "Foot of the World Tree": 80,
+   "Mount Obsidian": 30
+  },
+  "093B": {
+   "Dry Sandy Beach": 34,
+   "Foot of the Volcano": 34,
+   "Foot of the World Tree": 80,
+   "Mount Obsidian": 34,
+   "No. 2 Wildlife Sanctuary": 35,
+   "Ruined Fortress City": 35,
+   "Sea Breeze Archipelago": 34
+  },
+  "094": {
+   "Bamboo Groves": 30,
+   "Dancing Sakura Shrine": 61,
+   "Deep Bamboo Thicket": 40,
+   "Foot of the Astral Mountains": 30,
+   "Foot of the Volcano": 40,
+   "Foot of the World Tree": 80,
+   "Frozen Coral Hill": 66,
+   "Sakurajima - Mushroom Wetlands": 47,
+   "Scorched Ashland": 60,
+   "Scorched Hill": 60,
+   "Verdant Stream": 30
+  },
+  "094B": {
+   "Dancing Sakura Shrine": 63,
+   "Deep Bamboo Thicket": 48,
+   "Foot of the World Tree": 80,
+   "Frostbound Mountains": 48,
+   "Frozen Coral Hill": 68,
+   "Mount Obsidian": 48,
+   "Sakurajima - Mushroom Wetlands": 48,
+   "Scars of War": 48,
+   "Scorched Ashland": 63,
+   "Scorched Hill": 63,
+   "Twilight Dunes": 48,
+   "Verdant Stream": 48
+  },
+  "095": {
+   "Astral Mountains": 34,
+   "Frostbound Mountains": 30
+  },
+  "096": {
+   "Astral Mountains": 35,
+   "Desiccated Dunes": 34,
+   "Duneshelter": 35,
+   "Foot of the World Tree": 80,
+   "Frostbound Mountains": 30,
+   "Verdant Stream": 30
+  },
+  "096B": {
+   "Foot of the World Tree": 75
+  },
+  "097": {
+   "Deserted Ash Plateau": 56,
+   "Mount Obsidian": 50,
+   "No. 2 Wildlife Sanctuary": 50,
+   "Phantom Isle": 30,
+   "Scorched Ashland": 50,
+   "Scorched Hill": 56
+  },
+  "097B": {},
+  "098": {
+   "Abandoned Ruins": 31,
+   "Astral Mountains": 31,
+   "Crystalized Ancient Tree": 56,
+   "Foot of the Astral Mountains": 31,
+   "Loess Plains": 52,
+   "Scorched Hill": 56
+  },
+  "098B": {
+   "Astral Mountains": 35,
+   "Foot of the World Tree": 75
+  },
+  "099": {
+   "Astral Mountains": 31,
+   "Desiccated Dunes": 31,
+   "Duneshelter": 31,
+   "Verdant Stream": 31
+  },
+  "099B": {
+   "No. 3 Wildlife Sanctuary": 48
+  },
+  "100": {
+   "Astral Mountains": 31,
+   "Desiccated Dunes": 31,
+   "Duneshelter": 31,
+   "Scouring Islet": 32,
+   "Verdant Stream": 31
+  },
+  "100B": {
+   "Astral Mountains": 33,
+   "Desiccated Dunes": 33,
+   "Duneshelter": 33,
+   "Verdant Stream": 33
+  },
+  "101": {
+   "Astral Mountains": 36,
+   "Foot of the World Tree": 80,
+   "Frostbound Mountains": 32
+  },
+  "102": {
+   "Foot of the World Tree": 80,
+   "Marsh Island": 32,
+   "Verdant Stream": 32
+  },
+  "102B": {
+   "Foot of the World Tree": 70
+  },
+  "103": {
+   "Abandoned Ruins": 32,
+   "Astral Mountains": 32,
+   "Foot of the Astral Mountains": 32,
+   "Foot of the World Tree": 80
+  },
+  "103B": {
+   "Dancing Sakura Shrine": 53,
+   "Foot of the World Tree": 80
+  },
+  "104": {
+   "Emberstone Plateau": 65,
+   "Foot of the Volcano": 33,
+   "Foot of the World Tree": 80,
+   "Mount Obsidian": 32,
+   "Scorched Hill": 65
+  },
+  "105": {
+   "Bicornis Islet": 65,
+   "Foot of the Volcano": 32,
+   "Foot of the World Tree": 80,
+   "Mount Obsidian": 32
+  },
+  "105B": {},
+  "106": {
+   "Desiccated Dunes": 34,
+   "Isle of Eternal Summer": 32,
+   "Oasis Isle": 40
+  },
+  "107": {
+   "Astral Mountains": 34,
+   "Deep Bamboo Thicket": 33,
+   "Desiccated Dunes": 33,
+   "Duneshelter": 34,
+   "Isle of Murmurs": 33,
+   "Scouring Islet": 35,
+   "Twilight Dunes": 33,
+   "Verdant Stream": 33
+  },
+  "108": {
+   "Ancient Ritual Site": 34,
+   "Autumn Rocks": 34,
+   "Bamboo Groves": 35,
+   "Crescent Moon Shore": 34,
+   "Deep Bamboo Thicket": 35,
+   "Eastern Wild Island": 33,
+   "Foot of the Volcano": 35,
+   "Foot of the World Tree": 80,
+   "Gobfin's Turf": 34,
+   "Marsh Island": 33,
+   "Verdant Stream": 33
+  },
+  "108B": {
+   "Foot of the World Tree": 80,
+   "Verdant Stream": 51
+  },
+  "109": {
+   "Bamboo Groves": 22,
+   "Deep Bamboo Thicket": 22,
+   "Dry Sandy Beach": 22,
+   "Fisherman's Point": 24,
+   "Foot of the Volcano": 20,
+   "Gobfin's Turf (2)": 20,
+   "Isle of Murmurs": 32,
+   "Marsh Island": 20,
+   "Mount Obsidian": 24,
+   "No. 2 Wildlife Sanctuary": 36,
+   "Rayne Syndicate Test Drilling Rig": 20,
+   "Sea Breeze Archipelago": 20,
+   "Twilight Dunes": 32,
+   "Verdant Stream": 20
+  },
+  "109B": {
+   "Dry Sandy Beach": 27,
+   "Fisherman's Point": 28,
+   "Foot of the Volcano": 25,
+   "Mount Obsidian": 28,
+   "No. 2 Wildlife Sanctuary": 42,
+   "Sakurajima - Northern Rock Field": 48,
+   "Sea Breeze Archipelago": 25
+  },
+  "110": {
+   "Desiccated Dunes": 34,
+   "Foot of the World Tree": 80,
+   "Isle of Murmurs": 33,
+   "Isle of Silence": 33,
+   "Oasis Isle": 40,
+   "Sea Breeze Archipelago": 33,
+   "Windswept Island (2)": 33
+  },
+  "111": {
+   "Frostbound Mountains": 34,
+   "No. 2 Wildlife Sanctuary": 35
+  },
+  "111B": {
+   "Crystalized Ancient Tree": 61,
+   "Deserted Ash Plateau": 61,
+   "Emberstone Plateau": 61,
+   "Frozen Coral Hill": 63,
+   "Hidden Passage to the Oculus Gate": 63,
+   "Loess Plains": 61,
+   "Scorched Hill": 61,
+   "Stone Pillar Cave": 63,
+   "The Oculus Gate, Tower in Sight": 63
+  },
+  "112": {
+   "Emberstone Plateau": 65,
+   "Foot of the Volcano": 35,
+   "Foot of the World Tree": 80,
+   "Mount Obsidian": 35,
+   "Scorched Hill": 65
+  },
+  "112B": {
+   "Dry Sandy Beach": 35,
+   "Foot of the Volcano": 35,
+   "Foot of the World Tree": 80,
+   "Frozen Coral Hill": 65,
+   "Mount Obsidian": 35,
+   "No. 2 Wildlife Sanctuary": 40,
+   "Ruined Fortress City": 38,
+   "Sea Breeze Archipelago": 35
+  },
+  "113": {
+   "Foot of the World Tree": 80,
+   "Frostbound Mountains": 34,
+   "Verdant Stream": 34
+  },
+  "113B": {
+   "Crystalized Ancient Tree": 57,
+   "Loess Plains": 53,
+   "Scorched Hill": 57
+  },
+  "114": {
+   "Crystalline Archipelago": 65,
+   "The Azure Tapestry": 65,
+   "Waterlily Gorge": 65
+  },
+  "115": {
+   "Foot of the World Tree": 75,
+   "No. 2 Wildlife Sanctuary": 35
+  },
+  "116": {
+   "Astral Mountains": 36
+  },
+  "116B": {
+   "Foot of the World Tree": 75
+  },
+  "117": {
+   "Abandoned Ruins": 40,
+   "Astral Mountains": 40,
+   "Desiccated Dunes": 40,
+   "Foot of the Astral Mountains": 40
+  },
+  "118": {
+   "Sakurajima - Mushroom Wetlands": 47
+  },
+  "118B": {
+   "Frozen Coral Hill": 63,
+   "Sakurajima - Mushroom Wetlands": 47
+  },
+  "119": {
+   "Astral Mountains": 45
+  },
+  "120": {
+   "Astral Mountains": 39,
+   "Desiccated Dunes": 39,
+   "Duneshelter": 39,
+   "Foot of the World Tree": 80,
+   "Verdant Stream": 39
+  },
+  "121": {
+   "Foot of the World Tree": 80
+  },
+  "121B": {
+   "Emberstone Plateau": 66,
+   "Foot of the World Tree": 80,
+   "Scorched Hill": 66
+  },
+  "122": {
+   "Foot of the World Tree": 80
+  },
+  "122B": {
+   "Foot of the World Tree": 80,
+   "The Azure Tapestry": 68
+  },
+  "123": {
+   "Astral Mountains": 31,
+   "Desiccated Dunes": 31,
+   "Duneshelter": 31,
+   "Sakurajima - Northern Rock Field": 47,
+   "Verdant Stream": 31
+  },
+  "124": {
+   "Abandoned Ruins": 40,
+   "Astral Mountains": 40,
+   "Crystalline Archipelago": 70,
+   "Desiccated Dunes": 45,
+   "Enchanted Firmament": 70,
+   "Foot of the Astral Mountains": 40,
+   "Foot of the World Tree": 80,
+   "The Azure Tapestry": 70,
+   "Waterlily Gorge": 70
+  },
+  "124B": {
+   "Astral Mountains": 45,
+   "Dancing Sakura Shrine": 53,
+   "Foot of the World Tree": 80,
+   "Sakurajima - Mushroom Wetlands": 53,
+   "Sakurajima - Northern Rock Field": 53,
+   "Sakurajima - Southern Sandbar": 53
+  },
+  "125": {
+   "Dancing Sakura Shrine": 55,
+   "Sakurajima - Northern Rock Field": 55
+  },
+  "126": {
+   "Dancing Sakura Shrine": 46,
+   "Sakurajima - Mushroom Wetlands": 46,
+   "Sakurajima - Southern Sandbar": 46
+  },
+  "127": {
+   "Dancing Sakura Shrine": 53
+  },
+  "128": {
+   "Isle of Murmurs": 30,
+   "The Azure Tapestry": 65,
+   "Twilight Dunes": 30
+  },
+  "128B": {
+   "Flamepulse Islet": 40
+  },
+  "129": {
+   "Mount Obsidian": 46
+  },
+  "129B": {
+   "Astral Mountains": 48,
+   "Frozen Coral Hill": 66
+  },
+  "130": {
+   "Crystalized Ancient Tree": 57,
+   "Emberstone Plateau": 65,
+   "Foot of the World Tree": 80,
+   "Loess Plains": 53,
+   "Scorched Hill": 57
+  },
+  "130B": {
+   "Foot of the World Tree": 74
+  },
+  "131": {
+   "Flamepulse Islet": 42
+  },
+  "131B": {
+   "The Azure Tapestry": 68
+  },
+  "132": {
+   "Astral Mountains": 44
+  },
+  "132B": {
+   "Deserted Ash Plateau": 62,
+   "Scorched Hill": 62
+  },
+  "133": {
+   "Frostbound Mountains": 32
+  },
+  "134": {
+   "Astral Mountains": 45,
+   "Foot of the World Tree": 80
+  },
+  "134B": {
+   "Dancing Sakura Shrine": 53,
+   "Foot of the World Tree": 80,
+   "Sakurajima - Mushroom Wetlands": 53,
+   "Sakurajima - Northern Rock Field": 53,
+   "Sakurajima - Southern Sandbar": 53
+  },
+  "135": {
+   "Dancing Sakura Shrine": 46,
+   "Frozen Coral Hill": 64,
+   "No. 2 Wildlife Sanctuary": 45,
+   "Sakurajima - Mushroom Wetlands": 46,
+   "Sakurajima - Northern Rock Field": 46,
+   "Sakurajima - Southern Sandbar": 46,
+   "Scorched Hill": 64,
+   "The Oculus Gate, Tower in Sight": 64
+  },
+  "136": {
+   "No. 3 Wildlife Sanctuary": 45
+  },
+  "137": {
+   "Flamepulse Islet": 46,
+   "Foot of the World Tree": 80
+  },
+  "137B": {},
+  "138": {
+   "Abandoned Ruins": 46,
+   "Foot of the Astral Mountains": 46,
+   "Foot of the World Tree": 73
+  },
+  "138B": {
+   "Foot of the World Tree": 75
+  },
+  "139": {
+   "Foot of the World Tree": 80,
+   "Sandstone Gate Islet": 68
+  },
+  "140": {
+   "Astral Mountains": 37,
+   "Desiccated Dunes": 37,
+   "Duneshelter": 37,
+   "Foot of the World Tree": 80,
+   "Sandstone Gate Islet": 65,
+   "Verdant Stream": 37
+  },
+  "141": {
+   "Dancing Sakura Shrine": 48,
+   "Sakurajima - Mushroom Wetlands": 48,
+   "Sakurajima - Southern Sandbar": 48
+  },
+  "141B": {
+   "Sandstone Gate Islet": 65
+  },
+  "142": {
+   "Astral Mountains": 48,
+   "Desiccated Dunes": 48,
+   "Duneshelter": 48,
+   "Foot of the World Tree": 80,
+   "Verdant Stream": 48
+  },
+  "142B": {
+   "Foot of the World Tree": 76
+  },
+  "143": {
+   "Emberstone Plateau": 56,
+   "Scorched Ashland": 56,
+   "Scorched Hill": 56,
+   "Stone Pillar Cave (2)": 56,
+   "Stone Pillar Cave (3)": 56,
+   "Stone Pillar Cave (4)": 56,
+   "Withered Seaside": 56
+  },
+  "144": {
+   "Abandoned Ruins": 32,
+   "Ancient Ritual Site": 18,
+   "Astral Mountains": 25,
+   "Autumn Rocks": 18,
+   "Azure Woodland": 65,
+   "Bamboo Groves": 10,
+   "Crescent Moon Shore": 18,
+   "Crystalized Ancient Tree": 56,
+   "Crystalline Archipelago": 65,
+   "Dancing Sakura Shrine": 46,
+   "Deep Bamboo Thicket": 12,
+   "Deserted Ash Plateau": 56,
+   "Desiccated Dunes": 25,
+   "Dry Sandy Beach": 22,
+   "Duneshelter": 30,
+   "Emberstone Plateau": 56,
+   "Enchanted Firmament": 65,
+   "Foot of the Astral Mountains": 18,
+   "Foot of the Volcano": 10,
+   "Foot of the World Tree": 70,
+   "Frostbound Mountains": 30,
+   "Frozen Coral Hill": 60,
+   "Gobfin's Turf": 18,
+   "Gobfin's Turf (2)": 20,
+   "Hidden Passage to the Oculus Gate": 60,
+   "Isle of Murmurs": 12,
+   "Isle of Silence": 12,
+   "Loess Plains": 50,
+   "Marsh Island": 20,
+   "Mount Obsidian": 22,
+   "Rayne Syndicate Test Drilling Rig": 20,
+   "Ruined Fortress City": 30,
+   "Sakurajima - Mushroom Wetlands": 46,
+   "Sakurajima - Northern Rock Field": 46,
+   "Sakurajima - Southern Sandbar": 46,
+   "Scorched Ashland": 50,
+   "Scorched Hill": 50,
+   "Sea Breeze Archipelago": 20,
+   "Stone Pillar Cave": 60,
+   "Stone Pillar Cave (2)": 56,
+   "Stone Pillar Cave (3)": 56,
+   "Stone Pillar Cave (4)": 56,
+   "The Azure Tapestry": 66,
+   "The Oculus Gate, Tower in Sight": 60,
+   "Twilight Dunes": 12,
+   "Verdant Stream": 18,
+   "Waterlily Gorge": 65,
+   "Withered Seaside": 56
+  },
+  "145": {},
+  "146": {},
+  "147": {
+   "Crystalized Ancient Tree": 61,
+   "Deserted Ash Plateau": 61,
+   "Emberstone Plateau": 61,
+   "Frozen Coral Hill": 63,
+   "Hidden Passage to the Oculus Gate": 61,
+   "Loess Plains": 52,
+   "Scorched Hill": 61,
+   "Stone Pillar Cave": 61,
+   "The Oculus Gate, Tower in Sight": 63
+  },
+  "148": {
+   "Frozen Coral Hill": 65,
+   "Scorched Hill": 65,
+   "The Oculus Gate, Tower in Sight": 65
+  },
+  "148B": {
+   "Islet of Circular Ruins": 50
+  },
+  "149": {
+   "Crystalized Ancient Tree": 56,
+   "Deserted Ash Plateau": 56,
+   "Emberstone Plateau": 55,
+   "Frozen Coral Hill": 62,
+   "Hidden Passage to the Oculus Gate": 59,
+   "Loess Plains": 50,
+   "Scorched Ashland": 50,
+   "Scorched Hill": 50,
+   "Stone Pillar Cave": 59,
+   "Stone Pillar Cave (2)": 55,
+   "Stone Pillar Cave (3)": 55,
+   "Stone Pillar Cave (4)": 55,
+   "The Oculus Gate, Tower in Sight": 62,
+   "Withered Seaside": 55
+  },
+  "149B": {
+   "Glacial Memento Islet": 62
+  },
+  "150": {
+   "Crystalized Ancient Tree": 57,
+   "Deserted Ash Plateau": 57,
+   "Emberstone Plateau": 57,
+   "Frozen Coral Hill": 63,
+   "Hidden Passage to the Oculus Gate": 61,
+   "Loess Plains": 52,
+   "Scorched Ashland": 51,
+   "Scorched Hill": 51,
+   "Stone Pillar Cave": 61,
+   "Stone Pillar Cave (2)": 57,
+   "Stone Pillar Cave (3)": 57,
+   "Stone Pillar Cave (4)": 57,
+   "The Oculus Gate, Tower in Sight": 63,
+   "Withered Seaside": 57
+  },
+  "151": {
+   "Foot of the World Tree": 80,
+   "Isle of the Glacial Core": 50
+  },
+  "151B": {
+   "Foot of the World Tree": 71
+  },
+  "152": {
+   "Dancing Sakura Shrine": 52,
+   "Sakurajima - Mushroom Wetlands": 52,
+   "Sakurajima - Northern Rock Field": 52,
+   "Sakurajima - Southern Sandbar": 52
+  },
+  "153": {
+   "Crystalized Ancient Tree": 60,
+   "Deserted Ash Plateau": 60,
+   "Emberstone Plateau": 56,
+   "Foot of the World Tree": 80,
+   "Frozen Coral Hill": 63,
+   "Hidden Passage to the Oculus Gate": 60,
+   "Loess Plains": 60,
+   "Scorched Ashland": 56,
+   "Scorched Hill": 56,
+   "Stone Pillar Cave": 60,
+   "Stone Pillar Cave (2)": 56,
+   "Stone Pillar Cave (3)": 56,
+   "Stone Pillar Cave (4)": 56,
+   "The Oculus Gate, Tower in Sight": 63,
+   "Withered Seaside": 56
+  },
+  "154": {
+   "Crystalized Ancient Tree": 61,
+   "Deserted Ash Plateau": 61,
+   "Frozen Coral Hill": 63,
+   "Hidden Passage to the Oculus Gate": 61,
+   "Loess Plains": 53,
+   "Scorched Hill": 61,
+   "Stone Pillar Cave": 61,
+   "The Oculus Gate, Tower in Sight": 63
+  },
+  "155": {
+   "Dancing Sakura Shrine": 53
+  },
+  "156": {
+   "Dancing Sakura Shrine": 53
+  },
+  "157": {
+   "Crystalized Ancient Tree": 58,
+   "Deserted Ash Plateau": 59,
+   "Emberstone Plateau": 58,
+   "Foot of the World Tree": 80,
+   "Frozen Coral Hill": 65,
+   "Hidden Passage to the Oculus Gate": 64,
+   "Loess Plains": 55,
+   "Scorched Ashland": 54,
+   "Scorched Hill": 54,
+   "Stone Pillar Cave": 64,
+   "Stone Pillar Cave (2)": 58,
+   "Stone Pillar Cave (3)": 58,
+   "Stone Pillar Cave (4)": 58,
+   "The Oculus Gate, Tower in Sight": 65,
+   "Withered Seaside": 58
+  },
+  "157B": {},
+  "158": {
+   "Foot of the World Tree": 80
+  },
+  "159": {
+   "Foot of the World Tree": 71,
+   "No. 3 Wildlife Sanctuary": 55
+  },
+  "159B": {
+   "Bicornis Islet": 65,
+   "Foot of the World Tree": 71
+  },
+  "160": {
+   "Foot of the World Tree": 80
+  },
+  "161": {
+   "Foot of the World Tree": 80,
+   "Frozen Coral Hill": 63
+  },
+  "162": {
+   "Crystalline Archipelago": 64
+  },
+  "163": {
+   "Crystalline Archipelago": 64
+  },
+  "163B": {
+   "Foot of the World Tree": 74
+  },
+  "164": {
+   "Enchanted Firmament": 64
+  },
+  "165": {
+   "Azure Woodland": 65
+  },
+  "166": {
+   "Azure Woodland": 65,
+   "Enchanted Firmament": 65,
+   "Waterlily Gorge": 65
+  },
+  "167": {
+   "Farcry Marsh": 65
+  },
+  "168": {
+   "Azure Woodland": 65,
+   "Enchanted Firmament": 65,
+   "Waterlily Gorge": 65
+  },
+  "169": {
+   "The Azure Tapestry": 66
+  },
+  "169B": {
+   "Foot of the World Tree": 76
+  },
+  "170": {
+   "Crystalline Archipelago": 65
+  },
+  "171": {
+   "Foot of the World Tree": 80
+  },
+  "171B": {
+   "Foot of the World Tree": 75
+  },
+  "172": {
+   "Waterlily Gorge": 66
+  },
+  "173": {
+   "The Azure Tapestry": 66
+  },
+  "174": {
+   "Foot of the World Tree": 75
+  },
+  "175": {
+   "Foot of the World Tree": 80
+  },
+  "176": {
+   "Astral Mountains": 55,
+   "Autumn Rocks": 55,
+   "Bicornis Islet": 55,
+   "Crystalized Ancient Tree": 55,
+   "Dancing Sakura Shrine": 55,
+   "Duneshelter": 55,
+   "Flamepulse Islet": 55,
+   "Foot of the World Tree": 72,
+   "Frostbitten Isle": 55,
+   "Glacial Memento Islet": 55,
+   "Isle of Decayed Treasures": 55,
+   "Isle of the Glacial Core": 55,
+   "Islet of Circular Ruins": 55,
+   "Mount Obsidian": 55,
+   "Phantom Isle": 55,
+   "Sandstone Gate Islet": 55,
+   "Scars of War": 55,
+   "Scouring Islet": 55,
+   "Suncrest Islet": 55,
+   "Waterlily Gorge": 55,
+   "Windswept Island": 55
+  },
+  "177": {
+   "Foot of the World Tree": 74
+  },
+  "178": {
+   "Foot of the World Tree": 75
+  },
+  "179": {
+   "Foot of the World Tree": 75
+  },
+  "180": {
+   "Foot of the World Tree": 75
+  },
+  "181": {
+   "Foot of the World Tree": 76
+  },
+  "182": {
+   "Foot of the World Tree": 76
+  },
+  "183": {
+   "Foot of the World Tree": 80
+  },
+  "184": {},
+  "185": {
+   "Foot of the World Tree": 70
+  },
+  "186": {
+   "Foot of the World Tree": 75
+  },
+  "186B": {
+   "Foot of the World Tree": 75
+  },
+  "187": {
+   "Foot of the World Tree": 74
+  },
+  "188": {
+   "Foot of the World Tree": 76
+  },
+  "188B": {
+   "Crystalline Archipelago": 67,
+   "Foot of the World Tree": 76,
+   "Frozen Coral Hill": 65
+  },
+  "189": {
+   "Foot of the World Tree": 80,
+   "No. 3 Wildlife Sanctuary": 50
+  },
+  "190": {
+   "Foot of the World Tree": 76
+  },
+  "191": {
+   "Foot of the World Tree": 75
+  },
+  "192": {
+   "Foot of the World Tree": 76
+  },
+  "193": {},
+  "194": {},
+  "195": {},
+  "195B": {},
+  "196": {},
+  "197": {},
+  "198": {},
+  "199": {},
+  "200": {},
+  "200B": {},
+  "201": {},
+  "202": {},
+  "203": {},
+  "204": {}
+ },
+ "pieces": {
+  "Abandoned Ruins": "Abandoned Ruins",
+  "Ancient Ritual Site": "Ancient Ritual Site",
+  "Astral Mountains": "Astral Mountains",
+  "Autumn Rocks": "Autumn Rocks",
+  "Azure Woodland": "Azure Woodland",
+  "Bamboo Groves": "Bamboo Groves",
+  "Bicornis Islet": "Bicornis Islet",
+  "Crescent Moon Shore": "Crescent Moon Shore",
+  "Crescent Moon Shore (2)": "Crescent Moon Shore",
+  "Crystalized Ancient Tree": "Crystalized Ancient Tree",
+  "Crystalline Archipelago": "Crystalline Archipelago",
+  "Dancing Sakura Shrine": "Dancing Sakura Shrine",
+  "Deep Bamboo Thicket": "Deep Bamboo Thicket",
+  "Deserted Ash Plateau": "Deserted Ash Plateau",
+  "Desiccated Dunes": "Desiccated Dunes",
+  "Dragonmark Peak": "Dragonmark Peak",
+  "Dry Sandy Beach": "Dry Sandy Beach",
+  "Duneshelter": "Duneshelter",
+  "Eastern Wild Island": "Eastern Wild Island",
+  "Emberstone Plateau": "Emberstone Plateau",
+  "Enchanted Firmament": "Enchanted Firmament",
+  "Farcry Marsh": "Farcry Marsh",
+  "Feybreak Shipwreck": "Feybreak Shipwreck",
+  "Feybreak Tower": "Feybreak Tower",
+  "Fisherman's Point": "Fisherman's Point",
+  "Flamepulse Islet": "Flamepulse Islet",
+  "Flying Fish Coast": "Flying Fish Coast",
+  "Foot of the Astral Mountains": "Foot of the Astral Mountains",
+  "Foot of the Volcano": "Foot of the Volcano",
+  "Foot of the World Tree": "Foot of the World Tree",
+  "Fortress Ruins": "Fortress Ruins",
+  "Frostbitten Isle": "Frostbitten Isle",
+  "Frostbound Mountains": "Frostbound Mountains",
+  "Frozen Coral Hill": "Frozen Coral Hill",
+  "Glacial Memento Islet": "Glacial Memento Islet",
+  "Glacial Memento Islet (2)": "Glacial Memento Islet",
+  "Gobfin's Turf": "Gobfin's Turf",
+  "Gobfin's Turf (2)": "Gobfin's Turf",
+  "Golden Hills": "Golden Hills",
+  "Hidden Passage to the Oculus Gate": "Hidden Passage to the Oculus Gate",
+  "Isle of Decayed Treasures": "Isle of Decayed Treasures",
+  "Isle of Eternal Summer": "Isle of Eternal Summer",
+  "Isle of Murmurs": "Isle of Murmurs",
+  "Isle of Silence": "Isle of Silence",
+  "Isle of the Glacial Core": "Isle of the Glacial Core",
+  "Islet of Circular Ruins": "Islet of Circular Ruins",
+  "Loess Plains": "Loess Plains",
+  "Marsh Island": "Marsh Island",
+  "Mount Obsidian": "Mount Obsidian",
+  "No. 1 Wildlife Sanctuary": "No. 1 Wildlife Sanctuary",
+  "No. 2 Wildlife Sanctuary": "No. 2 Wildlife Sanctuary",
+  "No. 3 Wildlife Sanctuary": "No. 3 Wildlife Sanctuary",
+  "Oasis Isle": "Oasis Isle",
+  "Open sea": "Open sea",
+  "Phantom Isle": "Phantom Isle",
+  "Rayne Syndicate Oil Rig": "Rayne Syndicate Oil Rig",
+  "Rayne Syndicate Platform Oil Rig": "Rayne Syndicate Platform Oil Rig",
+  "Rayne Syndicate Test Drilling Rig": "Rayne Syndicate Test Drilling Rig",
+  "Ruined Fortress City": "Ruined Fortress City",
+  "Sakurajima - Mushroom Wetlands": "Sakurajima - Mushroom Wetlands",
+  "Sakurajima - Northern Rock Field": "Sakurajima - Northern Rock Field",
+  "Sakurajima - Southern Sandbar": "Sakurajima - Southern Sandbar",
+  "Sandstone Gate Islet": "Sandstone Gate Islet",
+  "Scars of War": "Scars of War",
+  "Scorched Ashland": "Scorched Ashland",
+  "Scorched Hill": "Scorched Hill",
+  "Scouring Islet": "Scouring Islet",
+  "Sea Breeze Archipelago": "Sea Breeze Archipelago",
+  "Small Settlement": "Small Settlement",
+  "Stone Pillar Cave": "Stone Pillar Cave",
+  "Stone Pillar Cave (2)": "Stone Pillar Cave",
+  "Stone Pillar Cave (3)": "Stone Pillar Cave",
+  "Stone Pillar Cave (4)": "Stone Pillar Cave",
+  "Suncrest Islet": "Suncrest Islet",
+  "Sunlit Isle": "Sunlit Isle",
+  "The Azure Tapestry": "The Azure Tapestry",
+  "The Oculus Gate, Tower in Sight": "The Oculus Gate, Tower in Sight",
+  "Twilight Dunes": "Twilight Dunes",
+  "Verdant Stream": "Verdant Stream",
+  "Waterlily Gorge": "Waterlily Gorge",
+  "Windswept Island": "Windswept Island",
+  "Windswept Island (2)": "Windswept Island",
+  "Withered Seaside": "Withered Seaside"
+ },
+ "start": "Windswept Island",
+ "towers": {
+  "Desert": "Desiccated Dunes",
+  "Feybreak": "Feybreak Tower",
+  "Forest": "Crescent Moon Shore",
+  "King Whale": "Crescent Moon Shore (2)",
+  "Sakurajima": "Dancing Sakura Shrine",
+  "Sky Islands": "The Azure Tapestry",
+  "Snow": "Astral Mountains",
+  "Volcano (Electric)": "Mount Obsidian",
+  "Windswept (Grass)": "Windswept Island",
+  "World Tree": "Foot of the World Tree"
+ }
+}

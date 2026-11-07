@@ -37,3 +37,20 @@ class TestRelicHuntRoom(PalworldTestBase):
     def test_refused(self):
         with self.assertRaises(OptionError):
             self.world_setup()
+
+
+class TestRunStyleNomad(PalworldTestBase):
+    """Nomad and Speed Boost change nothing in the seed itself; the mod reads them from the slot data."""
+    options = {"run_style": "nomad", "speed_boost": True, "boost_exp_rate": 5}
+
+    def test_slot_data(self):
+        opts = self.world.fill_slot_data()["options"]
+        self.assertEqual((opts["run_style"], opts["speed_boost"], opts["boost_exp_rate"], opts["boost_work_speed"],
+                          opts["boost_gather_rate"]), (1, 1, 5, 3, 2))
+
+
+class TestRunStyleDefault(PalworldTestBase):
+    def test_standard_without_boost(self):
+        """By default the mod never touches the world's settings."""
+        opts = self.world.fill_slot_data()["options"]
+        self.assertEqual((opts["run_style"], opts["speed_boost"]), (0, 0))

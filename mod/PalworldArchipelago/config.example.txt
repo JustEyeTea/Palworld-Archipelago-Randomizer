@@ -2,6 +2,9 @@
 server=
 slot=
 password=
+# The servers the title's Archipelago menu offers besides archipelago.gg (host names, comma-separated). Every server you
+# connect to is added by itself.
+servers=
 # A seed belongs to the first world you play it in: in other worlds the mod connects but locks, sends and gives
 # nothing. To move a seed to another world, delete the world= line from its save-<seed>-<slot>.txt in this folder.
 # The key that buys a hint for the Area Pass of the wall you are at (a letter or a key name such as F6).
@@ -24,8 +27,11 @@ perf_log=
 # load), Ctrl+F3 wall skins, Ctrl+F4 HUD probe (hint icon and goal banner for 6 s) and the probes that need the game
 # to answer. For playtests only.
 test_tools=
-# The area walls' look: empty is the Archipelago teal hex lattice (a); red is the game's own red grid. Test builds can
-# try others: b, a3d, b3d, a3d-dense, b3d-dense, and with the PalworldArchipelagoArt pak colour-paws, colour-routes,
+# The area walls' look: empty (or area) is a wall with see-through paw-shaped holes (the hex lattice until that
+# pattern file is installed) in the colour of the locked area behind each wall (its pass
+# ticket's colour; areas beyond the seed's goal in slate grey); a is the lattice in teal everywhere; red is the game's
+# own red grid. Test builds can try others: b, a3d, b3d, a3d-dense, b3d-dense, and with the PalworldArchipelagoArt pak
+# colour-paws, colour-routes,
 # colour-grid, colour-rainbow, colour-rainbow-flow; with test_tools=1, Ctrl+F3 cycles them all. wall_tiling=U,V
 # (the material's own is 5,3) and wall_scroll=U,V (0,0) change the pattern's size and drift.
 wall_skin=
@@ -34,3 +40,13 @@ wall_scroll=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=
+# map_cpp=0: the mod's C++ part leaves the world map screen alone, and the map picture is set from Lua as in earlier
+# builds (the game's own map may show for a moment first). Empty: C++ sets the picture and the fog inside the game's own
+# set-up of the screen, so it never shows the game's version first. Test builds tint the fog parchment (a probe).
+map_cpp=
+# map_chart=0: keep the game's dark fog over unexplored parts of the world map. Empty: they are drawn as an explorer's
+# chart (made on your PC from the game's map, with the locked-area stamps on it), from the map's next opening.
+map_chart=
+# map_icons=0: draw the locked-area stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
+# are the map's own icons, one size at every zoom, like the game's.
+map_icons=

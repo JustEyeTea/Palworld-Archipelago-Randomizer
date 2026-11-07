@@ -4,7 +4,8 @@ cmake_minimum_required(VERSION 3.22)
 set(TARGET APConnector)
 project(${TARGET})
 
-add_library(${TARGET} SHARED src/dllmain.cpp src/ap_bridge.cpp src/image_tools.cpp src/pal_gift.cpp src/pal_gift_logic.cpp)
+add_library(${TARGET} SHARED src/dllmain.cpp src/ap_bridge.cpp src/image_tools.cpp src/pal_gift.cpp src/pal_gift_logic.cpp
+    src/map_screen.cpp)
 target_include_directories(${TARGET} PRIVATE
     ${AP_DEPS}/apclientpp
     ${AP_DEPS}/wswrap/include

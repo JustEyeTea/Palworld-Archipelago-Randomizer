@@ -2,6 +2,9 @@ from . import PalworldTestBase
 
 
 class TestLevels(PalworldTestBase):
+    # Every area and every tech, the Sky Islands and saddles too, with the strict gear logic and progressive spheres.
+    options = {"goal": "world_tree", "gear_logic": True, "progressive_spheres": True}
+
     def test_a_pass_alone_is_not_a_level(self):
         """Reaching a high-level area does not let a fresh player level there, or beat its tower."""
         self.collect_by_name(["Area Pass: Sky Islands", "Tech: Nitewing Saddle", "Tech: Surfent Saddle"])
@@ -25,6 +28,8 @@ class TestLevels(PalworldTestBase):
 
 
 class TestMounts(PalworldTestBase):
+    options = {"goal": "world_tree", "gear_logic": True, "progressive_spheres": True}
+
     def test_the_sea_needs_a_mount_and_the_sky_islands_a_flying_one(self):
         self.collect_by_name([i.name for i in self.multiworld.itempool if i.name.startswith("Area Pass")])
         self.assertFalse(self.can_reach_region("Open sea"))
@@ -55,14 +60,15 @@ class TestSharedAlpha(PalworldTestBase):
 class TestLevelChecksEvery5(PalworldTestBase):
     options = {"tower_count": 1, "level_checks": "every_5"}
 
-    def test_levels_5_10_15_20(self):
+    def test_levels_5_10_15(self):
+        """One tower: Zoe is level 10, so the cap is 18."""
         levels = sorted(int(loc.name.split()[1]) for loc in self.multiworld.get_locations(self.player)
                         if loc.name.startswith("Level "))
-        self.assertEqual(levels, [5, 10, 15, 20])
+        self.assertEqual(levels, [5, 10, 15])
 
 
 class TestSyncNeedsItems(PalworldTestBase):
-    options = {"tower_count": 1}
+    options = {"tower_count": 1, "gear_logic": True, "progressive_spheres": True}
 
     def test_goal_not_in_reach_with_nothing(self):
         self.assertFalse(self.can_reach_location("Goal Complete"))

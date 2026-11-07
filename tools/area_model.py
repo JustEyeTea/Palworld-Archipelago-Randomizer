@@ -2,9 +2,11 @@
 one) holds and where every Pal can be had. Prints each piece's level range and contents, and draws them.
     <AP venv python> tools/area_model.py <tables dir> <out.png>   (reads <tables dir>/../areas/grid.npz; also writes
     <out>.json and <out>-sources.json: data/areas-1.0.5.json and data/pal-sources-1.0.5.json)
+For the per-region set: AREA_SIZE=regions AREA_GRID=<its grid .npz> (tools/area_walls.py run the same way first).
 """
+import os
 import csv, re, sys, collections, pathlib
-from area_groups import START as START_AREA
+from area_groups import GROUPS, START as START_AREA
 from PIL import Image, ImageDraw, ImageFont
 
 T = pathlib.Path(sys.argv[1])
@@ -35,7 +37,7 @@ for r in rd('DT_PalSpawnerPlacement.tsv'):
 # an area: the largest carries the area's name, the others "<area> (2)" and on. Pals beyond the main map are on the World
 # Tree's own map.
 import numpy as np
-G = np.load(T.parent / 'areas' / 'grid.npz')
+G = np.load(os.environ.get('AREA_GRID') or T.parent / 'areas' / 'grid.npz')
 GX0, GX1, GY0, GY1 = (float(v) for v in G['bounds'])
 GRID = G['pieces']
 GN = GRID.shape[0]
@@ -48,7 +50,7 @@ for k, n in enumerate(AREA_NAMES_):
     ps = sorted((q for q in range(1, len(PIECE_AREA)) if PIECE_AREA[q] == k), key=lambda q: -cells[q])
     for j, q in enumerate(ps):
         PIECE_NAME[q] = n if j == 0 else f'{n} ({j + 1})'
-OFFMAP = 'World Tree'
+OFFMAP = next(a for a, rows in GROUPS.items() if 'FootOfWorldTree' in rows)   # the World Tree's own map, off this one
 def area(x, y, l=0):
     """The piece at a spot; a spot on the water's edge takes the nearest land piece within 12 cells (175 m)."""
     r, c = int((GX1 - x) / GCELL), int((y - GY0) / GCELL)

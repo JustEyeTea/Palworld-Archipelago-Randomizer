@@ -18,8 +18,9 @@ class Goal(Choice):
 
 
 class TowerCount(Range):
-    """Towers goal: how many tower bosses you must beat. One or two suit a run of a few hours; all eight is a long
-    game."""
+    """Towers goal: how many tower bosses you must beat. Any towers count, but the logic plans for the first ones in the
+    game's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).
+    One or two suit a run of a few hours; all eight is a long game."""
     display_name = "Towers to Beat"
     range_start = 1
     range_end = 8
@@ -53,7 +54,8 @@ class RelicsNeeded(Range):
 class CheckLevel(Range):
     """The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,
     alphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.
-    0 (auto) sets it from the goal: 8 levels past the last tower you need, 5 levels past the level by which you can
+    0 (auto) sets it from the goal: 8 levels past the last tower boss you need (18 for one tower, 28 for two), 5 levels
+    past the level by which you can
     register enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2."""
     display_name = "Check Level Cap"
     range_start = 0
@@ -67,9 +69,98 @@ class AreaLocks(DefaultOnToggle):
     display_name = "Area Locks"
 
 
-class ProgressiveSpheres(DefaultOnToggle):
+class AreaSize(Choice):
+    """How finely the map is cut into locked parts (with Area Locks on).
+    Areas: 15 areas, each a group of the game's regions, opened by Area Passes. The game starts in Windswept Island and
+    its two nearby isles.
+    Regions: every named region of the game on its own (75), opened by Region Passes. The game starts in the
+    Windswept Island region alone, where the first tower stands: a cramped start, and many small unlocks."""
+    display_name = "Area Size"
+    option_areas = 0
+    option_regions = 1
+    default = 0
+
+
+class BeyondGoal(Choice):
+    """Area Locks: what becomes of the areas this goal never needs, the ones whose Pals are all above the Check Level
+    Cap. The areas on the way to the goal's towers always stay in.
+    Locked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.
+    Passes: every area has its pass somewhere in the multiworld, as with no cap at all.
+    Open: their walls are down from the start, but nothing in them is a check."""
+    display_name = "Areas Beyond the Goal"
+    option_locked = 0
+    option_passes = 1
+    option_open = 2
+    default = 0
+
+
+class ProgressiveSpheres(Toggle):
     """Sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on) instead of separately."""
     display_name = "Progressive Spheres"
+
+
+class GearLogic(Toggle):
+    """What the logic counts on besides Area Passes and levels.
+    Off: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,
+    furnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need
+    another tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only
+    where the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when
+    an area can't be reached by land.
+    On: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every
+    tech's prerequisites, the Lab, breeding, and a mount for the open sea."""
+    display_name = "Gear Logic"
+
+
+class MaterialBundles(Toggle):
+    """Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items, besides Palworld Crates. Worth it in
+    long games; little use once a base makes them."""
+    display_name = "Material Bundles"
+
+
+class CrateSphereWeight(Range):
+    """Palworld Crates: the chance weight of a Sphere Crate (spheres of the player's tier when opened)."""
+    display_name = "Sphere Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 30
+
+
+class CrateFoodWeight(Range):
+    """Palworld Crates: the chance weight of a Food Crate (dishes for the player's level when opened)."""
+    display_name = "Food Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 25
+
+
+class CrateCommonWeight(Range):
+    """Palworld Crates: the chance weight of a Common Supply Crate (Gold Coins, medicine, Training Manuals, keys)."""
+    display_name = "Common Supply Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 30
+
+
+class CrateRareWeight(Range):
+    """Palworld Crates: the chance weight of a Rare Supply Crate (Skill Fruits, accessories, gear that may be ahead of
+    the player, better manuals and keys)."""
+    display_name = "Rare Supply Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 12
+
+
+class CrateJackpotWeight(Range):
+    """Palworld Crates: the chance weight of a Jackpot Supply Crate (stat fruits, Elixirs, top gear, high spheres)."""
+    display_name = "Jackpot Supply Crate Chance"
+    range_start = 0
+    range_end = 100
+    default = 3
+
+
+class TechPointItems(Toggle):
+    """Tech Points +2 and Ancient Tech Points +1 among the filler items (otherwise only material bundles)."""
+    display_name = "Tech Point Items"
 
 
 class TechChecks(Choice):
@@ -107,6 +198,54 @@ class LevelChecks(Choice):
     option_every_5 = 5
     option_every_10 = 10
     default = 1
+
+
+class RunStyle(Choice):
+    """What a tech you receive gives you.
+    Standard: its recipe (and buildings), as in Palworld; you craft the rest at a base.
+    Nomad: its recipe, and what it makes, so you don't need a base that can craft it: a weapon, armour, glider,
+    accessory or saddle (one, into your bag), or a stack of spheres, ammo, grenades, materials or food (into the
+    mailbox). Techs for buildings unlock as usual: a building can't be handed over. Suits a game played in one
+    sitting."""
+    display_name = "Run Style"
+    option_standard = 0
+    option_nomad = 1
+    default = 0
+
+
+class SpeedBoost(Toggle):
+    """Changes your world's own settings: the mod multiplies your EXP rate, work speed and gathering by the numbers
+    below, for a game played in one sitting. Off, the mod never touches your world settings; set them yourself in
+    World Settings (the guide suggests values).
+    WARNING: your world keeps the changed settings in its save, also after the game. The mod tells you each change
+    when you connect, and keeps your world's own values so it never multiplies twice; set them back in World Settings
+    to play the world on without it."""
+    display_name = "Speed Boost"
+
+
+class BoostExpRate(Range):
+    """Speed Boost only: how many times your world's EXP rate."""
+    display_name = "Speed Boost EXP Multiplier"
+    range_start = 1
+    range_end = 10
+    default = 3
+
+
+class BoostWorkSpeed(Range):
+    """Speed Boost only: how many times your world's work speed (building, crafting and other work, by you and your
+    Pals)."""
+    display_name = "Speed Boost Work Speed Multiplier"
+    range_start = 1
+    range_end = 5
+    default = 3
+
+
+class BoostGatherRate(Range):
+    """Speed Boost only: how many times your world's gathering drop rate (wood, stone, ore and the like)."""
+    display_name = "Speed Boost Gathering Multiplier"
+    range_start = 1
+    range_end = 3
+    default = 2
 
 
 class DeathLinkAmnesty(Range):
@@ -164,18 +303,33 @@ class FoolTrapWeight(Range):
 @dataclass
 class PalworldOptions(PerGameCommonOptions):
     goal: Goal
+    run_style: RunStyle
+    speed_boost: SpeedBoost
+    boost_exp_rate: BoostExpRate
+    boost_work_speed: BoostWorkSpeed
+    boost_gather_rate: BoostGatherRate
     tower_count: TowerCount
     paldeck_count: PaldeckCount
     relic_count: RelicCount
     relics_needed: RelicsNeeded
     check_level: CheckLevel
     area_locks: AreaLocks
+    area_size: AreaSize
+    beyond_goal: BeyondGoal
     progressive_spheres: ProgressiveSpheres
+    gear_logic: GearLogic
     tech_checks: TechChecks
     capture_checks: CaptureChecks
     alpha_checks: AlphaChecks
     fast_travel_checks: FastTravelChecks
     level_checks: LevelChecks
+    tech_point_items: TechPointItems
+    material_bundles: MaterialBundles
+    crate_sphere_weight: CrateSphereWeight
+    crate_food_weight: CrateFoodWeight
+    crate_common_weight: CrateCommonWeight
+    crate_rare_weight: CrateRareWeight
+    crate_jackpot_weight: CrateJackpotWeight
     death_link: DeathLink
     death_link_amnesty: DeathLinkAmnesty
     trap_chance: TrapChance
@@ -187,22 +341,28 @@ class PalworldOptions(PerGameCommonOptions):
 
 option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
-    OptionGroup("Progression", [AreaLocks, ProgressiveSpheres]),
+    OptionGroup("Run Style", [RunStyle, SpeedBoost, BoostExpRate, BoostWorkSpeed, BoostGatherRate]),
+    OptionGroup("Progression", [AreaLocks, AreaSize, BeyondGoal, GearLogic, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
+    OptionGroup("Filler", [CrateSphereWeight, CrateFoodWeight, CrateCommonWeight, CrateRareWeight, CrateJackpotWeight,
+                           MaterialBundles, TechPointItems]),
     OptionGroup("Traps", [TrapChance, SlowTrapWeight, HungerTrapWeight, TeleportTrapWeight, FoolTrapWeight]),
     OptionGroup("Death Link", [DeathLink, DeathLinkAmnesty]),
 ]
 
 
 # Ready-made sets for the options page and the Launcher's template generator. Measured check counts (AP 0.6.8,
-# 2026-11-04): Short Sync 206, Sync 264, Long Sync 541, Relic Hunt Sync 339, Paldeck Sync 247, Async 731, Full Game
-# 1,148. A typical Archipelago game has about 180.
+# 2026-11-05, 15 areas; 75 regions within a few): Short Sync 182, Sync 239, Long Sync 391, Relic Hunt Sync 357,
+# Paldeck Sync 247, Async 583, Full Game 1,148. A typical Archipelago game has about 180.
 options_presets = {
-    "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False},
-    "Sync": {"goal": "towers", "tower_count": 1},
-    "Long Sync": {"goal": "towers", "tower_count": 2},
-    "Relic Hunt Sync": {"goal": "relic_hunt", "relic_count": 20, "relics_needed": 75, "check_level": 25},
-    "Paldeck Sync": {"goal": "paldeck", "paldeck_count": 60},
+    "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False,
+                   "speed_boost": True},
+    "Sync": {"goal": "towers", "tower_count": 1, "speed_boost": True},
+    "Long Sync": {"goal": "towers", "tower_count": 2, "speed_boost": True},
+    "Nomad Sync": {"goal": "towers", "tower_count": 2, "run_style": "nomad", "speed_boost": True},
+    "Relic Hunt Sync": {"goal": "relic_hunt", "relic_count": 20, "relics_needed": 75, "check_level": 25,
+                        "speed_boost": True},
+    "Paldeck Sync": {"goal": "paldeck", "paldeck_count": 60, "speed_boost": True},
     "Async": {"goal": "towers", "tower_count": 3},
     "Full Game Async": {"goal": "world_tree"},
 }
