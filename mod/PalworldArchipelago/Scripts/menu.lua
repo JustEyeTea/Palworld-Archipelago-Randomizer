@@ -256,7 +256,7 @@ local function addButton(menu, list, kind)
     local button = wbl:Create(menu, class, nil)
     if not button or not button:IsValid() then return nil end
     local box = StaticConstructObject(sizeClass, menu)
-    if kind ~= "mailbox" then box:SetWidthOverride(600) end   -- the Esc menu's column is narrower: fill it instead
+    if kind ~= "mailbox" then box:SetWidthOverride(kind:match("^pick") and 420 or 600) end   -- (the Esc menu's column is narrower: fill it)
     box:SetHeightOverride(38)
     box:AddChild(button)
     local slot = list:AddChild(box)
@@ -922,13 +922,35 @@ end
 -- (edit.WidgetStyle = template.WidgetStyle) and the game crashed at the title, inside the game's code called from UE4SS
 -- (2026-11-07, 40 ms after the log said so). Never assign a struct property from one object to another from Lua; only
 -- the text colour is set, through the box's own setter. The label sizes its own font, as the banner's text does.
-local EDIT_COLOUR = { R = 0.9, G = 0.95, B = 0.94, A = 1 }
+-- dev.25 test: the default box is near-white, and the text (set light) barely read on it. Its colours are written into
+-- the box's own WidgetStyle as plain numbers, field by field (FSlateColor's SpecifiedColor R/G/B/A and its rule):
+-- nothing assigned from another object, no brush touched. A line goes to the log just before the first, so a crash there
+-- would point at it.
+local EDIT_COLOUR = { R = 0.86, G = 0.95, B = 0.94, A = 1 }
+local EDIT_BG = { 0.012, 0.035, 0.045, 0.88 }          -- a dark, slightly see-through teal-black
+local coloured = false
+local function setColour(slate, c)
+    local sc = slate.SpecifiedColor
+    sc.R, sc.G, sc.B, sc.A = c[1], c[2], c[3], c[4]
+    slate.ColorUseRule = 0
+end
+local function colourEdit(edit)
+    if not coloured then log("menu: colouring the text boxes (their own style's colours, in place)") end
+    local st = edit.WidgetStyle
+    setColour(st.BackgroundColor, EDIT_BG)
+    local fg = { EDIT_COLOUR.R, EDIT_COLOUR.G, EDIT_COLOUR.B, EDIT_COLOUR.A }
+    setColour(st.ForegroundColor, fg)
+    setColour(st.FocusedForegroundColor, fg)
+    if not coloured then coloured = true; log("menu: text boxes coloured") end
+end
 local function addTextRow(menu, list, kind)
     local cls, what = StaticFindObject("/Script/Pal.PalEditableTextBox"), "PalEditableTextBox"
     if not (cls and cls:IsValid()) then cls, what = StaticFindObject("/Script/UMG.EditableTextBox"), "EditableTextBox" end
     if not (cls and cls:IsValid()) then error("no text box class") end
     local edit = StaticConstructObject(cls, menu)
     if not (edit and edit:IsValid()) then error("could not make a " .. what) end
+    local okc, errc = pcall(colourEdit, edit)
+    if not okc then once("colour", "menu: could not colour a text box: " .. tostring(errc)) end
     pcall(function() edit:SetForegroundColor(EDIT_COLOUR) end)
     if kind == "password" then pcall(function() edit:SetIsPassword(true) end) end
     local row = StaticConstructObject(StaticFindObject("/Script/UMG.HorizontalBox"), menu)
@@ -949,6 +971,38 @@ local function addTextRow(menu, list, kind)
     local slot = list:AddChild(box)
     pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 3 }); slot:SetHorizontalAlignment(0) end)
     return box, edit, what
+end
+-- The saved servers' drop-down: a panel on the canvas the button list sits on, over the rows below the Server box
+-- (dev.25 test: rows put in the list itself pushed the rest down), a dark backing under its rows. nil when the list is not
+-- on a canvas (the picks then go in the list, as before).
+local DROP_BG = { R = 0.012, G = 0.035, B = 0.045, A = 0.92 }
+local ROW_STEP = 41                                   -- a row of ours: 38 high and 3 below
+local function makeDrop(menu, list)
+    local canvas = list:GetParent()
+    if not (canvas and canvas:IsValid() and className(canvas) == "CanvasPanel") then return nil end
+    bannerSpot(list)                                  -- (errors when the list's slot can't tell where it is)
+    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), menu)
+    local bg = StaticConstructObject(StaticFindObject("/Script/UMG.Image"), menu)
+    pcall(function() bg:SetColorAndOpacity(DROP_BG) end)
+    local s0 = over:AddChild(bg)
+    pcall(function() s0:SetHorizontalAlignment(0); s0:SetVerticalAlignment(0) end)     -- Fill: the whole panel
+    local box = StaticConstructObject(StaticFindObject("/Script/UMG.VerticalBox"), menu)
+    local s1 = over:AddChild(box)
+    pcall(function() s1:SetPadding({ Left = 8, Top = 4, Right = 8, Bottom = 4 }) end)
+    local slot = canvas:AddChildToCanvas(over)
+    pcall(function() slot:SetAutoSize(true); slot:SetZOrder(20) end)
+    pcall(function() over:SetVisibility(1) end)
+    return { box = over, list = box, slot = slot }
+end
+-- Under the Server box: the list's top (the Server row is its first while the menu shows) plus one row.
+local function placeDrop(m)
+    local anchors, at = bannerSpot(m.list)
+    local y = at.Y + 8 + ROW_STEP
+    if m.drop.at and m.drop.at.X == at.X and m.drop.at.Y == y then return end
+    m.drop.slot:SetAnchors(anchors)
+    m.drop.slot:SetAlignment({ X = 0.5, Y = 0 })
+    m.drop.slot:SetPosition({ X = at.X, Y = y })
+    m.drop.at = { X = at.X, Y = y }
 end
 -- What a text box holds now (nil when it can't be read).
 local function readEdit(edit)
@@ -1000,7 +1054,7 @@ end
 local function pickOpen(m)
     local e = m.edits and m.edits.server
     local ok, focus = pcall(function() return e:HasKeyboardFocus() end)
-    if ok and focus then m.pickLinger = 5 elseif (m.pickLinger or 0) > 0 then m.pickLinger = m.pickLinger - 1 end
+    if ok and focus then m.pickLinger = 2 elseif (m.pickLinger or 0) > 0 then m.pickLinger = m.pickLinger - 1 end
     return (m.pickLinger or 0) > 0
 end
 -- The banner's tint follows its button's own hover and unhover events (hooked: never polled, so a menu the game has
@@ -1044,6 +1098,17 @@ local function refreshRows(m)
         local b = m.rows[kind]
         if show and b then setText(b, rowLabel(kind, m)) end
     end
+    if m.drop then
+        local show = picking and #m.pickHosts > 0
+        if m.drop.shown ~= show then
+            m.drop.shown = show
+            pcall(function() m.drop.box:SetVisibility(show and 0 or 1) end)
+        end
+        if show then
+            local okp, errp = pcall(placeDrop, m)
+            if not okp then once("drop" .. tostring(errp), "menu: placing the saved servers: " .. tostring(errp)) end
+        end
+    end
     pcall(bannerHover, m)
 end
 -- A click or hover on one of our title buttons, at the next game tick (scheduled from its hook; never inside it): only
@@ -1077,6 +1142,10 @@ local function forget(m)
     m.banner = nil
     local okb, bv = pcall(function() return bb and bb:IsValid() end)
     if okb and bv and pcall(function() bb:RemoveFromParent() end) then log("menu: the old banner taken away") end
+    local db = m.drop and m.drop.box
+    m.drop = nil
+    local okd, dv = pcall(function() return db and db:IsValid() end)
+    if okd and dv then pcall(function() db:RemoveFromParent() end) end
 end
 
 -- The banner's own button: an all-but-invisible title button over the whole banner, so a click on the banner opens the
@@ -1234,20 +1303,30 @@ function M.update(ctx)
                 local rows, boxes, keys, edits, err, what = {}, {}, {}, {}, nil, nil
                 -- dev.21: the fields typed in the menu; should a text box (or a row) not be made, the dev.20 rows with
                 -- the text window instead.
+                local drop = nil
                 local okT, whyT = pcall(function()
+                    local function button(into, kind)
+                        local b = addButton(menu, into, kind)
+                        if not b then error("no button for " .. kind) end
+                        rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                        pcall(function() boxes[kind]:SetVisibility(1) end)                -- collapsed until the menu opens
+                    end
                     for _, kind in ipairs(TEXT_ROWS) do
                         if TYPED[kind] then
                             local box, edit, cls = addTextRow(menu, list, kind)
                             boxes[kind], edits[kind], what = box, edit, cls
-                        else
-                            local b = addButton(menu, list, kind)
-                            if not b then error("no button for " .. kind) end
-                            rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                            pcall(function() box:SetVisibility(1) end)
+                        elseif not kind:match("^pick") then
+                            button(list, kind)
                         end
-                        pcall(function() boxes[kind]:SetVisibility(1) end)                -- collapsed until the menu opens
                     end
+                    -- the saved servers, once the rows are in: their own panel on the canvas (in the list without one)
+                    local okD, d = pcall(makeDrop, menu, list)
+                    drop = okD and d or nil
+                    for i = 1, PICKS do button(drop and drop.list or list, "pick" .. i) end
                 end)
                 if not okT then
+                    if drop then pcall(function() drop.box:RemoveFromParent() end); drop = nil end
                     for _, box in pairs(boxes) do pcall(function() list:RemoveChild(box) end) end
                     for _, k in ipairs(keys) do ours[k] = nil end
                     rows, boxes, keys, edits, what = {}, {}, {}, nil, nil
@@ -1262,7 +1341,7 @@ function M.update(ctx)
                     end
                 end
                 if not err then
-                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {} }
+                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {}, drop = drop }
                     menus[key] = m
                     added = true
                     addFails = 0                                  -- (the next run of failures is logged again)

@@ -364,7 +364,8 @@ local titleCanvas = Widget({ GetClass = function() return classed("CanvasPanel")
 function titleCanvas:AddChildToCanvas(w)
     local slot = { SetAnchors = function(s, a) s.anchors = a end, SetAlignment = function(s, a) s.alignment = a end,
                    SetPosition = function(s, p) s.position = p; s.moves = (s.moves or 0) + 1 end,
-                   SetAutoSize = function(s, v) s.auto = v end, SetSize = function(s, v) s.size = v end }
+                   SetAutoSize = function(s, v) s.auto = v end, SetSize = function(s, v) s.size = v end,
+                   SetZOrder = function(s, z) s.zorder = z end }
     w.canvasSlot = slot
     titleCanvasKids[#titleCanvasKids + 1] = w
     return slot
@@ -436,6 +437,9 @@ function EditBox(kind)   -- global: StaticConstructObject below makes them
                        SetForegroundColor = function(self, c) self.colour = c end,
                        HasKeyboardFocus = function(self) return self.focus == true end,
                        SetVisibility = function(self, v) self.vis = v end, GetVisibility = function(self) return self.vis or 0 end })
+    -- its own style, whose colours the mod writes field by field (FSlateColor: SpecifiedColor and ColorUseRule)
+    local function slate() return { SpecifiedColor = { R = 1, G = 1, B = 1, A = 1 }, ColorUseRule = 1 } end
+    rawset(e, "WidgetStyle", { BackgroundColor = slate(), ForegroundColor = slate(), FocusedForegroundColor = slate() })
     return setmetatable(e, { __newindex = function(self, k, v)
         if k == "WidgetStyle" then styleAssigned = true; error("WidgetStyle assigned from Lua: this crashed the game (dev.21)") end
         rawset(self, k, v)
@@ -2323,8 +2327,12 @@ run(3)
 expect(#titleCanvasKids == 0 and #menuChildren == 2 and not logged("title banner added"), "no rows, no banner")
 wbl.Create = realCreate
 run(1)
-local bannerBox = titleCanvasKids[1]                        -- the title banner, on the list's canvas
-expect(#titleCanvasKids == 1 and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
+-- On the list's canvas: the title banner (a 600 wide box) and the saved servers' panel (an Overlay).
+local bannerBox, drop
+for _, k in ipairs(titleCanvasKids) do
+    if k.kind == "Overlay" then drop = drop or k elseif k.width == 600 then bannerBox = bannerBox or k end
+end
+expect(#titleCanvasKids == 2 and bannerBox and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
        and #bannerBox.child.children == 4 and bannerBox.child.children[1].texture.path == "ap-title-banner",
        "the banner (600x150: picture, status dot, text, its button) goes on the canvas the buttons sit on")
 local openBtn = bannerBox and bannerBox.child.children[4]
@@ -2338,15 +2346,18 @@ expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.a
        "its bottom 8 above the list's top, centred over it, with the list's anchors")
 expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
 -- The list: Start Game (the game's), Server, six picks, Port, Slot, Password, Connect, Back, then Quit Game.
-local R = { server = 2, pick = 3, port = 9, slot = 10, password = 11, go = 12, back = 13 }
+local R = { server = 2, port = 3, slot = 4, password = 5, go = 6, back = 7 }
+-- The saved servers: their panel on the canvas, its rows in its VerticalBox.
+local function pickBox(i) return drop.children[2].children[i] end
+local function pick(i) return pickBox(i).child end
 local function rowBox(i) return menuChildren[i] end
 local function btn(i) return menuChildren[i] and menuChildren[i].child end
 local function edit(i) return menuChildren[i].child.children[2] end
 local function typed(i) return edit(i).Text:ToString() end
 local function typeInto(i, s) edit(i).Text = { ToString = function() return s end } end
 local allCollapsed = true
-for i = 2, 13 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
-expect(#menuChildren == 14 and menuChildren[14] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+for i = 2, 7 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
+expect(#menuChildren == 8 and menuChildren[8] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
        "the menu's rows in the title's own list, Quit Game moved back to the end with its padding")
 expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).colour and edit(R.password).password
        and rowBox(R.server).child.children[1].text == "Server:" and rowBox(R.port).child.children[1].text == "Port:"
@@ -2358,7 +2369,13 @@ expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows
 expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
 local moves = bs and bs.moves
 run(3)
-expect(#menuChildren == 14 and #titleCanvasKids == 1, "added once")
+expect(#menuChildren == 8 and #titleCanvasKids == 2, "added once")
+expect(drop and drop.kind == "Overlay" and drop.vis == 1 and #drop.children[2].children == 6 and drop.canvasSlot.zorder == 20,
+       "the saved servers wait in a panel of their own on the canvas, folded away (dev.25 test: in the list they pushed the rows down)")
+local st = edit(R.server).WidgetStyle
+expect(st.BackgroundColor.SpecifiedColor.A == 0.88 and st.BackgroundColor.SpecifiedColor.R < 0.1 and st.BackgroundColor.ColorUseRule == 0
+       and st.FocusedForegroundColor.SpecifiedColor.R > 0.8 and logged("text boxes coloured"),
+       "the boxes: a dark backing and light text, focused or not (dev.25 test: white boxes, pale text), written field by field")
 expect(bs and bs.moves == moves, "and the banner left where it is while the list keeps its size")
 expect(logged("Archipelago menu added to the title menu %(VerticalBox VerticalBox_Menu%); the banner opens it"),
        "found the box the Start Game button sits in")
@@ -2399,7 +2416,7 @@ expect(gameButtonWrap.vis == 1 and rowBox(R.server).vis == 0 and pic.texture.pat
 run(2)
 expect(pic.texture.path == "ap-title-banner", "and its own picture again by the next update")
 expect(gameButtonWrap.vis == 1 and quitWrap.vis == 1 and rowBox(R.server).vis == 0 and rowBox(R.port).vis == 0
-       and rowBox(R.go).vis == 0 and rowBox(R.back).vis == 0 and rowBox(R.pick).vis == 1 and logged("Archipelago menu opened"),
+       and rowBox(R.go).vis == 0 and rowBox(R.back).vis == 0 and drop.vis == 1 and logged("Archipelago menu opened"),
        "the banner opens the menu: the game's buttons fold away, the rows show (the saved servers not yet)")
 expect(typed(R.server) == "localhost" and typed(R.port) == "38281" and typed(R.slot) == "Tester" and typed(R.password) == ""
        and btn(R.go).Test_Content.text == "Disconnect (connected as Tester)" and btn(R.back).Test_Content.text == "Back",
@@ -2408,16 +2425,17 @@ expect(io.open(MOD .. "/config.txt"):read("*a"):find("servers=localhost", 1, tru
        "a server connected to is remembered (archipelago.gg is always offered)")
 edit(R.server).focus = true
 run(1)
-expect(rowBox(R.pick).vis == 0 and rowBox(R.pick + 1).vis == 0 and rowBox(R.pick + 2).vis == 1
-       and btn(R.pick).Test_Content.text:find("archipelago.gg", 1, true) and btn(R.pick + 1).Test_Content.text:find("localhost   (chosen)", 1, true),
-       "while the Server box has the keyboard, the saved servers show under it")
+expect(drop.vis == 0 and pickBox(1).vis == 0 and pickBox(2).vis == 0 and pickBox(3).vis == 1 and pickBox(1).width == 420
+       and pick(1).Test_Content.text:find("archipelago.gg", 1, true) and pick(2).Test_Content.text:find("localhost   (chosen)", 1, true)
+       and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 41 and drop.canvasSlot.alignment.Y == 0,
+       "while the Server box has the keyboard, the saved servers show in their panel just under it")
 edit(R.server).focus = false                                      -- the click on a saved server takes the keyboard away
-click(btn(R.pick))
+click(pick(1))
 run(1)
 expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Connect to archipelago.gg:38281 as Tester",
        "a saved server picked fills the Server box; the last row offers to connect there")
-run(6)
-expect(rowBox(R.pick).vis == 1, "then the saved servers fold away")
+run(2)
+expect(drop.vis == 1, "then the saved servers fold away, within an update or two (dev.25 test: they lingered)")
 typeInto(R.port, "40000"); typeInto(R.slot, "Other"); typeInto(R.password, "secret")
 run(1)
 expect(btn(R.go).Test_Content.text == "Connect to archipelago.gg:40000 as Other" and #pushed == pushedBefore,
@@ -2490,7 +2508,7 @@ local goBtn = btn(R.go)
 -- failed, and the old rows were still used; the game crashed 4.6 s later. Now the old rows are never touched again.
 do
     local deadTouched = false
-    for i = 2, 13 do
+    for i = 2, 7 do
         local b = rowBox(i)
         if b then b.gone = true; b.SetVisibility = function() deadTouched = true end end
         local inner = b and b.child
