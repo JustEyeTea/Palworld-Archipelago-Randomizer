@@ -9,7 +9,10 @@
 -- World settings: UPalOptionSubsystem is a world subsystem (a new one on every world load), so the speeds are set again
 -- in each world. The world's own value is kept in the mod's save the first time, and the speed is always that value
 -- times the YAML's multiplier, so it never compounds. Writing the struct's fields in place is untested in game: each
--- change is read back and logged, and the game's own SetOptionWorldSettings is tried once if the field didn't take.
+-- change is read back and logged. The game's own SetOptionWorldSettings is NOT called from Lua: its parameter, the whole
+-- FPalOptionWorldSettings, is 0x210 bytes (1.0.5 object dump: its last field ends at 0x20D), more than UE4SS Lua's
+-- 0x200-byte call buffer, which overran and crashed the game for a Pal's save data (2026-11-03). If the in-place write
+-- doesn't take, the log says so and the C++ mod is the route (ReflectedCall gives each call a block of its own size).
 -- The world keeps the faster speeds in its own save; World Settings sets them back.
 local S = {}
 local GIFTS = require("tech_gifts")
@@ -98,11 +101,11 @@ function S.apply(ps, get, world, say)
     local missed = {}
     for _, c in ipairs(changed) do if not close(back(c.f.field), c.target) then missed[#missed + 1] = c.f.field end end
     if #missed > 0 and not reported["syncset" .. world] then
-        -- Didn't take in place (the struct came back as a copy?): hand the game the whole changed struct, once a world.
+        -- Didn't take in place (the struct came back as a copy?). SetOptionWorldSettings would take the whole struct, too
+        -- big for UE4SS Lua's call buffer (see the top), so it is only reported, once a world.
         reported["syncset" .. world] = true
-        local oks, errs = pcall(function() sub:SetOptionWorldSettings(ws) end)
-        log("sync: " .. table.concat(missed, ", ") .. " didn't change in place; SetOptionWorldSettings "
-            .. (oks and "ran" or ("failed: " .. tostring(errs))))
+        log("sync: " .. table.concat(missed, ", ") .. " didn't change in place; not calling SetOptionWorldSettings from"
+            .. " Lua (its 0x210-byte struct overruns UE4SS's call buffer); Speed Boost has no effect in this world")
     end
     for _, c in ipairs(changed) do
         once("sync" .. world .. c.f.field, "sync: Speed Boost: " .. c.f.field .. " " .. num(c.cur) .. " -> "

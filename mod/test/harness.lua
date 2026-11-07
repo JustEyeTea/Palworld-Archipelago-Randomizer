@@ -2856,7 +2856,7 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     local ws = { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 }
     local optionSub = { OptionWorldSettings = ws, sets = 0 }
     function optionSub:IsValid() return true end
-    function optionSub:SetOptionWorldSettings() self.sets = self.sets + 1 end
+    function optionSub:SetOptionWorldSettings() self.sets = self.sets + 1; error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer") end
     util.GetOptionSubsystem = function() return optionSub end
     local pawnWas = playerController.K2_GetPawn
     playerController.K2_GetPawn = function() return pawn end      -- the bag is reached through the pawn
@@ -2895,15 +2895,16 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
     run(14)
     expect((bagHas.WeakerBow or 0) == bows, "Standard with Speed Boost: a tech is still a recipe only")
-    -- A struct that comes back as a copy (writes don't stick): the game's setter is tried once for that world.
+    -- A struct that comes back as a copy (writes don't stick): reported once for that world; the game's setter is never
+    -- called from Lua (its struct is bigger than UE4SS Lua's 0x200-byte call buffer: in game that is a crash, not an error).
     local copySub = { sets = 0 }
     function copySub:IsValid() return true end
     setmetatable(copySub, { __index = function(_, k) if k == "OptionWorldSettings" then return { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 } end end })
-    function copySub:SetOptionWorldSettings() self.sets = self.sets + 1 end
+    function copySub:SetOptionWorldSettings() self.sets = self.sets + 1; error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer") end
     util.GetOptionSubsystem = function() return copySub end
     run(40)
-    expect(copySub.sets == 1 and logged("didn't change in place; SetOptionWorldSettings ran"),
-           "a copy that won't take: SetOptionWorldSettings once, logged")
+    expect(copySub.sets == 0 and logged("didn't change in place; not calling SetOptionWorldSettings from Lua"),
+           "a copy that won't take: reported, and SetOptionWorldSettings never called from Lua")
     util.GetOptionSubsystem = function() return optionSub end
     -- Nomad without Speed Boost: gear into the bag, a stack into the mailbox, the recipe as always; speeds untouched.
     ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
