@@ -155,5 +155,30 @@ int main()
     const bool landOk = landBorder && landHatch && seaHatch == 0;
     std::printf("%s fog regions on land: %s, border %d, hatch lines on the sea %d\n", landOk ? "ok" : "FAIL",
                 lerr.empty() ? "written" : lerr.c_str(), lg ? lg[(128 * 256 + 63) * 4] : -1, seaHatch);
-    return landOk ? 0 : 1;
+    if (!landOk) return 1;
+
+    // compose_territories (the user's direction 1): labels 64x64, area 1 (locked, red) on the left half, area 2 (visited,
+    // green) on the right, sea (0) on the bottom eighth; one standing wall between them at u 0.5, v 0.1-0.8.
+    std::vector<unsigned char> tl(64 * 64);
+    for (int i = 0; i < 64 * 64; ++i) { const int x = i % 64, y = i / 64; tl[i] = y >= 56 ? 0 : (x < 32 ? 1 : 2); }
+    stbi_write_png("/tmp/terr_labels.png", 64, 64, 1, tl.data(), 64);
+    const auto terr = compose_territories("/tmp/terr_labels.png", "1:l:FF0000,2:v:00FF00", "0.5,0.1,0.5,0.8;",
+                                          "FFE9B0,0.55,FFF4DC,1,160,48,80",       // (wide: 10/5 px at this 256 size)
+                                          "/tmp/terr_out.png", "/tmp/terr_fog.png", "102030", 256);
+    unsigned char* tg = terr.empty() ? stbi_load("/tmp/terr_out.png", &w, &h, &n, 4) : nullptr;
+    unsigned char* tf = terr.empty() ? stbi_load("/tmp/terr_fog.png", &w, &h, &n, 3) : nullptr;
+    auto tp = [&](int x, int y) { return tg + (y * 256 + x) * 4; };
+    const bool lockedFill = tg && tp(40, 100)[0] > 200 && tp(40, 100)[1] < 40 && tp(40, 100)[3] > 70 && tp(40, 100)[3] < 110;  // ~0.34
+    const bool rimNearEdge = tg && tp(40, 223)[3] > tp(40, 100)[3] + 80;           // the rim, on area 1's edge with the sea
+    const bool visitedClear = tg && tp(200, 100)[3] < 10;                          // visited, deep inside: nothing
+    const bool wallCore = tg && tp(128, 100)[3] == 255 && tp(128, 100)[0] == 255 && tp(128, 100)[2] > 200;  // cream
+    const bool seaClear = tg && tp(60, 245)[3] == 0;                                // the sea: no fill
+    const bool fogBase = tf && tf[(100 * 256 + 200) * 3] == 0x10 && tf[(100 * 256 + 200) * 3 + 2] == 0x30;   // fog colour
+    const bool badState = compose_territories("/tmp/terr_labels.png", "1:x:FF0000", "", "", "/tmp/terr_bad.png", "", "", 64) != "";
+    const bool terrOk = lockedFill && rimNearEdge && visitedClear && wallCore && seaClear && fogBase && badState;
+    std::printf("%s territories: %s, locked %d/a%d, rim a%d, visited a%d, wall %d,%d,%d a%d, sea a%d\n", terrOk ? "ok" : "FAIL",
+                terr.empty() ? "written" : terr.c_str(), tg ? tp(40, 100)[0] : -1, tg ? tp(40, 100)[3] : -1, tg ? tp(40, 223)[3] : -1,
+                tg ? tp(200, 100)[3] : -1, tg ? tp(128, 100)[0] : -1, tg ? tp(128, 100)[1] : -1, tg ? tp(128, 100)[2] : -1,
+                tg ? tp(128, 100)[3] : -1, tg ? tp(60, 245)[3] : -1);
+    return terrOk ? 0 : 1;
 }

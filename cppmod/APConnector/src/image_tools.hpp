@@ -53,6 +53,18 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
                  const std::string& spec, const std::string& out, int size, const std::string& stamps = "",
                  const std::string& regions = "") -> std::string;
 
+// The "Territories" overlay (the user's direction 1 with the Art & Assets lane, 2026-11-07): every area tinted in its
+// colour by its state, with a soft rim inside its edge, over land and sea; the standing walls as a soft glow and an
+// anti-aliased core, drawn from the walls' own positions. labels: the area label PNG; areas: "index:state:RRGGBB,..."
+// (state v visited, u unlocked not visited, l locked, s sealed; an index not listed is left clear); walls: the standing
+// pieces as "u1,v1,u2,v2;..." (0..1 of the map square); style: "glowRGB,glowA,coreRGB,coreA,glowW,glowSigma,coreW"
+// ("" for the Art lane's cream: FFE9B0,0.55,FFF4DC,1,10,3,5; widths in px of a 4096 map, scaled to size). Writes the
+// overlay (RGBA, clear where nothing is drawn) to out, and, if fogart is not "", the same over an opaque fog colour
+// (RRGGBB) for the unexplored parts. Returns "" or what went wrong.
+auto compose_territories(const std::string& labels, const std::string& areas, const std::string& walls,
+                         const std::string& style, const std::string& out, const std::string& fogart,
+                         const std::string& fog, int size) -> std::string;
+
 // One background job at a time per slot (the map, the chart, the fog each have their own), as compose_map_start:
 // start returns "" (started), "busy" or an error; status "busy", "done" (once), "error: ..." or "".
 class JobSlot
@@ -67,3 +79,4 @@ class JobSlot
 };
 auto chart_jobs() -> JobSlot&;
 auto fog_jobs() -> JobSlot&;
+auto territory_jobs() -> JobSlot&;

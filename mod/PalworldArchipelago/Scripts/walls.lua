@@ -805,6 +805,95 @@ local function lockedIndexes(passes)
     end
     return table.concat(out, ",")
 end
+-- The "Territories" look (the user's direction 1, worked out with the Art & Assets lane, 2026-11-07; their lean, tweaks
+-- may follow): the game's own map and fog underneath; every area tinted in its colour by its state, with a soft rim
+-- inside its edge, over land and sea alike (areas take in their waters, and so do their walls); the standing walls as a
+-- cream glow and core, drawn from their own positions. The C++ part composes it (AP_ComposeTerritories) from the
+-- layout's labels, the areas' states and the standing walls: an overlay for the map picture (drawn over the game's map)
+-- and the same over a dark fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the
+-- explorer's chart and greyscale instead.
+W.mapStyle = "territories"
+local TERR_OVERLAY, TERR_FOG, TERR_SIZE = "map-territories.png", "map-territories-fog.png", 2048
+local TERR_FOG_COLOUR = "0E1A24"
+local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
+local terr = { composing = nil, done = nil, failed = nil }
+local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
+-- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
+local function areaSpec(passes)
+    local out = {}
+    for k, name in ipairs(DATA.areas) do
+        if name ~= SEA then
+            local st
+            if W.beyond[name] then st = "s"
+            elseif isOpen(name, passes) then st = (name == START or W.visited[name]) and "v" or "u"
+            else st = "l" end
+            local parent = W.parentOf(name)
+            local hex = st == "s" and SEALED_COLOUR or AREA_COLOURS[parent] or (parent == START and START_COLOUR) or "9AA3B5"
+            out[#out + 1] = (k - 1) .. ":" .. st .. ":" .. hex
+        end
+    end
+    return table.concat(out, ",")
+end
+-- The standing walls (up unless both sides are open; open sea counts as open) as "u1,v1,u2,v2;..." on the map square.
+-- A piece runs along its yaw: (sin yaw, -cos yaw) in map u, v (the Art lane's mock lined them up with the labels so).
+local function wallSpec(passes)
+    local x0, x1, y0, y1 = MAP.bounds[1], MAP.bounds[2], MAP.bounds[3], MAP.bounds[4]
+    local out = {}
+    for _, w in ipairs(DATA.walls) do
+        if not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes)) then
+            local u, v = (w[2] - y0) / (y1 - y0), (x1 - w[1]) / (x1 - x0)
+            local half = w[3] / 2 / (x1 - x0)
+            local yaw = math.rad(w[4])
+            local du, dv = math.sin(yaw) * half, -math.cos(yaw) * half
+            out[#out + 1] = string.format("%.5f,%.5f,%.5f,%.5f", u - du, v - dv, u + du, v + dv)
+        end
+    end
+    return table.concat(out, ";")
+end
+W.areaSpec, W.wallSpec = areaSpec, wallSpec
+-- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
+local function composeTerritories(ctx, passes, key)
+    if not terr.composing then
+        if terr.done == key then return true end
+        if terr.failed == key then return "failed" end
+    end
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local gi = owner()
+    if not gi then return false end
+    if terr.composing then
+        local st = AP_TerritoriesStatus()
+        if st == "busy" then return false end
+        local k = terr.composing
+        terr.composing = nil
+        if st ~= "done" then log("map territories: composing failed: " .. tostring(st)); terr.failed = k; return "failed" end
+        pcall(LoadAsset, MAP_TEXTURE)
+        local map = StaticFindObject(MAP_TEXTURE)
+        local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
+        if not (map and map:IsValid() and over and over:IsValid()) then
+            log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
+        end
+        W.keep(over)
+        if not mapRT or not mapRT:IsValid() then
+            mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
+            W.keep(mapRT)
+        end
+        local canvasOut, contextOut, extra = {}, {}, {}
+        krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
+        canvasOut.Canvas:K2_DrawTexture(map, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+            { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+        canvasOut.Canvas:K2_DrawTexture(over, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+            { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+        krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+        terr.done = k
+        once("terrdrawn", "map territories: drawn over the game's map")
+        return k == key
+    end
+    local err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), "",
+        W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(TERR_SIZE))
+    if err == "" then terr.composing = key elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
+    return false
+end
+
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
 -- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
 -- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
@@ -812,6 +901,7 @@ end
 -- as it is, without loading the game's 8192 px map; at the first opening the game's map is checked against it once
 -- (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
 local function composeMap(ctx, passes, key, open)
+    if territories() then return composeTerritories(ctx, passes, key) end
     if not composing then                    -- the usual case: nothing to do, nothing to look up
         if composedKey == key then
             if open and not printChecked then
@@ -887,7 +977,7 @@ local function tellCpp()
     if not cpp.fog then
         cpp.fog = true
         AP_MapScreen("enable", W.cppOff and "0" or "1")
-        AP_MapScreen("fog", FOG_TEST)
+        AP_MapScreen("fog", territories() and "" or FOG_TEST)   -- (Territories: the game's own fog until its picture)
     end
     if mapRT and mapRT:IsValid() then
         local full = mapRT:GetFullName()
@@ -1015,11 +1105,12 @@ local function regionSpec(passes)
         exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", "0.4545" }, "|")
 end
 W.regionSpec = regionSpec
-local function startFog(stamps, regions)
+local function startFog(stamps, regions, tag)
     local def = W.dir .. "\\fog-default-mask.png"
-    local err = AP_ComposeFog(W.dir .. "\\" .. CHART_FILE, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
+    local art = territories() and TERR_FOG or CHART_FILE
+    local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
         W.dir .. "\\" .. FOG_FILE, tostring(CHART_SIZE), stamps, regions)
-    if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions
+    if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end
 local function chartTick(ctx, screens, opening, passes)
@@ -1030,7 +1121,10 @@ local function chartTick(ctx, screens, opening, passes)
     local gi = owner()
     if not gi then return end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    if chart.state == "none" then                                            -- 1. the chart
+    if chart.state == "none" and territories() then                          -- 1. (the territories' fog art)
+        if terr.done and exists(W.dir .. "\\" .. TERR_FOG) then chart.state = "ready"; log("map territories: the fog art is ready") end
+        return
+    elseif chart.state == "none" then                                        -- 1. the chart
         local colour = W.dir .. "\\" .. COLOUR_FILE
         if not exists(colour) then return end
         local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
@@ -1057,8 +1151,10 @@ local function chartTick(ctx, screens, opening, passes)
         chart.old, load = true, true                                         -- the last session's, until a new one
     end
     if chart.fog == "idle" and not load then
-        local stamps = stampList(lockedList(passes))
-        local regions = regionSpec(passes)
+        local tagged = territories()
+        local stamps = tagged and "" or stampList(lockedList(passes))
+        local regions = tagged and "" or regionSpec(passes)
+        local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
         if chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
             chart.exportedAt, chart.want = chart.ticks, false
             local ok, res = pcall(exportMask, screens[#screens], krl, gi)
@@ -1069,9 +1165,9 @@ local function chartTick(ctx, screens, opening, passes)
                 if not spec then chart.state = "failed"; return end
                 chart.spec = spec
             end
-            startFog(stamps, regions)
-        elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions ~= chart.stampKey then
-            startFog(stamps, regions)                                        -- a pass: the same mask, new stamps or hatch
+            startFog(stamps, regions, tag)
+        elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions .. tag ~= chart.stampKey then
+            startFog(stamps, regions, tag)                                   -- a pass: the same mask, new stamps, hatch or look
         end
     end
     if load then                                                             -- 3. shown from the next opening
@@ -1208,7 +1304,10 @@ function W.updateMap(enabled, passes, ctx)
     end
     -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
     -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
+    local been = {}
+    if territories() then for area in pairs(W.visited) do been[#been + 1] = area end; table.sort(been) end
     local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "") .. (iconsActive() and "#icons" or "#stamps")
+        .. (territories() and ("#territories#" .. table.concat(been, "|")) or "")
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then

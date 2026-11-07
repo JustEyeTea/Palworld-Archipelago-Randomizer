@@ -146,7 +146,9 @@ LoadAsset = function(path)
 end
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
 stampAt = {}                                                 -- global: stamp texture -> where it was last drawn
-local canvas = { K2_DrawTexture = function(_, tex, pos)
+drawLog = {}                                                  -- global: the textures drawn into render targets, in order
+local canvas = { K2_DrawTexture = function(_, tex, pos, size, uv0, uvSize, colour, blend)
+                     drawLog[#drawLog + 1] = { path = tex and tex.path, blend = blend }
                      if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end
                      if tex and tostring(tex.path):find("ap%-map%-stamp") then stampAt[tex.path] = pos end
                  end,
@@ -1234,6 +1236,83 @@ do
     mapBody["Add Icon By Location"] = add
     mapOpen, treeOpen, AP_MapScreen = false, false, nil
 end
+
+;(function()   -- (a function of its own: the main chunk is at Lua's 200 locals)
+-- "Territories" (the user's direction 1 with the Art lane, 2026-11-07): the C++ part composes an overlay from each area's
+-- state and colour and the standing walls; the map picture is the game's own map with it drawn over; the fog picture is
+-- made from its fog art. Visiting an area makes it again; map_style=chart keeps the explorer's chart.
+local jobs, fogArt = {}, nil
+AP_ComposeTerritories = function(labels, areas, walls, style, out, fogart, fog, size)
+    jobs[#jobs + 1] = { labels = labels, areas = areas, walls = walls, style = style, out = out, fogart = fogart, fog = fog, size = size }
+    for _, f in ipairs({ out, fogart }) do local h = io.open(f, "w"); h:write("png"); h:close() end
+    return ""
+end
+AP_TerritoriesStatus = function() return "done" end
+AP_MapScreen = function() return "" end
+AP_ComposeFog = function(chartFile) fogArt = chartFile; return "" end
+AP_FogStatus = function() return "done" end
+AP_ComposeChart = function() error("Territories draws no chart") end
+AP_ChartStatus = function() return "done" end
+AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
+mapBody.MaskTextureMaterial = { IsValid = function() return true end,      -- (the fog's explored mask, as in the chart test)
+    GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_3" end,
+    K2_GetTextureParameterValue = function(_, name)
+        if name:ToString() == "TargetTexture" then
+            return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
+                     GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
+        end
+    end }
+local AW = require("area_walls")
+local area4, sealedArea = AW.areas[4], AW.areas[16]
+local T = dofile(MOD .. "/Scripts/walls.lua")
+T.dir, T.keep = MOD, function() end
+T.beyond = { [sealedArea] = true }
+T.visited = {}
+local passes = { [area4] = true }
+mapOpen, drawLog = false, {}
+for _ = 1, 3 do T.updateMap(true, passes, pawn) end
+local job = jobs[#jobs]
+local st = {}
+for item in (job and job.areas or ""):gmatch("[^,]+") do local i, s, c = item:match("^(%d+):(%a):(%x+)$"); st[tonumber(i)] = { s = s, c = c } end
+expect(job and job.labels:find("area_labels%.png$") and job.size == "2048" and job.fog == "0E1A24" and job.style == "",
+       "the overlay is composed from the area labels at 2048, with the dark fog colour and the Art lane's walls")
+expect(st[1] and st[1].s == "v" and st[1].c == "24E0CC" and st[3] and st[3].s == "u" and st[2] and st[2].s == "l"
+       and st[15] and st[15].s == "s" and st[15].c == "5A6472" and st[0] == nil,
+       "states: the start visited (teal), an area with its pass unvisited, the rest locked, beyond the goal sealed (slate); no sea")
+local standing = 0
+for _, w in ipairs(AW.walls) do
+    local function open(a) local nm = AW.areas[a + 1]; return nm == "Open sea" or nm == AW.start or passes[nm] end
+    if not (open(w[5]) and open(w[6])) then standing = standing + 1 end
+end
+local segs, inside = 0, true
+for s in (job and job.walls or ""):gmatch("[^;]+") do
+    segs = segs + 1
+    for v in s:gmatch("[^,]+") do v = tonumber(v); if not v or v < -0.01 or v > 1.01 then inside = false end end
+end
+expect(segs == standing and segs > 100 and inside, "the standing walls only, as segments on the map square: " .. segs .. " of " .. #AW.walls)
+local overDrawn = false
+for i = 2, #drawLog do
+    if tostring(drawLog[i - 1].path):find("T_WorldMap") and drawLog[i - 1].blend == 0 and tostring(drawLog[i].path):find("map%-territories")
+       and drawLog[i].blend == 2 then overDrawn = true end
+end
+expect(overDrawn and logged("map territories: drawn over the game's map"), "the map picture: the game's map, the overlay drawn over it")
+mapOpen = true
+for _ = 1, 4 do T.updateMap(true, passes, pawn) end
+expect(fogArt and fogArt:find("map%-territories%-fog%.png$"), "the fog picture is made from the territories' fog art: " .. tostring(fogArt))
+local n = #jobs
+T.visited[area4] = true
+for _ = 1, 3 do T.updateMap(true, passes, pawn) end
+expect(#jobs == n + 1 and jobs[#jobs].areas:find("3:v:", 1, true), "visiting an area makes the overlay again, the area visited")
+mapOpen = false
+local C = dofile(MOD .. "/Scripts/walls.lua")
+C.dir, C.keep, C.mapStyle = MOD, function() end, "chart"
+n = #jobs
+for _ = 1, 3 do C.updateMap(true, {}, pawn) end
+expect(#jobs == n, "map_style=chart: no territories")
+AP_ComposeTerritories, AP_TerritoriesStatus, AP_MapScreen, AP_ComposeFog, AP_FogStatus = nil, nil, nil, nil, nil
+AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil
+mapBody.MaskTextureMaterial = nil
+end)()
 
 print("a new world")
 -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.

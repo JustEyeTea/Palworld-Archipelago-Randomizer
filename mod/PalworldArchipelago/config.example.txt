@@ -52,3 +52,6 @@ map_chart=
 map_icons=
 # map_regions=0: no area borders and no hatch over locked areas on the explorer's chart. Empty: they are drawn.
 map_regions=
+# map_style=chart: the world map as the explorer's chart with greyed locked areas (dev.17-31). Empty: "Territories",
+# every area tinted by its state (locked, open, visited, sealed) over the game's own map, with the walls glowing.
+map_style=

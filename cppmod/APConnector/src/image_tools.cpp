@@ -1,6 +1,7 @@
 #include "image_tools.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -139,11 +140,12 @@ auto JobSlot::status() -> std::string
 
 namespace
 {
-JobSlot map_slot, chart_slot, fog_slot;
+JobSlot map_slot, chart_slot, fog_slot, territory_slot;
 } // namespace
 
 auto chart_jobs() -> JobSlot& { return chart_slot; }
 auto fog_jobs() -> JobSlot& { return fog_slot; }
+auto territory_jobs() -> JobSlot& { return territory_slot; }
 
 auto compose_map_start(const std::string& colour, const std::string& labels, const std::string& locked,
                        const std::string& out, double gamma) -> std::string
@@ -654,4 +656,211 @@ auto sample_png(const std::string& path, double u, double v) -> std::string
     std::ostringstream out;
     out << sum[0] / count << "," << sum[1] / count << "," << sum[2] / count << "," << sum[3] / count;
     return out.str();
+}
+
+static auto hex_rgb(const std::string& h, float* c) -> bool
+{
+    if (h.size() != 6) return false;
+    try
+    {
+        for (int k = 0; k < 3; ++k) c[k] = static_cast<float>(std::stoi(h.substr(k * 2, 2), nullptr, 16)) / 255.f;
+    }
+    catch (...) { return false; }
+    return true;
+}
+
+// Draws a line's coverage into cov: hard (1 within hw of the segment) or anti-aliased (fading over the last pixel).
+static void draw_segment(Plane& cov, int S, float x1, float y1, float x2, float y2, float hw, bool aa)
+{
+    const int x0 = std::max(0, static_cast<int>(std::floor(std::min(x1, x2) - hw - 2)));
+    const int xe = std::min(S - 1, static_cast<int>(std::ceil(std::max(x1, x2) + hw + 2)));
+    const int y0 = std::max(0, static_cast<int>(std::floor(std::min(y1, y2) - hw - 2)));
+    const int ye = std::min(S - 1, static_cast<int>(std::ceil(std::max(y1, y2) + hw + 2)));
+    const float dx = x2 - x1, dy = y2 - y1, len2 = dx * dx + dy * dy;
+    for (int y = y0; y <= ye; ++y)
+        for (int x = x0; x <= xe; ++x)
+        {
+            const float px = x + 0.5f, py = y + 0.5f;
+            float t = len2 > 0 ? ((px - x1) * dx + (py - y1) * dy) / len2 : 0.f;
+            t = std::min(1.f, std::max(0.f, t));
+            const float qx = x1 + t * dx - px, qy = y1 + t * dy - py;
+            const float d = std::sqrt(qx * qx + qy * qy);
+            const float c = aa ? std::min(1.f, std::max(0.f, hw + 0.5f - d)) : (d <= hw ? 1.f : 0.f);
+            float& v = cov[static_cast<size_t>(y) * S + x];
+            v = std::max(v, c);
+        }
+}
+
+auto compose_territories(const std::string& labels, const std::string& areas, const std::string& walls,
+                         const std::string& style, const std::string& out, const std::string& fogart,
+                         const std::string& fog, int size) -> std::string
+{
+    const int S = size;
+    if (S < 64 || S > 4096) return "territories size " + std::to_string(S);
+    const float k = S / 4096.f;                                   // the Art lane's px are of a 4096 map
+    int lw = 0, lh = 0, ln = 0;
+    std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(labels.c_str(), &lw, &lh, &ln, 1), stbi_image_free);
+    if (!lab) return "could not read " + labels + ": " + stbi_failure_reason();
+    // Each area's state and colour.
+    char state[256] = {};
+    float colour[256][3] = {};
+    {
+        std::stringstream ss(areas);
+        for (std::string item; std::getline(ss, item, ',');)
+        {
+            if (item.empty()) continue;
+            const size_t a = item.find(':'), b = item.find(':', a + 1);
+            if (a == std::string::npos || b == std::string::npos || b != a + 2) return "areas item '" + item + "'";
+            int idx = -1;
+            try { idx = std::stoi(item.substr(0, a)); } catch (...) {}
+            if (idx < 0 || idx > 255) return "areas index in '" + item + "'";
+            const char st = item[a + 1];
+            if (std::string("vuls").find(st) == std::string::npos) return "areas state in '" + item + "'";
+            if (!hex_rgb(item.substr(b + 1), colour[idx])) return "areas colour in '" + item + "'";
+            state[idx] = st;
+        }
+    }
+    // The walls' style.
+    float glowC[3] = {1.f, 0.914f, 0.690f}, coreC[3] = {1.f, 0.957f, 0.863f};
+    float glowA = 0.55f, coreA = 1.f, glowW = 10.f, glowSigma = 3.f, coreW = 5.f;
+    if (!style.empty())
+    {
+        std::vector<std::string> f;
+        std::stringstream ss(style);
+        for (std::string p; std::getline(ss, p, ',');) f.push_back(p);
+        try
+        {
+            if (f.size() != 7 || !hex_rgb(f[0], glowC) || !hex_rgb(f[2], coreC)) throw 0;
+            glowA = std::stof(f[1]); coreA = std::stof(f[3]); glowW = std::stof(f[4]); glowSigma = std::stof(f[5]); coreW = std::stof(f[6]);
+        }
+        catch (...) { return "style '" + style + "'"; }
+    }
+    float fogC[3] = {0.055f, 0.102f, 0.141f};
+    if (!fog.empty() && !hex_rgb(fog, fogC)) return "fog colour '" + fog + "'";
+    const size_t N = static_cast<size_t>(S) * S;
+    std::vector<unsigned char> L(N);
+    for (int y = 0; y < S; ++y)
+        for (int x = 0; x < S; ++x)
+        {
+            const int lx = std::min(lw - 1, (2 * x + 1) * lw / (2 * S)), ly = std::min(lh - 1, (2 * y + 1) * lh / (2 * S));
+            L[static_cast<size_t>(y) * S + x] = lab.get()[static_cast<size_t>(ly) * lw + lx];
+        }
+    // Distance to the area's edge (chamfer 3-4, two passes): 0 on edge pixels (an area pixel with another label, sea
+    // included, among its 8 neighbours).
+    const int INF = 1 << 28;
+    std::vector<int> D(N, INF);
+    for (int y = 0; y < S; ++y)
+        for (int x = 0; x < S; ++x)
+        {
+            const size_t i = static_cast<size_t>(y) * S + x;
+            if (!L[i]) continue;
+            bool edge = false;
+            for (int dy = -1; dy <= 1 && !edge; ++dy)
+                for (int dx = -1; dx <= 1 && !edge; ++dx)
+                {
+                    const int nx = x + dx, ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
+                    if (L[static_cast<size_t>(ny) * S + nx] != L[i]) edge = true;
+                }
+            if (edge) D[i] = 0;
+        }
+    for (int y = 0; y < S; ++y)
+        for (int x = 0; x < S; ++x)
+        {
+            int& d = D[static_cast<size_t>(y) * S + x];
+            if (x > 0) d = std::min(d, D[static_cast<size_t>(y) * S + x - 1] + 3);
+            if (y > 0)
+            {
+                d = std::min(d, D[static_cast<size_t>(y - 1) * S + x] + 3);
+                if (x > 0) d = std::min(d, D[static_cast<size_t>(y - 1) * S + x - 1] + 4);
+                if (x + 1 < S) d = std::min(d, D[static_cast<size_t>(y - 1) * S + x + 1] + 4);
+            }
+        }
+    for (int y = S - 1; y >= 0; --y)
+        for (int x = S - 1; x >= 0; --x)
+        {
+            int& d = D[static_cast<size_t>(y) * S + x];
+            if (x + 1 < S) d = std::min(d, D[static_cast<size_t>(y) * S + x + 1] + 3);
+            if (y + 1 < S)
+            {
+                d = std::min(d, D[static_cast<size_t>(y + 1) * S + x] + 3);
+                if (x + 1 < S) d = std::min(d, D[static_cast<size_t>(y + 1) * S + x + 1] + 4);
+                if (x > 0) d = std::min(d, D[static_cast<size_t>(y + 1) * S + x - 1] + 4);
+            }
+        }
+    // Fill and rim (straight alpha).
+    std::vector<float> img(N * 4, 0.f);
+    auto over = [&](size_t i, const float* c, float a) {
+        if (a <= 0.f) return;
+        float* p = &img[i * 4];
+        const float ao = a + p[3] * (1 - a);
+        for (int q = 0; q < 3; ++q) p[q] = ao > 0 ? (c[q] * a + p[q] * p[3] * (1 - a)) / ao : 0.f;
+        p[3] = ao;
+    };
+    for (size_t i = 0; i < N; ++i)
+    {
+        const unsigned char a = L[i];
+        if (!a || !state[a]) continue;
+        float fill = 0, rimA = 0;
+        switch (state[a])
+        {
+        case 'v': fill = 0.f; rimA = 0.35f; break;
+        case 'u': fill = 0.14f; rimA = 0.95f; break;
+        case 'l': fill = 0.34f; rimA = 0.95f; break;
+        default: fill = 0.50f; rimA = 0.80f; break;               // sealed
+        }
+        const float d = D[i] / 3.f / k;                           // in px of a 4096 map
+        const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
+        over(i, colour[a], std::min(1.f, std::max(0.f, fill + rim * rimA)));
+    }
+    // The walls: a soft glow, then an anti-aliased core.
+    std::vector<std::array<float, 4>> segs;
+    {
+        std::stringstream ss(walls);
+        for (std::string item; std::getline(ss, item, ';');)
+        {
+            if (item.empty()) continue;
+            std::array<float, 4> s{};
+            std::stringstream is(item);
+            std::string p;
+            for (int q = 0; q < 4; ++q)
+            {
+                if (!std::getline(is, p, ',')) return "walls item '" + item + "'";
+                try { s[q] = std::stof(p) * S; } catch (...) { return "walls item '" + item + "'"; }
+            }
+            segs.push_back(s);
+        }
+    }
+    if (!segs.empty())
+    {
+        Plane glow(N, 0.f), core(N, 0.f);
+        for (const auto& s : segs)
+        {
+            draw_segment(glow, S, s[0], s[1], s[2], s[3], glowW * k / 2.f, false);
+            draw_segment(core, S, s[0], s[1], s[2], s[3], coreW * k / 2.f, true);
+        }
+        const float sigma = glowSigma * k;
+        blur(glow, S, S, std::max(1, static_cast<int>(std::lround(std::sqrt(sigma * sigma + 0.25f) - 0.5f))));
+        for (size_t i = 0; i < N; ++i)
+        {
+            over(i, glowC, glowA * std::min(1.f, glow[i]));
+            over(i, coreC, coreA * core[i]);
+        }
+    }
+    std::vector<unsigned char> o(N * 4);
+    for (size_t i = 0; i < N * 4; ++i) o[i] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, img[i]))));
+    stbi_write_png_compression_level = 1;
+    if (!stbi_write_png(out.c_str(), S, S, 4, o.data(), S * 4)) return "could not write " + out;
+    if (!fogart.empty())
+    {
+        std::vector<unsigned char> f(N * 3);
+        for (size_t i = 0; i < N; ++i)
+            for (int q = 0; q < 3; ++q)
+            {
+                const float a = img[i * 4 + 3];
+                f[i * 3 + q] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, img[i * 4 + q] * a + fogC[q] * (1 - a)))));
+            }
+        if (!stbi_write_png(fogart.c_str(), S, S, 3, f.data(), S * 3)) return "could not write " + fogart;
+    }
+    return "";
 }

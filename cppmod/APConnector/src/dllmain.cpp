@@ -213,6 +213,18 @@ namespace
             l.set_string(fog_jobs().status());
             return 1;
         });
+        lua.register_function("AP_ComposeTerritories", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto labels = arg(l), areas = arg(l), walls = arg(l), style = arg(l), out = arg(l), fogart = arg(l), fog = arg(l);
+            const auto size = arg(l);
+            int s = 2048;
+            try { s = std::stoi(size); } catch (...) {}
+            l.set_string(territory_jobs().start([=] { return compose_territories(labels, areas, walls, style, out, fogart, fog, s); }));
+            return 1;
+        });
+        lua.register_function("AP_TerritoriesStatus", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(territory_jobs().status());
+            return 1;
+        });
         lua.register_function("AP_SamplePNG", [](const LuaMadeSimple::Lua& l) -> int {
             const auto path = arg(l), u = arg(l), v = arg(l);
             double fu = 0, fv = 0;
