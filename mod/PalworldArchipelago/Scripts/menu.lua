@@ -48,6 +48,7 @@ local wanted = nil             -- a title row was clicked: its kind and menu, ac
 local draft = nil              -- what the Archipelago menu will connect with: { host, port, slot, password }
 local remembered = nil         -- the server last given to api.rememberServer
 local addFails = 0             -- failed attempts at the rows (logged, the first few)
+local fails = {}               -- title menu address -> failed attempts in a row (ten, then every 10th look)
 local applySoon                -- (below) a click or hover on our title buttons, acted on at the next game tick
 local crateWanted = false      -- the Inventory page's Open (crate) button was pressed: opened on the next update
 local cwAction = nil           -- a crate window button was pressed (crate_window.lua): its action, run on the next update
@@ -794,7 +795,19 @@ local titleLooks, titleInWorld = 0, false
 local function titleMenus(ctx, inWorld)
     titleLooks = titleLooks + 1
     if ctx and ctx.pawn and not titleInWorld and titleLooks % 10 ~= 0 then return nil end   -- not looked this update
-    local found = FindAllOf("WBP_TitleMenu_C") or {}
+    -- Live title menus only: FindAllOf also gives the class's default object and the template the title screen's asset
+    -- keeps (dev.25 log: rows were tried on a second "menu" every update and failed, "no button for pick1"; a template
+    -- can't own new buttons, and its widget tree must not be touched). A live one is under /Engine/Transient.
+    local found = {}
+    for _, menu in ipairs(FindAllOf("WBP_TitleMenu_C") or {}) do
+        local ok, full = pcall(function() return menu:GetFullName() end)
+        full = ok and tostring(full) or ""
+        if full:find("Default__", 1, true) or full:find(" /Game/", 1, true) then
+            once("template" .. full, "menu: not a live title menu (a template), left alone: " .. full)
+        else
+            found[#found + 1] = menu
+        end
+    end
     if ctx and ctx.pawn and #found > 0 and not titleInWorld then
         titleInWorld = true
         log("menu: a title menu was found with the player's pawn in a world; looking for it every update again")
@@ -1295,7 +1308,10 @@ function M.update(ctx)
             local key = tostring(menu:GetAddress())
             local m = menus[key]
             local okg, goValid = pcall(function() return m and m.rows.go:IsValid() end)
-            if not m or not (okg and goValid) then
+            fails[key] = fails[key] or 0
+            local due = fails[key] < 10 or titleLooks % 10 == 0         -- a menu that keeps failing: every 10th look
+            if m and not (okg and goValid) then forget(m); menus[key], m = nil, nil end   -- (never used once its rows fail)
+            if not m and due then
                 -- Made again; the old entry (if any) is never touched again, even if this fails (dev.24: after a failed
                 -- remake the old rows were still used, and the game crashed on the title 4.6 s later).
                 if m then forget(m) end
@@ -1345,6 +1361,7 @@ function M.update(ctx)
                     menus[key] = m
                     added = true
                     addFails = 0                                  -- (the next run of failures is logged again)
+                    fails[key] = 0
                     -- After the rows, once they are in (v0.13.5 playtest: before them, a menu whose buttons failed got a
                     -- new banner every update, 1,042 in five minutes).
                     local okB, banner = pcall(addBanner, menu, list)
@@ -1364,6 +1381,7 @@ function M.update(ctx)
                 else
                     for _, b in pairs(rows) do pcall(function() b:GetParent():RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
                     addFails = addFails + 1
+                    fails[key] = fails[key] + 1
                     if addFails <= 5 then log("menu: could not add the Archipelago menu's rows: " .. tostring(err) .. " (try " .. addFails .. ")") end
                 end
             end

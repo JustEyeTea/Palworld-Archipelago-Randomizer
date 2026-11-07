@@ -198,7 +198,8 @@ lookups = {}                   -- global: class -> FindAllOf calls, "first:" .. 
 FindAllOf = function(class)
     lookups[class] = (lookups[class] or 0) + 1
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
-    if class == "WBP_TitleMenu_C" then return titleOpen and { titleMenu } or {} end
+    -- (the template the title screen's asset keeps comes first, as FindAllOf can give it: dev.25 log)
+    if class == "WBP_TitleMenu_C" then return titleOpen and { titleTemplate, titleMenu } or {} end
     if class == "WBP_Title_MenuButton_C" then return titleOpen and { gameTitleButton } or {} end
     if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
         if not mapOpen then return {} end
@@ -392,6 +393,9 @@ function buttonBox:GetChildAt(i) return menuChildren[i + 1] end
 titleMenu = Widget({ WBP_Title_MenuButton_StartLocalGame = gameTitleButton,
                      WBP_Title_MenuButton_ExitGame = Widget({ GetParent = function() return quitWrap end }),
                      VerticalBox_0 = Widget({ AddChild = function() error("buttons belong with the game's") end }) })
+-- The title screen asset's own WBP_TitleMenu (a template): not live, never to be touched.
+titleTemplate = Widget({ GetFullName = function() return "WBP_TitleMenu_C /Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title.WBP_Title_C:WidgetTree.WBP_TitleMenu" end,
+                         WBP_Title_MenuButton_StartLocalGame = gameTitleButton })
 titleOpen = false
 -- A widget that can take focus (UWidget:HasAnyUserFocus and HasFocusedDescendants, both in LuaTypes).
 function Focusable()   -- global: wbl.Create below and the inventory page use it
@@ -2364,6 +2368,8 @@ expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).colour and
        and rowBox(R.server).child.children[1].fontSize == 20,
        "Server, Port, Slot and Password: a label and the game's own text box, its text colour set (its style never copied)")
 expect(logged("fields typed in PalEditableTextBox"), "and the log says so")
+expect(logged("not a live title menu %(a template%), left alone: .*/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title"),
+       "the title screen asset's template (dev.25 log: rows tried on it every update) is left alone")
 expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
 expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows wait collapsed; the game's buttons show")
 expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
