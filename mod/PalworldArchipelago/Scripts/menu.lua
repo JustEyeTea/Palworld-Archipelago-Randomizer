@@ -895,38 +895,25 @@ local function act(m, kind, button)
         end
     end
 end
--- A field typed in the menu: a label and the game's own text box in a row as wide and tall as the title buttons. The
--- box is the game's UPalEditableTextBox, its look copied from the world-name window's own box (the template its class
--- keeps); without that class, UMG's EditableTextBox. Errors when a box can't be made (the menu then uses the text window).
-local styleFrom, styleTried = nil, false
-local function editLook()
-    if not styleTried then
-        styleTried = true
-        find(WINDOW)
-        local o = StaticFindObject(WINDOW .. ":WidgetTree.PalEditableTextBox_0")
-        styleFrom = o and o:IsValid() and o or nil
-        log("menu: text box look " .. (styleFrom and "copied from the world-name window's box" or "not found (the box keeps its own)"))
-    end
-    return styleFrom
-end
-local function titleFont(menu)
-    local ok, f = pcall(function() return menu.WBP_Title_MenuButton_StartLocalGame.Test_Content.Font end)
-    return ok and f or nil
-end
+-- A field typed in the menu: a label and the game's own text box (UPalEditableTextBox; UMG's EditableTextBox without
+-- that class) in a row as wide and tall as the title buttons. Errors when a box can't be made (the menu then uses the
+-- text window). The box keeps its own look: dev.21 copied the world-name window's box style onto it
+-- (edit.WidgetStyle = template.WidgetStyle) and the game crashed at the title, inside the game's code called from UE4SS
+-- (2026-11-07, 40 ms after the log said so). Never assign a struct property from one object to another from Lua; only
+-- the text colour is set, through the box's own setter. The label sizes its own font, as the banner's text does.
+local EDIT_COLOUR = { R = 0.9, G = 0.95, B = 0.94, A = 1 }
 local function addTextRow(menu, list, kind)
     local cls, what = StaticFindObject("/Script/Pal.PalEditableTextBox"), "PalEditableTextBox"
     if not (cls and cls:IsValid()) then cls, what = StaticFindObject("/Script/UMG.EditableTextBox"), "EditableTextBox" end
     if not (cls and cls:IsValid()) then error("no text box class") end
     local edit = StaticConstructObject(cls, menu)
     if not (edit and edit:IsValid()) then error("could not make a " .. what) end
-    local look = editLook()
-    if look then pcall(function() edit.WidgetStyle = look.WidgetStyle end) end
+    pcall(function() edit:SetForegroundColor(EDIT_COLOUR) end)
     if kind == "password" then pcall(function() edit:SetIsPassword(true) end) end
     local row = StaticConstructObject(StaticFindObject("/Script/UMG.HorizontalBox"), menu)
     local label = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), menu)
     pcall(function() label:SetText(FText(TYPED[kind] .. ":")) end)
-    local font = titleFont(menu)
-    if font then pcall(function() label:SetFont(font) end) end
+    pcall(function() local f = label.Font; f.Size = 20; label:SetFont(f) end)
     pcall(function() label:SetColorAndOpacity({ SpecifiedColor = TEXT_COLOUR, ColorUseRule = 0 }) end)
     local ls = row:AddChild(label)
     pcall(function() ls:SetVerticalAlignment(2); ls:SetPadding({ Left = 0, Top = 0, Right = 12, Bottom = 0 }) end)  -- Centre

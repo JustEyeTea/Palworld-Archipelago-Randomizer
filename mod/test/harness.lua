@@ -428,12 +428,18 @@ wbl = { IsValid = function() return true end,   -- global: StaticFindObject abov
 bannerTexts = {}                                             -- every text a made TextBlock was given, in order
 -- A text box: what is in it reads back from its Text (an FText); typing is the test setting Text; focus the test's.
 local function TextOf(s) return { ToString = function() return s end } end
+-- Assigning its WidgetStyle from another box crashed the game (dev.21, 2026-11-07): an error here, as strict as that.
 function EditBox(kind)   -- global: StaticConstructObject below makes them
-    return Widget({ GetClass = function() return classed(kind) end, kind = kind, Text = TextOf(""),
-                    SetText = function(self, t) self.Text = TextOf(t.text) end,
-                    SetIsPassword = function(self, on) self.password = on end,
-                    HasKeyboardFocus = function(self) return self.focus == true end,
-                    SetVisibility = function(self, v) self.vis = v end, GetVisibility = function(self) return self.vis or 0 end })
+    local e = Widget({ GetClass = function() return classed(kind) end, kind = kind, Text = TextOf(""),
+                       SetText = function(self, t) self.Text = TextOf(t.text) end,
+                       SetIsPassword = function(self, on) self.password = on end,
+                       SetForegroundColor = function(self, c) self.colour = c end,
+                       HasKeyboardFocus = function(self) return self.focus == true end,
+                       SetVisibility = function(self, v) self.vis = v end, GetVisibility = function(self) return self.vis or 0 end })
+    return setmetatable(e, { __newindex = function(self, k, v)
+        if k == "WidgetStyle" then styleAssigned = true; error("WidgetStyle assigned from Lua: this crashed the game (dev.21)") end
+        rawset(self, k, v)
+    end })
 end
 StaticConstructObject = function(cls)
     local kind = type(cls) == "table" and cls.umg or "SizeBox"
@@ -2340,10 +2346,12 @@ local allCollapsed = true
 for i = 2, 13 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
 expect(#menuChildren == 14 and menuChildren[14] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
        "the menu's rows in the title's own list, Quit Game moved back to the end with its padding")
-expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).WidgetStyle and edit(R.server).WidgetStyle.look == "world-name"
-       and edit(R.password).password and rowBox(R.server).child.children[1].text == "Server:" and rowBox(R.port).child.children[1].text == "Port:",
-       "Server, Port, Slot and Password: a label and the game's own text box, in the world-name window's look (the password hidden)")
-expect(logged("text box look copied from the world%-name window's box") and logged("fields typed in PalEditableTextBox"), "and the log says so")
+expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).colour and edit(R.password).password
+       and rowBox(R.server).child.children[1].text == "Server:" and rowBox(R.port).child.children[1].text == "Port:"
+       and rowBox(R.server).child.children[1].fontSize == 20,
+       "Server, Port, Slot and Password: a label and the game's own text box, its text colour set (its style never copied)")
+expect(logged("fields typed in PalEditableTextBox"), "and the log says so")
+expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
 expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows wait collapsed; the game's buttons show")
 expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
 local moves = bs and bs.moves
