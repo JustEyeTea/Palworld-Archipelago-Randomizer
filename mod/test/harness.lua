@@ -370,12 +370,19 @@ buttonBox.GetDesiredSize = function(self) return self.desired end
 buttonBox.ForceLayoutPrepass = function(self) self.prepassed = true end
 buttonBox.Slot = { GetAnchors = function() return { Minimum = { X = 0.5, Y = 1 }, Maximum = { X = 0.5, Y = 1 } } end,
                    GetAlignment = function() return { X = 0.5, Y = 1 } end, GetPosition = function() return { X = 0, Y = -80 } end }
-local gameButtonWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end })
+local function visible(w)              -- a widget whose visibility can be read back (0 Visible until set)
+    w.GetVisibility = function(self) return self.vis or 0 end
+    w.SetVisibility = function(self, v) self.vis = v end
+    return w
+end
+gameButtonWrap = visible(Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end }))   -- global: the title tests look at it
 gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
 -- Quit Game, last in the list until our buttons go in (v0.11.2 playtest: ours sat below it).
-local quitWrap = Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end,
-                          Slot = { Padding = { Left = 0, Top = 0, Right = 0, Bottom = 7 }, HorizontalAlignment = 2 } })
-menuChildren[1] = quitWrap
+local quitWrap = visible(Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end,
+                          Slot = { Padding = { Left = 0, Top = 0, Right = 0, Bottom = 7 }, HorizontalAlignment = 2 } }))
+menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap    -- Start Game (and the rest), then Quit Game, last
+function buttonBox:GetChildrenCount() return #menuChildren end
+function buttonBox:GetChildAt(i) return menuChildren[i + 1] end
 titleMenu = Widget({ WBP_Title_MenuButton_StartLocalGame = gameTitleButton,
                      WBP_Title_MenuButton_ExitGame = Widget({ GetParent = function() return quitWrap end }),
                      VerticalBox_0 = Widget({ AddChild = function() error("buttons belong with the game's") end }) })
@@ -407,7 +414,8 @@ wbl = { IsValid = function() return true end,   -- global: StaticFindObject abov
                                                     SetText = function(self, t) self.text = t.text end } })
                   end
                   return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
-                                  SetVisibility = function(self, v) self.visibility = v end }) end }
+                                  SetVisibility = function(self, v) self.visibility = v end,
+                                  SetRenderOpacity = function(self, o) self.opacity = o end }) end }
 -- UMG widgets the mod makes (SizeBox, Overlay, Image, TextBlock): one stand-in that records what is done to it.
 bannerTexts = {}                                             -- every text a made TextBlock was given, in order
 StaticConstructObject = function(cls)
@@ -418,6 +426,7 @@ StaticConstructObject = function(cls)
                          SetFont = function(self, f) self.fontSize = f.Size end,
                          SetColorAndOpacity = function(self, c) self.colour = c end,
                          SetRenderOpacity = function(self, o) self.opacity = o end, SetVisibility = function(self, v) self.vis = v end,
+                         GetVisibility = function(self) return self.vis or 0 end,
                          SetRenderTransformPivot = function(self, v) self.pivot = v end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
@@ -1838,7 +1847,7 @@ expect(#barKids == 3 and invBox.width == 230 and invBox.height == 28 and invBtn 
 expect(invBox and invBox.halign == 3 and invBox.valign == 0, "at the bar's right end, as tall as the Edit Name row")
 expect(linesWith("the inventory page is WBP_InventoryEquipment_C (via the main menu's CurrentContentWidget, tab 8)") == 1,
        "says it found the page through the main menu, with the tab")
-expect(logged("Mailbox button added to the inventory page %(WBP_CommonButton_C%) | %?:SizeBox < Overlay_0:Overlay < CanvasPanelChara:CanvasPanel < CanvasPanel_0:CanvasPanel"),
+expect(logged("Mailbox button added to the inventory page %(WBP_CommonButton_C%) | %?:SizeBox/0 < Overlay_0:Overlay < CanvasPanelChara:CanvasPanel < CanvasPanel_0:CanvasPanel"),
        "logged where it went, once")
 expect(hooks[COMMON_CLICK], "its click is hooked")
 run(4)
@@ -2273,20 +2282,26 @@ pawn.GetCharacterParameterComponent = ParamComponent
 
 end
 do   -- (its own block, as above)
-print("the title menu's Archipelago buttons")
+print("the title menu's Archipelago menu")
+-- dev.20 (the user, 2026-11-07): the banner opens one Archipelago menu, the game's own title buttons swapped for ours in
+-- the same list (Server, Type a server address, Port, Slot, Password, Connect/Disconnect, Back); a field opens the text
+-- window for that field alone; archipelago.gg and every server connected to are offered.
 local WINDOW_OK = UI .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
 titleOpen = true
 -- v0.13.5 playtest: a title menu whose buttons could not be made got a new banner every update (1,042 of them).
 local realCreate = wbl.Create
 wbl.Create = function() return nil end
 run(3)
-expect(#titleCanvasKids == 0 and #menuChildren == 1 and not logged("title banner added"), "no buttons, no banner")
+expect(#titleCanvasKids == 0 and #menuChildren == 2 and not logged("title banner added"), "no rows, no banner")
 wbl.Create = realCreate
 run(1)
 local bannerBox = titleCanvasKids[1]                        -- the title banner, on the list's canvas
 expect(#titleCanvasKids == 1 and bannerBox.width == 600 and bannerBox.height == 150 and bannerBox.child and bannerBox.child.kind == "Overlay"
-       and #bannerBox.child.children == 3 and bannerBox.child.children[1].texture.path == "ap-title-banner",
-       "the banner (600x150: picture, status dot, text) goes on the canvas the buttons sit on")
+       and #bannerBox.child.children == 4 and bannerBox.child.children[1].texture.path == "ap-title-banner",
+       "the banner (600x150: picture, status dot, text, its button) goes on the canvas the buttons sit on")
+local openBtn = bannerBox and bannerBox.child.children[4]
+expect(openBtn and openBtn.Test_Content and openBtn.slot.h == 0 and openBtn.slot.v == 0 and openBtn.opacity == 0.02,
+       "a title button over the whole banner, all but invisible")
 local pic = bannerBox and bannerBox.child.children[1]
 expect(pic and pic.slot.h == 0 and pic.slot.v == 0, "its picture fills it (v0.13.5 playtest: it kept the brush's 32x32)")
 local bs = bannerBox and bannerBox.canvasSlot
@@ -2294,83 +2309,124 @@ expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.a
        and bs.position.X == 0 and bs.position.Y == -588 and bs.size.X == 600 and bs.auto == false and buttonBox.prepassed,
        "its bottom 8 above the list's top, centred over it, with the list's anchors")
 expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
-local connectBtn, disconnectBtn = menuChildren[1] and menuChildren[1].child, menuChildren[2] and menuChildren[2].child
-expect(connectBtn and connectBtn.Test_Content.text == "Archipelago: connected as Tester" and disconnectBtn.visibility == 0,
-       "two buttons on the title menu: " .. tostring(connectBtn and connectBtn.Test_Content.text))
-expect(menuChildren[3] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
-       "Quit Game moved back to the end, with its padding")
+local function row(i) return menuChildren[i + 1] and menuChildren[i + 1].child end      -- (1-7, after Start Game)
+local function rowBox(i) return menuChildren[i + 1] end
+local allCollapsed = true
+for i = 1, 7 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
+expect(#menuChildren == 9 and menuChildren[9] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+       "seven rows in the title's own list, Quit Game moved back to the end with its padding")
+expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows wait collapsed; the game's buttons show")
+expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
 local moves = bs and bs.moves
 run(3)
-expect(#menuChildren == 3 and #titleCanvasKids == 1, "added once")
-expect(bs and bs.moves == moves, "and left where it is while the list keeps its size")
-buttonBox.desired = { X = 600, Y = 459 }                    -- Disconnect hidden: the list is shorter
-run(1)
-expect(bs and bs.position.Y == -547, "the list got shorter: the banner follows its top")
-buttonBox.desired = { X = 600, Y = 500 }
-run(1)
-expect(logged("buttons added to the title menu %(VerticalBox VerticalBox_Menu%)"), "found the box the Start Game button sits in")
-expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
+expect(#menuChildren == 9 and #titleCanvasKids == 1, "added once")
+expect(bs and bs.moves == moves, "and the banner left where it is while the list keeps its size")
+expect(logged("Archipelago menu added to the title menu %(VerticalBox VerticalBox_Menu%); the banner opens it"),
+       "found the box the Start Game button sits in")
+expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox/0 < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
 expect(logged("could not hook BndEvt__WBP_Title_WorldSettings_NameWindow.* yet %(will retry%)")
        and logged("hooked BndEvt__WBP_Title_WorldSettings_NameWindow.*%(try 11%)"), "a failed hook is retried")
+local function click(b) hooks[CLICK]({ get = function() return b end }) end
 local function okWith(text)
     pushed[#pushed].OutString = text
     hooks[WINDOW_OK]()
     for id, w in pairs(hudWindows) do w.gone = true end           -- the game closes the window
     run(1)
 end
-hooks[CLICK]({ get = function() return connectBtn end })
-expect(#pushed == 1 and pushed[1].DefaultInputName == "localhost:38281", "clicking asks for the server, filled in")
+click(openBtn)
+expect(gameButtonWrap.vis ~= 1, "nothing changes inside the click's hook")
+run(1)
+local allShown = true
+for i = 1, 7 do if rowBox(i).vis ~= 0 then allShown = false end end
+expect(gameButtonWrap.vis == 1 and quitWrap.vis == 1 and allShown and logged("Archipelago menu opened"),
+       "the banner opens the menu: the game's buttons fold away, the rows show")
+expect(row(1).Test_Content.text == "Server: localhost   (click: next of 2)" and row(2).Test_Content.text == "Type a server address..."
+       and row(3).Test_Content.text == "Port: 38281" and row(4).Test_Content.text == "Slot: Tester"
+       and row(5).Test_Content.text == "Password: none" and row(6).Test_Content.text == "Disconnect (connected as Tester)"
+       and row(7).Test_Content.text == "Back",
+       "the rows show the connection's server, port, slot and password: " .. tostring(row(1).Test_Content.text))
+expect(io.open(MOD .. "/config.txt"):read("*a"):find("servers=localhost", 1, true) and logged("servers: remembered localhost"),
+       "a server connected to is remembered (archipelago.gg is always offered)")
+click(row(1))
+run(1)
+expect(row(1).Test_Content.text:find("^Server: archipelago%.gg") and row(6).Test_Content.text == "Connect to archipelago.gg:38281 as Tester",
+       "Server steps to the next saved server, and the last row offers to connect there: " .. row(6).Test_Content.text)
+click(row(3))
+run(1)
+expect(#pushed == 1 and pushed[1].DefaultInputName == "38281", "Port opens the text window for the port alone, filled in")
 hudWindows["w1"].Text_Head.text = "World Name"                     -- the game puts its own heading back
 run(1)
-expect(hudWindows["w1"].Text_Head.text == "Archipelago server (host:port)", "the window keeps our heading: "
+expect(hudWindows["w1"].Text_Head.text == "Port (the number after the colon in the room's address)", "the window keeps our heading: "
        .. tostring(hudWindows["w1"].Text_Head.text))
-expect(logged("window heading reads 'Archipelago server %(host:port%) %(row None%)'") and not logged("window heading reads '%?"),
+expect(logged("window heading reads 'Port %(the number after the colon in the room's address%) %(row None%)'") and not logged("window heading reads '%?"),
        "the heading diagnostic reads the heading through GetText (the Text field errored in game)")
-okWith("archipelago.gg:40000")
-expect(#pushed == 2 and pushed[2].DefaultInputName == "Tester", "then the slot")
+okWith("40000")
+expect(row(3).Test_Content.text == "Port: 40000", "the port is set: " .. row(3).Test_Content.text)
+local connectsBefore = #connects
+click(row(4)); run(1)
+expect(#pushed == 2 and pushed[2].DefaultInputName == "Tester", "Slot: the slot")
 okWith("Other")
-expect(#pushed == 3 and hudWindows["w3"].PalEditableTextBox_0.password, "then the password, hidden")
+click(row(5)); run(1)
+expect(#pushed == 3 and hudWindows["w3"].PalEditableTextBox_0.password, "Password: hidden")
 okWith("secret")
-local c = connects[#connects]
-expect(c and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret", "and connects with them")
-local cfgText = io.open(MOD .. "/config.txt"):read("*a")
-expect(cfgText:find("server=archipelago.gg:40000", 1, true) and cfgText:find("slot=Other", 1, true), "saved to config.txt")
-local before = #connects
-hooks[CLICK]({ get = function() return connectBtn end })
+expect(row(5).Test_Content.text == "Password: ******" and #connects == connectsBefore, "shown as stars; still nothing connects")
+click(row(4)); run(1)
 for id, w in pairs(hudWindows) do w.gone = true end               -- Esc: closed without OK
 run(2)
-expect(#connects == before, "closing a window cancels")
-hooks[CLICK]({ get = function() return disconnectBtn end })
-run(1)
-expect(disconnects == 1 and connectBtn.Test_Content.text == "Archipelago: not connected" and disconnectBtn.visibility == 1,
-       "disconnect button disconnects: " .. tostring(connectBtn.Test_Content.text))
+expect(row(4).Test_Content.text == "Slot: Other" and logged("menu: cancelled"), "closing a window cancels")
+expect(row(6).Test_Content.text == "Connect to archipelago.gg:40000 as Other", "the last row says where it will connect")
+click(row(6)); run(1)
+local c = connects[#connects]
+expect(c and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret", "and connects with them, replacing the connection there was")
+local cfgText = io.open(MOD .. "/config.txt"):read("*a")
+expect(cfgText:find("server=archipelago.gg:40000", 1, true) and cfgText:find("slot=Other", 1, true) and cfgText:find("servers=localhost", 1, true),
+       "saved to config.txt, the saved servers kept")
 slotData.seed = "67890"
 push("status", "connected", "Other")
 run(1)
 local forgot = false
 for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1, true) then forgot = true end end
-expect(forgot and connectBtn.Test_Content.text == "Archipelago: connected as Other", "a different seed starts afresh")
+expect(forgot, "a different seed starts afresh")
+run(1)
+expect(gameButtonWrap.vis == 0 and rowBox(1).vis == 1 and logged("Archipelago menu closed"),
+       "connected: back to the title's own buttons")
+expect(not io.open(MOD .. "/config.txt"):read("*a"):find("archipelago.gg,", 1, true), "archipelago.gg is not saved: it is always there")
 -- A slot the server refuses: what is in memory is still Other's, and is saved as Other's, not under the refused name.
 require("mailbox").add("Wood", 10)
 run(7)
-hooks[CLICK]({ get = function() return connectBtn end })
-okWith("archipelago.gg:40000")
-okWith("Typo")
-okWith("")
+click(openBtn); run(1)
+click(row(4)); run(1); okWith("Typo")
+click(row(5)); run(1); okWith("")
+click(row(6)); run(1)
 push("status", "refused", "InvalidSlot")
 run(1)
+expect(gameButtonWrap.vis == 1, "refused: the menu stays open to fix it")
 playerController.K2_GetPawn = function() return pawn end
 local took = require("mailbox").takeAll()
 playerController.K2_GetPawn = nil
 expect(took == 10 and io.open(MOD .. "/save-67890-Other.txt"):read("*a"):find("mail=\n", 1, true)
        and not io.open(MOD .. "/save-67890-Typo.txt"), "a refused slot: the take is saved in the connected slot's file")
-hooks[CLICK]({ get = function() return connectBtn end })
-okWith("archipelago.gg:40000")
-okWith("Other")
-okWith("")
+click(row(4)); run(1); okWith("Other")
+click(row(6)); run(1)
 push("status", "connected", "Other")
-run(1)
+run(2)
+-- Type a server address: host and port in one go; Back closes without connecting.
+click(openBtn); run(1)
+click(row(2)); run(1)
+expect(pushed[#pushed].DefaultInputName == "archipelago.gg:40000", "Type a server address: filled in with host:port")
+okWith("72.60.29.30:38281")
+expect(row(1).Test_Content.text:find("^Server: 72%.60%.29%.30") and row(3).Test_Content.text == "Port: 38281", "sets the host and the port")
+local cb = #connects
+click(row(7)); run(1)
+expect(gameButtonWrap.vis == 0 and #connects == cb and logged("Archipelago menu closed"), "Back: the game's buttons again, nothing connected")
+click(openBtn); run(1)
+click(row(6)); run(1)
+expect(disconnects == 1 and row(6).Test_Content.text:find("^Connect to archipelago%.gg:40000 as Other"),
+       "reopened, it starts from the connection; its last row disconnects: " .. row(6).Test_Content.text)
+click(row(6)); run(1)
+push("status", "connected", "Other")
+run(2)
 -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
 -- 10 updates, logged, and looked for every update again.
 playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end
@@ -2381,8 +2437,8 @@ titleOpen = false
 run(1)
 -- In a world the title menu is gone; a game title button made later at a freed address of ours is not ours.
 local disconnectsBefore, pushedBefore = disconnects, #pushed
-hooks[CLICK]({ get = function() return Widget({ addr = disconnectBtn.addr }) end })
-hooks[CLICK]({ get = function() return Widget({ addr = connectBtn.addr }) end })
+hooks[CLICK]({ get = function() return Widget({ addr = row(6).addr }) end })
+hooks[CLICK]({ get = function() return Widget({ addr = openBtn.addr }) end })
 run(1)
 expect(disconnects == disconnectsBefore and #pushed == pushedBefore, "our old title buttons' addresses are forgotten")
 

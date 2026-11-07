@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.19"
+local VERSION = "0.14.0-dev.20"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -71,7 +71,7 @@ local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
     for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "map_cpp", "map_chart", "map_icons" }) do
+                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "map_cpp", "map_chart", "map_icons", "servers" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -1121,7 +1121,7 @@ local function onEvent(line)
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- Connecting: at start from config.txt, and from the title menu's Archipelago button (menu.lua), which saves it.
+-- Connecting: at start from config.txt, and from the title menu's Archipelago menu (menu.lua), which saves it.
 local function connectTo(server, slot, password)
     cfg.server, cfg.slot, cfg.password = server, slot, password or ""
     writeConfig()
@@ -1129,8 +1129,31 @@ local function connectTo(server, slot, password)
     ap.status = "connecting"
     AP_Connect(server, slot, password or "")
 end
+-- The servers the title menu's Archipelago menu offers (the user, 2026-11-07: archipelago.gg always, and any server
+-- connected to before; host names only, since an archipelago.gg room's port changes with every room). Kept in
+-- config.txt as servers=host,host.
+local DEFAULT_SERVER = "archipelago.gg"
+local function hostOf(server) return ((server or ""):match("^%s*([^:%s]+)") or ""):lower() end
+local function servers()
+    local list, seen = { DEFAULT_SERVER }, { [DEFAULT_SERVER] = true }
+    for host in ((cfg.servers or "") .. "," .. hostOf(cfg.server)):gmatch("[^,%s]+") do
+        host = host:lower()
+        if not seen[host] then seen[host] = true; list[#list + 1] = host end
+    end
+    return list
+end
+local function rememberServer(server)
+    local host = hostOf(server)
+    if host == "" or host == DEFAULT_SERVER then return end
+    for h in (cfg.servers or ""):gmatch("[^,%s]+") do if h:lower() == host then return end end
+    cfg.servers = (cfg.servers and cfg.servers ~= "") and (cfg.servers .. "," .. host) or host
+    writeConfig()
+    log("servers: remembered " .. host)
+end
 MENU.install({
     status = function() return ap.status end,
+    servers = servers,
+    rememberServer = rememberServer,
     server = function() return cfg.server or "" end,
     slot = function() return cfg.slot or "" end,
     password = function() return cfg.password or "" end,
@@ -1162,7 +1185,7 @@ if cfg.server and cfg.server ~= "" and cfg.slot and cfg.slot ~= "" then
     log("connecting to " .. cfg.server .. " as " .. cfg.slot)
     AP_Connect(cfg.server, cfg.slot, cfg.password or "")
 else
-    log("not connected: use the Archipelago button on the title menu (or set server and slot in config.txt)")
+    log("not connected: click the Archipelago banner on the title menu (or set server and slot in config.txt)")
 end
 
 -- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.

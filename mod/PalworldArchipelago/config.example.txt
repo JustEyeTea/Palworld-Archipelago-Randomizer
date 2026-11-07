@@ -2,6 +2,9 @@
 server=
 slot=
 password=
+# The servers the title's Archipelago menu offers besides archipelago.gg (host names, comma-separated). Every server you
+# connect to is added by itself.
+servers=
 # A seed belongs to the first world you play it in: in other worlds the mod connects but locks, sends and gives
 # nothing. To move a seed to another world, delete the world= line from its save-<seed>-<slot>.txt in this folder.
 # The key that buys a hint for the Area Pass of the wall you are at (a letter or a key name such as F6).

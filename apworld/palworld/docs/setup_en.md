@@ -42,9 +42,14 @@ with `[PalworldAP]`.
 
 ## Connecting
 
-1. Start Palworld. On the title screen, click the **Archipelago: not connected** button. Enter the server
-   (`host:port`, for example `archipelago.gg:38281`), your slot name and the password (leave it empty if there is
-   none). The button then shows **Archipelago: connected as** your slot.
+1. Start Palworld. On the title screen, click the **Archipelago banner** above the menu. The title's buttons make way
+   for the Archipelago menu:
+   - **Server**: click to step through archipelago.gg and every server you have connected to before, or use **Type a
+     server address** for a new one (`host` or `host:port`).
+   - **Port**: the number after the colon in your room's address (`archipelago.gg:38281` has port 38281).
+   - **Slot** and **Password**: your slot name, and the room's password (leave it empty if there is none).
+   - **Connect** connects and takes you back to the title's buttons; the banner then shows **Connected** with your
+     slot. While connected, the same row says **Disconnect**. **Back** returns without connecting.
 2. Start a new world for each new multiworld: anything an old world already did (Pals caught, levels reached) is
    sent as checks at once.
 3. The mod remembers the server and slot in `ue4ss\Mods\PalworldArchipelago\config.txt` and connects by itself next

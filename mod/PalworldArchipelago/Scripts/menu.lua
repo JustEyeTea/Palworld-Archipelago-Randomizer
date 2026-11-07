@@ -1,5 +1,8 @@
--- The title menu's Archipelago buttons: one shows the connection and, clicked, asks for the server, the slot and the
--- password in the game's own text window (the world-name window), then connects; a second disconnects while connected.
+-- The title menu's Archipelago menu (the user, 2026-11-07: make the big banner clickable and do it all in one menu, not a
+-- chain of pop-ups; keep archipelago.gg and every server connected to before in a list). Clicking the banner (an
+-- invisible title button over it) swaps the title's own buttons for ours, the game's title buttons in the same list:
+-- Server (click: the next saved server), Type a server address, Port, Slot, Password, Connect or Disconnect, Back. A
+-- field opens the game's own text window (the world-name window) for that field alone. Untested in game (dev.20).
 -- In a world, the Esc menu and the Inventory page each get an "Archipelago Mailbox" button (mailbox.lua).
 -- Built from the game's own widgets: a WBP_Title_MenuButton added to the title menu's button list, a
 -- WBP_MenuESC_Button_S (the Esc menu's own small button) in the Esc menu, and a WBP_CommonButton (the class of the
@@ -29,10 +32,14 @@ local NOTHING = "\1"           -- what the window's result holds until OK is pre
 
 local api                      -- status(), server(), slot(), password(), connect(server, slot, password), disconnect(),
                                -- mailboxLabel(), openMailbox(context)
-local menus = {}               -- title menu address -> { connect = button, disconnect = button }
+local menus = {}               -- title menu address -> { rows = kind -> button, boxes = kind -> size box, list, banner,
+                               --   open = the Archipelago menu is showing, hidden = the game's buttons it collapsed }
 local escMenus = {}            -- Esc menu address -> { mailbox = button, menu = the Esc menu }
 local invPages = {}            -- Inventory page address -> { mailbox = button, page = the page, main = its main menu }
-local ours = {}                -- our button address -> "connect" | "disconnect" | "mailbox" | "inventory"
+local ours = {}                -- our button address -> a title row's kind (ROWS, "open") | "mailbox" | "inventory"
+local wanted = nil             -- a title row was clicked: its kind and menu, acted on at the next update (not in the hook)
+local draft = nil              -- what the Archipelago menu will connect with: { host, port, slot, password }
+local remembered = nil         -- the server last given to api.rememberServer
 local crateWanted = false      -- the Inventory page's Open (crate) button was pressed: opened on the next update
 local cwAction = nil           -- a crate window button was pressed (crate_window.lua): its action, run on the next update
 local lastCrate = nil          -- the crate button addInventoryButton made last
@@ -41,7 +48,7 @@ local closing = nil            -- a mailbox button was pressed: { from = "esc" |
 local mainMenuLook = nil       -- updates until the mod looks whether the main menu closed (a diagnostic)
 local lookFrom = nil           -- the button that look follows: "esc" | "inventory"
 local hooked = {}
-local asking = nil             -- the text-window chain: { step, values, param, id, hud }
+local asking = nil             -- the text window: { steps, step, values, done = function(values), param, id, hud }
 
 local function find(path)
     local o = StaticFindObject(path)
@@ -51,13 +58,6 @@ local function find(path)
     return o and o:IsValid() and o or nil
 end
 
-local function label()
-    local st = api.status()
-    if st == "connected" then return "Archipelago: connected as " .. api.slot() end
-    if st == "connecting" then return "Archipelago: connecting..." end
-    if st == "refused" then return "Archipelago: refused (click to change)" end
-    return "Archipelago: not connected"
-end
 
 -- A title button's label is Test_Content; the Esc menu's small button's is Text_Main, a text block the button fills
 -- from the game's text table: unbind it first (as with the text window's heading), then set ours.
@@ -175,7 +175,7 @@ local function addBanner(menu, list)
     box:AddChild(over)
     local s0 = over:AddChild(img)
     pcall(function() s0:SetHorizontalAlignment(0); s0:SetVerticalAlignment(0) end)   -- Fill, Fill: not the brush's 32x32
-    local b = { box = box, list = list }
+    local b = { box = box, list = list, over = over }
     local dotBox, dot = ART.box(menu, "ap-status-dot", 12, 12)
     if dotBox then
         local s = over:AddChild(dotBox)
@@ -223,7 +223,7 @@ local function bannerStatus(b)
     local st, server = api.status(), api.server()
     local text = st == "connected" and ("Connected | " .. server .. " | Slot: " .. api.slot())
         or st == "connecting" and ("Connecting to " .. server .. "...")
-        or (server ~= "" and ("Not connected | " .. server) or "Not connected")
+        or (server ~= "" and ("Not connected | " .. server .. " | click to set up") or "Not connected | click to set up")
     if b.slot then pcall(placeBanner, b) end
     if b.shown ~= text then b.shown = text; pcall(function() b.text:SetText(FText(text)) end) end
     if b.dot and b.state ~= st then b.state = st; pcall(function() b.dot:SetColorAndOpacity(DOT[st] or DOT.other) end) end
@@ -289,11 +289,16 @@ local function quitLast(menu, list)
     return nil
 end
 
--- The next window of the chain: server, slot, password.
-local STEPS = {
-    { key = "server", title = "Archipelago server (host:port)" },
-    { key = "slot", title = "Your slot name" },
-    { key = "password", title = "Room password (empty if none)", hidden = true },
+-- The Archipelago menu's rows, top to bottom; "open" is the banner's own button (or, without a banner, a row of its own).
+local ROWS = { "server", "addr", "port", "slot", "password", "go", "back" }
+local ROW_KINDS = { open = true }
+for _, k in ipairs(ROWS) do ROW_KINDS[k] = true end
+-- The fields the Archipelago menu edits in the text window, one at a time.
+local FIELDS = {
+    addr = { key = "addr", title = "Server address (host, or host:port)" },
+    port = { key = "port", title = "Port (the number after the colon in the room's address)" },
+    slot = { key = "slot", title = "Your slot name" },
+    password = { key = "password", title = "Room password (empty if none)", hidden = true },
 }
 -- The window's heading is a PalTextBlockBase bound to a text-table row (BindTextDatatableHandle -> "WorldName"),
 -- which it puts back on rebuild; unbind it, then set ours.
@@ -304,7 +309,7 @@ local function setHeading(w, title)
 end
 
 local function openWindow(context)
-    local step = STEPS[asking.step]
+    local step = asking.steps[asking.step]
     local hud = StaticFindObject("/Script/Pal.Default__PalUtility"):GetHUDService(context)
     local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
     local param = gs:SpawnObject(find(PARAM), hud)
@@ -323,10 +328,6 @@ end
 local function clicked(button)
     local kind = ours[tostring(button:GetAddress())]
     if not kind then return end
-    if kind == "disconnect" then
-        api.disconnect()
-        return
-    end
     if kind == "mailbox" then
         -- Closing the Esc menu waits for the next update, outside this click's hook; the mailbox opens a tick later.
         local menu
@@ -347,10 +348,8 @@ local function clicked(button)
         closing = { from = "inventory", main = main, button = button }
         return
     end
-    if asking then return end
-    asking = { step = 1, context = button, values = { server = api.server(), slot = api.slot(), password = api.password() } }
-    local ok, err = pcall(openWindow, button)
-    if not ok then log("menu: could not open the text window: " .. tostring(err)); asking = nil end
+    -- A title row: acted on at the next update, never inside the click's hook.
+    if ROW_KINDS[kind] and not asking then wanted = { kind = kind, button = button } end
 end
 
 local function okPressed()
@@ -358,7 +357,7 @@ local function okPressed()
     local text = asking.param.OutString
     text = tostring(text and text.ToString and text:ToString() or text)
     if text == NOTHING then return end
-    local step = STEPS[asking.step]
+    local step = asking.steps[asking.step]
     asking.values[step.key] = text:match("^%s*(.-)%s*$")
     asking.step = asking.step + 1
     asking.param = nil
@@ -772,6 +771,120 @@ end
 -- Called from the mod's update loop (game thread). ctx: this update's player (main.lua): ctx.pc, the first live
 -- controller, as FindFirstOf("PalPlayerController") found it; ctx.hasPawn, what its K2_GetPawn gave (an object).
 -- Buttons other modules make (crate_window.lua): their clicks come here like ours, as cw:<action>.
+-- The Archipelago menu on the title screen (see the top of this file).
+local function splitServer(server)
+    local host, port = (server or ""):match("^%s*([^:%s]*):?(%d*)%s*$")
+    return host or "", port or ""
+end
+local function draftNow()
+    if not draft then
+        local host, port = splitServer(api.server())
+        draft = { host = host ~= "" and host or "archipelago.gg", port = port, slot = api.slot(), password = api.password() }
+    end
+    return draft
+end
+local function target(d) return d.host .. (d.port ~= "" and (":" .. d.port) or "") end
+-- Connected, and the menu still shows that same server and slot: its last row disconnects. Otherwise it connects (and a
+-- connection to another server or slot replaces the one there is).
+local function isCurrent(d)
+    return api.status() == "connected" and target(d):lower() == api.server():lower() and d.slot == api.slot()
+end
+local function rowLabel(kind)
+    local d, st = draftNow(), api.status()
+    if kind == "server" then
+        local n = #(api.servers and api.servers() or {})
+        return "Server: " .. d.host .. (n > 1 and ("   (click: next of " .. n .. ")") or "")
+    elseif kind == "addr" then return "Type a server address..."
+    elseif kind == "port" then return "Port: " .. (d.port ~= "" and d.port or "none (the server's default)")
+    elseif kind == "slot" then return "Slot: " .. (d.slot ~= "" and d.slot or "(click to set your slot name)")
+    elseif kind == "password" then return "Password: " .. (d.password == "" and "none" or string.rep("*", math.min(#d.password, 12)))
+    elseif kind == "go" then
+        if isCurrent(d) then return "Disconnect (connected as " .. api.slot() .. ")" end
+        if st == "connecting" then return "Connecting to " .. api.server() .. "..." end
+        if d.slot == "" then return "Connect (set your slot name first)" end
+        return "Connect to " .. target(d) .. " as " .. d.slot
+    elseif kind == "back" then return "Back"
+    end
+    return "Archipelago..."
+end
+-- The game's own title buttons are collapsed while the menu shows, and given back their own visibility after.
+local function showGame(m, show)
+    if show then
+        for _, e in ipairs(m.hidden or {}) do pcall(function() if e.w:IsValid() then e.w:SetVisibility(e.v) end end) end
+        m.hidden = nil
+        return
+    end
+    local mine = {}
+    for _, box in pairs(m.boxes) do mine[tostring(box:GetAddress())] = true end
+    m.hidden = {}
+    for i = 0, m.list:GetChildrenCount() - 1 do
+        local c = m.list:GetChildAt(i)
+        if c and c:IsValid() and not mine[tostring(c:GetAddress())] then
+            local v = c:GetVisibility()
+            if v ~= 1 then m.hidden[#m.hidden + 1] = { w = c, v = v }; c:SetVisibility(1) end
+        end
+    end
+end
+local function setOpen(m, open)
+    if m.open == open then return end
+    m.open = open
+    if open then draft = nil; draftNow() end
+    showGame(m, not open)
+    log("menu: Archipelago menu " .. (open and "opened" or "closed"))
+end
+-- One field in the text window; done(values) gets what was typed.
+local function ask(button, field, value, done)
+    asking = { steps = { field }, step = 1, context = button, values = { [field.key] = value }, done = done }
+    local ok, err = pcall(openWindow, button)
+    if not ok then log("menu: could not open the text window: " .. tostring(err)); asking = nil end
+end
+local function act(m, kind, button)
+    local d = draftNow()
+    if kind == "open" then setOpen(m, true)
+    elseif kind == "back" then setOpen(m, false)
+    elseif kind == "server" then
+        local list = api.servers and api.servers() or { d.host }
+        local at = 0
+        for i, h in ipairs(list) do if h == d.host:lower() then at = i end end
+        d.host = list[at % #list + 1]
+    elseif kind == "addr" then
+        ask(button, FIELDS.addr, d.host .. (d.port ~= "" and (":" .. d.port) or ""), function(v)
+            local host, port = splitServer(v.addr)
+            if host ~= "" then d.host = host end
+            if port ~= "" then d.port = port end
+        end)
+    elseif kind == "port" then
+        ask(button, FIELDS.port, d.port, function(v) d.port = (v.port or ""):match("^(%d*)") or "" end)
+    elseif kind == "slot" then
+        ask(button, FIELDS.slot, d.slot, function(v) d.slot = v.slot or "" end)
+    elseif kind == "password" then
+        ask(button, FIELDS.password, d.password, function(v) d.password = v.password or "" end)
+    elseif kind == "go" then
+        if isCurrent(d) then
+            api.disconnect()
+        elseif d.host ~= "" and d.slot ~= "" and api.status() ~= "connecting" then
+            m.closeOnConnect = true                    -- back to the title's buttons once it connects
+            api.connect(target(d), d.slot, d.password)
+        end
+    end
+end
+-- The banner's own button: an all-but-invisible title button over the whole banner, so a click on the banner opens the
+-- menu (and a controller can reach it as it reaches the other title buttons).
+local function bannerButton(menu, m)
+    local b = m.banner
+    if not (b and b.over) then error("no banner") end
+    local class = find(BUTTON)
+    local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
+    local button = class and wbl and wbl:Create(menu, class, nil)
+    if not (button and button:IsValid()) then error("could not make the banner's button") end
+    local s = b.over:AddChild(button)
+    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)     -- Fill, Fill: the whole banner
+    pcall(function() button:SetRenderOpacity(0.02) end)    -- the banner shows through; the button still takes the click
+    ours[tostring(button:GetAddress())] = "open"
+    m.openButton = button
+    m.keys[#m.keys + 1] = tostring(button:GetAddress())
+end
+
 function M.claim(button, action) ours[tostring(button:GetAddress())] = "cw:" .. action end
 function M.unclaim(button) ours[tostring(button:GetAddress())] = nil end
 
@@ -838,11 +951,49 @@ function M.update(ctx)
         local live = {}
         for _, menu in ipairs(titles) do pcall(function() live[tostring(menu:GetAddress())] = menu:IsValid() end) end
         for key, m in pairs(menus) do
-            local okv, valid = pcall(function() return m.connect:IsValid() and m.disconnect:IsValid() end)
+            local okv, valid = pcall(function() return m.rows.go:IsValid() end)
             if not live[key] or not (okv and valid) then
                 for _, k in ipairs(m.keys) do ours[k] = nil end
                 menus[key] = nil
             end
+        end
+    end
+    -- The text window: open the next once the last one closed; a window closed without OK cancels. Before the title
+    -- menus below, so a value typed shows in the rows in the same update.
+    if asking then
+        local open, w = false, nil
+        pcall(function() w = asking.hud:GetWidget(asking.id); open = w and w:IsValid() end)
+        -- The heading is bound to the game's text table ("World Name") and puts that back when the window rebuilds:
+        -- set ours again while it is open (v0.10.2 playtest: every window still read "World Name").
+        if open and asking.title and not asking.reopen then
+            setHeading(w, asking.title)
+            asking.headLogs = (asking.headLogs or 0) + 1
+            if asking.headLogs <= 3 then                 -- does our heading stick? (diagnostic, first window ticks)
+                local okt, t = pcall(function()
+                    local h = w.Text_Head
+                    -- GetText(), not the Text field: the field came back as a value with no ToString (dev.16 log)
+                    return h:GetText():ToString() .. " (row " .. h.BindTextDatatableHandle.RowName:ToString() .. ")"
+                end)
+                log("menu: window heading reads '" .. tostring(okt and t or ("? " .. tostring(t))) .. "'"
+                    .. (hooked[WINDOW_OK] and "" or " (OK not hooked yet)"))
+            end
+        end
+        if asking.reopen and not open then
+            asking.reopen = false
+            if asking.step > #asking.steps then
+                local v, done = asking.values, asking.done
+                asking = nil
+                if done then
+                    local ok, err = pcall(done, v)
+                    if not ok then log("menu: field error: " .. tostring(err)) end
+                end
+            else
+                local ok, err = pcall(openWindow, asking.context)
+                if not ok then log("menu: could not open the text window: " .. tostring(err)); asking = nil end
+            end
+        elseif not asking.reopen and not open then
+            log("menu: cancelled")
+            asking = nil
         end
     end
     for _, menu in ipairs(titles or {}) do
@@ -850,33 +1001,70 @@ function M.update(ctx)
         if menu:IsValid() and okb and list then
             local key = tostring(menu:GetAddress())
             local m = menus[key]
-            if not m or not m.connect:IsValid() then
-                local okc, c = pcall(addButton, menu, list, "connect")
-                local okd, d = pcall(addButton, menu, list, "disconnect")
-                if okc and c and okd and d then
-                    m = { connect = c, disconnect = d, keys = { tostring(c:GetAddress()), tostring(d:GetAddress()) } }
+            if not m or not m.rows.go:IsValid() then
+                local rows, boxes, keys, err = {}, {}, {}, nil
+                for _, kind in ipairs(ROWS) do
+                    local ok, b = pcall(addButton, menu, list, kind)
+                    if not (ok and b) then err = b or "no button"; break end
+                    rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                    pcall(function() boxes[kind]:SetVisibility(1) end)             -- collapsed until the menu opens
+                end
+                if not err then
+                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {} }
                     menus[key] = m
                     added = true
-                    -- After the buttons, once they are in (v0.13.5 playtest: before them, a menu whose buttons failed
-                    -- got a new banner every update, 1,042 in five minutes).
+                    -- After the rows, once they are in (v0.13.5 playtest: before them, a menu whose buttons failed got a
+                    -- new banner every update, 1,042 in five minutes).
                     local okB, banner = pcall(addBanner, menu, list)
                     if okB then m.banner = banner else log("menu: title banner error: " .. tostring(banner)) end
-                    local okq, why = pcall(quitLast, menu, list)
-                    if not okq or why then log("menu: Quit Game left where it was: " .. tostring(why)) end
-                    pcall(logLayout, menu, c)
-                    log("menu: Archipelago buttons added to the title menu (" .. className(list) .. " " .. nameOf(list) .. ")")
+                    local okO, why = pcall(bannerButton, menu, m)
+                    if not okO then
+                        local ok2, b = pcall(addButton, menu, list, "open")          -- no banner: a row of its own
+                        if ok2 and b then rows.open, boxes.open, keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress()) end
+                        log("menu: no button on the banner (" .. tostring(why) .. "): an \"Archipelago...\" row instead")
+                    end
+                    local okq, whyq = pcall(quitLast, menu, list)
+                    if not okq or whyq then log("menu: Quit Game left where it was: " .. tostring(whyq)) end
+                    pcall(logLayout, menu, rows.server)
+                    log("menu: Archipelago menu added to the title menu (" .. className(list) .. " " .. nameOf(list) .. ")"
+                        .. (m.openButton and "; the banner opens it" or ""))
                 else
-                    once("menuadd", "menu: could not add the buttons: " .. tostring(c) .. " / " .. tostring(d))
+                    for _, b in pairs(rows) do pcall(function() b:GetParent():RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
+                    once("menuadd", "menu: could not add the Archipelago menu's rows: " .. tostring(err))
                 end
             end
             if m then
+                local mine = false
+                if wanted then
+                    local okw, addr = pcall(function() return tostring(wanted.button:GetAddress()) end)
+                    for _, k in ipairs(m.keys) do if okw and k == addr then mine = true end end
+                end
+                if mine then
+                    local w = wanted
+                    wanted = nil
+                    local ok, err = pcall(act, m, w.kind, w.button)
+                    if not ok then log("menu: " .. w.kind .. " error: " .. tostring(err)) end
+                end
+                local st = api.status()
+                if st == "connected" then
+                    if m.closeOnConnect then m.closeOnConnect = nil; pcall(setOpen, m, false) end
+                    if api.rememberServer and remembered ~= api.server() then remembered = api.server(); api.rememberServer(api.server()) end
+                elseif st ~= "connecting" then
+                    m.closeOnConnect = nil
+                end
                 if m.banner then pcall(bannerStatus, m.banner) end
-                setText(m.connect, label())
-                setText(m.disconnect, "Disconnect from Archipelago")
-                pcall(function() m.disconnect:SetVisibility(api.status() == "connected" and 0 or 1) end)  -- Visible / Collapsed
+                for kind, b in pairs(m.rows) do
+                    local show = (kind == "open") ~= (m.open == true)
+                    if m.shown[kind] ~= show then
+                        m.shown[kind] = show
+                        pcall(function() m.boxes[kind]:SetVisibility(show and 0 or 1) end)   -- Visible / Collapsed
+                    end
+                    if show then setText(b, rowLabel(kind)) end
+                end
             end
         end
     end
+    wanted = nil                                         -- (a click on a menu that has gone: dropped)
     -- The Esc menu is one tab of the in-game main menu (WBP_InGameMainMenu_C): its own CloseAction (what backing out
     -- of it does) tells the main menu to close (v0.11.3 playtest: Close shut only the tab; the menu stayed behind the
     -- chest window). Then a look at whether the main menu really went.
@@ -912,40 +1100,6 @@ function M.update(ctx)
             end
             local from = lookFrom == "inventory" and " from the inventory" or ""
             once("mainmenu" .. from .. up, "menu: in-game main menu after closing" .. from .. ": " .. (up == 0 and "gone" or (up .. " still shown")))
-        end
-    end
-    -- The text-window chain: open the next window once the last one closed; a window closed without OK cancels.
-    if asking then
-        local open, w = false, nil
-        pcall(function() w = asking.hud:GetWidget(asking.id); open = w and w:IsValid() end)
-        -- The heading is bound to the game's text table ("World Name") and puts that back when the window rebuilds:
-        -- set ours again while it is open (v0.10.2 playtest: every window still read "World Name").
-        if open and asking.title and not asking.reopen then
-            setHeading(w, asking.title)
-            asking.headLogs = (asking.headLogs or 0) + 1
-            if asking.headLogs <= 3 then                 -- does our heading stick? (diagnostic, first window ticks)
-                local okt, t = pcall(function()
-                    local h = w.Text_Head
-                    -- GetText(), not the Text field: the field came back as a value with no ToString (dev.16 log)
-                    return h:GetText():ToString() .. " (row " .. h.BindTextDatatableHandle.RowName:ToString() .. ")"
-                end)
-                log("menu: window heading reads '" .. tostring(okt and t or ("? " .. tostring(t))) .. "'"
-                    .. (hooked[WINDOW_OK] and "" or " (OK not hooked yet)"))
-            end
-        end
-        if asking.reopen and not open then
-            asking.reopen = false
-            if asking.step > #STEPS then
-                local v = asking.values
-                asking = nil
-                if v.server ~= "" and v.slot ~= "" then api.connect(v.server, v.slot, v.password) end
-            else
-                local ok, err = pcall(openWindow, asking.context)
-                if not ok then log("menu: could not open the text window: " .. tostring(err)); asking = nil end
-            end
-        elseif not asking.reopen and not open then
-            log("menu: cancelled")
-            asking = nil
         end
     end
 end
