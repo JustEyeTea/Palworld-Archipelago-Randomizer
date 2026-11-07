@@ -167,6 +167,7 @@ local BANNER_LIT = { R = 1, G = 1, B = 1, A = 1 }
 local BANNER_POP, BANNER_REST = { X = 1.04, Y = 1.04 }, { X = 1, Y = 1 }
 local bannerPressed = false       -- the banner was just clicked: its pressed picture until the next update
 local bannerHovered = nil         -- the banner's button address while the pointer (or focus) is on it
+local pickHovered = nil           -- the address of a saved-server row under the pointer
 -- Where the banner goes on the list's canvas: centred over the list, its bottom 8 above the list's top. Errors when
 -- the list's slot can't tell (no canvas slot, or anchors stretched across the canvas).
 local function bannerSpot(list)
@@ -382,7 +383,12 @@ end
 -- The pointer (or focus) on or off a title button: ours only.
 local function hovered(button, on)
     local addr = tostring(button:GetAddress())
-    if ours[addr] ~= "open" then return end
+    local kind = ours[addr]
+    if kind and kind:match("^pick") then
+        if on then pickHovered = addr elseif pickHovered == addr then pickHovered = nil end
+        return
+    end
+    if kind ~= "open" then return end
     if on then bannerHovered = addr elseif bannerHovered == addr then bannerHovered = nil end
     if ExecuteInGameThread and applySoon then ExecuteInGameThread(function() pcall(applySoon, addr) end) end
 end
@@ -900,7 +906,7 @@ local function act(m, kind, button)
     local pick = kind:match("^pick(%d)$")
     if pick then
         local host = m.pickHosts and m.pickHosts[tonumber(pick)]
-        if host then d.host = host; writeEdit(m, "server", host); m.pickLinger = 0 end
+        if host then d.host = host; writeEdit(m, "server", host); pickHovered = nil end
     elseif kind == "open" then setOpen(m, true)
     elseif kind == "back" then setOpen(m, false)
     elseif kind == "server" then
@@ -1063,12 +1069,15 @@ local function readEdits(m)
         end
     end
 end
--- The Server box has the keyboard (or had it a moment ago, so a click on a saved server still lands): its picks show.
+-- The saved servers show while the Server box has the keyboard, or while the pointer is on one of them (pressing it takes
+-- the keyboard from the box before the click lands). Otherwise they go at the next update (the user, dev.27 test: "why
+-- does it still stick around at all?"; it used to wait an update or two more).
 local function pickOpen(m)
     local e = m.edits and m.edits.server
     local ok, focus = pcall(function() return e:HasKeyboardFocus() end)
-    if ok and focus then m.pickLinger = 2 elseif (m.pickLinger or 0) > 0 then m.pickLinger = m.pickLinger - 1 end
-    return (m.pickLinger or 0) > 0
+    if ok and focus then return true end
+    if pickHovered then for _, k in ipairs(m.keys) do if k == pickHovered then return true end end end
+    return false
 end
 -- The banner's tint follows its button's own hover and unhover events (hooked: never polled, so a menu the game has
 -- dropped is never touched; dev.24 polled every 60 ms and the game crashed on the title).

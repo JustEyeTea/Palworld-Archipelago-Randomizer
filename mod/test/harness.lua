@@ -2435,13 +2435,25 @@ expect(drop.vis == 0 and pickBox(1).vis == 0 and pickBox(2).vis == 0 and pickBox
        and pick(1).Test_Content.text:find("archipelago.gg", 1, true) and pick(2).Test_Content.text:find("localhost   (chosen)", 1, true)
        and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 41 and drop.canvasSlot.alignment.Y == 0,
        "while the Server box has the keyboard, the saved servers show in their panel just under it")
+-- dev.27 test ("why does it still stick around at all?"): they stay while the pointer is on one of them (pressing it
+-- takes the keyboard from the box before the click lands), and go at the next update otherwise.
+edit(R.server).focus = false
+hooks[HOVER]({ get = function() return pick(2) end }); tick()
+run(1)
+expect(drop.vis == 0, "the Server box left with the pointer on a saved server: they stay")
+hooks[UNHOVER]({ get = function() return pick(2) end }); tick()
+run(1)
+expect(drop.vis == 1, "the pointer gone too: they go at the next update")
+edit(R.server).focus = true
+run(1)
 edit(R.server).focus = false                                      -- the click on a saved server takes the keyboard away
+hooks[HOVER]({ get = function() return pick(1) end }); tick()
 click(pick(1))
 run(1)
 expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Connect to archipelago.gg:38281 as Tester",
        "a saved server picked fills the Server box; the last row offers to connect there")
-run(2)
-expect(drop.vis == 1, "then the saved servers fold away, within an update or two (dev.25 test: they lingered)")
+run(1)
+expect(drop.vis == 1, "then the saved servers fold away at the next update (dev.25 and dev.27 tests: they lingered)")
 typeInto(R.port, "40000"); typeInto(R.slot, "Other"); typeInto(R.password, "secret")
 run(1)
 expect(btn(R.go).Test_Content.text == "Connect to archipelago.gg:40000 as Other" and #pushed == pushedBefore,
