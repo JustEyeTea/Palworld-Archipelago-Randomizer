@@ -42,8 +42,14 @@ auto sample_png(const std::string& path, double u, double v) -> std::string;
 // them, as the in-game probe shows: a channel and which way round, "r+" (explored where red is high), "r-", "a+", ...
 // stamps: the locked areas' stamps drawn on top wherever the fog is ("path|u|v|px;..." with u, v in 0..1 and px their
 // width on a 4096 map; "" for none), so they show on the chart. Returns "" on success, else what went wrong.
+// regions (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?"): borders between
+// neighbouring areas and a hatch over locked ones, drawn on the chart before the explored parts are cut out.
+// "labels|locked|hatch|r,g,b,a|width|dash|gap|hatchop": labels the area label PNG (as compose_map), locked "3,7,12",
+// hatch a tile PNG ("" for a plain diagonal hatch in the ink), ink 0-255, width/dash/gap in px at this size (dash 0: a
+// solid line; dashes are measured along the border, so they stay even round curves), hatchop 0..1. "" for none.
 auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
-                 const std::string& spec, const std::string& out, int size, const std::string& stamps = "") -> std::string;
+                 const std::string& spec, const std::string& out, int size, const std::string& stamps = "",
+                 const std::string& regions = "") -> std::string;
 
 // One background job at a time per slot (the map, the chart, the fog each have their own), as compose_map_start:
 // start returns "" (started), "busy" or an error; status "busy", "done" (once), "error: ..." or "".

@@ -1044,8 +1044,8 @@ do
         return ""
     end
     AP_ChartStatus = function() return "done" end
-    AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps)
-        jobs[#jobs + 1] = { kind = "fog", chart = chartFile, mask = mask, spec = spec, out = out, stamps = stamps }
+    AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps, regions)
+        jobs[#jobs + 1] = { kind = "fog", chart = chartFile, mask = mask, spec = spec, out = out, stamps = stamps, regions = regions }
         local f = io.open(out, "w"); f:write("fog"); f:close()
         return ""
     end
@@ -1080,6 +1080,12 @@ do
     for _, j in ipairs(jobs) do if j.kind == "fog" then fog = fog or j end end
     expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png") and logged("explored reads a%-"),
            "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
+    local rf = {}
+    for part in ((fog and fog.regions or "") .. "|"):gmatch("([^|]*)|") do rf[#rf + 1] = part end
+    expect(#rf == 8 and rf[1]:find("area_labels%.png$") and select(2, rf[2]:gsub(",", "")) >= 9 and rf[4] == "59,42,26,190"
+           and tonumber(rf[5]) == 2 and tonumber(rf[8]) > 0,
+           "the fog is made with the areas' borders and the locked areas' hatch (labels, locked indexes, ink, width, hatch): "
+           .. tostring(fog and fog.regions))
     local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
     expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked areas' stamps go on the fog: " .. stamps)
     local fogpic
@@ -1100,6 +1106,8 @@ do
     for _, j in ipairs(jobs) do if j.kind == "fog" then last = j end end
     local fewer = select(2, (last and last.stamps or ""):gsub("ap%-map%-stamp", ""))
     expect(last ~= fog and fewer == stamps - 1, "a pass remakes the fog from the same mask with one stamp fewer: " .. fewer)
+    local function lockedIn(j) return select(2, ((j.regions or ""):match("^[^|]*|([^|]*)") or ""):gsub(",", "")) + 1 end
+    expect(lockedIn(last) == lockedIn(fog) - 1, "and its hatch over one locked area fewer")
     local nChart = 0
     for _, j in ipairs(jobs) do if j.kind == "chart" then nChart = nChart + 1 end end
     expect(nChart == 1, "the chart itself is drawn once a session")
@@ -1193,6 +1201,21 @@ do
     local area4 = require("area_walls").areas[4]
     for _ = 1, 3 do W9.updateMap(true, { [area4] = true }, pawn) end
     expect(first.removed and #mapBody.icons == 2 * nLocked - 1, "a pass: the old icons go, and one fewer comes back")
+    -- An unlocked area not stood in yet: an open stamp there (the Art lane's ap-map-stamp-open, once the mod has it).
+    local openArt = require("art").dir .. "\\art\\ap-map-stamp-open.png"   -- (where the mod looks for its art)
+    local fa = io.open(openArt, "w"); fa:write("png"); fa:close()
+    local count = #mapBody.icons
+    local area5 = require("area_walls").areas[5]
+    W9.visited = {}
+    for _ = 1, 3 do W9.updateMap(true, { [area4] = true, [area5] = true }, pawn) end      -- (a second pass: icons made again)
+    local newest = mapBody.icons[#mapBody.icons]
+    expect(#mapBody.icons == count + nLocked and tostring(newest.tex.path):find("ap%-map%-stamp%-open") and logged("2 open not yet visited"),
+           "unlocked areas not yet visited get an open stamp: " .. tostring(newest.tex.path))
+    W9.visited[area4] = true
+    count = #mapBody.icons
+    for _ = 1, 3 do W9.updateMap(true, { [area4] = true, [area5] = true }, pawn) end
+    expect(#mapBody.icons == count + nLocked - 1 and logged("1 open not yet visited"), "once stood in, its open stamp goes")
+    os.remove(openArt)
     -- The icons failing (here: the screen without the function): the stamps are drawn into the picture again.
     mapBody.icons = {}
     local add = mapBody["Add Icon By Location"]
@@ -2064,7 +2087,10 @@ local t = ticksUntil("trap #9 Slow Trap from Friend: player multiplier 1%.0 %-> 
 expect(t and movement:GetWalkSpeedMultiplier() == 0.5, "a Slow Trap halves walking speed: " .. movement:GetWalkSpeedMultiplier())
 expect(told("Slow Trap from Friend: your legs feel heavy (1 minute).") and not told("Received Slow Trap"),
        "chat names the trap and its sender, with no 'Received' line")
-expect(saveText():find("given=9\nworld=AP_WORLD\ndeaths=0\ntraps=\n", 1, true), "applied: the save has it given and nothing waiting: " .. saveText())
+expect(saveText():find("given=9\nworld=AP_WORLD\ndeaths=0\n", 1, true) and saveText():find("\ntraps=\n", 1, true),
+       "applied: the save has it given and nothing waiting: " .. saveText())
+expect(saveText():find("\nvisited=[^\n]*Windswept Island", 1) and logged("visited Windswept Island"),
+       "the open areas stood in are remembered in the save (the map's open stamps): the starting area")
 -- Two at once: both fire together (2026-11-05: not staggered).
 trap("Hunger Trap", "Friend")
 trap("Fool Trap", "Friend")

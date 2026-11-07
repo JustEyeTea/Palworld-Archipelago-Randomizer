@@ -50,3 +50,5 @@ map_chart=
 # map_icons=0: draw the locked-area stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
 # are the map's own icons, one size at every zoom, like the game's.
 map_icons=
+# map_regions=0: no area borders and no hatch over locked areas on the explorer's chart. Empty: they are drawn.
+map_regions=

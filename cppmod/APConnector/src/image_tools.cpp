@@ -397,8 +397,129 @@ auto compose_chart(const std::string& colour, const std::string& paper, const st
     return stbi_write_png(out.c_str(), S, S, 3, img.data(), S * 3) ? "" : "could not write " + out;
 }
 
+// The regions on the chart (see compose_fog in image_tools.hpp): a hatch over locked areas, then borders between areas
+// (both sides land: label 0 is no area, whose edge is the coast the chart already inks).
+static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::string
+{
+    if (regions.empty()) return "";
+    std::vector<std::string> f;
+    {
+        std::stringstream ss(regions);
+        for (std::string p; std::getline(ss, p, '|');) f.push_back(p);
+        if (!regions.empty() && regions.back() == '|') f.push_back("");
+    }
+    if (f.size() != 8) return "regions '" + regions + "': want 8 fields";
+    int lw = 0, lh = 0, ln = 0;
+    std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(f[0].c_str(), &lw, &lh, &ln, 1), stbi_image_free);
+    if (!lab) return "could not read " + f[0] + ": " + stbi_failure_reason();
+    bool locked[256] = {};
+    {
+        std::stringstream ls(f[1]);
+        for (std::string p; std::getline(ls, p, ',');)
+        {
+            try { const int k = std::stoi(p); if (k >= 0 && k < 256) locked[k] = true; } catch (...) {}
+        }
+    }
+    float ink[4] = {0.231f, 0.165f, 0.102f, 0.8f};
+    float width = 2.f, dash = 0.f, gap = 0.f, hop = 0.25f;
+    try
+    {
+        std::stringstream cs(f[3]);
+        int c = 0;
+        for (std::string p; std::getline(cs, p, ',') && c < 4; ++c) ink[c] = std::stof(p) / 255.f;
+        width = std::stof(f[4]); dash = std::stof(f[5]); gap = std::stof(f[6]); hop = std::stof(f[7]);
+    }
+    catch (...) { return "regions '" + regions + "': a number would not read"; }
+    int tw = 0, th = 0, tn = 0;
+    std::unique_ptr<unsigned char, void (*)(void*)> tile(nullptr, stbi_image_free);
+    if (!f[2].empty())
+    {
+        tile.reset(stbi_load(f[2].c_str(), &tw, &th, &tn, 4));
+        if (!tile) return "could not read " + f[2] + ": " + stbi_failure_reason();
+    }
+    const size_t N = static_cast<size_t>(S) * S;
+    std::vector<unsigned char> L(N);
+    for (int y = 0; y < S; ++y)
+        for (int x = 0; x < S; ++x)
+        {
+            const int lx = std::min(lw - 1, (2 * x + 1) * lw / (2 * S)), ly = std::min(lh - 1, (2 * y + 1) * lh / (2 * S));
+            L[static_cast<size_t>(y) * S + x] = lab.get()[static_cast<size_t>(ly) * lw + lx];
+        }
+    auto blend = [&](size_t i, const float* c, float a) {
+        float* d = &art.px[i * 4];
+        for (int k = 0; k < 3; ++k) d[k] = d[k] * (1 - a) + c[k] * a;
+    };
+    // The hatch over locked areas.
+    for (int y = 0; y < S; ++y)
+        for (int x = 0; x < S; ++x)
+        {
+            const size_t i = static_cast<size_t>(y) * S + x;
+            if (!L[i] || !locked[L[i]]) continue;
+            if (tile)
+            {
+                const unsigned char* t = tile.get() + (static_cast<size_t>(y % th) * tw + (x % tw)) * 4;
+                const float c[3] = {t[0] / 255.f, t[1] / 255.f, t[2] / 255.f};
+                blend(i, c, t[3] / 255.f * hop);
+            }
+            else if (std::fmod(static_cast<float>(x + y), 14.f) < 1.6f)
+                blend(i, ink, hop);
+        }
+    // The borders: pixels whose right or lower neighbour is another area (both land), then the distance along each
+    // border from where a walk over it began (8-connected), for the dashes; then each kept pixel inked as a small disc.
+    std::vector<int> dist(N, -1);
+    std::vector<size_t> edge;
+    for (int y = 0; y + 1 < S; ++y)
+        for (int x = 0; x + 1 < S; ++x)
+        {
+            const size_t i = static_cast<size_t>(y) * S + x;
+            const unsigned char a = L[i], r = L[i + 1], d = L[i + S];
+            if (a && ((r && r != a) || (d && d != a))) { dist[i] = -2; edge.push_back(i); }
+        }
+    std::vector<size_t> queue;
+    for (size_t start : edge)
+    {
+        if (dist[start] != -2) continue;
+        dist[start] = 0;
+        queue.assign(1, start);
+        for (size_t q = 0; q < queue.size(); ++q)
+        {
+            const size_t i = queue[q];
+            const int x = static_cast<int>(i % S), y = static_cast<int>(i / S);
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx)
+                {
+                    const int nx = x + dx, ny = y + dy;
+                    if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
+                    const size_t j = static_cast<size_t>(ny) * S + nx;
+                    if (dist[j] != -2) continue;
+                    dist[j] = dist[i] + 1;
+                    queue.push_back(j);
+                }
+        }
+    }
+    const float period = dash + gap;
+    const int r = std::max(0, static_cast<int>(std::lround(width / 2.f - 0.5f)));
+    std::vector<float> cover(N, 0.f);
+    for (size_t i : edge)
+    {
+        if (dash > 0.f && period > 0.f && std::fmod(static_cast<float>(dist[i]), period) >= dash) continue;
+        const int x = static_cast<int>(i % S), y = static_cast<int>(i / S);
+        for (int dy = -r; dy <= r; ++dy)
+            for (int dx = -r; dx <= r; ++dx)
+            {
+                const int nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= S || ny >= S || dx * dx + dy * dy > r * r + r) continue;
+                cover[static_cast<size_t>(ny) * S + nx] = 1.f;
+            }
+    }
+    for (size_t i = 0; i < N; ++i)
+        if (cover[i] > 0.f) blend(i, ink, ink[3]);
+    return "";
+}
+
 auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
-                 const std::string& spec, const std::string& out, int size, const std::string& stamps) -> std::string
+                 const std::string& spec, const std::string& out, int size, const std::string& stamps,
+                 const std::string& regions) -> std::string
 {
     const int S = size;
     if (S < 64 || S > 8192) return "fog size " + std::to_string(S);
@@ -408,6 +529,8 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
     const bool high = spec[1] == '+';
     std::string err;
     Rgba art = load_rgba(chart, S, err);
+    if (!err.empty()) return err;
+    err = draw_regions(art, S, regions);
     if (!err.empty()) return err;
     Rgba m = load_rgba(mask, S, err);
     if (!err.empty()) return err;

@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.28"
+local VERSION = "0.14.0-dev.29"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -71,7 +71,7 @@ local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
     for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "map_cpp", "map_chart", "map_icons", "servers" }) do
+                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "map_cpp", "map_chart", "map_icons", "map_regions", "servers" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -138,9 +138,11 @@ local ap = {
     given = -1,           -- highest item index whose one-off effect has been applied
     from = {},            -- index -> the player who sent a trap item (nil: found in our own world)
     forgiven = 0,         -- own faints forgiven since a death was last sent (Death Link amnesty; in the save file)
+    visited = {},         -- area -> true: open areas the player has stood in (the map's open stamps; in the save file)
     goalSent = false,
     world = nil,          -- the world save this seed is played in (its folder name), kept in the save file
 }
+WALLS.visited = ap.visited                -- (the same table: the map reads it)
 
 -- Named after the slot whose progress is in memory (set with the seed on connecting), not cfg.slot: the title menu
 -- changes that before the server has said yes, and a refused slot must not get this one's progress.
@@ -174,9 +176,11 @@ local function loadSave()
         local n = line:match("^given=(%-?%d+)")
         local w = line:match("^world=(.+)$")
         local d = line:match("^deaths=(%d+)")
+        local v = line:match("^visited=(.*)$")
         if n then ap.given = tonumber(n)
         elseif w then ap.world = w
         elseif d then ap.forgiven = tonumber(d)
+        elseif v then for area in v:gmatch("[^|]+") do ap.visited[area] = true end
         elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) then MAIL.load(line) end
     end
     local kinds, items = MAIL.count()
@@ -192,8 +196,11 @@ local function writeSave(always)
     local path = saveFile()
     if not path then return end
     -- One write holds everything that must agree: what was applied, and the traps and mailbox items it left.
+    local been = {}
+    for area in pairs(ap.visited) do been[#been + 1] = area end
+    table.sort(been)
     local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "")
-        .. "deaths=" .. ap.forgiven .. "\n" .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
+        .. "deaths=" .. ap.forgiven .. "\n" .. (#been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "") .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
     if not always and lastSave == path .. "\n" .. text then return end
     P.start("save")
     local f = io.open(path .. ".tmp", "w")
@@ -558,6 +565,7 @@ WALLS.dir = modDir
 WALLS.cppOff = cfg.map_cpp == "0"
 WALLS.chartOff = cfg.map_chart == "0"
 WALLS.iconsOff = cfg.map_icons == "0"
+WALLS.regionsOff = cfg.map_regions == "0"
 do local ART = require("art"); ART.keep, ART.dir = keep, modDir end
 do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|b3d-dense, wall_tiling=U,V and wall_scroll=U,V in config.txt
     local function pair(s)
@@ -1021,6 +1029,8 @@ local function resetSeed()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
     ap.world, seedWorld = nil, nil
     ap.from, ap.forgiven = {}, 0
+    ap.visited = {}
+    WALLS.visited = ap.visited
     MAIL.reset()
     TRAPS.reset()
     techsVersion = techsVersion + 1
@@ -1489,6 +1499,18 @@ local function update(ctx)
             end
             -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area. Not while
             -- Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
+            -- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open
+            -- stamp there; the user, 2026-11-07).
+            if on and tick % 7 == 3 then
+                local okv, here = pcall(function()
+                    local loc = pawn:K2_GetActorLocation()
+                    return WALLS.areaAt(loc.X, loc.Y)
+                end)
+                if okv and here and not ap.visited[here] and here ~= "Open sea" and (here == WALLS.start or ap.passes[here]) then
+                    ap.visited[here] = true
+                    log("visited " .. here)
+                end
+            end
             if on and tick % 7 == 3 and not held then
                 local okl, where = pcall(function()
                     local loc = pawn:K2_GetActorLocation()

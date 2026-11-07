@@ -99,5 +99,34 @@ int main()
     const bool stampOk = g && gp(64, 128)[2] == 255 && gp(64, 128)[0] == 0 && gp(64, 128)[3] == 255 && gp(20, 20)[2] < 255;
     std::printf("%s fog stamp: %s, at the stamp %d,%d,%d\n", stampOk ? "ok" : "FAIL", serr.empty() ? "written" : serr.c_str(),
                 g ? gp(64, 128)[0] : -1, g ? gp(64, 128)[1] : -1, g ? gp(64, 128)[2] : -1);
-    return stampOk ? 0 : 1;
+    if (!stampOk) return 1;
+
+    // compose_fog with regions: labels (64x64) area 1 on x 0-15, area 2 (locked) on x 16-31, 0 (no area) beyond; a red
+    // ink. A solid border where 1 meets 2 (chart x 64), none where 2 meets 0 (x 128, the coast); a hatch on area 2 only.
+    std::vector<unsigned char> lb(64 * 64);
+    for (int i = 0; i < 64 * 64; ++i) { const int x = i % 64; lb[i] = x < 16 ? 1 : (x < 32 ? 2 : 0); }
+    stbi_write_png("/tmp/fog_labels.png", 64, 64, 1, lb.data(), 64);
+    const auto rerr = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_regions.png", 256, "",
+                                  "/tmp/fog_labels.png|2||255,0,0,255|2|0|0|0.5");
+    unsigned char* rg = rerr.empty() ? stbi_load("/tmp/fog_regions.png", &w, &h, &n, 4) : nullptr;
+    auto rp = [&](int x, int y) { return rg + (y * 256 + x) * 4; };
+    auto redness = [&](int x, int y) { return rg ? rp(x, y)[0] - (rp(x, y)[1] + rp(x, y)[2]) / 2 : -999; };
+    const bool border = rg && rp(63, 128)[0] == 255 && rp(63, 128)[1] == 0;                   // area 1 | area 2
+    const bool noCoast = rg && redness(127, 128) < 120;                                     // area 2 | no area: none
+    const bool hatch = rg && redness(96, 128) > redness(100, 128) + 40;                     // a hatch line in area 2
+    const bool noHatch = rg && std::abs(redness(30, 130) - redness(34, 130)) < 40;          // area 1: plain chart
+    int on = 0;                                                                              // dashes 4 on, 4 off
+    const auto derr = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_dashed.png", 256, "",
+                                  "/tmp/fog_labels.png|||255,0,0,255|1|4|4|0");
+    unsigned char* dg = derr.empty() ? stbi_load("/tmp/fog_dashed.png", &w, &h, &n, 4) : nullptr;
+    for (int y = 40; y < 216 && dg; ++y) if (dg[(y * 256 + 63) * 4 + 1] == 0 && dg[(y * 256 + 63) * 4] == 255) ++on;
+    const bool dashed = dg && on > 60 && on < 120;
+    const bool badSpec = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_bad2.png", 256, "",
+                                     "/tmp/fog_labels.png|2") != "";
+    const bool regionsOk = border && noCoast && hatch && noHatch && dashed && badSpec;
+    std::printf("%s fog regions: %s / %s, border %d, coast %d, hatch %d vs %d, area 1 %d vs %d, dashed %d of 176\n",
+                regionsOk ? "ok" : "FAIL", rerr.empty() ? "written" : rerr.c_str(), derr.empty() ? "written" : derr.c_str(),
+                rg ? rp(63, 128)[0] : -1, redness(127, 128), redness(96, 128), redness(100, 128), redness(30, 130),
+                redness(34, 130), on);
+    return regionsOk ? 0 : 1;
 }

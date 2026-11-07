@@ -203,9 +203,10 @@ namespace
         });
         lua.register_function("AP_ComposeFog", [](const LuaMadeSimple::Lua& l) -> int {
             const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l), size = arg(l), stamps = arg(l);
+            const auto regions = arg(l);
             int s = 2048;
             try { s = std::stoi(size); } catch (...) {}
-            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s, stamps); }));
+            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s, stamps, regions); }));
             return 1;
         });
         lua.register_function("AP_FogStatus", [](const LuaMadeSimple::Lua& l) -> int {

@@ -998,11 +998,24 @@ local function stampList(locked)
     end
     return table.concat(parts, ";")
 end
-local function startFog(stamps)
+-- The areas on the chart (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?";
+-- go): a border between neighbouring areas and a hatch over locked ones, drawn by the C++ compositor from the area
+-- labels (dev.29's DLL; an older one ignores it). The Art lane's hatch tile (art/ap-chart-hatch.png) once there is one,
+-- a plain diagonal hatch in the ink until then; the line's style is a stand-in until the user picks the Art lane's.
+-- config.txt map_regions=0: none.
+W.regionsOff = false
+local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,190", 2, 10, 6, 0.22
+local function regionSpec(passes)
+    if W.regionsOff then return "" end
+    return table.concat({ W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes), artFile("ap-chart-hatch"),
+        REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH) }, "|")
+end
+W.regionSpec = regionSpec
+local function startFog(stamps, regions)
     local def = W.dir .. "\\fog-default-mask.png"
     local err = AP_ComposeFog(W.dir .. "\\" .. CHART_FILE, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
-        W.dir .. "\\" .. FOG_FILE, tostring(CHART_SIZE), stamps)
-    if err == "" then chart.fog, chart.stampKey = "composing", stamps
+        W.dir .. "\\" .. FOG_FILE, tostring(CHART_SIZE), stamps, regions)
+    if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end
 local function chartTick(ctx, screens, opening, passes)
@@ -1041,6 +1054,7 @@ local function chartTick(ctx, screens, opening, passes)
     end
     if chart.fog == "idle" and not load then
         local stamps = stampList(lockedList(passes))
+        local regions = regionSpec(passes)
         if chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
             chart.exportedAt, chart.want = chart.ticks, false
             local ok, res = pcall(exportMask, screens[#screens], krl, gi)
@@ -1051,9 +1065,9 @@ local function chartTick(ctx, screens, opening, passes)
                 if not spec then chart.state = "failed"; return end
                 chart.spec = spec
             end
-            startFog(stamps)
-        elseif chart.spec and chart.stampKey and stamps ~= chart.stampKey then
-            startFog(stamps)                                                 -- a pass: the same mask, new stamps
+            startFog(stamps, regions)
+        elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions ~= chart.stampKey then
+            startFog(stamps, regions)                                        -- a pass: the same mask, new stamps or hatch
         end
     end
     if load then                                                             -- 3. shown from the next opening
@@ -1079,6 +1093,24 @@ W.chartStatus = function() return chart end
 -- Return to title), so the icons are added once per screen, and again when a pass changes the locked set or the game
 -- drops them. UNTESTED IN GAME: if anything fails, the stamps are drawn into the picture again (iconsFailed).
 local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon.WBP_WorldMap_IconBase_OnlyIcon"
+-- Unlocked areas the player has not stood in yet get an open stamp (the user, 2026-11-07: "some other image type ... to
+-- show that a region has been unlocked, even when it is unexplored"; go): the Art lane's ap-map-stamp-open-<area>.png
+-- (or ap-map-stamp-open.png), none until there is one. W.visited: the core's set of areas stood in (in its save).
+W.visited = {}
+local function openList(passes)
+    local out = {}
+    for k, name in ipairs(DATA.areas) do
+        if name ~= SEA and name ~= START and passes[name] and not W.beyond[name] and not W.visited[name] then out[#out + 1] = k - 1 end
+    end
+    return out
+end
+local function openTexture(k)
+    local name = DATA.areas[k + 1]
+    local own = name and ("ap-map-stamp-open-" .. slugOf(W.parentOf(name)))
+    if own and artFile(own) ~= "" then return ART.texture(own) end
+    if artFile("ap-map-stamp-open") ~= "" then return ART.texture("ap-map-stamp-open") end
+    return nil
+end
 local mapIcons = { screen = nil, key = nil, list = {} }
 -- A map point (0-1 across and down the 4096 map) as a world location (game-systems: pixel = ((Y + 724400) / 1448800,
 -- (349400 - X) / 1448800) of the map's width).
@@ -1110,11 +1142,25 @@ local function placeIcons(screen, passes, key)
             if out.Added then shown = shown + 1 end
         end
     end
+    local opened = 0
+    for _, k in ipairs(openList(passes)) do
+        local c, tex = CENTRES[k], openTexture(k)
+        if c and tex then
+            local icon = wbl:Create(screen, cls, nil)
+            if not (icon and icon:IsValid()) then error("could not make a map icon") end
+            icon:ChangeTexture(tex)
+            screen["Add Icon By Location"](screen, icon, worldAt(c[1], c[2]), true, false, {})
+            pcall(function() icon:SetVisibility(3) end)
+            mapIcons.list[#mapIcons.list + 1] = icon
+            opened = opened + 1
+        end
+    end
     screen["Update Map Icons"](screen)          -- each icon's scale for the current zoom (the game does it on scroll/zoom)
     local where = ""
     local okw, parent = pcall(function() return mapIcons.list[1] and mapIcons.list[1]:GetParent():GetFName():ToString() end)
     if okw and parent then where = " on " .. parent end
-    log("map icons: " .. added .. " locked area(s) added" .. where .. " (" .. shown .. " said visible)")
+    log("map icons: " .. added .. " locked area(s) added" .. where .. " (" .. shown .. " said visible), " .. opened
+        .. " open not yet visited")
 end
 
 function W.updateMap(enabled, passes, ctx)
@@ -1187,7 +1233,7 @@ function W.updateMap(enabled, passes, ctx)
     if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
     if #images == 0 then return end
     if iconsActive() then
-        local oki, erri = pcall(placeIcons, screens[#screens], passes, key)
+        local oki, erri = pcall(placeIcons, screens[#screens], passes, key .. "#open:" .. table.concat(openList(passes), ","))
         if not oki then
             iconsFailed = true
             for _, icon in ipairs(mapIcons.list) do pcall(function() if icon:IsValid() then icon:RemoveFromParent() end end) end
