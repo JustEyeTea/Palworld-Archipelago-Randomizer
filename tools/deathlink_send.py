@@ -1,5 +1,6 @@
 """Sends one Death Link to an Archipelago room, as a text-only client of a slot (for testing the mod's Death Link).
     <AP venv python> tools/deathlink_send.py <ws://host:port> <slot name> [password] [cause]
+With --listen instead of a cause, it stays connected and prints every Death Link the room sends (the mod's own deaths).
 """
 import asyncio
 import json
@@ -21,7 +22,12 @@ async def main(server, slot, password, cause):
             for packet in json.loads(await ws.recv()):
                 if packet["cmd"] == "ConnectionRefused":
                     sys.exit(f"refused: {packet.get('errors')}")
-                if packet["cmd"] == "Connected":
+                if packet["cmd"] == "Connected" and cause == "--listen":
+                    print(f"listening for Death Links as {slot} (Ctrl+C to stop)", flush=True)
+                elif packet["cmd"] == "Bounced" and "DeathLink" in packet.get("tags", []):
+                    d = packet.get("data", {})
+                    print(f"{time.strftime('%H:%M:%S')} Death Link from {d.get('source')}: {d.get('cause')}", flush=True)
+                elif packet["cmd"] == "Connected":
                     await ws.send(json.dumps([{"cmd": "Bounce", "tags": ["DeathLink"],
                                                "data": {"time": time.time(), "source": slot, "cause": cause}}]))
                     await asyncio.sleep(1)

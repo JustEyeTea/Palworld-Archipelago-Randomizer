@@ -13,7 +13,8 @@ g++ -std=c++17 -O1 -DASIO_STANDALONE -DAP_NO_SCHEMA -I"$deps/apclientpp" -I"$dep
   cppmod/APConnector/src/ap_bridge.cpp cppmod/APConnector/test/bridge_test.cpp -o "$work/bridge_test" -lssl -lcrypto -lz -pthread
 mkdir -p "$work/players" "$work/out"
 printf 'name: Tester\ngame: Palworld\nPalworld:\n  tower_count: 2\n' > "$work/players/t.yaml"
-(cd apworld && find palworld -name __pycache__ -prune -o -type f -print | zip -q "$ap/custom_worlds/palworld.apworld" -@)
+mkdir -p "$ap/custom_worlds"
+AP_DIR="$ap" "$ap/.venv/bin/python" tools/build_apworld.py "$ap/custom_worlds/palworld.apworld" > /dev/null
 (cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 .venv/bin/python Generate.py --player_files_path "$work/players" \
    --outputpath "$work/out" --seed 7 < /dev/null > "$work/gen.log" 2>&1)
 (cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 exec .venv/bin/python MultiServer.py --host 127.0.0.1 --port 38301 --hint_cost "${HINT_COST:-10}" "$work"/out/*.zip \

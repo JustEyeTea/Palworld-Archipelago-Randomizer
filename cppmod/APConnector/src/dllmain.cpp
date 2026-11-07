@@ -16,6 +16,21 @@
 //   AP_ComposeMap(colour, labels, "3,7", out, gamma) -> string   starts composing the world map (locked areas grey) in
 //                                        the background: "" started, "busy", or an error
 //   AP_ComposeStatus() -> string         "busy", "done" (once, when finished), "error: ..." or ""
+//   AP_GivePal(species, level, route, options) -> string   gives the player a Pal ("Anubis", "50", "auto", ""); a report,
+//                                        one step per line, the last "result: ok party|ok palbox|pending|busy|fail ..."
+//                                        (see pal_gift.cpp; game thread only, so call it inside ExecuteInGameThread)
+//   AP_GivePalPoll() -> string           while a gift is pending, a report ending like AP_GivePal's; else ""
+//   (AP_GivePal and AP_GivePalPoll are untested in game.)
+//   AP_ComposeChart(colour, paper, sea, compass, out, size, gamma) -> string   starts drawing the explorer's-chart
+//                                        picture of the map in the background ("" started, "busy", or an error)
+//   AP_ChartStatus() -> string           "busy", "done" (once), "error: ..." or ""
+//   AP_ComposeFog(chart, mask, default, spec, out, size, stamps) -> string   starts the fog picture (the chart where
+//                                        unexplored, the locked areas' stamps on it; image_tools.hpp)
+//   AP_FogStatus() -> string             as AP_ChartStatus (chart and fog untested in game)
+//   AP_SamplePNG(path, u, v) -> string   a PNG's colour at (u, v) in 0..1: "r,g,b,a", or "error: ..."
+//   AP_MapScreen(cmd, value) -> string  the world map screen, changed inside the game's own Setup so it never shows the
+//                                        game's version first: "body", path / "fog", "r,g,b,a" / "status" (map_screen.hpp;
+//                                        untested in game)
 #include <Windows.h>
 
 #include <cstdio>
@@ -30,6 +45,8 @@
 
 #include "ap_bridge.hpp"
 #include "image_tools.hpp"
+#include "map_screen.hpp"
+#include "pal_gift.hpp"
 
 using namespace RC;
 
@@ -171,11 +188,56 @@ namespace
             l.set_string(compose_map_status());
             return 1;
         });
+        lua.register_function("AP_ComposeChart", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto colour = arg(l), paper = arg(l), sea = arg(l), compass = arg(l), out = arg(l), size = arg(l), gamma = arg(l);
+            int s = 2048;
+            double g = 1.0;
+            try { s = std::stoi(size); } catch (...) {}
+            try { g = std::stod(gamma); } catch (...) {}
+            l.set_string(chart_jobs().start([=] { return compose_chart(colour, paper, sea, compass, out, s, g); }));
+            return 1;
+        });
+        lua.register_function("AP_ChartStatus", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(chart_jobs().status());
+            return 1;
+        });
+        lua.register_function("AP_ComposeFog", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l), size = arg(l), stamps = arg(l);
+            int s = 2048;
+            try { s = std::stoi(size); } catch (...) {}
+            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s, stamps); }));
+            return 1;
+        });
+        lua.register_function("AP_FogStatus", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(fog_jobs().status());
+            return 1;
+        });
+        lua.register_function("AP_SamplePNG", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto path = arg(l), u = arg(l), v = arg(l);
+            double fu = 0, fv = 0;
+            try { fu = std::stod(u); fv = std::stod(v); } catch (...) {}
+            l.set_string(sample_png(path, fu, fv));
+            return 1;
+        });
         lua.register_function("AP_GreyscalePNG", [](const LuaMadeSimple::Lua& l) -> int {
             const auto in = arg(l), out = arg(l), gamma = arg(l);
             double g = 1.0;
             try { g = std::stod(gamma); } catch (...) {}
             l.set_string(greyscale_png(in, out, g));
+            return 1;
+        });
+        lua.register_function("AP_GivePal", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto species = arg(l), level = arg(l), route = arg(l), options = arg(l);
+            l.set_string(give_pal(species, level, route, options));
+            return 1;
+        });
+        lua.register_function("AP_GivePalPoll", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(give_pal_poll());
+            return 1;
+        });
+        lua.register_function("AP_MapScreen", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto cmd = arg(l), value = arg(l);
+            l.set_string(map_screen::command(cmd, value));
             return 1;
         });
     }
@@ -196,6 +258,11 @@ class APConnector : public CppUserModBase
     ~APConnector() override
     {
         g_bridge.reset();
+    }
+
+    auto on_unreal_init() -> void override
+    {
+        map_screen::install();
     }
 
     auto on_lua_start(StringViewType mod_name, LuaMadeSimple::Lua& lua, LuaMadeSimple::Lua& main_lua,

@@ -35,5 +35,69 @@ int main()
     const bool soft = o && at(99, 50)[0] > at(20, 50)[0] && at(99, 50)[0] < 255 && at(99, 50)[1] > 0;   // mixed at the edge
     std::printf("%s compose: %s, inside %d, open %d, edge %d/%d\n", st == "done" && grey && colour && soft ? "ok" : "FAIL",
                 st.c_str(), o ? at(20, 50)[0] : -1, o ? at(180, 50)[0] : -1, o ? at(99, 50)[0] : -1, o ? at(99, 50)[1] : -1);
-    return st == "done" && grey && colour && soft ? 0 : 1;
+    if (!(st == "done" && grey && colour && soft)) return 1;
+
+    // compose_chart: a 256x256 map: a grey band beyond the world's edge on the left, teal sea, a green island in the
+    // middle. Land comes out as warm paper, the sea cooler, the coast inked dark, beyond the edge darker paper.
+    std::vector<unsigned char> cm(256 * 256 * 4);
+    for (int y = 0; y < 256; ++y)
+        for (int x = 0; x < 256; ++x)
+        {
+            unsigned char* q = &cm[(y * 256 + x) * 4];
+            const bool beyond = x < 40, island = x >= 110 && x < 190 && y >= 90 && y < 170;
+            const unsigned char c[3] = {static_cast<unsigned char>(beyond ? 28 : island ? 90 : 0),
+                                        static_cast<unsigned char>(beyond ? 28 : island ? 140 : 38),
+                                        static_cast<unsigned char>(beyond ? 28 : island ? 60 : 58)};
+            q[0] = c[0]; q[1] = c[1]; q[2] = c[2]; q[3] = 255;
+        }
+    stbi_write_png("/tmp/chart_map.png", 256, 256, 4, cm.data(), 256 * 4);
+    const auto cerr = compose_chart("/tmp/chart_map.png", "", "", "", "/tmp/chart_out.png", 256, 1.0);
+    unsigned char* c = cerr.empty() ? stbi_load("/tmp/chart_out.png", &w, &h, &n, 3) : nullptr;
+    auto cpx = [&](int x, int y) { return c + (y * 256 + x) * 3; };
+    auto lum = [&](int x, int y) { const unsigned char* q = cpx(x, y); return 0.2126 * q[0] + 0.7152 * q[1] + 0.0722 * q[2]; };
+    const bool paperLand = c && cpx(150, 130)[0] > cpx(150, 130)[2] + 30 && lum(150, 130) > 170;         // warm, light
+    const bool coolSea = c && (cpx(80, 130)[2] - cpx(80, 130)[0]) > (cpx(150, 130)[2] - cpx(150, 130)[0]); // bluer than land
+    const bool coast = c && lum(110, 130) < lum(150, 130) - 40;                                      // inked edge
+    const bool beyondDark = c && lum(10, 130) < lum(80, 130) - 10;                                   // darker past the frame
+    const bool chartOk = cerr.empty() && w == 256 && paperLand && coolSea && coast && beyondDark;
+    std::printf("%s chart: %s land %.0f, sea %.0f, coast %.0f, beyond %.0f\n", chartOk ? "ok" : "FAIL",
+                cerr.empty() ? "written" : cerr.c_str(), c ? lum(150, 130) : -1.0, c ? lum(80, 130) : -1.0,
+                c ? lum(110, 130) : -1.0, c ? lum(10, 130) : -1.0);
+    if (!chartOk) return 1;
+
+    // compose_fog: the chart above, a mask explored (red high) on the right half only: see-through on the right, the
+    // chart on the left, inked and partly shown along the edge. The fog slot runs it in the background.
+    std::vector<unsigned char> mk(64 * 64 * 4);
+    for (int i = 0; i < 64 * 64; ++i) { mk[i * 4] = (i % 64) >= 32 ? 255 : 0; mk[i * 4 + 3] = 255; }
+    stbi_write_png("/tmp/fog_mask.png", 64, 64, 4, mk.data(), 64 * 4);
+    if (fog_jobs().start([] { return compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_out.png", 256); }) != "")
+        { std::printf("FAIL fog could not start\n"); return 1; }
+    std::string fst;
+    while ((fst = fog_jobs().status()) == "busy") {}
+    unsigned char* f = fst == "done" ? stbi_load("/tmp/fog_out.png", &w, &h, &n, 4) : nullptr;
+    auto fa = [&](int x, int y) { return f ? f[(y * 256 + x) * 4 + 3] : -1; };
+    const bool fogOk = f && fa(20, 128) == 255 && fa(240, 128) == 0 && fa(128, 128) > 0 && fa(128, 128) < 255
+                       && compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "x+", "/tmp/fog_bad.png", 256) != "";
+    std::printf("%s fog: %s, alpha unexplored %d, explored %d, edge %d\n", fogOk ? "ok" : "FAIL", fst.c_str(),
+                fa(20, 128), fa(240, 128), fa(128, 128));
+    if (!fogOk) return 1;
+
+    // sample_png: the mask above reads 255 red on its right half, 0 on its left; a missing file is an error.
+    const auto right = sample_png("/tmp/fog_mask.png", 0.9, 0.5), left = sample_png("/tmp/fog_mask.png", 0.1, 0.5);
+    const bool sampleOk = right == "255,0,0,255" && left == "0,0,0,255" && sample_png("/tmp/no_such.png", 0, 0).rfind("error:", 0) == 0;
+    std::printf("%s sample: right %s, left %s\n", sampleOk ? "ok" : "FAIL", right.c_str(), left.c_str());
+    if (!sampleOk) return 1;
+
+    // compose_fog with a stamp: a pure blue 32x32 stamp at the middle of the unexplored half is drawn over the chart.
+    std::vector<unsigned char> stp(32 * 32 * 4);
+    for (int i = 0; i < 32 * 32; ++i) { stp[i * 4 + 2] = 255; stp[i * 4 + 3] = 255; }
+    stbi_write_png("/tmp/fog_stamp.png", 32, 32, 4, stp.data(), 32 * 4);
+    const auto serr = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_stamped.png", 256,
+                                  "/tmp/fog_stamp.png|0.25|0.5|256;");
+    unsigned char* g = serr.empty() ? stbi_load("/tmp/fog_stamped.png", &w, &h, &n, 4) : nullptr;
+    auto gp = [&](int x, int y) { return g + (y * 256 + x) * 4; };
+    const bool stampOk = g && gp(64, 128)[2] == 255 && gp(64, 128)[0] == 0 && gp(64, 128)[3] == 255 && gp(20, 20)[2] < 255;
+    std::printf("%s fog stamp: %s, at the stamp %d,%d,%d\n", stampOk ? "ok" : "FAIL", serr.empty() ? "written" : serr.c_str(),
+                g ? gp(64, 128)[0] : -1, g ? gp(64, 128)[1] : -1, g ? gp(64, 128)[2] : -1);
+    return stampOk ? 0 : 1;
 }

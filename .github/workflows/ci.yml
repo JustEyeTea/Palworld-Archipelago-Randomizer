@@ -1,10 +1,17 @@
 # On every push and pull request: the APWorld against the Archipelago version it targets (Archipelago's own test
-# suites and test generations), and the mod's C++ part built on Windows, packaged with the Lua mod as an artifact.
+# suites and test generations), and the mod's C++ part built on Windows, packaged with the Lua mod as an artifact. The
+# Windows build (about 25 minutes) runs only when the C++ part or this file changed since the branch's last good one
+# (the changes job); tags, main and manual runs always build.
+# A version tag (v0.14.0, matching the mod's VERSION) also makes a DRAFT release with the mod zip, palworld.apworld and
+# their checksums; a person reads it and publishes it.
 name: CI
 
 on:
   push:
-    branches: [main]
+    # build/<name>: push a feature branch under this name to get its Windows build without a pull request (not for a
+    # branch that already has one open: its pull request builds it)
+    branches: [main, 'build/**']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -17,6 +24,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Whether the C++ part needs building: yes for tags, main and manual runs; otherwise only if cppmod/ or this file
+  # changed since the newest commit of this branch whose Windows build passed. Measured from that build, not from the
+  # previous push, so a run that was cancelled or skipped can't let a C++ change through unbuilt.
+  changes:
+    name: What changed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      cpp: ${{ steps.decide.outputs.cpp }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          # a pull request's own head, not the merge commit with main the checkout holds
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          build() { echo "cpp=true" >> "$GITHUB_OUTPUT"; echo "Windows build: yes ($1)"; exit 0; }
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            workflow_dispatch:*) build "manual run" ;;
+            push:refs/tags/*) build "a tag" ;;
+            push:refs/heads/main) build "main" ;;
+          esac
+          api="repos/$GITHUB_REPOSITORY/actions"
+          # The newest commit of a branch whose Windows build passed and that this commit builds on (an ancestor).
+          last_built() {
+            local runs run ok sha
+            runs=$(gh api "$api/workflows/ci.yml/runs?branch=$1&status=completed&per_page=30" --jq '.workflow_runs[].id') \
+              || build "could not list earlier runs of $1"
+            for run in $runs; do
+              ok=$(gh api "$api/runs/$run/jobs" \
+                     --jq '[.jobs[] | select(.name == "C++ mod (Windows)" and .conclusion == "success")] | length') \
+                || build "could not read run $run"
+              [ "$ok" -gt 0 ] || continue
+              sha=$(gh api "$api/runs/$run" --jq .head_sha)
+              if git merge-base --is-ancestor "$sha" "$HEAD_SHA" 2>/dev/null; then echo "$sha"; return; fi
+            done
+          }
+          base=$(last_built "$BRANCH")
+          # A new branch has no build of its own yet: the pull request's base branch's (next for a feature branch).
+          [ -n "$base" ] || [ -z "$BASE_BRANCH" ] || base=$(last_built "$BASE_BRANCH")
+          [ -n "$base" ] || build "no earlier Windows build of $BRANCH${BASE_BRANCH:+ or $BASE_BRANCH} found"
+          git cat-file -e "$base^{commit}" 2>/dev/null || build "the last built commit ${base:0:7} is gone (history rewritten?)"
+          changed=$(git diff --name-only "$base" "$HEAD_SHA" -- cppmod .github/workflows/ci.yml) \
+            || build "could not compare ${base:0:7}"
+          [ -z "$changed" ] || build "changed since ${base:0:7}: $(echo $changed)"
+          echo "cpp=false" >> "$GITHUB_OUTPUT"
+          echo "Windows build: no (nothing in cppmod/ or ci.yml changed since ${base:0:7}, which built)"
+
   apworld:
     name: APWorld on Archipelago ${{ matrix.archipelago }}
     runs-on: ubuntu-24.04
@@ -48,6 +111,11 @@ jobs:
           cd palworld-archipelago/cppmod/APConnector
           g++ -std=c++17 -O1 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp -o "$RUNNER_TEMP/image_test"
           "$RUNNER_TEMP/image_test"
+      - name: The C++ part's Pal-gift logic (the half that needs no Unreal headers)
+        run: |
+          cd palworld-archipelago/cppmod/APConnector
+          g++ -std=c++17 -O1 -Isrc test/pal_gift_test.cpp src/pal_gift_logic.cpp -o "$RUNNER_TEMP/pal_gift_test"
+          "$RUNNER_TEMP/pal_gift_test"
       - name: Archipelago's test suites
         run: AP_DIR="$GITHUB_WORKSPACE/archipelago" palworld-archipelago/tools/ap_tests.sh
       - name: Test generations
@@ -58,12 +126,32 @@ jobs:
           tools/test_generate.sh 3
           EXTRA_OPTIONS='tower_count: 8' tools/test_generate.sh 2
           EXTRA_OPTIONS=$'area_locks: false\n  progressive_spheres: false\n  level_checks: every_10' tools/test_generate.sh 2
+      # The .apworld as players get it (tools/build_apworld.py, as Archipelago's "Build APWorlds" makes it).
+      - name: Build palworld.apworld
+        env:
+          AP_DIR: ${{ github.workspace }}/archipelago
+        run: |
+          mkdir -p apworld-out
+          archipelago/.venv/bin/python palworld-archipelago/tools/build_apworld.py apworld-out/palworld.apworld
+      - uses: actions/upload-artifact@v6
+        with:
+          name: palworld-apworld-${{ github.sha }}
+          path: apworld-out/palworld.apworld
+      # The options page's YAMLs, built by its own JavaScript (in QuickJS), against the .apworld as players get it.
+      - name: Options page
+        env:
+          AP_DIR: ${{ github.workspace }}/archipelago
+        run: |
+          archipelago/.venv/bin/pip install -q quickjs
+          archipelago/.venv/bin/python palworld-archipelago/tools/test_options_page.py
 
   # The mod's C++ part (APConnector), built on Windows against the UE4SS the game runs: Okaetsu's Palworld build,
   # release 2281fa31. UE4SS's Unreal headers live in a private repository that only Epic-linked GitHub accounts can
   # read; UEPSEUDO_TOKEN is used only to clone it here and is never written to the build output.
   cppmod:
     name: C++ mod (Windows)
+    needs: changes
+    if: needs.changes.outputs.cpp == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     env:
@@ -98,6 +186,20 @@ jobs:
           fetch apclientpp black-sliver/apclientpp "$APCLIENTPP_COMMIT"
           fetch wswrap black-sliver/wswrap "$WSWRAP_COMMIT"
           fetch ap-soeclient black-sliver/ap-soeclient "$SOECLIENT_COMMIT"
+      # vcpkg's binary cache, kept between runs: OpenSSL is built from source once per vcpkg version (about 7 minutes),
+      # then restored from the cache in seconds. GitHub shares a cache saved on main with every branch, one saved on a
+      # pull request only with that pull request: the first build on main fills it for all.
+      - name: vcpkg version
+        id: vcpkg
+        shell: bash
+        run: |
+          echo "rev=$(git -C "$VCPKG_INSTALLATION_ROOT" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "VCPKG_BINARY_SOURCES=clear;files,$(cygpath -w "$GITHUB_WORKSPACE/vcpkg-cache"),readwrite" >> "$GITHUB_ENV"
+          mkdir -p "$GITHUB_WORKSPACE/vcpkg-cache"
+      - uses: actions/cache@v4
+        with:
+          path: vcpkg-cache
+          key: vcpkg-${{ runner.os }}-openssl-zlib-static-md-${{ steps.vcpkg.outputs.rev }}
       - name: OpenSSL and zlib (static, dynamic CRT)
         shell: bash
         run: |
@@ -138,3 +240,44 @@ jobs:
         with:
           name: PalworldArchipelago-mod-${{ github.sha }}
           path: package
+
+  # A version tag: a draft release with both builds. Its notes are a starting point; publishing is a person's call.
+  release:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [apworld, cppmod]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: The tag matches the mod's version
+        run: |
+          ver=$(sed -n 's/^local VERSION = "\(.*\)"/\1/p' mod/PalworldArchipelago/Scripts/main.lua)
+          [ "v$ver" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME but the mod says $ver"; exit 1; }
+      - uses: actions/download-artifact@v7
+        with:
+          name: PalworldArchipelago-mod-${{ github.sha }}
+          path: mod-package
+      - uses: actions/download-artifact@v7
+        with:
+          name: palworld-apworld-${{ github.sha }}
+          path: dist
+      - name: Assemble
+        run: |
+          (cd mod-package && zip -qr "../dist/PalworldArchipelago-$GITHUB_REF_NAME.zip" ue4ss)
+          (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          cat > notes.md <<EOF
+          Palworld Archipelago $GITHUB_REF_NAME (draft: edit these notes before publishing).
+
+          - \`PalworldArchipelago-$GITHUB_REF_NAME.zip\`: the mod. Its \`ue4ss\` folder goes over \`Pal/Binaries/Win64/ue4ss\`.
+          - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago 0.6.8 or newer).
+          - Setup: [setup guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/apworld/palworld/docs/setup_en.md).
+
+          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction.
+          Unofficial fan project; not affiliated with Pocketpair or the Archipelago project.
+          EOF
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag --title "Palworld Archipelago $GITHUB_REF_NAME" --notes-file notes.md

@@ -1,0 +1,724 @@
+{
+ "game": "Palworld",
+ "game_yaml": "Palworld",
+ "world_version": "0.8.0",
+ "archipelago_version": "0.6.8",
+ "yaml_header": "# Q. What is this file?\n# A. This file contains options which allow you to configure your multiworld experience while allowing\n#    others to play how they want as well.\n#\n# Q. How do I use it?\n# A. The options in this file are weighted. This means the higher number you assign to a value, the\n#    more chances you have for that option to be chosen. For example, an option like this:\n#\n#    map_shuffle:\n#      on: 5\n#      off: 15\n#\n#    Means you have 5 chances for map shuffle to occur, and 15 chances for map shuffle to be turned\n#    off.\n#\n# Q. I've never seen a file like this before. What characters am I allowed to use?\n# A. This is a .yaml file. You are allowed to use most characters.\n#    To test if your yaml is valid or not, you can use this website:\n#        http://www.yamllint.com/\n#    You can also verify that your Archipelago options are valid at this site:\n#        https://archipelago.gg/check\n\n# Your name in-game, limited to 16 characters.\n#     {player} will be replaced with the player's slot number.\n#     {PLAYER} will be replaced with the player's slot number, if that slot number is greater than 1.\n#     {number} will be replaced with the counter value of the name.\n#     {NUMBER} will be replaced with the counter value of the name, if the counter value is greater than 1.\n",
+ "descriptions": {
+  "": "Default Palworld Template",
+  "custom": "Custom Palworld Options",
+  "Short Sync": "Short Sync Preset for Palworld",
+  "Sync": "Sync Preset for Palworld",
+  "Long Sync": "Long Sync Preset for Palworld",
+  "Nomad Sync": "Nomad Sync Preset for Palworld",
+  "Relic Hunt Sync": "Relic Hunt Sync Preset for Palworld",
+  "Paldeck Sync": "Paldeck Sync Preset for Palworld",
+  "Async": "Async Preset for Palworld",
+  "Full Game Async": "Full Game Async Preset for Palworld"
+ },
+ "groups": [
+  {
+   "name": "Game Options",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "progression_balancing",
+     "name": "Progression Balancing",
+     "type": "NamedRange",
+     "help": "A system that can move progression earlier, to try and prevent the player from getting stuck and bored early.\n\nA lower setting means more getting stuck. A higher setting means less getting stuck.",
+     "min": 0,
+     "max": 99,
+     "default": 50,
+     "named_values": {
+      "disabled": 0,
+      "normal": 50,
+      "extreme": 99
+     }
+    },
+    {
+     "key": "accessibility",
+     "name": "Accessibility",
+     "type": "Choice",
+     "help": "Set rules for reachability of your items/locations.\n\n**Full:** ensure everything can be reached and acquired.\n\n**Minimal:** ensure what is needed to reach your goal can be acquired.",
+     "choices": [
+      {
+       "name": "full",
+       "value": 0,
+       "yaml": "full"
+      },
+      {
+       "name": "minimal",
+       "value": 2,
+       "yaml": "minimal"
+      }
+     ],
+     "default": "full"
+    }
+   ]
+  },
+  {
+   "name": "Goal",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "goal",
+     "name": "Goal",
+     "type": "Choice",
+     "help": "What wins the game.\nTowers: beat a number of tower bosses (Towers to Beat).\nRelic Hunt: collect Palpagos Relics, which are shuffled across the whole multiworld (Relics Needed of Relic Count).\nPaldeck: register a number of different Pals in your Paldeck (Pals to Register).\nWorld Tree: beat the boss at the top of the World Tree, the end of the game.",
+     "choices": [
+      {
+       "name": "towers",
+       "value": 0,
+       "yaml": "towers"
+      },
+      {
+       "name": "relic_hunt",
+       "value": 1,
+       "yaml": "relic_hunt"
+      },
+      {
+       "name": "paldeck",
+       "value": 2,
+       "yaml": "paldeck"
+      },
+      {
+       "name": "world_tree",
+       "value": 3,
+       "yaml": "world_tree"
+      }
+     ],
+     "default": "towers"
+    },
+    {
+     "key": "tower_count",
+     "name": "Towers to Beat",
+     "type": "Range",
+     "help": "Towers goal: how many tower bosses you must beat. Any towers count, but the logic plans for the first ones in the\ngame's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).\nOne or two suit a run of a few hours; all eight is a long game.",
+     "min": 1,
+     "max": 8,
+     "default": 2
+    },
+    {
+     "key": "paldeck_count",
+     "name": "Pals to Register",
+     "type": "Range",
+     "help": "Paldeck goal: how many different Pals you must register (catch or hatch).",
+     "min": 10,
+     "max": 250,
+     "default": 60
+    },
+    {
+     "key": "relic_count",
+     "name": "Relic Count",
+     "type": "Range",
+     "help": "Relic Hunt goal: how many Palpagos Relics are shuffled into the multiworld.",
+     "min": 5,
+     "max": 100,
+     "default": 30
+    },
+    {
+     "key": "relics_needed",
+     "name": "Relics Needed (%)",
+     "type": "Range",
+     "help": "Relic Hunt goal: what percentage of the relics you need to win (rounded up).",
+     "min": 10,
+     "max": 100,
+     "default": 75
+    }
+   ]
+  },
+  {
+   "name": "Run Style",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "run_style",
+     "name": "Run Style",
+     "type": "Choice",
+     "help": "What a tech you receive gives you.\nStandard: its recipe (and buildings), as in Palworld; you craft the rest at a base.\nNomad: its recipe, and what it makes, so you don't need a base that can craft it: a weapon, armour, glider,\naccessory or saddle (one, into your bag), or a stack of spheres, ammo, grenades, materials or food (into the\nmailbox). Techs for buildings unlock as usual: a building can't be handed over. Suits a game played in one\nsitting.",
+     "choices": [
+      {
+       "name": "standard",
+       "value": 0,
+       "yaml": "standard"
+      },
+      {
+       "name": "nomad",
+       "value": 1,
+       "yaml": "nomad"
+      }
+     ],
+     "default": "standard"
+    },
+    {
+     "key": "speed_boost",
+     "name": "Speed Boost",
+     "type": "Toggle",
+     "help": "Changes your world's own settings: the mod multiplies your EXP rate, work speed and gathering by the numbers\nbelow, for a game played in one sitting. Off, the mod never touches your world settings; set them yourself in\nWorld Settings (the guide suggests values).\nWARNING: your world keeps the changed settings in its save, also after the game. The mod tells you each change\nwhen you connect, and keeps your world's own values so it never multiplies twice; set them back in World Settings\nto play the world on without it.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
+    {
+     "key": "boost_exp_rate",
+     "name": "Speed Boost EXP Multiplier",
+     "type": "Range",
+     "help": "Speed Boost only: how many times your world's EXP rate.",
+     "min": 1,
+     "max": 10,
+     "default": 3
+    },
+    {
+     "key": "boost_work_speed",
+     "name": "Speed Boost Work Speed Multiplier",
+     "type": "Range",
+     "help": "Speed Boost only: how many times your world's work speed (building, crafting and other work, by you and your\nPals).",
+     "min": 1,
+     "max": 5,
+     "default": 3
+    },
+    {
+     "key": "boost_gather_rate",
+     "name": "Speed Boost Gathering Multiplier",
+     "type": "Range",
+     "help": "Speed Boost only: how many times your world's gathering drop rate (wood, stone, ore and the like).",
+     "min": 1,
+     "max": 3,
+     "default": 2
+    }
+   ]
+  },
+  {
+   "name": "Progression",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "area_locks",
+     "name": "Area Locks",
+     "type": "DefaultOnToggle",
+     "help": "Areas beyond the starting zone open with an Area Pass item. Until its pass arrives, a locked area is walled off\n(a red grid at its border) and shown grey on the map; the open sea is always free.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "area_size",
+     "name": "Area Size",
+     "type": "Choice",
+     "help": "How finely the map is cut into locked parts (with Area Locks on).\nAreas: 15 areas, each a group of the game's regions, opened by Area Passes. The game starts in Windswept Island and\nits two nearby isles.\nRegions: every named region of the game on its own (75), opened by Region Passes. The game starts in the\nWindswept Island region alone, where the first tower stands: a cramped start, and many small unlocks.",
+     "choices": [
+      {
+       "name": "areas",
+       "value": 0,
+       "yaml": "areas"
+      },
+      {
+       "name": "regions",
+       "value": 1,
+       "yaml": "regions"
+      }
+     ],
+     "default": "areas"
+    },
+    {
+     "key": "beyond_goal",
+     "name": "Areas Beyond the Goal",
+     "type": "Choice",
+     "help": "Area Locks: what becomes of the areas this goal never needs, the ones whose Pals are all above the Check Level\nCap. The areas on the way to the goal's towers always stay in.\nLocked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.\nPasses: every area has its pass somewhere in the multiworld, as with no cap at all.\nOpen: their walls are down from the start, but nothing in them is a check.",
+     "choices": [
+      {
+       "name": "locked",
+       "value": 0,
+       "yaml": "locked"
+      },
+      {
+       "name": "passes",
+       "value": 1,
+       "yaml": "passes"
+      },
+      {
+       "name": "open",
+       "value": 2,
+       "yaml": "open"
+      }
+     ],
+     "default": "locked"
+    },
+    {
+     "key": "gear_logic",
+     "name": "Gear Logic",
+     "type": "Toggle",
+     "help": "What the logic counts on besides Area Passes and levels.\nOff: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,\nfurnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need\nanother tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only\nwhere the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when\nan area can't be reached by land.\nOn: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every\ntech's prerequisites, the Lab, breeding, and a mount for the open sea.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
+    {
+     "key": "progressive_spheres",
+     "name": "Progressive Spheres",
+     "type": "Toggle",
+     "help": "Sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on) instead of separately.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    }
+   ]
+  },
+  {
+   "name": "Checks",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "check_level",
+     "name": "Check Level Cap",
+     "type": "Range",
+     "help": "The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,\nalphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.\n0 (auto) sets it from the goal: 8 levels past the last tower boss you need (18 for one tower, 28 for two), 5 levels\npast the level by which you can\nregister enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2.",
+     "min": 0,
+     "max": 80,
+     "default": 0
+    },
+    {
+     "key": "tech_checks",
+     "name": "Tech Checks",
+     "type": "Choice",
+     "help": "Which technologies are checks. All: every tech from level 2 up (583). No décor: furniture, flag and foliage\nsets, statues, signs and lights (62 techs) are normal research instead, with no check and no item (521).",
+     "choices": [
+      {
+       "name": "all",
+       "value": 0,
+       "yaml": "all"
+      },
+      {
+       "name": "no_decor",
+       "value": 1,
+       "yaml": "no_decor"
+      }
+     ],
+     "default": "no_decor"
+    },
+    {
+     "key": "capture_checks",
+     "name": "Capture Checks",
+     "type": "DefaultOnToggle",
+     "help": "A check for the first capture of each Paldeck entry that can be caught (raid, tower and special-event Pals\nhave no check).",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "alpha_checks",
+     "name": "Alpha Checks",
+     "type": "DefaultOnToggle",
+     "help": "A check for beating each field alpha (89). Untested in game so far: if beating an alpha sends nothing, turn this\noff for your next game.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "fast_travel_checks",
+     "name": "Fast-Travel Checks",
+     "type": "DefaultOnToggle",
+     "help": "A check for unlocking each fast-travel point (174).",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
+     "key": "level_checks",
+     "name": "Level Checks",
+     "type": "Choice",
+     "help": "A check for reaching player levels: every level (79 checks), every 5 (levels 5, 10, 15...), every 10 (levels\n10, 20, 30...), or none.",
+     "choices": [
+      {
+       "name": "off",
+       "value": 0,
+       "yaml": "'off'"
+      },
+      {
+       "name": "every_level",
+       "value": 1,
+       "yaml": "every_level"
+      },
+      {
+       "name": "every_5",
+       "value": 5,
+       "yaml": "every_5"
+      },
+      {
+       "name": "every_10",
+       "value": 10,
+       "yaml": "every_10"
+      }
+     ],
+     "default": "every_level"
+    }
+   ]
+  },
+  {
+   "name": "Filler",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "crate_sphere_weight",
+     "name": "Sphere Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Sphere Crate (spheres of the player's tier when opened).",
+     "min": 0,
+     "max": 100,
+     "default": 30
+    },
+    {
+     "key": "crate_food_weight",
+     "name": "Food Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Food Crate (dishes for the player's level when opened).",
+     "min": 0,
+     "max": 100,
+     "default": 25
+    },
+    {
+     "key": "crate_common_weight",
+     "name": "Common Supply Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Common Supply Crate (Gold Coins, medicine, Training Manuals, keys).",
+     "min": 0,
+     "max": 100,
+     "default": 30
+    },
+    {
+     "key": "crate_rare_weight",
+     "name": "Rare Supply Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Rare Supply Crate (Skill Fruits, accessories, gear that may be ahead of\nthe player, better manuals and keys).",
+     "min": 0,
+     "max": 100,
+     "default": 12
+    },
+    {
+     "key": "crate_jackpot_weight",
+     "name": "Jackpot Supply Crate Chance",
+     "type": "Range",
+     "help": "Palworld Crates: the chance weight of a Jackpot Supply Crate (stat fruits, Elixirs, top gear, high spheres).",
+     "min": 0,
+     "max": 100,
+     "default": 3
+    },
+    {
+     "key": "material_bundles",
+     "name": "Material Bundles",
+     "type": "Toggle",
+     "help": "Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items, besides Palworld Crates. Worth it in\nlong games; little use once a base makes them.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
+    {
+     "key": "tech_point_items",
+     "name": "Tech Point Items",
+     "type": "Toggle",
+     "help": "Tech Points +2 and Ancient Tech Points +1 among the filler items (otherwise only material bundles).",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    }
+   ]
+  },
+  {
+   "name": "Traps",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "trap_chance",
+     "name": "Trap Chance",
+     "type": "Range",
+     "help": "The percentage of filler items (bundles and tech points) replaced by traps: received items that do something\nmildly bad. None of them can make you faint. 0 means no traps, and seeds come out exactly as without this option.\nTraps are untested in game so far.",
+     "min": 0,
+     "max": 100,
+     "default": 0
+    },
+    {
+     "key": "slow_trap_weight",
+     "name": "Slow Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Slow Trap: half walking speed for a minute.",
+     "min": 0,
+     "max": 100,
+     "default": 40
+    },
+    {
+     "key": "hunger_trap_weight",
+     "name": "Hunger Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Hunger Trap: your stomach loses half a full meter of satiety, but never drops below\na quarter.",
+     "min": 0,
+     "max": 100,
+     "default": 40
+    },
+    {
+     "key": "teleport_trap_weight",
+     "name": "Teleport Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Teleport Trap: back to the starting area (it waits while you are in a dungeon).",
+     "min": 0,
+     "max": 100,
+     "default": 15
+    },
+    {
+     "key": "fool_trap_weight",
+     "name": "Fool Trap Weight",
+     "type": "Range",
+     "help": "How often a trap is a Fool Trap: an alarming notice that turns out to be a joke. Nothing happens.",
+     "min": 0,
+     "max": 100,
+     "default": 25
+    }
+   ]
+  },
+  {
+   "name": "Death Link",
+   "start_collapsed": false,
+   "options": [
+    {
+     "key": "death_link",
+     "name": "Death Link",
+     "type": "DeathLink",
+     "help": "When you die, everyone who enabled death link dies. Of course, the reverse is true too.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "false"
+    },
+    {
+     "key": "death_link_amnesty",
+     "name": "Death Link Amnesty",
+     "type": "Range",
+     "help": "Death Link: how many of your own faints are forgiven before one is sent to the multiworld. 0 sends every\nfaint; 2 sends every third. Deaths other players send you never count.",
+     "min": 0,
+     "max": 20,
+     "default": 0
+    }
+   ]
+  },
+  {
+   "name": "Item & Location Options",
+   "start_collapsed": true,
+   "options": [
+    {
+     "key": "local_items",
+     "name": "Local Items",
+     "type": "ItemSet",
+     "help": "Forces these items to be in their native world.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "non_local_items",
+     "name": "Non-local Items",
+     "type": "ItemSet",
+     "help": "Forces these items to be outside their native world.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "start_inventory",
+     "name": "Start Inventory",
+     "type": "ItemDict",
+     "help": "Start with the specified amount of these items. Example: {Bomb: 1, Arrow: 3}",
+     "default": {},
+     "yaml_value": "{}"
+    },
+    {
+     "key": "start_hints",
+     "name": "Start Hints",
+     "type": "ItemSet",
+     "help": "Start with these item's locations prefilled into the ``!hint`` command.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "start_location_hints",
+     "name": "Start Location Hints",
+     "type": "LocationSet",
+     "help": "Start with these locations and their item prefilled into the ``!hint`` command.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "exclude_locations",
+     "name": "Excluded Locations",
+     "type": "LocationSet",
+     "help": "Prevent these locations from having an important item.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "priority_locations",
+     "name": "Priority Locations",
+     "type": "LocationSet",
+     "help": "Prevent these locations from having an unimportant item.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "item_links",
+     "name": "Item Links",
+     "type": "OptionList",
+     "help": "Share part of your item pool with other players.",
+     "default": [],
+     "yaml_value": "[]"
+    },
+    {
+     "key": "plando_items",
+     "name": "Plando Items",
+     "type": "PlandoItems",
+     "help": "Generic items plando.",
+     "default": [],
+     "yaml_value": "[]"
+    }
+   ]
+  }
+ ],
+ "presets": {
+  "Short Sync": {
+   "goal": "towers",
+   "tower_count": 1,
+   "level_checks": "every_5",
+   "fast_travel_checks": false,
+   "speed_boost": true
+  },
+  "Sync": {
+   "goal": "towers",
+   "tower_count": 1,
+   "speed_boost": true
+  },
+  "Long Sync": {
+   "goal": "towers",
+   "tower_count": 2,
+   "speed_boost": true
+  },
+  "Nomad Sync": {
+   "goal": "towers",
+   "tower_count": 2,
+   "run_style": "nomad",
+   "speed_boost": true
+  },
+  "Relic Hunt Sync": {
+   "goal": "relic_hunt",
+   "relic_count": 20,
+   "relics_needed": 75,
+   "check_level": 25,
+   "speed_boost": true
+  },
+  "Paldeck Sync": {
+   "goal": "paldeck",
+   "paldeck_count": 60,
+   "speed_boost": true
+  },
+  "Async": {
+   "goal": "towers",
+   "tower_count": 3
+  },
+  "Full Game Async": {
+   "goal": "world_tree"
+  }
+ }
+}

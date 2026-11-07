@@ -34,11 +34,15 @@ function R.notify(text, ps)
     end
 end
 
+local P = require("perf")
 local function each(fastArray, fn)
+    local n = 0
     fastArray.Items:ForEach(function(_, e)
         local it = e:get()
+        n = n + 1
         fn(it.Key:ToString(), it.Value)
     end)
+    P.count("rec", n)
 end
 
 local warned = {}
@@ -75,9 +79,11 @@ local function scanFastTravel(now, unlockedNow)
     log("fast-travel points loaded: " .. n)
 end
 
--- Everything done so far: { locations = {ids}, towers = number of goal towers beaten, beaten = {boss type = true} }.
+-- Everything done so far: { locations = {ids}, towers = number of goal towers beaten, beaten = {boss type = true},
+-- pals = number of different Pals registered (caught or hatched) }.
 function R.progress(ps, D, now)
-    local out, towers, beaten = {}, 0, {}
+    local out, towers, beaten, registered, pals = {}, 0, {}, {}, 0
+    local function register(k) if not registered[k:lower()] then registered[k:lower()] = true; pals = pals + 1 end end
     local function add(loc) if loc then out[#out + 1] = loc end end
     local function addAll(list) for _, loc in ipairs(list or {}) do add(loc) end end
 
@@ -85,11 +91,13 @@ function R.progress(ps, D, now)
     for n = 2, lv do add(D.levels[n]) end
 
     local rec = ps:GetRecordData()
-    each(rec.PalCaptureCount, function(k, v) if v > 0 then add(D.captures[k:lower()]) end end)
-    each(rec.PaldeckUnlockFlag, function(k, v) if v then add(D.captures[k:lower()]) end end)
+    each(rec.PalCaptureCount, function(k, v) if v > 0 then add(D.captures[k:lower()]); register(k) end end)
+    each(rec.PaldeckUnlockFlag, function(k, v) if v then add(D.captures[k:lower()]); register(k) end end)
     each(rec.TowerBossDefeatFlag, function(k, v)
         if not v then return end
-        local boss = k:match("([^:]+)$")
+        -- 1.0.5 keys are BOSS_BATTLE_NAME_GrassBoss (2026-11-05 run: both towers beaten, neither counted, no goal);
+        -- EPalBossType::GrassBoss is kept as well.
+        local boss = (k:match("([^:]+)$") or k):gsub("^BOSS_BATTLE_NAME_", "")
         beaten[boss] = true
         local loc = D.towers[boss]
         if loc then towers = towers + 1; add(loc) else warnOnce("tower" .. k, "tower record key not mapped: " .. k) end
@@ -105,18 +113,20 @@ function R.progress(ps, D, now)
         end
     end)
 
-    local unlockedNow, missing = {}, false
+    -- One pass over the fast-travel flags (6dd356e walked them twice): the keys not mapped yet are kept and checked
+    -- again after the scan, which gives the same warnings.
+    local unlockedNow, unmapped = {}, {}
     each(rec.FastTravelPointUnlockFlag, function(k, v)
         if not v then return end
         local id = ftKeys[k:upper()]
-        if id then add(D.fast_travel[id]) else missing = true end
+        if id then add(D.fast_travel[id]) else unmapped[#unmapped + 1] = k end
     end)
-    if missing then scanFastTravel(now, unlockedNow) end
+    if #unmapped > 0 then scanFastTravel(now, unlockedNow) end
     for _, id in ipairs(unlockedNow) do add(D.fast_travel[id]) end
-    each(rec.FastTravelPointUnlockFlag, function(k, v)
-        if v and not ftKeys[k:upper()] then warnOnce("ft" .. k, "fast-travel record key not mapped yet: " .. k) end
-    end)
-    return { locations = out, towers = towers, beaten = beaten, level = lv }
+    for _, k in ipairs(unmapped) do
+        if not ftKeys[k:upper()] then warnOnce("ft" .. k, "fast-travel record key not mapped yet: " .. k) end
+    end
+    return { locations = out, towers = towers, beaten = beaten, level = lv, pals = pals }
 end
 
 return R
