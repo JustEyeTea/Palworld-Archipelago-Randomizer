@@ -79,6 +79,23 @@ local function speedUp()
 end
 T.speedUp = speedUp
 
+-- Ctrl+F1: a big chunk of EXP for testing (the user, 2026-11-08: a gifted Pal is synced down to the player's level, so
+-- the tower goal test needs a higher player). The game's own PalUtility:GiveExpToAroundPlayerCharacter (what a boss's
+-- bonus EXP uses; not a Debug_ or cheat function, which are empty in shipping), around the player.
+local LEVEL_EXP = 200000
+local function levelUp()
+    local p = assert(pawn(), "no player character")
+    local function level()
+        local ok, lv = pcall(function() return p:GetCharacterParameterComponent():GetLevel() end)
+        return ok and lv or "?"
+    end
+    local before = level()
+    local util = StaticFindObject("/Script/Pal.Default__PalUtility")
+    util:GiveExpToAroundPlayerCharacter(p, p:K2_GetActorLocation(), 500.0, LEVEL_EXP, true)
+    return before, level()
+end
+T.levelUp = levelUp
+
 local function exhaustion()
     local p = assert(pawn(), "no player character")
     local cp = p:GetCharacterParameterComponent()
@@ -326,13 +343,21 @@ function T.install()
             log("--- wall skin " .. tostring(name) .. " (on at the next update)")
         end)
     end)
-    RegisterKeyBind(Key.F2, { ModifierKey.CONTROL }, function()
-        ExecuteInGameThread(function()
-            local ok, factor, how = pcall(speedUp)
-            log("--- speed " .. (ok and ("x" .. factor .. " (walk multipliers now: " .. how .. ")") or ("error: " .. tostring(factor))))
-        end)
-    end)
+    local function speedKey()
+        local ok, factor, how = pcall(speedUp)
+        log("--- speed " .. (ok and ("x" .. factor .. " (walk multipliers now: " .. how .. ")") or ("error: " .. tostring(factor))))
+    end
+    RegisterKeyBind(Key.F2, { ModifierKey.CONTROL }, function() ExecuteInGameThread(speedKey) end)
     log("test tools on: Ctrl+F2 move faster (x1, x3, x6)")
+    -- (Made once: a key bind's callback runs off the game thread, where making a new function each press is the
+    -- Lua-state race of 2026-11-08; it only hands this over.)
+    local function levelKey()
+        local ok, before, after = pcall(levelUp)
+        log("--- level up " .. (ok and ("(" .. LEVEL_EXP .. " EXP): level " .. tostring(before) .. " -> " .. tostring(after)
+            .. " (if unchanged, it may land on the next update)") or ("error: " .. tostring(before))))
+    end
+    RegisterKeyBind(Key.F1, { ModifierKey.CONTROL }, function() ExecuteInGameThread(levelKey) end)
+    log("test tools on: Ctrl+F1 " .. LEVEL_EXP .. " EXP (the game's GiveExpToAroundPlayerCharacter)")
     log("test tools on: Ctrl+F3 wall skin (" .. table.concat(require("walls").SKINS, ", ") .. ")")
     RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function()
         ExecuteInGameThread(function()

@@ -2604,6 +2604,13 @@ pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
                          RemoveStatus = function(_, id) statuses[id] = nil end }
 require("test_tools").install()
 expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools bind Ctrl+F3 to the wall skins")
+;(function()  -- Ctrl+F1: EXP for testing through PalUtility:GiveExpToAroundPlayerCharacter
+    local given = nil
+    util.GiveExpToAroundPlayerCharacter = function(_, who, at, radius, exp, cb) given = { who = who, at = at, radius = radius, exp = exp, cb = cb } end
+    keyBinds["key:F1"](); run(1)
+    expect(given and given.exp == 200000 and given.radius == 500.0 and given.cb == true and given.at and logged("%-%-%- level up %(200000 EXP%): level"),
+           "Ctrl+F1 gives the player 200000 EXP through the game's own GiveExpToAroundPlayerCharacter")
+end)()
 ;(function()  -- Ctrl+F2: faster for testing, through the game's named walk speed multiplier (as the Slow Trap)
     local seen = {}
     for _ = 1, 3 do keyBinds["key:F2"](); run(1); seen[#seen + 1] = movement.mult.APTestSpeed end
