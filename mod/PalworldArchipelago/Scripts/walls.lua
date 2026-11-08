@@ -70,6 +70,7 @@ end
 -- are really gone are forgotten: the core's world key is the pawn, which also changes (or reads nil for a moment) in
 -- the same world, and a wall forgotten while still standing could never be taken down.
 function W.reset()
+    W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
     for i, a in pairs(raised) do
         local ok, valid = pcall(function() return a:IsValid() end)
         if not (ok and valid) then raised[i], nRaised = nil, nRaised - 1 end
@@ -110,20 +111,31 @@ end
 -- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. One loop for
 -- the session, made when this module loads (UE4SS cannot start one from inside a game-thread callback); it idles while
 -- nothing sinks.
-local sinking = {}            -- list of { actor, scale X, scale Y, step, dissolving }
+local sinking = {}            -- list of { actor, scale X, scale Y, step, dissolve start (game s) or nil }
+-- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
+-- at 80 to 85% dissolved): blocking stops at DISSOLVE_S/2, the piece goes at DISSOLVE_S + DISSOLVE_TAIL.
+local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 0.8
 local function sinkStep()
     local still = {}
     for _, s in ipairs(sinking) do
         local a = s[1]
         if a:IsValid() then
             s[4] = s[4] + 1
-            if not s[5] then                             -- (a dissolving piece: its material does the show)
+            local half, done = s[4] == SINK_STEPS // 2, s[4] >= SINK_STEPS
+            if s[5] then                                 -- dissolving: its material does the show, by the game's clock
+                local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
+                if ok and type(now) == "number" then
+                    half = not s.open and now >= s[5] + DISSOLVE_S / 2
+                    done = now >= s[5] + DISSOLVE_S + DISSOLVE_TAIL
+                end
+                done = done or s[4] >= SINK_STEPS * 4  -- (never stuck, whatever the clock says)
+            else
                 local t = s[4] / SINK_STEPS
                 local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
                 pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
             end
-            if s[4] == SINK_STEPS // 2 then pcall(function() a:SetActorEnableCollision(false) end) end
-            if s[4] >= SINK_STEPS then
+            if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
+            if done then
                 pcall(function() a:K2_DestroyActor() end)
             else
                 still[#still + 1] = s
@@ -134,10 +146,12 @@ local function sinkStep()
 end
 if LoopAsync then
     LoopAsync(33, function()
-        if #sinking > 0 then
+        if #sinking > 0 or W.glowing() then
             ExecuteInGameThread(function()
                 local ok, err = pcall(sinkStep)
                 if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
+                ok, err = pcall(W.glowTick)
+                if not ok then once("glow", "wall glow error: " .. tostring(err)) end
             end)
         end
         return false
@@ -151,14 +165,15 @@ end
 -- Opening: with the paws skin the piece dissolves (W.dissolving, below: its material eats it away over 2 s by the
 -- game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway and then goes.
 W.dissolving = function() return nil end
+W.glowing, W.glowTick = function() return false end, function() end
 local function lower(i, context)
     local a, wore = raised[i], dressedAs[i]
     forget(i)
     if not (a and a:IsValid()) then return end
-    local ok, mid = pcall(W.dissolving, wore, context)
+    local ok, mid, start = pcall(W.dissolving, wore, context)
     local m = ok and mid and W.meshOf(a)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0, m and true or nil }
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0, m and start or nil }
 end
 -- Out of range: away at once.
 local function drop(i)
@@ -189,7 +204,7 @@ end
 local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
 function W.update(enabled, passes, context)
     checkSome()
-    W.lastPasses = passes
+    W.lastPasses, W.lastContext = passes, context
     if not ready() then return end
     local budget = PER_TICK
     local px, py = nil, nil
@@ -551,14 +566,14 @@ end
 -- An opening piece's material: its paws, dissolving from now over DISSOLVE_S by the game's clock (M_APWall's
 -- DissolveStart and DissolveTime against its Time node; an edge glows as it goes). One per look per second, so the
 -- pieces an update opens share it; nil for any other skin (those shrink).
-local DISSOLVE_S = SINK_STEPS * 0.033
-local gone = {}
+local gone, goneStart = {}, {}
+local glowAt = nil             -- where the player was last told to the M_APWall materials (W.glowTick, below)
 function W.dissolving(name, context)
     if not (name and name:find("^paws:")) then return nil end
     local ok, now = pcall(function() return gs:GetTimeSeconds(context) end)
     if not (ok and type(now) == "number") then return nil end
     local key = name .. "@" .. math.floor(now)
-    if gone[key] and gone[key]:IsValid() then return gone[key] end
+    if gone[key] and gone[key]:IsValid() then return gone[key], goneStart[key] end
     local gi = owner()
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
@@ -567,9 +582,31 @@ function W.dissolving(name, context)
     if not mid then return nil end
     mid:SetScalarParameterValue(FName("DissolveStart"), now)
     mid:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
-    gone[key] = mid
+    if glowAt then mid:SetVectorParameterValue(FName("PlayerPos"), glowAt) end
+    gone[key], goneStart[key] = mid, now
     once("dissolve", "wall skin paws: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now) .. " s)")
-    return mid
+    return mid, now
+end
+-- The glow near the player (M_APWall's PlayerPos; dev.41 playtest: keyed to the camera it sat off to the side of the
+-- character): the player's position on every M_APWall material, from the 33 ms loop while walls of ours stand, only
+-- when the player has moved. The pawn is the core's, handed to W.update every 300 ms; checked each time.
+function W.glowing()
+    if nRaised == 0 or not apWall then return false end
+    return skin.now == "paws" or skin.now:find("^colour%-") ~= nil
+end
+function W.glowTick()
+    if not W.glowing() then return end
+    local pawn = W.lastContext
+    if not (pawn and pawn:IsValid()) then return end
+    local loc = pawn:K2_GetActorLocation()
+    if not (loc and loc.X) then return end
+    if glowAt and math.abs(glowAt.R - loc.X) + math.abs(glowAt.G - loc.Y) + math.abs(glowAt.B - loc.Z) < 5 then return end
+    glowAt = { R = loc.X, G = loc.Y, B = loc.Z, A = 1 }
+    local name = FName("PlayerPos")
+    for k, mid in pairs(skin.mids) do
+        if (k:find("^paws:") or k:find("^colour%-")) and mid:IsValid() then mid:SetVectorParameterValue(name, glowAt) end
+    end
+    for _, mid in pairs(gone) do if mid:IsValid() then mid:SetVectorParameterValue(name, glowAt) end end
 end
 local function skinMaterial(name)
     local mid = skin.mids[name]

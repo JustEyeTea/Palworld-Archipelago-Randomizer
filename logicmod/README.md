@@ -164,8 +164,8 @@ What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour
 for the default `paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; the paws skin puts the
 area's colour at 0.34), `CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`,
 `Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm), `OffsetU`/`OffsetV`/`MirrorU` (each of the 75 Areas a variant of
-its Region's look), and `DissolveStart`/`DissolveTime` (an unlock: the wall dissolves by the game's clock). With no
-parameters at all it also glows and ripples near the camera (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`,
+its Region's look), and `DissolveStart`/`DissolveTime` (an unlock: the wall dissolves by the game's clock). It also glows and ripples
+near the player, whose position the mod sets as `PlayerPos` about 30 times a second (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`,
 `ReactColor`). The script also cooks `walls\ap-wall-paws-layer.png` into the pak as
 `T_APWallPaws`, with mips; it reads the PNG from this repo, so run it from a full checkout. The pattern is laid on the wall in world space, so it keeps its size on every piece and recedes in
 perspective.

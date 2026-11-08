@@ -28,10 +28,12 @@ distance from the camera like the game's walls. Parameters the Lua mod sets on i
   FadeStart, FadeEnd    centimetres from the camera where it starts to fade, and where it is gone (1500, 2500)
   OffsetU, OffsetV, MirrorU  the pattern shifted (tiles) and mirrored (1) per area (the Art lane, 2026-11-08: sister
                         Areas of one Region differ by an offset, a mirror and a shade of the Back colour, never hue)
-  ReactRadius, ReactStrength, RippleSize, RippleSpeed, ReactColor  the wall glows and ripples near the camera (the
-                        player): within ReactRadius cm (700), rings RippleSize cm apart (60) moving RippleSpeed a second
+  PlayerPos, ReactRadius, ReactStrength, RippleSize, RippleSpeed, ReactColor  the wall glows and ripples near the
+                        player (PlayerPos, set by the Lua mod ~30 times a second; dev.41 measured from the camera,
+                        which sits off to the side): within ReactRadius cm (600), rings RippleSize cm apart (60)
+                        moving RippleSpeed a second
   DissolveStart, DissolveTime, EdgeColor  the wall dissolves from DissolveStart (game seconds, the Time node's clock;
-                        1e8: never) over DissolveTime s (2), a glowing EdgeColor edge eating it away (an unlock)
+                        1e8: never) over DissolveTime s (1.6), a glowing EdgeColor edge eating it away (an unlock)
 The material is replaced as a whole if it already exists, so it is safe to run again after changing this script.
 """
 import os
@@ -211,12 +213,20 @@ def material():
     link(solid, "", o1, "A")
     link(opac, "", o1, "B")
 
-    # Near the camera (the player): a glow with rings moving out from the nearest point.
+    # Near the player: a glow with rings moving out from the nearest point. PlayerPos starts far below the world, so
+    # nothing glows until the Lua mod says where the player is.
+    pp = node(mat, unreal.MaterialExpressionVectorParameter, 950, 1000, parameter_name="PlayerPos",
+              default_value=unreal.LinearColor(0, 0, -1.0e7, 1))
+    pmask = node(mat, unreal.MaterialExpressionComponentMask, 1050, 1000, r=True, g=True, b=True, a=False)
+    link(pp, "", pmask, "")
+    pdist = node(mat, unreal.MaterialExpressionDistance, 1150, 950)
+    link(pmask, "", pdist, "A")
+    link(wpos, "", pdist, "B")
     # near = (1 - saturate(dist / ReactRadius))^2; rings = 0.5 + 0.5*sin(2pi*(dist/RippleSize - Time*RippleSpeed));
     # react = near * (0.5 + 0.5*rings) * ReactStrength.
-    rr = scalar(mat, "ReactRadius", 700.0, 1100, 900)
+    rr = scalar(mat, "ReactRadius", 600.0, 1100, 900)
     rel = node(mat, unreal.MaterialExpressionDivide, 1250, 850)
-    link(dist, "", rel, "A")
+    link(pdist, "", rel, "A")
     link(rr, "", rel, "B")
     rel_c = node(mat, unreal.MaterialExpressionSaturate, 1400, 850)
     link(rel, "", rel_c, "")
@@ -228,7 +238,7 @@ def material():
     rs = scalar(mat, "RippleSize", 60.0, 1100, 1050)
     rsp = scalar(mat, "RippleSpeed", 1.5, 1100, 1150)
     ring_pos = node(mat, unreal.MaterialExpressionDivide, 1250, 1000)
-    link(dist, "", ring_pos, "A")
+    link(pdist, "", ring_pos, "A")
     link(rs, "", ring_pos, "B")
     ring_t = node(mat, unreal.MaterialExpressionMultiply, 1250, 1150)
     link(time, "", ring_t, "A")
@@ -253,7 +263,7 @@ def material():
     # The unlock: dissolve = saturate((Time - DissolveStart) / DissolveTime); a world-space noise n in 0..1; what is
     # left = saturate((n - dissolve*(1 + e) + e) / e), e = 0.08; the edge glows where left is between 0 and 1.
     ds = scalar(mat, "DissolveStart", 1.0e8, 1100, 1350)
-    dt = scalar(mat, "DissolveTime", 2.0, 1100, 1450)
+    dt = scalar(mat, "DissolveTime", 1.6, 1100, 1450)
     since = node(mat, unreal.MaterialExpressionSubtract, 1250, 1350)
     link(time, "", since, "A")
     link(ds, "", since, "B")

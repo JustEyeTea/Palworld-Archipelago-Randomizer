@@ -107,6 +107,7 @@ util.GetLocalPlayerState = function() return ps end
 
 -- UE4SS.
 local hooks, postHooks, loop, extraLoops = {}, {}, nil, {}
+gameSeconds = 1234.5                                         -- the game's clock: 33 ms a turn of the 33 ms loops
 local function Card(tech)
     local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
     local function text(field)
@@ -284,7 +285,7 @@ local gameplay = { IsValid = function() return true end,
                    end,
                    FinishSpawningActor = function(_, a) wallsUp[a] = true end,
                    GetWorldDeltaSeconds = function() return 0.016 end,
-                   GetTimeSeconds = function() return 1234.5 end,
+                   GetTimeSeconds = function() return gameSeconds end,
                    SpawnObject = function() return Widget() end }
 local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
@@ -555,7 +556,10 @@ local function run(ticks)
         clock, frameCount = clock + 0.3, frameCount + 20
         loop()
         for i = #extraLoops, 1, -1 do                     -- other loops (the walls sinking) end by returning true
-            for _ = 1, 10 do if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end end
+            for _ = 1, 10 do
+                gameSeconds = gameSeconds + 0.033 / #extraLoops
+                if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end
+            end
         end
     end
 end
@@ -973,19 +977,30 @@ do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's
     for wa in pairs(wallsUp) do before[wa] = true end
     local passes = { [target] = true }
     for k in pairs(open) do passes[k] = true end
-    for _ = 1, 40 do W.update(true, passes, {}) end
+    local standIn = { IsValid = function() return true end, K2_GetActorLocation = function() return pawnAt end }
+    for _ = 1, 40 do W.update(true, passes, standIn) end
     local fading, shrunk = nil, 0
     for wa in pairs(before) do
         local m = wa.Cube.mat
         if m and m.scalars and m.scalars.DissolveStart and not fading then fading = wa end
         if wa.shrunkTo then shrunk = shrunk + 1 end
     end
-    expect(fading and fading.Cube.mat.scalars.DissolveStart == 1234.5 and math.abs(fading.Cube.mat.scalars.DissolveTime - 1.98) < 1e-6
+    expect(fading and math.abs(fading.Cube.mat.scalars.DissolveStart - gameSeconds) < 1 and fading.Cube.mat.scalars.DissolveTime == 1.6
            and shrunk == 0 and logged("an opened wall dissolves"),
-           "an opened paws wall gets a dissolving copy of its material, from now, over 2 s, and doesn't shrink: " .. tostring(target))
-    run(8)
-    expect(fading and fading.gone and fading.collision == false and fading.shrunkTo == nil,
-           "then it stops blocking and goes, never shrunk")
+           "an opened paws wall gets a dissolving copy of its material, from now, over 1.6 s, and doesn't shrink: " .. tostring(target))
+    local t0 = fading and fading.Cube.mat.scalars.DissolveStart
+    local seen = {}
+    for _ = 1, 40 do
+        run(1)
+        if fading and not seen.open and fading.collision == false then seen.open = gameSeconds - t0 end
+        if fading and not seen.gone and fading.gone then seen.gone = gameSeconds - t0 end
+    end
+    expect(seen.open and seen.open >= 0.8 and seen.open < 1.2 and seen.gone and seen.gone >= 2.4 and seen.gone < 2.8
+           and fading.shrunkTo == nil,
+           "by the game's clock it stops blocking halfway and goes only once the dissolve is through (2.4 s), never shrunk: "
+           .. tostring(seen.open) .. " / " .. tostring(seen.gone))
+    expect(fading and fading.Cube.mat.vectors and fading.Cube.mat.vectors.PlayerPos,
+           "the glow follows the player: the dissolving material has the player's position too")
     if fading then fading.Cube.mat.parent.IsValid = function() return false end end   -- the pak "gone" again, as before
     logicMod = hadPak
     W.setSkin("red"); run(40)
