@@ -7,6 +7,8 @@ Round-1 art from the Art & Assets lane (2026-11-04; the user picked each design)
   ap-status-dot.png           24x24 white dot in the pill, tinted green / amber / red by the connection state.
   ap-map-stamp.png            256x256, drawn 88 px wide at the centre of each locked area on the map (walls.lua,
                               Scripts/area_centres.lua from tools/area_centres.py).
+  ap-map-stamp-open.png       256x256, the ticket with an open padlock on a green badge (the user's pick A, 2026-11-07),
+                              a map icon on an unlocked area not visited yet; ap-map-stamp-open-<area>.png per area.
   ap-mailbox-emblem-64.png    beside the mailbox chest window's heading and the Inventory page's Mailbox button.
   ap-mailbox-emblem-128.png   the same at 128x128, for larger places.
 Round 2 (2026-11-04):
@@ -43,5 +45,7 @@ as a chart; image_tools.cpp compose_chart / compose_fog, not drawn in play yet).
   ap-chart-compass.png        512x512, a 16-point compass rose with a paw for north (beyond the frame's top-left).
   ap-chart-edge.png           512x64, tiles left to right, chart side at the top: a torn edge for the explored boundary
                               (not used yet).
+  ap-chart-hatch.png          256x256, seamless single diagonal engraved lines in ink #3B2A1A, drawn at 0.45 over locked
+                              areas on the chart, under the borders (the user's pick, 2026-11-07).
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).

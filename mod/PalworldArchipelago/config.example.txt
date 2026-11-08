@@ -27,16 +27,21 @@ perf_log=
 # load), Ctrl+F3 wall skins, Ctrl+F4 HUD probe (hint icon and goal banner for 6 s) and the probes that need the game
 # to answer. For playtests only.
 test_tools=
-# The area walls' look: empty (or area) is a wall with see-through paw-shaped holes (the hex lattice until that
-# pattern file is installed) in the colour of the locked area behind each wall (its pass
-# ticket's colour; areas beyond the seed's goal in slate grey); a is the lattice in teal everywhere; red is the game's
-# own red grid. Test builds can try others: b, a3d, b3d, a3d-dense, b3d-dense, and with the PalworldArchipelagoArt pak
+# The area walls' look: empty (or paws) is cream paws over the colour of the locked area behind each wall (its pass
+# ticket's colour; areas beyond the seed's goal in slate grey), with the PalworldArchipelagoArt pak; without it, area.
+# area is a wall with see-through paw-shaped holes in that colour; a is the lattice in teal everywhere; red is the
+# game's own red grid. Test builds can try others: b, a3d, b3d, a3d-dense, b3d-dense, and with the PalworldArchipelagoArt pak
 # colour-paws, colour-routes,
 # colour-grid, colour-rainbow, colour-rainbow-flow; with test_tools=1, Ctrl+F3 cycles them all. wall_tiling=U,V
 # (the material's own is 5,3) and wall_scroll=U,V (0,0) change the pattern's size and drift.
 wall_skin=
 wall_tiling=
 wall_scroll=
+# Every wall goes up when the world loads; only those within wall_radius metres of you are drawn (75; 0 draws them
+# all, as before 0.14). With the
+# PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are fully there, and where they are gone.
+wall_radius=
+wall_fade=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=
@@ -50,3 +55,8 @@ map_chart=
 # map_icons=0: draw the locked-area stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
 # are the map's own icons, one size at every zoom, like the game's.
 map_icons=
+# map_regions=0: no area borders and no hatch over locked areas on the explorer's chart. Empty: they are drawn.
+map_regions=
+# map_style=chart: the world map as the explorer's chart with greyed locked areas (dev.17-31). Empty: "Territories",
+# every area tinted by its state (locked, open, visited, sealed) over the game's own map, with the walls glowing.
+map_style=

@@ -9,7 +9,7 @@ run() {
     local work
     work=$(mktemp -d)
     cp -r mod/PalworldArchipelago "$work/mod"
-    printf 'server=localhost:38281\nslot=Tester\npassword=\n%b' "$extra" > "$work/mod/config.txt"
+    printf 'server=localhost:38281\nslot=Tester\npassword=\nwall_radius=0\n%b' "$extra" > "$work/mod/config.txt"
     echo "=== harness: $mode"
     local status=0
     lua5.4 mod/test/harness.lua "$work/mod" "$mode" || status=$?

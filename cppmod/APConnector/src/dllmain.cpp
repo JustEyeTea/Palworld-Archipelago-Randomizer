@@ -203,13 +203,36 @@ namespace
         });
         lua.register_function("AP_ComposeFog", [](const LuaMadeSimple::Lua& l) -> int {
             const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l), size = arg(l), stamps = arg(l);
+            const auto regions = arg(l);
             int s = 2048;
             try { s = std::stoi(size); } catch (...) {}
-            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s, stamps); }));
+            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s, stamps, regions); }));
             return 1;
         });
         lua.register_function("AP_FogStatus", [](const LuaMadeSimple::Lua& l) -> int {
             l.set_string(fog_jobs().status());
+            return 1;
+        });
+        lua.register_function("AP_ComposeTerritories", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto labels = arg(l), areas = arg(l), walls = arg(l), style = arg(l), out = arg(l), fogart = arg(l), fog = arg(l);
+            const auto size = arg(l);
+            int s = 2048;
+            try { s = std::stoi(size); } catch (...) {}
+            l.set_string(territory_jobs().start([=] { return compose_territories(labels, areas, walls, style, out, fogart, fog, s); }));
+            return 1;
+        });
+        lua.register_function("AP_ComposeField", [](const LuaMadeSimple::Lua& l) -> int {   // (the territories' job slot)
+            const auto field = arg(l), areas = arg(l), walls = arg(l), style = arg(l), out = arg(l), fogart = arg(l), fog = arg(l);
+            const auto size = arg(l), colour = arg(l), gamma = arg(l);
+            int s = 4096;
+            double g = 1.0;
+            try { s = std::stoi(size); } catch (...) {}
+            try { if (!gamma.empty()) g = std::stod(gamma); } catch (...) {}
+            l.set_string(territory_jobs().start([=] { return compose_field(field, areas, walls, style, out, fogart, fog, s, colour, g); }));
+            return 1;
+        });
+        lua.register_function("AP_TerritoriesStatus", [](const LuaMadeSimple::Lua& l) -> int {
+            l.set_string(territory_jobs().status());
             return 1;
         });
         lua.register_function("AP_SamplePNG", [](const LuaMadeSimple::Lua& l) -> int {
