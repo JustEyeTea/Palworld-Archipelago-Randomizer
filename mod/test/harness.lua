@@ -3028,6 +3028,18 @@ setInStage(false)
 run(14)
 expect(goals == before + 1 and logged("goal sent: 1 tower%(s%) beaten") and logged("goal banner:"),
        "out of the arena, the goal goes, with the goal banner (or a log line saying why not)")
+-- 2026-11-08: loading a won world showed the goal banner again. Once per seed (goal=shown in the save).
+;(function()
+    local function n(pat) local c = 0; for _, l in ipairs(printed) do if l:find(pat) then c = c + 1 end end; return c end
+    -- (Another seed and back: the won seed's state comes from its save again, as in a new session.)
+    newSeed("70011", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
+    run(14)
+    local banners, sends = n("goal banner"), n("goal sent: ")
+    newSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
+    run(14)
+    expect(n("goal sent: ") > sends and n("goal banner") == banners,
+           "a won seed loaded again: the goal is sent again (the server takes it once), the banner not shown again")
+end)()
 print("mailbox off: bundles straight to the bag")
 local MB = require("mailbox")
 local mailOn = MB.on

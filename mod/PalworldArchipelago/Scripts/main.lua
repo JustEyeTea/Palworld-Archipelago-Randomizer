@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.1-dev.5"
+local VERSION = "0.14.1-dev.6"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -177,7 +177,8 @@ local function loadSave()
         local w = line:match("^world=(.+)$")
         local d = line:match("^deaths=(%d+)")
         local v = line:match("^visited=(.*)$")
-        if n then ap.given = tonumber(n)
+        if line == "goal=shown" then ap.goalShown = true
+        elseif n then ap.given = tonumber(n)
         elseif w then ap.world = w
         elseif d then ap.forgiven = tonumber(d)
         elseif v then for area in v:gmatch("[^|]+") do ap.visited[area] = true end
@@ -200,7 +201,7 @@ local function writeSave(always)
     for area in pairs(ap.visited) do been[#been + 1] = area end
     table.sort(been)
     local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "")
-        .. "deaths=" .. ap.forgiven .. "\n" .. (#been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "") .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
+        .. "deaths=" .. ap.forgiven .. "\n" .. (ap.goalShown and "goal=shown\n" or "") .. (#been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "") .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
     if not always and lastSave == path .. "\n" .. text then return end
     P.start("save")
     local f = io.open(path .. ".tmp", "w")
@@ -553,8 +554,12 @@ local function pollRecords(ps, tick)
     if not (out or tick - goalWait.since >= GOAL_WAIT_TICKS) then return end
     ap.goalSent, done = true, goalWait.done
     goalWait = nil
-    AP_Goal()
+    AP_Goal()                                          -- (sent again each session: the server takes it once)
     log("goal sent: " .. done .. (out and "" or " (still in a stage after 2 minutes)"))
+    -- The banner and notice once per seed (kept in the save as goal=shown): 2026-11-08, loading a won world showed the
+    -- banner again.
+    if ap.goalShown then return end
+    ap.goalShown = true
     notify("Goal complete: " .. done .. "!")
     local okb, errb = pcall(POPUP.banner, done, tick)
     if not okb then log("goal banner error: " .. tostring(errb)) end
@@ -1067,6 +1072,7 @@ local function resetSeed()
     CRATES.reset()
     SYNC.reset()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
+    ap.goalShown = false
     goalWait = nil
     ap.world, seedWorld = nil, nil
     ap.from, ap.forgiven = {}, 0
