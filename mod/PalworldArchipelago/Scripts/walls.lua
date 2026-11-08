@@ -820,7 +820,7 @@ local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
 -- see-through (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the
 -- core was solid, the glow 0.55).
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
-local terr = { composing = nil, done = nil, failed = nil }
+local terr = { composing = nil, done = nil, failed = nil, size = nil }
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
 -- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
 local function areaSpec(passes)
@@ -892,9 +892,25 @@ local function composeTerritories(ctx, passes, key)
         once("terrdrawn", "map territories: drawn over the game's map")
         return k == key
     end
-    local err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), TERR_WALLS,
-        W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(TERR_SIZE))
-    if err == "" then terr.composing = key elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
+    -- From the Art lane's distance field when the DLL has it (dev.34: smooth at 4096, where the 2048 label map gave stairs
+    -- and octagons; area_field*.png, made from the label maps by tools/map_fields.py), else from the label map at 2048.
+    local field = W.dir .. "\\area_field" .. SUFFIX .. ".png"
+    local fh = AP_ComposeField and io.open(field, "rb")
+    if fh then fh:close() end
+    local err, size
+    if fh then
+        size = 4096
+        err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
+            W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size))
+    else
+        size = TERR_SIZE
+        err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), TERR_WALLS,
+            W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size))
+    end
+    if err == "" then
+        terr.composing, terr.size = key, size
+        once("terrfrom" .. size, "map territories: composing " .. (fh and "from the distance field" or "from the label map") .. " at " .. size)
+    elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
     return false
 end
 
@@ -1115,8 +1131,9 @@ W.regionSpec = regionSpec
 local function startFog(stamps, regions, tag)
     local def = W.dir .. "\\fog-default-mask.png"
     local art = territories() and TERR_FOG or CHART_FILE
+    local size = territories() and terr.size or CHART_SIZE                  -- (the fog art's own size: its 8-bit path)
     local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
-        W.dir .. "\\" .. fogFile(), tostring(CHART_SIZE), stamps, regions)
+        W.dir .. "\\" .. fogFile(), tostring(size), stamps, regions)
     if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end

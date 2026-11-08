@@ -203,6 +203,42 @@ struct Rgba
     const float* at(int x, int y) const { return &px[(static_cast<size_t>(y) * s + x) * 4]; }
 };
 
+// One channel of a PNG as floats 0..1, resampled to s x s as load_rgba does (for the fog's masks: a quarter of the
+// memory of load_rgba, which matters at 4096).
+auto load_channel(const std::string& path, int s, int ch, std::string& err) -> Plane
+{
+    int w = 0, h = 0, n = 0;
+    std::unique_ptr<unsigned char, void (*)(void*)> src(stbi_load(path.c_str(), &w, &h, &n, 4), stbi_image_free);
+    Plane out;
+    if (!src) { err = "could not read " + path + ": " + stbi_failure_reason(); return out; }
+    out.assign(static_cast<size_t>(s) * s, 0.f);
+    const unsigned char* p = src.get();
+    auto v = [&](int xx, int yy) { return p[(static_cast<size_t>(yy) * w + xx) * 4 + ch] / 255.f; };
+    for (int y = 0; y < s; ++y)
+        for (int x = 0; x < s; ++x)
+        {
+            float& d = out[static_cast<size_t>(y) * s + x];
+            if (w >= s && h >= s)
+            {
+                const int x0 = x * w / s, x1 = std::max(x0 + 1, (x + 1) * w / s);
+                const int y0 = y * h / s, y1 = std::max(y0 + 1, (y + 1) * h / s);
+                float acc = 0;
+                for (int yy = y0; yy < y1; ++yy)
+                    for (int xx = x0; xx < x1; ++xx) acc += v(xx, yy);
+                d = acc / static_cast<float>((x1 - x0) * (y1 - y0));
+            }
+            else
+            {
+                const float fx = std::max(0.f, (x + 0.5f) * w / s - 0.5f), fy = std::max(0.f, (y + 0.5f) * h / s - 0.5f);
+                const int ix = std::min(static_cast<int>(fx), w - 1), iy = std::min(static_cast<int>(fy), h - 1);
+                const int jx = std::min(ix + 1, w - 1), jy = std::min(iy + 1, h - 1);
+                const float tx = fx - ix, ty = fy - iy;
+                d = (v(ix, iy) * (1 - tx) + v(jx, iy) * tx) * (1 - ty) + (v(ix, jy) * (1 - tx) + v(jx, jy) * tx) * ty;
+            }
+        }
+    return out;
+}
+
 auto load_rgba(const std::string& path, int s, std::string& err) -> Rgba
 {
     int w = 0, h = 0, n = 0;
@@ -572,27 +608,34 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
     const int ch = static_cast<int>(std::string("rgba").find(spec[0]));
     const bool high = spec[1] == '+';
     std::string err;
-    Rgba art = load_rgba(chart, S, err);
-    if (!err.empty()) return err;
-    err = draw_regions(art, S, regions);
-    if (!err.empty()) return err;
-    Rgba m = load_rgba(mask, S, err);
-    if (!err.empty()) return err;
-    Rgba d;
-    if (!default_mask.empty()) { d = load_rgba(default_mask, S, err); if (!err.empty()) return err; }
-    const size_t N = static_cast<size_t>(S) * S;
-    Plane explored(N);
-    for (size_t i = 0; i < N; ++i)
+    // The picture: as 8 bits when it is already this size and nothing is drawn on it (the Territories' fog art at 4096:
+    // floats would take 256 MB more), else as floats.
+    Rgba art;
+    std::unique_ptr<unsigned char, void (*)(void*)> raw(nullptr, stbi_image_free);
+    if (regions.empty())
     {
-        float e = m.px[i * 4 + ch];
-        if (!high) e = 1.f - e;
-        if (d.s)
-        {
-            float f = d.px[i * 4 + ch];
-            if (!high) f = 1.f - f;
-            e = std::max(e, f);
-        }
-        explored[i] = e;
+        int w = 0, h = 0, n = 0;
+        raw.reset(stbi_load(chart.c_str(), &w, &h, &n, 4));
+        if (!raw) return "could not read " + chart + ": " + stbi_failure_reason();
+        if (w != S || h != S) raw.reset();
+    }
+    if (!raw)
+    {
+        art = load_rgba(chart, S, err);
+        if (!err.empty()) return err;
+        err = draw_regions(art, S, regions);
+        if (!err.empty()) return err;
+    }
+    auto artAt = [&](size_t i, int c) { return raw ? raw.get()[i * 4 + c] / 255.f : art.px[i * 4 + c]; };
+    const size_t N = static_cast<size_t>(S) * S;
+    Plane explored = load_channel(mask, S, ch, err);
+    if (!err.empty()) return err;
+    if (!high) for (auto& e : explored) e = 1.f - e;
+    if (!default_mask.empty())
+    {
+        const Plane d = load_channel(default_mask, S, ch, err);
+        if (!err.empty()) return err;
+        for (size_t i = 0; i < N; ++i) explored[i] = std::max(explored[i], high ? d[i] : 1.f - d[i]);
     }
     blur(explored, S, S, std::max(1, S / 400));       // soft, as the game blurs its fog's edge
     const float ink_c[3] = {0.231f, 0.165f, 0.102f};
@@ -605,10 +648,9 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
             const float gx = (e(x + 1, y) - e(x - 1, y)) * 0.5f, gy = (e(x, y + 1) - e(x, y - 1)) * 0.5f;
             const float wash = std::min(1.f, std::sqrt(gx * gx + gy * gy) * S / 50.f);   // an ink wash along the edge
             const float alpha = std::min(1.f, std::max(1.f - explored[i], 0.5f * wash));
-            const float* a = &art.px[i * 4];
             for (int c = 0; c < 3; ++c)
             {
-                const float v = a[c] * (1 - 0.35f * wash) + ink_c[c] * 0.35f * wash;
+                const float v = artAt(i, c) * (1 - 0.35f * wash) + ink_c[c] * 0.35f * wash;
                 img[i * 4 + c] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, v))));
             }
             img[i * 4 + 3] = static_cast<unsigned char>(std::lround(255.f * alpha));
@@ -691,6 +733,82 @@ static void draw_segment(Plane& cov, int S, float x1, float y1, float x2, float 
         }
 }
 
+// The Territories' look, shared by compose_territories and compose_field: each area's state and colour, the walls'
+// style and the fog colour (see image_tools.hpp).
+struct TerrLook
+{
+    char state[256] = {};
+    float colour[256][3] = {};
+    float glowC[3] = {1.f, 0.914f, 0.690f}, coreC[3] = {1.f, 0.957f, 0.863f};
+    float glowA = 0.55f, coreA = 1.f, glowW = 10.f, glowSigma = 3.f, coreW = 5.f;
+    float fogC[3] = {0.055f, 0.102f, 0.141f};
+};
+
+static auto parse_look(const std::string& areas, const std::string& style, const std::string& fog, TerrLook& t) -> std::string
+{
+    std::stringstream ss(areas);
+    for (std::string item; std::getline(ss, item, ',');)
+    {
+        if (item.empty()) continue;
+        const size_t a = item.find(':'), b = item.find(':', a + 1);
+        if (a == std::string::npos || b == std::string::npos || b != a + 2) return "areas item '" + item + "'";
+        int idx = -1;
+        try { idx = std::stoi(item.substr(0, a)); } catch (...) {}
+        if (idx < 0 || idx > 255) return "areas index in '" + item + "'";
+        const char st = item[a + 1];
+        if (std::string("vuls").find(st) == std::string::npos) return "areas state in '" + item + "'";
+        if (!hex_rgb(item.substr(b + 1), t.colour[idx])) return "areas colour in '" + item + "'";
+        t.state[idx] = st;
+    }
+    if (!style.empty())
+    {
+        std::vector<std::string> f;
+        std::stringstream sf(style);
+        for (std::string p; std::getline(sf, p, ',');) f.push_back(p);
+        try
+        {
+            if (f.size() != 7 || !hex_rgb(f[0], t.glowC) || !hex_rgb(f[2], t.coreC)) throw 0;
+            t.glowA = std::stof(f[1]); t.coreA = std::stof(f[3]); t.glowW = std::stof(f[4]); t.glowSigma = std::stof(f[5]);
+            t.coreW = std::stof(f[6]);
+        }
+        catch (...) { return "style '" + style + "'"; }
+    }
+    if (!fog.empty() && !hex_rgb(fog, t.fogC)) return "fog colour '" + fog + "'";
+    return "";
+}
+
+// An area's fill (all over it) and rim (along its edge) strength by state.
+static void state_alpha(char st, float& fill, float& rimA)
+{
+    switch (st)
+    {
+    case 'v': fill = 0.f; rimA = 0.35f; break;
+    case 'u': fill = 0.14f; rimA = 0.95f; break;
+    case 'l': fill = 0.34f; rimA = 0.95f; break;
+    default: fill = 0.50f; rimA = 0.80f; break;                   // sealed
+    }
+}
+
+// The standing walls "u1,v1,u2,v2;..." (0..1 of the map square), times scale.
+static auto parse_walls(const std::string& walls, float scale, std::vector<std::array<float, 4>>& segs) -> std::string
+{
+    std::stringstream ss(walls);
+    for (std::string item; std::getline(ss, item, ';');)
+    {
+        if (item.empty()) continue;
+        std::array<float, 4> s{};
+        std::stringstream is(item);
+        std::string p;
+        for (int q = 0; q < 4; ++q)
+        {
+            if (!std::getline(is, p, ',')) return "walls item '" + item + "'";
+            try { s[q] = std::stof(p) * scale; } catch (...) { return "walls item '" + item + "'"; }
+        }
+        segs.push_back(s);
+    }
+    return "";
+}
+
 auto compose_territories(const std::string& labels, const std::string& areas, const std::string& walls,
                          const std::string& style, const std::string& out, const std::string& fogart,
                          const std::string& fog, int size) -> std::string
@@ -701,42 +819,13 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
     int lw = 0, lh = 0, ln = 0;
     std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(labels.c_str(), &lw, &lh, &ln, 1), stbi_image_free);
     if (!lab) return "could not read " + labels + ": " + stbi_failure_reason();
-    // Each area's state and colour.
-    char state[256] = {};
-    float colour[256][3] = {};
-    {
-        std::stringstream ss(areas);
-        for (std::string item; std::getline(ss, item, ',');)
-        {
-            if (item.empty()) continue;
-            const size_t a = item.find(':'), b = item.find(':', a + 1);
-            if (a == std::string::npos || b == std::string::npos || b != a + 2) return "areas item '" + item + "'";
-            int idx = -1;
-            try { idx = std::stoi(item.substr(0, a)); } catch (...) {}
-            if (idx < 0 || idx > 255) return "areas index in '" + item + "'";
-            const char st = item[a + 1];
-            if (std::string("vuls").find(st) == std::string::npos) return "areas state in '" + item + "'";
-            if (!hex_rgb(item.substr(b + 1), colour[idx])) return "areas colour in '" + item + "'";
-            state[idx] = st;
-        }
-    }
-    // The walls' style.
-    float glowC[3] = {1.f, 0.914f, 0.690f}, coreC[3] = {1.f, 0.957f, 0.863f};
-    float glowA = 0.55f, coreA = 1.f, glowW = 10.f, glowSigma = 3.f, coreW = 5.f;
-    if (!style.empty())
-    {
-        std::vector<std::string> f;
-        std::stringstream ss(style);
-        for (std::string p; std::getline(ss, p, ',');) f.push_back(p);
-        try
-        {
-            if (f.size() != 7 || !hex_rgb(f[0], glowC) || !hex_rgb(f[2], coreC)) throw 0;
-            glowA = std::stof(f[1]); coreA = std::stof(f[3]); glowW = std::stof(f[4]); glowSigma = std::stof(f[5]); coreW = std::stof(f[6]);
-        }
-        catch (...) { return "style '" + style + "'"; }
-    }
-    float fogC[3] = {0.055f, 0.102f, 0.141f};
-    if (!fog.empty() && !hex_rgb(fog, fogC)) return "fog colour '" + fog + "'";
+    TerrLook t;
+    const std::string bad = parse_look(areas, style, fog, t);
+    if (!bad.empty()) return bad;
+    const char* state = t.state;
+    const auto& colour = t.colour;
+    const float *glowC = t.glowC, *coreC = t.coreC, *fogC = t.fogC;
+    const float glowA = t.glowA, coreA = t.coreA, glowW = t.glowW, glowSigma = t.glowSigma, coreW = t.coreW;
     const size_t N = static_cast<size_t>(S) * S;
     std::vector<unsigned char> L(N);
     for (int y = 0; y < S; ++y)
@@ -802,35 +891,15 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
         const unsigned char a = L[i];
         if (!a || !state[a]) continue;
         float fill = 0, rimA = 0;
-        switch (state[a])
-        {
-        case 'v': fill = 0.f; rimA = 0.35f; break;
-        case 'u': fill = 0.14f; rimA = 0.95f; break;
-        case 'l': fill = 0.34f; rimA = 0.95f; break;
-        default: fill = 0.50f; rimA = 0.80f; break;               // sealed
-        }
+        state_alpha(state[a], fill, rimA);
         const float d = D[i] / 3.f / k;                           // in px of a 4096 map
         const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
         over(i, colour[a], std::min(1.f, std::max(0.f, fill + rim * rimA)));
     }
     // The walls: a soft glow, then an anti-aliased core.
     std::vector<std::array<float, 4>> segs;
-    {
-        std::stringstream ss(walls);
-        for (std::string item; std::getline(ss, item, ';');)
-        {
-            if (item.empty()) continue;
-            std::array<float, 4> s{};
-            std::stringstream is(item);
-            std::string p;
-            for (int q = 0; q < 4; ++q)
-            {
-                if (!std::getline(is, p, ',')) return "walls item '" + item + "'";
-                try { s[q] = std::stof(p) * S; } catch (...) { return "walls item '" + item + "'"; }
-            }
-            segs.push_back(s);
-        }
-    }
+    const std::string badWalls = parse_walls(walls, static_cast<float>(S), segs);
+    if (!badWalls.empty()) return badWalls;
     if (!segs.empty())
     {
         Plane glow(N, 0.f), core(N, 0.f);
@@ -862,5 +931,117 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
             }
         if (!stbi_write_png(fogart.c_str(), S, S, 3, f.data(), S * 3)) return "could not write " + fogart;
     }
+    return "";
+}
+
+auto compose_field(const std::string& field, const std::string& areas, const std::string& walls,
+                   const std::string& style, const std::string& out, const std::string& fogart,
+                   const std::string& fog, int size) -> std::string
+{
+    const int S = size;
+    if (S < 64 || S > 4096) return "field size " + std::to_string(S);
+    TerrLook t;
+    const std::string bad = parse_look(areas, style, fog, t);
+    if (!bad.empty()) return bad;
+    int fw = 0, fh = 0, fn = 0;
+    std::unique_ptr<unsigned char, void (*)(void*)> fld(stbi_load(field.c_str(), &fw, &fh, &fn, 3), stbi_image_free);
+    if (!fld) return "could not read " + field + ": " + stbi_failure_reason();
+    if (fw != fh) return "field " + field + " is not square";
+    std::vector<std::array<float, 4>> segs;
+    const std::string badWalls = parse_walls(walls, static_cast<float>(S), segs);
+    if (!badWalls.empty()) return badWalls;
+    const float k = S / 4096.f;                                   // the look's px are of a 4096 map
+    const float toMap = 4096.f / fw;                              // field px -> px of a 4096 map
+    const size_t N = static_cast<size_t>(S) * S;
+    // How far each pixel is from the nearest standing wall piece (px of a 4096 map), near the pieces only: walls are drawn
+    // along the field's borders only where a piece stands (some borders have none, and must show none). A piece away from
+    // every border (the field's distance along it over 6 px: a few stand out at sea, as the box round an island) is drawn
+    // where it stands instead, straight (free).
+    const float glowSd = t.glowW * 0.4f;                          // the glow across the border (4 px at the Art lane's 10)
+    const float reach = 3.f * glowSd + 10.f;
+    auto fieldD = [&](float x, float y) {                         // (x, y in px at S)
+        const int fx = std::min(fw - 1, std::max(0, static_cast<int>(x / S * fw)));
+        const int fy = std::min(fh - 1, std::max(0, static_cast<int>(y / S * fh)));
+        return fld.get()[(static_cast<size_t>(fy) * fw + fx) * 3 + 2] / 8.f * toMap;
+    };
+    Plane segd(N, 1e9f), freed;
+    for (const auto& s : segs)
+    {
+        float along = 0;
+        for (int q = 0; q <= 4; ++q) along += fieldD(s[0] + (s[2] - s[0]) * q / 4.f, s[1] + (s[3] - s[1]) * q / 4.f) / 5.f;
+        const bool free = along > 6.f;
+        if (free && freed.empty()) freed.assign(N, 1e9f);
+        Plane& into = free ? freed : segd;
+        const float r = reach * k;
+        const int x0 = std::max(0, static_cast<int>(std::floor(std::min(s[0], s[2]) - r)));
+        const int xe = std::min(S - 1, static_cast<int>(std::ceil(std::max(s[0], s[2]) + r)));
+        const int y0 = std::max(0, static_cast<int>(std::floor(std::min(s[1], s[3]) - r)));
+        const int ye = std::min(S - 1, static_cast<int>(std::ceil(std::max(s[1], s[3]) + r)));
+        const float dx = s[2] - s[0], dy = s[3] - s[1], len2 = dx * dx + dy * dy;
+        for (int y = y0; y <= ye; ++y)
+            for (int x = x0; x <= xe; ++x)
+            {
+                const float px = x + 0.5f, py = y + 0.5f;
+                float u = len2 > 0 ? ((px - s[0]) * dx + (py - s[1]) * dy) / len2 : 0.f;
+                u = std::min(1.f, std::max(0.f, u));
+                const float qx = s[0] + u * dx - px, qy = s[1] + u * dy - py;
+                float& v = into[static_cast<size_t>(y) * S + x];
+                v = std::min(v, std::sqrt(qx * qx + qy * qy) / k);
+            }
+    }
+    std::vector<unsigned char> o(N * 4), f(fogart.empty() ? 0 : N * 3);
+    for (int y = 0; y < S; ++y)
+        for (int x = 0; x < S; ++x)
+        {
+            const size_t i = static_cast<size_t>(y) * S + x;
+            const int fx = std::min(fw - 1, (2 * x + 1) * fw / (2 * S)), fy = std::min(fh - 1, (2 * y + 1) * fh / (2 * S));
+            const unsigned char* q = fld.get() + (static_cast<size_t>(fy) * fw + fx) * 3;
+            const int R = q[0], G = q[1];
+            const float d = q[2] / 8.f * toMap;                   // to the nearest border, px of a 4096 map
+            float c[3] = {0, 0, 0}, a = 0;
+            auto over = [&](const float* col, float al) {
+                if (al <= 0.f) return;
+                const float ao = al + a * (1 - al);
+                for (int k2 = 0; k2 < 3; ++k2) c[k2] = ao > 0 ? (col[k2] * al + c[k2] * a * (1 - al)) / ao : 0.f;
+                a = ao;
+            };
+            // Fill and rim: an area's own pixels; the open sea's next to an area take its look over the last part of a
+            // pixel (the field's smoothed distance), so the coast's edge is a curve, not the label map's stairs.
+            const int lab = R ? R : G;
+            if (lab && t.state[lab])
+            {
+                float fill = 0, rimA = 0;
+                state_alpha(t.state[lab], fill, rimA);
+                const float cover = R ? 1.f : std::min(1.f, std::max(0.f, 1.f - d));
+                const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
+                over(t.colour[lab], std::min(1.f, std::max(0.f, fill + rim * rimA)) * cover);
+            }
+            // The walls: a glow and a core across the border, where a standing piece is near (fading out past its end).
+            const float up = std::min(1.f, std::max(0.f, 1.f - std::max(segd[i] - d - 4.f, 0.f) / 4.f));
+            if (up > 0.f)
+            {
+                over(t.glowC, t.glowA * up * std::exp(-d * d / (2.f * glowSd * glowSd)));
+                over(t.coreC, t.coreA * up * std::min(1.f, std::max(0.f, t.coreW / 2.f + 0.5f - d)));
+            }
+            if (!freed.empty() && freed[i] < reach)
+            {
+                const float e = freed[i];
+                over(t.glowC, t.glowA * std::exp(-e * e / (2.f * glowSd * glowSd)));
+                over(t.coreC, t.coreA * std::min(1.f, std::max(0.f, t.coreW / 2.f + 0.5f - e)));
+            }
+            for (int k2 = 0; k2 < 3; ++k2)
+            {
+                o[i * 4 + k2] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, c[k2]))));
+                if (!f.empty())
+                    f[i * 3 + k2] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, c[k2] * a + t.fogC[k2] * (1 - a)))));
+            }
+            o[i * 4 + 3] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, a))));
+        }
+    fld.reset();
+    Plane().swap(segd);
+    Plane().swap(freed);
+    stbi_write_png_compression_level = 1;
+    if (!stbi_write_png(out.c_str(), S, S, 4, o.data(), S * 4)) return "could not write " + out;
+    if (!f.empty() && !stbi_write_png(fogart.c_str(), S, S, 3, f.data(), S * 3)) return "could not write " + fogart;
     return "";
 }

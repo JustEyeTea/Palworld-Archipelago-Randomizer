@@ -1250,7 +1250,8 @@ end
 AP_TerritoriesStatus = function() return "done" end
 local pics = {}
 AP_MapScreen = function(what, arg) if what == "fogpic" then pics[#pics + 1] = arg end return "" end
-AP_ComposeFog = function(chartFile, _, _, _, out) fogArt = chartFile; local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
+local fogSize
+AP_ComposeFog = function(chartFile, _, _, _, out, size) fogArt, fogSize = chartFile, size; local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
 AP_FogStatus = function() return "done" end
 AP_ComposeChart = function() error("Territories draws no chart") end
 AP_ChartStatus = function() return "done" end
@@ -1310,6 +1311,31 @@ local n = #jobs
 T.visited[area4] = true
 for _ = 1, 3 do T.updateMap(true, passes, pawn) end
 expect(#jobs == n + 1 and jobs[#jobs].areas:find("3:v:", 1, true), "visiting an area makes the overlay again, the area visited")
+expect(fogSize == "2048" and logged("map territories: composing from the label map at 2048"),
+       "an older DLL (no AP_ComposeField): the label map at 2048, the fog at 2048")
+mapOpen = false
+-- dev.34: with the DLL's AP_ComposeField, from the Art lane's distance field (shipped) at 4096, the fog at 4096.
+local fjobs = {}
+AP_ComposeField = function(field, areas, walls, style, out, fogart, fog, size)
+    fjobs[#fjobs + 1] = { field = field, areas = areas, walls = walls, style = style, size = size }
+    for _, f in ipairs({ out, fogart }) do local h = io.open(f, "w"); h:write("png"); h:close() end
+    return ""
+end
+local F = dofile(MOD .. "/Scripts/walls.lua")
+F.dir, F.keep = MOD, function() end
+F.beyond, F.visited = { [sealedArea] = true }, {}
+n = #jobs
+for _ = 1, 3 do F.updateMap(true, passes, pawn) end
+mapOpen = true
+for _ = 1, 4 do F.updateMap(true, passes, pawn) end
+local fj = fjobs[#fjobs]
+local shipped = io.open(MOD .. "/area_field.png", "rb")
+if shipped then shipped:close() end
+expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096" and fj.style == job.style
+       and fj.areas == job.areas and fj.walls == job.walls and #jobs == n and fogSize == "4096"
+       and logged("map territories: composing from the distance field at 4096"),
+       "with AP_ComposeField: the shipped distance field at 4096 (same areas, walls and look), not the label map; the fog at 4096")
+AP_ComposeField = nil
 mapOpen = false
 local C = dofile(MOD .. "/Scripts/walls.lua")
 C.dir, C.keep, C.mapStyle = MOD, function() end, "chart"

@@ -1,5 +1,7 @@
 // Linux check of image_tools: a 2x1 PNG (pure red, pure green) comes back grey with the expected luminance.
 //   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp -o /tmp/image_test && /tmp/image_test
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -65,8 +67,9 @@ int main()
                 c ? lum(110, 130) : -1.0, c ? lum(10, 130) : -1.0);
     if (!chartOk) return 1;
 
-    // compose_fog: the chart above, a mask explored (red high) on the right half only: see-through on the right, the
-    // chart on the left, inked and partly shown along the edge. The fog slot runs it in the background.
+    // compose_fog (its 8-bit path: no regions, the picture already this size): the chart above, a mask explored (red
+    // high) on the right half only: see-through on the right, the chart on the left, inked and partly shown along the
+    // edge. The fog slot runs it in the background.
     std::vector<unsigned char> mk(64 * 64 * 4);
     for (int i = 0; i < 64 * 64; ++i) { mk[i * 4] = (i % 64) >= 32 ? 255 : 0; mk[i * 4 + 3] = 255; }
     stbi_write_png("/tmp/fog_mask.png", 64, 64, 4, mk.data(), 64 * 4);
@@ -180,5 +183,48 @@ int main()
                 terr.empty() ? "written" : terr.c_str(), tg ? tp(40, 100)[0] : -1, tg ? tp(40, 100)[3] : -1, tg ? tp(40, 223)[3] : -1,
                 tg ? tp(200, 100)[3] : -1, tg ? tp(128, 100)[0] : -1, tg ? tp(128, 100)[1] : -1, tg ? tp(128, 100)[2] : -1,
                 tg ? tp(128, 100)[3] : -1, tg ? tp(60, 245)[3] : -1);
-    return terrOk ? 0 : 1;
+    if (!terrOk) return 1;
+
+    // compose_field (the Art lane's distance fields): 256x256, area 1 (locked, red) left of x = 128, area 2 (visited, green)
+    // right, open sea below y = 224; G the area across the nearest border, B its distance in 1/8 px. One standing wall
+    // piece on the top half of the land border only (v 0.05-0.45): the lower half of that border must show no wall. One
+    // out at sea, away from every border (v 0.95): drawn where it stands.
+    std::vector<unsigned char> fd(256 * 256 * 3);
+    for (int y = 0; y < 256; ++y)
+        for (int x = 0; x < 256; ++x)
+        {
+            unsigned char* q = &fd[(y * 256 + x) * 3];
+            const float dLand = std::abs(x + 0.5f - 128.f), dSea = std::abs(y + 0.5f - 224.f);
+            const int own = y >= 224 ? 0 : (x < 128 ? 1 : 2), across = x < 128 ? 2 : 1;
+            int nb = 0;
+            float dd = 0;
+            if (own == 0) { nb = x < 128 ? 1 : 2; dd = dSea; }
+            else if (dSea < dLand) { nb = 0; dd = dSea; }
+            else { nb = across; dd = dLand; }
+            q[0] = static_cast<unsigned char>(own); q[1] = static_cast<unsigned char>(nb);
+            q[2] = static_cast<unsigned char>(std::min(255.f, std::round(dd * 8)));
+        }
+    stbi_write_png("/tmp/field.png", 256, 256, 3, fd.data(), 256 * 3);
+    const auto fres = compose_field("/tmp/field.png", "1:l:FF0000,2:v:00FF00", "0.5,0.05,0.5,0.45;0.2,0.95,0.4,0.95",
+                                    "FFE9B0,0.35,FFF4DC,0.6,160,48,80",          // (wide: 10/5 px at this 256 size)
+                                    "/tmp/field_out.png", "/tmp/field_fog.png", "102030", 256);
+    unsigned char* fg = fres.empty() ? stbi_load("/tmp/field_out.png", &w, &h, &n, 4) : nullptr;
+    unsigned char* ff = fres.empty() ? stbi_load("/tmp/field_fog.png", &w, &h, &n, 3) : nullptr;
+    auto fp = [&](int x, int y) { return fg + (y * 256 + x) * 4; };
+    const bool fLocked = fg && fp(40, 100)[0] > 200 && fp(40, 100)[1] < 40 && fp(40, 100)[3] > 70 && fp(40, 100)[3] < 110;
+    const bool fRim = fg && fp(40, 223)[3] > fp(40, 100)[3] + 80;                  // the rim along the sea
+    const bool fVisited = fg && fp(200, 100)[3] < 10;
+    const bool fWall = fg && fp(128, 50)[3] > 170 && fp(128, 50)[0] > 230 && fp(128, 50)[2] > 180;   // cream, see-through
+    const bool fNoWall = fg && fp(128, 170)[2] < 40 && fp(127, 170)[2] < 40;   // no piece: no cream (blue), only the rims
+    const bool fSea = fg && fp(160, 250)[3] == 0;
+    const bool fFree = fg && fp(76, 243)[3] > 170 && fp(76, 243)[2] > 180 && fp(76, 230)[3] < 60;   // the piece at sea, thin
+    const bool fFog = ff && ff[(100 * 256 + 200) * 3] == 0x10 && ff[(100 * 256 + 200) * 3 + 2] == 0x30;
+    const bool fBad = compose_field("/tmp/terr_labels.png", "1:x:FF0000", "", "", "/tmp/field_bad.png", "", "", 64) != "";
+    const bool fieldOk = fLocked && fRim && fVisited && fWall && fNoWall && fSea && fFree && fFog && fBad;
+    std::printf("%s field: %s, locked %d/a%d, rim a%d, visited a%d, wall %d,%d,%d a%d, no-wall b%d a%d, sea a%d, free piece a%d\n",
+                fieldOk ? "ok" : "FAIL", fres.empty() ? "written" : fres.c_str(), fg ? fp(40, 100)[0] : -1, fg ? fp(40, 100)[3] : -1,
+                fg ? fp(40, 223)[3] : -1, fg ? fp(200, 100)[3] : -1, fg ? fp(128, 50)[0] : -1, fg ? fp(128, 50)[1] : -1,
+                fg ? fp(128, 50)[2] : -1, fg ? fp(128, 50)[3] : -1, fg ? fp(128, 170)[2] : -1, fg ? fp(128, 170)[3] : -1,
+                fg ? fp(160, 250)[3] : -1, fg ? fp(76, 243)[3] : -1);
+    return fieldOk ? 0 : 1;
 }
