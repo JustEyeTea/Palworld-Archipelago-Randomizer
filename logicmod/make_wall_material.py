@@ -49,8 +49,14 @@ def scalar(mat, name, value, x, y):
 
 
 def link(a, out, b, inp):
-    if not mel.connect_material_expressions(a, out, b, inp):
-        raise RuntimeError(f"could not connect {a.get_name()}.{out or 'out'} -> {b.get_name()}.{inp}")
+    # A node with one input has no name on it ("": Transform, Normalize, ComponentMask, Saturate...; the Game PC's first
+    # run, 2026-11-08: "Input" on the Transform failed), so a named input that fails is tried once unnamed.
+    if mel.connect_material_expressions(a, out, b, inp):
+        return
+    if inp and mel.connect_material_expressions(a, out, b, ""):
+        log(f"(note: {b.get_name()}'s input is unnamed, not '{inp}')")
+        return
+    raise RuntimeError(f"could not connect {a.get_name()}.{out or 'out'} -> {b.get_name()}.{inp or '(its input)'}")
 
 
 def material():
@@ -69,9 +75,9 @@ def material():
     toworld = node(mat, unreal.MaterialExpressionTransform, -1400, 150,
                    transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_LOCAL,
                    transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)
-    link(xaxis, "", toworld, "Input")
+    link(xaxis, "", toworld, "")
     axis = node(mat, unreal.MaterialExpressionNormalize, -1200, 150)
-    link(toworld, "", axis, "VectorInput")
+    link(toworld, "", axis, "")
     along = node(mat, unreal.MaterialExpressionDotProduct, -1000, 50)
     link(wpos, "", along, "A")
     link(axis, "", along, "B")
