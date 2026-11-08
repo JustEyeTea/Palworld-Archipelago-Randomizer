@@ -151,7 +151,11 @@ Part 1's setup, not Parts 2 and 3.
    `UnrealEditor-Cmd.exe ... -run=pythonscript` line with this script). It builds the whole material and its chunk
    label (chunk 2); nothing is by hand. The Output Log lines start with `[PalworldArchipelagoArt]`.
 2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and look for a compile error at the bottom.
-3. Package as in Part 4 (Use Pak File and Generate Chunks on). Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc`
+3. Package as in Part 4 (Use Pak File and Generate Chunks on), and also, in `Config\DefaultGame.ini` under
+   `[/Script/UnrealEd.ProjectPackagingSettings]`, `bShareMaterialShaderCode=False` (and
+   `bSharedMaterialNativeLibraries=False`), so the material's compiled shaders go in its own pak, not in a shared
+   shader library in chunk 0, which is never installed. (The first build, 2026-11-08, was 33 KB: too small to hold
+   them.) The script also makes an empty `ModActor`, so BPModLoader's log says whether the game loaded the pak. Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc`
    if there), rename to `PalworldArchipelagoArt.pak` (and `.ucas` / `.utoc`), and copy to `Pal\Content\Paks\LogicMods\`.
 4. In game with `test_tools=1`, Ctrl+F3 to a `colour-...` skin. UE4SS.log says `wall skin colour-...: material made on
    M_APWall`. Without the pak it says `needs the PalworldArchipelagoArt pak` and Ctrl+F3 skips it.

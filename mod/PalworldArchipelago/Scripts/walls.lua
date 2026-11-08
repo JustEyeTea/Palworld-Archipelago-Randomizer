@@ -373,11 +373,23 @@ local function meshOf(a)
     ok, m = pcall(function() return a:GetComponentByClass(smc) end)
     if ok and m and m:IsValid() then return m end
 end
+local apWallProbed = false
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
-    pcall(LoadAsset, AP_WALL)
+    local okL, got = pcall(LoadAsset, AP_WALL)
     local m = StaticFindObject(AP_WALL)
     if m and m:IsValid() then apWall = m; W.keep(m); return m end
+    -- Not found (2026-11-08 playtest: every colour skin said so, though BPModLoader listed the pak): once, what the
+    -- loader returned, whether the package or the pak's ModActor class is there (is the pak mounted at all?).
+    if not apWallProbed then
+        apWallProbed = true
+        local function valid(path) local o = StaticFindObject(path); return o and o:IsValid() and "yes" or "no" end
+        local okA, actor = pcall(LoadAsset, "/Game/Mods/PalworldArchipelagoArt/ModActor.ModActor")
+        log("wall material probe: LoadAsset(M_APWall) " .. (okL and ("returned " .. tostring(got)) or ("errored: " .. tostring(got)))
+            .. "; package /Game/Mods/PalworldArchipelagoArt/M_APWall " .. valid("/Game/Mods/PalworldArchipelagoArt/M_APWall")
+            .. "; ModActor_C " .. valid("/Game/Mods/PalworldArchipelagoArt/ModActor.ModActor_C")
+            .. " (LoadAsset " .. (okA and tostring(actor) or ("errored: " .. tostring(actor))) .. ")")
+    end
 end
 local function colourMaterial(name, gi, krl, kml)
     local base = apWallMaterial()

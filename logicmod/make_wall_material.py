@@ -177,10 +177,25 @@ def label():
     return lab
 
 
+def mod_actor():
+    # An empty Actor Blueprint named ModActor: UE4SS's BPModLoader then loads the pak's ModActor and says so, proof that
+    # the game mounted the pak (2026-11-08 playtest: without one it said "ModClass ... is not valid" and the mod's
+    # LoadAsset found no M_APWall, so whether the pak was mounted at all was unknown).
+    path = f"{ROOT}/ModActor"
+    if assets.does_asset_exist(path):
+        assets.delete_asset(path)
+    factory = unreal.BlueprintFactory()
+    factory.set_editor_property("parent_class", unreal.Actor)
+    bp = tools.create_asset("ModActor", ROOT, unreal.Blueprint, factory)
+    unreal.BlueprintEditorLibrary.compile_blueprint(bp)
+    log("ModActor: made (an empty Actor Blueprint, so BPModLoader loads the pak and says so)")
+    return bp
+
+
 def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
-    for a in (material(), label()):
+    for a in (material(), mod_actor(), label()):
         assets.save_loaded_asset(a, only_if_is_dirty=False)
     log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as PalworldArchipelagoArt.pak")
 
