@@ -24,11 +24,15 @@ local MID_Z = 50000
 local THICK = 4               -- 4 m, so nothing fast slips through
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
 local SINK_STEPS = 60         -- an opened wall sinks into the ground over 60 steps of 33 ms (2 s), then goes
--- Pieces stand only near the player (the user, 2026-11-08: fewer walls, more FPS): raised within W.radius of the
--- player, taken away at once (no animation) past W.radius + DROP_MARGIN, so a piece at the edge doesn't come and go.
--- The core updates every 300 ms and raises PER_TICK pieces an update: far more than a mount can outrun. 0: everywhere.
+-- Every piece is raised at world load, as before; only those near the player are shown (the user, 2026-11-08: fewer
+-- walls drawn, more FPS, and "let the borders load in at the beginning"): shown within W.radius, hidden (the game's
+-- own SetActorHiddenInGame; collision stays) past W.radius + HIDE_MARGIN, so a piece at the edge doesn't flicker.
+-- dev.41-42 raised and destroyed pieces as the player moved; dev.42 crashed at a wall (a dead object called), and
+-- spawning and destroying all the time only makes more dead objects. 0: every piece shown.
 W.radius = 7500               -- 75 m (config wall_radius, in metres)
-local DROP_MARGIN = 2500      -- 25 m
+local HIDE_MARGIN = 2500      -- 25 m
+local VIS_PER_TICK = 120      -- pieces shown or hidden an update (a teleport changes many at once)
+local hiddenAt = {}           -- piece -> true while hidden by distance
 
 local raised = {}             -- piece index -> wall actor
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
@@ -71,6 +75,7 @@ end
 -- the same world, and a wall forgotten while still standing could never be taken down.
 function W.reset()
     W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
+    W.dropCaches()
     for i, a in pairs(raised) do
         local ok, valid = pcall(function() return a:IsValid() end)
         if not (ok and valid) then raised[i], nRaised = nil, nRaised - 1 end
@@ -161,11 +166,12 @@ local dressedAs = {}           -- piece -> the material it wears with the area s
 local function forget(i)
     if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
     dressedAs[i] = nil
+    hiddenAt[i] = nil
 end
 -- Opening: with the paws skin the piece dissolves (W.dissolving, below: its material eats it away over 2 s by the
 -- game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway and then goes.
 W.dissolving = function() return nil end
-W.glowing, W.glowTick = function() return false end, function() end
+W.glowing, W.glowTick, W.dropCaches = function() return false end, function() end, function() end
 local function lower(i, context)
     local a, wore = raised[i], dressedAs[i]
     forget(i)
@@ -173,14 +179,9 @@ local function lower(i, context)
     local ok, mid, start = pcall(W.dissolving, wore, context)
     local m = ok and mid and W.meshOf(a)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0, m and start or nil }
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0, m and start or nil, mid = m and mid or nil }
 end
--- Out of range: away at once.
-local function drop(i)
-    local a = raised[i]
-    forget(i)
-    if a and a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
-end
+
 
 -- Walls the game removed (back to the title, another world) are noticed by checking a share of the pieces each
 -- update, all of them every 14 updates (4 s): 6dd356e checked all 818 every update (an estimated 0.3-0.5 ms,
@@ -199,6 +200,30 @@ function W.oldSweep()                 -- 6dd356e's check of every piece (only fo
     for _, a in pairs(raised) do a:IsValid() end
 end
 
+-- Shows the raised pieces near the player and hides the rest (W.radius; a few at a time; a dissolving piece has left
+-- raised already). Without the player's position, or with W.radius 0, every piece is shown.
+function W.showNear(context)
+    local px, py = nil, nil
+    if W.radius > 0 then
+        local okL, loc = pcall(function() return context:K2_GetActorLocation() end)
+        if okL and loc and loc.X then px, py = loc.X, loc.Y end
+    end
+    local budget = VIS_PER_TICK
+    for i, a in pairs(raised) do
+        if budget <= 0 then break end
+        local d = px and segDist(i, px, py)
+        local hide = (d and d > W.radius + HIDE_MARGIN) and true or nil
+        if d and not hide and hiddenAt[i] and d > W.radius then hide = true end   -- between: as it was
+        if hide ~= hiddenAt[i] then
+            if a:IsValid() then
+                pcall(function() a:SetActorHiddenInGame(hide == true) end)
+                hiddenAt[i] = hide
+                budget = budget - 1
+            end
+        end
+    end
+end
+
 -- Brings the walls in line with the passes held: raises missing pieces of locked borders, takes down pieces whose
 -- areas are both open (a few per call).
 local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
@@ -207,21 +232,10 @@ function W.update(enabled, passes, context)
     W.lastPasses, W.lastContext = passes, context
     if not ready() then return end
     local budget = PER_TICK
-    local px, py = nil, nil
-    if W.radius > 0 then
-        local okL, loc = pcall(function() return context:K2_GetActorLocation() end)
-        if okL and loc and loc.X then px, py = loc.X, loc.Y end
-    end
     for i, w in ipairs(DATA.walls) do
         if budget <= 0 then break end
         local up = enabled and not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes))
-        local d = px and segDist(i, px, py)
-        if up and d and not raised[i] and d > W.radius then
-            -- too far: not raised
-        elseif up and d and raised[i] and d > W.radius + DROP_MARGIN then
-            drop(i)
-            budget = budget - 1
-        elseif up and not raised[i] then
+        if up and not raised[i] then
             local ok, err = pcall(raise, i, context)
             if not ok then
                 -- Once per kind of error: a raise that fails fails again on every update (three lines a second).
@@ -234,6 +248,7 @@ function W.update(enabled, passes, context)
             budget = budget - 1
         end
     end
+    W.showNear(context)
     W.skinTick()
     W.recolour(passes)
     if catchingUp and budget == PER_TICK then
@@ -602,11 +617,28 @@ function W.glowTick()
     if not (loc and loc.X) then return end
     if glowAt and math.abs(glowAt.R - loc.X) + math.abs(glowAt.G - loc.Y) + math.abs(glowAt.B - loc.Z) < 5 then return end
     glowAt = { R = loc.X, G = loc.Y, B = loc.Z, A = 1 }
-    local name = FName("PlayerPos")
-    for k, mid in pairs(skin.mids) do
-        if (k:find("^paws:") or k:find("^colour%-")) and mid:IsValid() then mid:SetVectorParameterValue(name, glowAt) end
+    -- Only the materials pieces shown now wear (dev.42 crash: every material ever made was called, those of the world
+    -- before included), and the dissolving ones of pieces still there.
+    local name, done = FName("PlayerPos"), {}
+    local function tell(mid)
+        if mid and not done[mid] and mid:IsValid() then done[mid] = true; mid:SetVectorParameterValue(name, glowAt) end
     end
-    for _, mid in pairs(gone) do if mid:IsValid() then mid:SetVectorParameterValue(name, glowAt) end end
+    local wears = skin.now == "paws" and nil or skin.mids[skin.now]
+    for i in pairs(raised) do
+        if not hiddenAt[i] then
+            if wears then tell(wears); break end
+            local n = dressedAs[i]
+            if n then tell(skin.mids[n]) end
+        end
+    end
+    for _, sk in ipairs(sinking) do if sk[5] and sk[1]:IsValid() then tell(sk.mid) end end
+end
+-- A new world (or the player's pawn changed): every material, texture and handle kept from before is let go, never
+-- called again (dev.42 crash: the world before's materials, dead, called 30 times a second); made again when needed.
+function W.dropCaches()
+    skin.mids, skin.failed = {}, {}                             -- (skin.base: the game's own red, an asset, kept)
+    if skin.now ~= "red" then skin.now = "red" end           -- so skinTick dresses the new world's pieces again
+    gone, goneStart, glowAt, apWall, pawLayer = {}, {}, nil, nil, nil
 end
 local function skinMaterial(name)
     local mid = skin.mids[name]

@@ -1006,7 +1006,37 @@ do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's
     W.setSkin("red"); run(40)
     expect(wallCount() == expected(open), "(the core's own passes put that area's walls back up: " .. wallCount() .. ")")
 end
-do  -- dev.41: walls stand only near the player (75 m), and go at once past 100 m
+do  -- dev.42 crash (a dead object called at a wall, after Return to title and a new world): after a world change no
+    -- material of the world before is called again, by the glow or anything else
+    local W = require("walls")
+    local hadPak = logicMod
+    logicMod = true
+    W.radius = 0
+    W.setSkin("paws"); run(3)
+    pawnAt = { X = pawnAt.X + 300, Y = pawnAt.Y, Z = pawnAt.Z }; run(2)          -- the glow tells the materials
+    local old, deadCalls = {}, 0
+    for wa in pairs(wallsUp) do local m = wa.Cube.mat; if m and m.parent then old[m] = true end end
+    local nOld = 0
+    for m in pairs(old) do
+        nOld = nOld + 1
+        m.IsValid = function() deadCalls = deadCalls + 1; return false end
+        m.SetVectorParameterValue = function() deadCalls = deadCalls + 1 end
+        m.SetScalarParameterValue = m.SetVectorParameterValue
+    end
+    for wa in pairs(wallsUp) do wa:K2_DestroyActor() end                       -- the world went
+    W.reset()                                                                  -- the core, on the new pawn
+    run(40)
+    pawnAt = { X = pawnAt.X + 300, Y = pawnAt.Y, Z = pawnAt.Z }; run(5)
+    local fresh = next(wallsUp)
+    expect(nOld > 0 and deadCalls == 0 and fresh and fresh.Cube.mat and not old[fresh.Cube.mat] and fresh.Cube.mat.vectors.PlayerPos,
+           "after a world change the old world's materials are never called again (" .. nOld .. " old, " .. deadCalls
+           .. " calls); the new pieces get new ones, which the glow tells")
+    pawnAt = { X = pawnAt.X - 600, Y = pawnAt.Y, Z = pawnAt.Z }
+    for m in pairs(old) do m.parent.IsValid = function() return false end end -- the pak "gone" again, as before
+    logicMod = hadPak
+    W.setSkin("red"); run(40)
+end
+do  -- dev.43: every piece is raised at load (as before); only those within 75 m are shown, past 100 m hidden
     local W = require("walls")
     W.radius = 7500
     local spot
@@ -1015,30 +1045,34 @@ do  -- dev.41: walls stand only near the player (75 m), and go at once past 100 
         if not (open[a1] or a1 == "Open sea" or a1 == WD.start) or not (open[a2] or a2 == "Open sea" or a2 == WD.start) then spot = k; break end
     end
     local home = { X = pawnAt.X, Y = pawnAt.Y, Z = pawnAt.Z }
+    local spawnedBefore = spawned
     pawnAt = { X = WD.walls[spot][1], Y = WD.walls[spot][2], Z = -1700 }   -- standing at a locked wall
     run(40)
-    local all, far = expected(open), 0
-    for wa in pairs(wallsUp) do
-        local i
-        for k, w in ipairs(WD.walls) do if w[1] == wa.t.Translation.X and w[2] == wa.t.Translation.Y then i = k; break end end
-        if not (i and W.segDist(i, pawnAt.X, pawnAt.Y) <= 10000) then far = far + 1 end
+    local function tally()
+        local shown, hiddenN, wrong = 0, 0, 0
+        for wa in pairs(wallsUp) do
+            local i
+            for k, w in ipairs(WD.walls) do if w[1] == wa.t.Translation.X and w[2] == wa.t.Translation.Y then i = k; break end end
+            local d = i and W.segDist(i, pawnAt.X, pawnAt.Y) or 1e9
+            if wa.hidden then hiddenN = hiddenN + 1; if d <= 7500 then wrong = wrong + 1 end
+            else shown = shown + 1; if d > 10000 then wrong = wrong + 1 end end
+        end
+        return shown, hiddenN, wrong
     end
-    expect(wallCount() > 0 and wallCount() < all and far == 0,
-           "with wall_radius 75, only pieces near the player stand (none past 100 m): " .. wallCount() .. " of " .. all)
-    local watched, gonePieces, shrunk = {}, 0, 0
-    for wa in pairs(wallsUp) do watched[#watched + 1] = wa end
+    local shown, hiddenN, wrong = tally()
+    expect(wallCount() == expected(open) and shown > 0 and hiddenN > 0 and wrong == 0 and spawned == spawnedBefore,
+           "with wall_radius 75 every piece stays raised (none spawned or destroyed); only those near show: "
+           .. shown .. " shown, " .. hiddenN .. " hidden, " .. wrong .. " wrong")
     pawnAt = { X = pawnAt.X + 60000, Y = pawnAt.Y, Z = pawnAt.Z }   -- 600 m away
     run(40)
-    for _, wa in ipairs(watched) do
-        if wa.gone then gonePieces = gonePieces + 1 end
-        if wa.shrunkTo then shrunk = shrunk + 1 end
-    end
-    expect(#watched > 0 and gonePieces == #watched and shrunk == 0,
-           "walking 600 m away takes them away at once, no animation: " .. gonePieces .. " of " .. #watched)
+    local shown2, _, wrong2 = tally()
+    expect(wallCount() == expected(open) and wrong2 == 0 and spawned == spawnedBefore,
+           "walking 600 m away hides those and shows any near there, still none spawned or destroyed: " .. shown2 .. " shown")
     pawnAt = home
     W.radius = 0
     run(40)
-    expect(wallCount() == expected(open), "wall_radius 0: every locked border stands again: " .. wallCount())
+    local shown3, hidden3 = tally()
+    expect(hidden3 == 0 and shown3 == expected(open), "wall_radius 0: every piece shown: " .. shown3)
 end
 print("the world map")
 -- dev.16 playtest (2026-11-07): composed only once the map opened, the first opening showed the game's map for ~3 s.

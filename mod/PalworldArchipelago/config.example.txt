@@ -37,7 +37,8 @@ test_tools=
 wall_skin=
 wall_tiling=
 wall_scroll=
-# Walls stand only within wall_radius metres of you (75; 0 puts every one up at once, as before 0.14). With the
+# Every wall goes up when the world loads; only those within wall_radius metres of you are drawn (75; 0 draws them
+# all, as before 0.14). With the
 # PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are fully there, and where they are gone.
 wall_radius=
 wall_fade=
