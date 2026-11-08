@@ -120,8 +120,9 @@ end
 -- "Ref was not function" three times and a broken ipairs iterator: Lua's state corrupted.
 local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), dissolving = true or nil }
 -- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
--- at 80 to 85% dissolved): blocking stops at DISSOLVE_S/2, the piece goes at DISSOLVE_S + DISSOLVE_TAIL.
-local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 0.8
+-- at 80 to 85% dissolved; dev.46, its tail 0.8 s, still not quite through): blocking stops at DISSOLVE_S/2, the piece
+-- goes at DISSOLVE_S + DISSOLVE_TAIL (the material's Time node may run behind GetTimeSeconds; the first one logs it).
+local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 2.4
 local function sinkStep()
     local still = {}
     for _, s in ipairs(sinking) do
@@ -140,6 +141,10 @@ local function sinkStep()
             end
             if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
             if done then
+                if s.dissolving then
+                    once("dissolved", string.format("wall skin paws: an opened wall went %.2f s after it began dissolving"
+                        .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s[4], DISSOLVE_S, s.steps))
+                end
                 pcall(function() a:K2_DestroyActor() end)
             else
                 still[#still + 1] = s

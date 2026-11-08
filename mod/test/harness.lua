@@ -995,9 +995,10 @@ do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's
         if fading and not seen.open and fading.collision == false then seen.open = gameSeconds - t0 end
         if fading and not seen.gone and fading.gone then seen.gone = gameSeconds - t0 end
     end
-    expect(seen.open and seen.open >= 0.8 and seen.open < 1.2 and seen.gone and seen.gone >= 2.4 and seen.gone < 2.8
+    expect(seen.open and seen.open >= 0.8 and seen.open < 1.2 and seen.gone and seen.gone >= 4.0 and seen.gone < 4.4
+           and logged("an opened wall went 4%.%d+ s after it began dissolving")
            and fading.shrunkTo == nil,
-           "by the game's clock it stops blocking halfway and goes only once the dissolve is through (2.4 s), never shrunk: "
+           "by the game's clock it stops blocking halfway and goes well after the dissolve is through (4 s), never shrunk: "
            .. tostring(seen.open) .. " / " .. tostring(seen.gone))
     expect(fading and fading.Cube.mat.vectors and fading.Cube.mat.vectors.PlayerPos,
            "the glow follows the player: the dissolving material has the player's position too")
