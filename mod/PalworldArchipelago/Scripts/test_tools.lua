@@ -341,13 +341,14 @@ function T.install()
             if not ok then log("HUD probe: error " .. tostring(err)); hudProbe = nil end
         end)
     end)
-    LoopAsync(33, function()                                   -- made here, at module load
-        if hudProbe then
-            ExecuteInGameThread(function()
-                local ok, err = pcall(hudProbeStep)
-                if not ok then log("HUD probe: step error " .. tostring(err)); hudProbe = nil end
-            end)
-        end
+    -- Loops: made here, at module load; off the game thread they only read a flag and hand over a function made once
+    -- (walls.lua, loopStep: running Lua there crashed the game).
+    local function probeStep()
+        local ok, err = pcall(hudProbeStep)
+        if not ok then log("HUD probe: step error " .. tostring(err)); hudProbe = nil end
+    end
+    LoopAsync(33, function()
+        if hudProbe then ExecuteInGameThread(probeStep) end
         return false
     end)
     log("test tools on: Ctrl+F4 HUD probe")
@@ -365,13 +366,12 @@ function T.install()
         end)
     end
     -- Made here, at module load (a loop made inside ExecuteInGameThread fails); 250 ms, not the core loop's 300.
+    local function pollStep()
+        local ok, err = pcall(poll)
+        if not ok then log("give Pal: poll error " .. tostring(err)); pending = nil end
+    end
     LoopAsync(250, function()
-        if pending then
-            ExecuteInGameThread(function()
-                local ok, err = pcall(poll)
-                if not ok then log("give Pal: poll error " .. tostring(err)); pending = nil end
-            end)
-        end
+        if pending then ExecuteInGameThread(pollStep) end
         return false
     end)
     log("test tools on: give Pal by Ctrl+Shift+F5 party_debug, F6 party_plain, F7 handle, F8 palbox, F9 auto")

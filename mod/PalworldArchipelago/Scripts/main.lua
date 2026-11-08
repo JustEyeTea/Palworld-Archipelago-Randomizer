@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.44"
+local VERSION = "0.14.0-dev.45"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -1610,29 +1610,33 @@ local function oldLoad(ctx)
     P.stop("legacy")
 end
 
+-- The core update, on the game thread. LoopAsync's callback runs on another thread over the same Lua state, so it does
+-- nothing there but hand over this function, made once (2026-11-08: two crashes with the 08E98397 stack came from a
+-- 33 ms loop that ran Lua on that thread; building a new closure there every time is the same risk, smaller).
+local function coreTick()
+    -- Ctrl+8 (perf test tools) pauses the whole update, the controller walk included, so the pause takes away
+    -- all of the mod's per-update work. That walk is timed as "ctx" and counted in the update's "lua" time.
+    local ran = not P.paused
+    local ctx = nil
+    if ran then
+        P.start("ctx")
+        local okc, c = pcall(playerContext)
+        if okc then ctx = c else onceErr("context", c, "player lookup error: " .. tostring(c)) end
+    end
+    ctx = ctx or { playerState = findPlayerState }
+    frame = ctx
+    P.frameBegin(ctx, ran and P.stop("ctx") or nil)
+    if ran then
+        local ok, err = pcall(update, ctx)
+        if not ok then onceErr("update", err, "update error: " .. tostring(err)) end
+        if P.legacy then pcall(oldLoad, ctx) end
+        P.world(ctx)
+    end
+    frame = nil
+    P.frameEnd(ran)
+end
 LoopAsync(300, function()
-    ExecuteInGameThread(function()
-        -- Ctrl+8 (perf test tools) pauses the whole update, the controller walk included, so the pause takes away
-        -- all of the mod's per-update work. That walk is timed as "ctx" and counted in the update's "lua" time.
-        local ran = not P.paused
-        local ctx = nil
-        if ran then
-            P.start("ctx")
-            local okc, c = pcall(playerContext)
-            if okc then ctx = c else onceErr("context", c, "player lookup error: " .. tostring(c)) end
-        end
-        ctx = ctx or { playerState = findPlayerState }
-        frame = ctx
-        P.frameBegin(ctx, ran and P.stop("ctx") or nil)
-        if ran then
-            local ok, err = pcall(update, ctx)
-            if not ok then onceErr("update", err, "update error: " .. tostring(err)) end
-            if P.legacy then pcall(oldLoad, ctx) end
-            P.world(ctx)
-        end
-        frame = nil
-        P.frameEnd(ran)
-    end)
+    ExecuteInGameThread(coreTick)
     return false
 end)
 

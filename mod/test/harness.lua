@@ -3710,6 +3710,32 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     playerController.K2_GetPawn = pawnWas
 end)()
+;(function()  -- the rule from the 2026-11-08 crashes: a LoopAsync callback (another thread, the same Lua state) only
+    -- reads a flag and hands a function made beforehand to ExecuteInGameThread; no other Lua runs there
+    local bad = {}
+    for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates" }) do
+        local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
+        local src = fh and fh:read("a") or ""
+        if fh then fh:close() end
+        local lines, n = {}, 0
+        for line in (src .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
+        for k, line in ipairs(lines) do
+            local ind = line:match("^(%s*)LoopAsync%(%d+, function%(%)%s*$")
+            if ind then
+                n = n + 1
+                local j = k + 1
+                while lines[j] and lines[j] ~= ind .. "end)" do
+                    local body = lines[j]:gsub("^%s+", "")
+                    local ok = body:match("^ExecuteInGameThread%([%w_.]+%)$") or body:match("^if [%w_.]+ then ExecuteInGameThread%([%w_.]+%) end$")
+                        or body == "return false" or body:match("^%-%-")
+                    if not ok then bad[#bad + 1] = f .. ".lua:" .. j .. ": " .. body end
+                    j = j + 1
+                end
+            end
+        end
+    end
+    expect(#bad == 0, "every LoopAsync callback only reads a flag and hands over a function made beforehand: " .. table.concat(bad, " | "))
+end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")
 print(failures == 0 and "all passed" or (failures .. " failed"))

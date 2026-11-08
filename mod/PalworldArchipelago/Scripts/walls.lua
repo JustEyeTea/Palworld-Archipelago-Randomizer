@@ -149,16 +149,21 @@ local function sinkStep()
     end
     sinking = still
 end
+-- The 33 ms loop's work, on the game thread. The loop's own callback runs on another thread over the same Lua state:
+-- there it reads one flag and hands over this function, made once, and does nothing else (dev.42 and dev.44 crashed,
+-- stack 08E98397, while it called W.glowing() there 30 times a second; the game thread was raising 818 pieces).
+local loopBusy = false        -- set on the game thread: a piece sinking or dissolving, or the glow on
+local function loopStep()
+    local ok, err = pcall(sinkStep)
+    if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
+    ok, err = pcall(W.glowTick)
+    if not ok then once("glow", "wall glow error: " .. tostring(err)) end
+    loopBusy = #sinking > 0 or W.glowing()
+end
+function W.loopBusy() return loopBusy end
 if LoopAsync then
     LoopAsync(33, function()
-        if #sinking > 0 or W.glowing() then
-            ExecuteInGameThread(function()
-                local ok, err = pcall(sinkStep)
-                if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
-                ok, err = pcall(W.glowTick)
-                if not ok then once("glow", "wall glow error: " .. tostring(err)) end
-            end)
-        end
+        if loopBusy then ExecuteInGameThread(loopStep) end
         return false
     end)
 end
@@ -180,6 +185,7 @@ local function lower(i, context)
     local m = ok and mid and W.meshOf(a)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0, m and start or nil, mid = m and mid or nil }
+    loopBusy = true
 end
 
 
@@ -251,6 +257,7 @@ function W.update(enabled, passes, context)
     W.showNear(context)
     W.skinTick()
     W.recolour(passes)
+    loopBusy = #sinking > 0 or W.glowing()
     if catchingUp and budget == PER_TICK then
         catchingUp = false
         P.wallsCaughtUp(nRaised)
