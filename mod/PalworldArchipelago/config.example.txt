@@ -37,6 +37,10 @@ test_tools=
 wall_skin=
 wall_tiling=
 wall_scroll=
+# Walls stand only within wall_radius metres of you (75; 0 puts every one up at once, as before 0.14). With the
+# PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are fully there, and where they are gone.
+wall_radius=
+wall_fade=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=

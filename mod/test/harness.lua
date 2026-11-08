@@ -284,6 +284,7 @@ local gameplay = { IsValid = function() return true end,
                    end,
                    FinishSpawningActor = function(_, a) wallsUp[a] = true end,
                    GetWorldDeltaSeconds = function() return 0.016 end,
+                   GetTimeSeconds = function() return 1234.5 end,
                    SpawnObject = function() return Widget() end }
 local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
@@ -956,7 +957,74 @@ expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] =
        "an Area Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)
 expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
-
+do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
+    -- module is driven directly with one extra pass, so no real pass is given (later tests count on which areas are open).
+    local W = require("walls")
+    local hadPak = logicMod
+    logicMod = true
+    W.setSkin("paws"); run(2)
+    local target
+    for _, w in ipairs(WD.walls) do
+        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
+        if other and other ~= "Open sea" and not open[other] then target = other; break end
+    end
+    local before = {}
+    for wa in pairs(wallsUp) do before[wa] = true end
+    local passes = { [target] = true }
+    for k in pairs(open) do passes[k] = true end
+    for _ = 1, 40 do W.update(true, passes, {}) end
+    local fading, shrunk = nil, 0
+    for wa in pairs(before) do
+        local m = wa.Cube.mat
+        if m and m.scalars and m.scalars.DissolveStart and not fading then fading = wa end
+        if wa.shrunkTo then shrunk = shrunk + 1 end
+    end
+    expect(fading and fading.Cube.mat.scalars.DissolveStart == 1234.5 and math.abs(fading.Cube.mat.scalars.DissolveTime - 1.98) < 1e-6
+           and shrunk == 0 and logged("an opened wall dissolves"),
+           "an opened paws wall gets a dissolving copy of its material, from now, over 2 s, and doesn't shrink: " .. tostring(target))
+    run(8)
+    expect(fading and fading.gone and fading.collision == false and fading.shrunkTo == nil,
+           "then it stops blocking and goes, never shrunk")
+    if fading then fading.Cube.mat.parent.IsValid = function() return false end end   -- the pak "gone" again, as before
+    logicMod = hadPak
+    W.setSkin("red"); run(40)
+    expect(wallCount() == expected(open), "(the core's own passes put that area's walls back up: " .. wallCount() .. ")")
+end
+do  -- dev.41: walls stand only near the player (75 m), and go at once past 100 m
+    local W = require("walls")
+    W.radius = 7500
+    local spot
+    for k, w in ipairs(WD.walls) do
+        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        if not (open[a1] or a1 == "Open sea" or a1 == WD.start) or not (open[a2] or a2 == "Open sea" or a2 == WD.start) then spot = k; break end
+    end
+    local home = { X = pawnAt.X, Y = pawnAt.Y, Z = pawnAt.Z }
+    pawnAt = { X = WD.walls[spot][1], Y = WD.walls[spot][2], Z = -1700 }   -- standing at a locked wall
+    run(40)
+    local all, far = expected(open), 0
+    for wa in pairs(wallsUp) do
+        local i
+        for k, w in ipairs(WD.walls) do if w[1] == wa.t.Translation.X and w[2] == wa.t.Translation.Y then i = k; break end end
+        if not (i and W.segDist(i, pawnAt.X, pawnAt.Y) <= 10000) then far = far + 1 end
+    end
+    expect(wallCount() > 0 and wallCount() < all and far == 0,
+           "with wall_radius 75, only pieces near the player stand (none past 100 m): " .. wallCount() .. " of " .. all)
+    local watched, gonePieces, shrunk = {}, 0, 0
+    for wa in pairs(wallsUp) do watched[#watched + 1] = wa end
+    pawnAt = { X = pawnAt.X + 60000, Y = pawnAt.Y, Z = pawnAt.Z }   -- 600 m away
+    run(40)
+    for _, wa in ipairs(watched) do
+        if wa.gone then gonePieces = gonePieces + 1 end
+        if wa.shrunkTo then shrunk = shrunk + 1 end
+    end
+    expect(#watched > 0 and gonePieces == #watched and shrunk == 0,
+           "walking 600 m away takes them away at once, no animation: " .. gonePieces .. " of " .. #watched)
+    pawnAt = home
+    W.radius = 0
+    run(40)
+    expect(wallCount() == expected(open), "wall_radius 0: every locked border stands again: " .. wallCount())
+end
 print("the world map")
 -- dev.16 playtest (2026-11-07): composed only once the map opened, the first opening showed the game's map for ~3 s.
 local jobs0 = #composeJobs
@@ -3193,6 +3261,16 @@ do  -- area_size regions: every named region of the game its own, opened by a Re
     expect(wallCount() < up, "a Region Pass takes its region's walls down: " .. up .. " -> " .. wallCount())
     expect(W.parentOf("Golden Hills") == "Bamboo Groves" and W.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
            "a region wears its area's colour, ticket and stamp (area_parents_regions.lua)")
+    local perHex = {}
+    for i in ipairs(RD.walls) do
+        local name = W.pieceSkin(i, {}, "paws")
+        local hex, own = name:match("^paws:(%x+):(%d+)$")
+        if hex then perHex[hex] = perHex[hex] or {}; perHex[hex][own] = true end
+    end
+    local sisters = 0
+    for _, owns in pairs(perHex) do local n = 0; for _ in pairs(owns) do n = n + 1 end; if n >= 2 then sisters = sisters + 1 end end
+    expect(sisters >= 5, "75 Areas, paws: sister Areas wear their Region's colour, each its own variant (paws:<colour>:<area>): "
+           .. sisters .. " regions with several")
     slotData["options.area_size"] = nil                          -- an areas seed again (and seeds made before the option)
     push("status", "disconnected")
     push("status", "connected", "Tester")

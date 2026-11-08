@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0-dev.40"
+local VERSION = "0.14.0-dev.41"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -71,7 +71,7 @@ local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
     for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "map_cpp", "map_chart", "map_icons", "map_regions", "map_style", "servers" }) do
+                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "wall_radius", "wall_fade", "map_cpp", "map_chart", "map_icons", "map_regions", "map_style", "servers" }) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -574,6 +574,11 @@ do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|
         return u and { tonumber(u), tonumber(v) } or nil
     end
     WALLS.tiling, WALLS.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
+    -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall walls)
+    local radius = tonumber(cfg.wall_radius or "")
+    if radius and radius >= 0 then WALLS.radius = radius * 100 end
+    local fade = pair(cfg.wall_fade)
+    if fade and fade[2] > fade[1] then WALLS.fade = { fade[1] * 100, fade[2] * 100 } end
     WALLS.setSkin(cfg.wall_skin)
 end
 

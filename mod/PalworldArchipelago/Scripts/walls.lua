@@ -24,6 +24,11 @@ local MID_Z = 50000
 local THICK = 4               -- 4 m, so nothing fast slips through
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
 local SINK_STEPS = 60         -- an opened wall sinks into the ground over 60 steps of 33 ms (2 s), then goes
+-- Pieces stand only near the player (the user, 2026-11-08: fewer walls, more FPS): raised within W.radius of the
+-- player, taken away at once (no animation) past W.radius + DROP_MARGIN, so a piece at the edge doesn't come and go.
+-- The core updates every 300 ms and raises PER_TICK pieces an update: far more than a mount can outrun. 0: everywhere.
+W.radius = 7500               -- 75 m (config wall_radius, in metres)
+local DROP_MARGIN = 2500      -- 25 m
 
 local raised = {}             -- piece index -> wall actor
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
@@ -71,6 +76,17 @@ function W.reset()
     end
 end
 
+-- How far a spot is from piece i (a segment: its middle, its direction, its length), in the plane.
+local function segDist(i, x, y)
+    local w, t = DATA.walls[i], trig[i]
+    local dx, dy = x - w[1], y - w[2]
+    local along, half = dx * t[1] + dy * t[2], w[3] / 2
+    if along > half then along = half elseif along < -half then along = -half end
+    local px, py = dx - along * t[1], dy - along * t[2]
+    return math.sqrt(px * px + py * py)
+end
+W.segDist = segDist
+
 local function raise(i, context)
     local w = DATA.walls[i]
     local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
@@ -94,16 +110,18 @@ end
 -- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. One loop for
 -- the session, made when this module loads (UE4SS cannot start one from inside a game-thread callback); it idles while
 -- nothing sinks.
-local sinking = {}            -- list of { actor, scale X, scale Y, step }
+local sinking = {}            -- list of { actor, scale X, scale Y, step, dissolving }
 local function sinkStep()
     local still = {}
     for _, s in ipairs(sinking) do
         local a = s[1]
         if a:IsValid() then
             s[4] = s[4] + 1
-            local t = s[4] / SINK_STEPS
-            local eased = t * t * (3 - 2 * t)            -- slow, fast, slow
-            pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
+            if not s[5] then                             -- (a dissolving piece: its material does the show)
+                local t = s[4] / SINK_STEPS
+                local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
+                pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
+            end
             if s[4] == SINK_STEPS // 2 then pcall(function() a:SetActorEnableCollision(false) end) end
             if s[4] >= SINK_STEPS then
                 pcall(function() a:K2_DestroyActor() end)
@@ -130,11 +148,23 @@ local function forget(i)
     if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
     dressedAs[i] = nil
 end
-local function lower(i)
-    local a = raised[i]
+-- Opening: with the paws skin the piece dissolves (W.dissolving, below: its material eats it away over 2 s by the
+-- game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway and then goes.
+W.dissolving = function() return nil end
+local function lower(i, context)
+    local a, wore = raised[i], dressedAs[i]
     forget(i)
     if not (a and a:IsValid()) then return end
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0 }
+    local ok, mid = pcall(W.dissolving, wore, context)
+    local m = ok and mid and W.meshOf(a)
+    if m then pcall(function() m:SetMaterial(0, mid) end) end
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0, m and true or nil }
+end
+-- Out of range: away at once.
+local function drop(i)
+    local a = raised[i]
+    forget(i)
+    if a and a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
 end
 
 -- Walls the game removed (back to the title, another world) are noticed by checking a share of the pieces each
@@ -162,10 +192,21 @@ function W.update(enabled, passes, context)
     W.lastPasses = passes
     if not ready() then return end
     local budget = PER_TICK
+    local px, py = nil, nil
+    if W.radius > 0 then
+        local okL, loc = pcall(function() return context:K2_GetActorLocation() end)
+        if okL and loc and loc.X then px, py = loc.X, loc.Y end
+    end
     for i, w in ipairs(DATA.walls) do
         if budget <= 0 then break end
         local up = enabled and not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes))
-        if up and not raised[i] then
+        local d = px and segDist(i, px, py)
+        if up and d and not raised[i] and d > W.radius then
+            -- too far: not raised
+        elseif up and d and raised[i] and d > W.radius + DROP_MARGIN then
+            drop(i)
+            budget = budget - 1
+        elseif up and not raised[i] then
             local ok, err = pcall(raise, i, context)
             if not ok then
                 -- Once per kind of error: a raise that fails fails again on every update (three lines a second).
@@ -174,7 +215,7 @@ function W.update(enabled, passes, context)
             end
             budget = budget - 1
         elseif not up and raised[i] then
-            lower(i)
+            lower(i, context)
             budget = budget - 1
         end
     end
@@ -329,6 +370,7 @@ end
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
                 "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
 local function byArea(name) return name == "area" or name == "paws" end
+W.SKINS = SKINS
 local AREA_COLOURS = {
     ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
     ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
@@ -377,6 +419,7 @@ local function meshOf(a)
     ok, m = pcall(function() return a:GetComponentByClass(smc) end)
     if ok and m and m:IsValid() then return m end
 end
+W.meshOf = meshOf
 -- An asset of the PalworldArchipelagoArt pak: already loaded, else through the asset registry as BPModLoader loads the
 -- pak's ModActor (AssetRegistryHelpers:GetAsset with PackageName and AssetName), else LoadAsset. 2026-11-08 dev.39
 -- playtest: BPModLoader spawned the pak's ModActor in every level, yet LoadAsset + StaticFindObject found no M_APWall.
@@ -404,6 +447,13 @@ local function modAsset(pkg, name, notes)
     notes[#notes + 1] = name .. " LoadAsset " .. (okL and "found nothing" or ("errored: " .. tostring(err)))
 end
 W.modAsset = modAsset
+-- M_APWall's fade (the user, 2026-11-08: dev.40's 9 to 15 m "loads in MUCH closer"): fully there within FADE[1] cm,
+-- gone at FADE[2] (config wall_fade=near,far in metres).
+W.fade = { 1500, 2500 }
+local function fadeOn(mid)
+    mid:SetScalarParameterValue(FName("FadeStart"), W.fade[1])
+    mid:SetScalarParameterValue(FName("FadeEnd"), W.fade[2])
+end
 local apWallProbed = false
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
@@ -430,6 +480,7 @@ local function colourMaterial(name, gi, krl, kml)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("Pattern"), tex)
+    fadeOn(mid)
     local scroll = flow and { FLOW, 0 } or W.scroll
     if scroll then
         mid:SetScalarParameterValue(FName("ScrollU"), scroll[1])
@@ -454,14 +505,23 @@ local function pawLayerTexture(gi, krl)
     log("wall skin paws: the paw layer from " .. from)
     return t
 end
--- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour.
-local function pawsMaterial(name, gi, krl, kml)
+-- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour (made, not kept in skin.mids).
+local function makePaws(name, gi, krl, kml)
     local base = apWallMaterial()
     if not base then log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
     local tex = pawLayerTexture(gi, krl)
     if not tex then log("wall skin paws: could not load walls\\ap-wall-paws-layer.png"); return nil end
-    local hex = name:match("^paws:(%x%x%x%x%x%x)$")
+    local hex, own = name:match("^paws:(%x%x%x%x%x%x):?(%d*)$")
     local back = hex and linearOf(hex) or SEALED
+    local s = nil
+    if own and own ~= "" then
+        -- The Art lane (2026-11-08): s in 0..1 from the Area's number; offset (frac(s*7.13), frac(s*3.71)) tiles, mirrored
+        -- when s > 0.5, Back x (0.88 + 0.24 s). Never hue, rotation or scale.
+        local v = math.sin(tonumber(own) * 12.9898 + 1.0) * 43758.5453
+        s = v - math.floor(v)
+        local k = 0.88 + 0.24 * s
+        back = { R = back.R * k, G = back.G * k, B = back.B * k, A = 1 }
+    end
     local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), 0)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
@@ -469,12 +529,46 @@ local function pawsMaterial(name, gi, krl, kml)
     mid:SetVectorParameterValue(FName("Back"), back)
     mid:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
     mid:SetScalarParameterValue(FName("Brightness"), PAW_BRIGHT)
+    if s then
+        mid:SetScalarParameterValue(FName("OffsetU"), (s * 7.13) % 1)
+        mid:SetScalarParameterValue(FName("OffsetV"), (s * 3.71) % 1)
+        mid:SetScalarParameterValue(FName("MirrorU"), s > 0.5 and 1 or 0)
+    end
+    fadeOn(mid)
     if W.scroll then
         mid:SetScalarParameterValue(FName("ScrollU"), W.scroll[1])
         mid:SetScalarParameterValue(FName("ScrollV"), W.scroll[2])
     end
+    return mid
+end
+local function pawsMaterial(name, gi, krl, kml)
+    local mid = makePaws(name, gi, krl, kml)
+    if not mid then return nil end
     skin.mids[name], skin.failed[name] = mid, nil
     log("wall skin " .. name .. ": material made on M_APWall")
+    return mid
+end
+-- An opening piece's material: its paws, dissolving from now over DISSOLVE_S by the game's clock (M_APWall's
+-- DissolveStart and DissolveTime against its Time node; an edge glows as it goes). One per look per second, so the
+-- pieces an update opens share it; nil for any other skin (those shrink).
+local DISSOLVE_S = SINK_STEPS * 0.033
+local gone = {}
+function W.dissolving(name, context)
+    if not (name and name:find("^paws:")) then return nil end
+    local ok, now = pcall(function() return gs:GetTimeSeconds(context) end)
+    if not (ok and type(now) == "number") then return nil end
+    local key = name .. "@" .. math.floor(now)
+    if gone[key] and gone[key]:IsValid() then return gone[key] end
+    local gi = owner()
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
+    if not (gi and krl and krl:IsValid() and kml and kml:IsValid()) then return nil end
+    local mid = makePaws(name, gi, krl, kml)
+    if not mid then return nil end
+    mid:SetScalarParameterValue(FName("DissolveStart"), now)
+    mid:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
+    gone[key] = mid
+    once("dissolve", "wall skin paws: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now) .. " s)")
     return mid
 end
 local function skinMaterial(name)
@@ -547,7 +641,10 @@ local function pieceSkin(i, passes, mode)
     local hex = AREA_COLOURS[W.parentOf(area)]
     if mode == "paws" then
         if W.beyond[area] then return "paws:sealed" end
-        return "paws:" .. (hex or "24E0CC")                    -- an area without a colour: the start island's teal
+        -- 75 Areas: each Area its Region's look, varied by its own number (pattern offset, mirror, Back shade).
+        local own = ""
+        if W.layout == "regions" and W.parentOf(area) ~= area then own = ":" .. (area == a1 and w[5] or w[6]) end
+        return "paws:" .. (hex or "24E0CC") .. own             -- an area without a colour: the start island's teal
     end
     if W.beyond[area] then return "sealed" end
     return hex and ("area:" .. hex) or "a"
