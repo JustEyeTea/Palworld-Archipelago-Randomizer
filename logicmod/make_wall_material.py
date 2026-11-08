@@ -274,11 +274,15 @@ def material():
     link(prog0, "", prog, "")
     noise = node(mat, unreal.MaterialExpressionNoise, 1250, 1550, scale=0.006, levels=3, output_min=0.0, output_max=1.0)
     link(wpos, "", noise, "Position")
+    # Clamped: layered noise overshoots its 0..1 (dev.41-46 playtests: bits above 1 + e never dissolved, and the piece
+    # went with them still there).
+    noise01 = node(mat, unreal.MaterialExpressionSaturate, 1400, 1600)
+    link(noise, "", noise01, "")
     edge = 0.08
     thr = node(mat, unreal.MaterialExpressionMultiply, 1700, 1400, const_b=1.0 + edge)
     link(prog, "", thr, "A")
     gap = node(mat, unreal.MaterialExpressionSubtract, 1850, 1500)
-    link(noise, "", gap, "A")
+    link(noise01, "", gap, "A")
     link(thr, "", gap, "B")
     gap_e = node(mat, unreal.MaterialExpressionAdd, 2000, 1500, const_b=edge)
     link(gap, "", gap_e, "A")
