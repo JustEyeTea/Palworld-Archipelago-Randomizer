@@ -1534,7 +1534,29 @@ function M.update(ctx)
     end
 end
 
-function M.install(functions) api = functions end
+-- Esc closes the Archipelago menu as Back does (the user, dev.36: "It would be nice if we could hit 'ESC' to back out of
+-- that Archipelago Menu"). A UE4SS key bind (it fires whatever has the keyboard, a text box too), acted on at the next
+-- game tick for each live menu that is open; Esc anywhere else is left to the game.
+local escBound = false
+local function escapeMenus()
+    for _, m in pairs(menus) do
+        if m.live and m.open then
+            local ok, err = pcall(act, m, "back")
+            if not ok then log("menu: Esc error: " .. tostring(err)) end
+            refreshRows(m)
+            once("esc", "menu: Esc closes the Archipelago menu (as Back)")
+        end
+    end
+end
+M.escape = escapeMenus
+
+function M.install(functions)
+    api = functions
+    if not escBound and RegisterKeyBind and Key and Key.ESCAPE and ExecuteInGameThread then
+        escBound = true
+        RegisterKeyBind(Key.ESCAPE, function() ExecuteInGameThread(function() pcall(escapeMenus) end) end)
+    end
+end
 
 
 return M

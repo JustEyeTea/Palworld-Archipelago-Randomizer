@@ -2728,6 +2728,18 @@ run(1)
 local cb = #connects
 click(btn(R.back)); run(1)
 expect(gameButtonWrap.vis == 0 and #connects == cb and logged("Archipelago menu closed"), "Back: the game's buttons again, nothing connected")
+-- dev.36 ("It would be nice if we could hit 'ESC' to back out of that Archipelago Menu"): Esc does what Back does.
+click(openBtn); run(1)
+typeInto(R.server, "10.0.0.9")
+run(1)
+local escBind = keyBinds["key:ESCAPE"]
+if escBind then escBind() end
+tick(); run(1)                                                  -- (the key's work, at the next game tick)
+expect(escBind and gameButtonWrap.vis == 0 and rowBox(R.server).vis == 1 and #connects == cb
+       and logged("Esc closes the Archipelago menu"), "Esc closes the menu as Back does: the game's buttons again, nothing connected")
+if escBind then escBind() end
+tick(); run(1)
+expect(gameButtonWrap.vis == 0 and #connects == cb, "Esc with the menu closed: nothing happens")
 click(openBtn); run(1)
 expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Disconnect (connected as Other)",
        "reopened, it starts from the connection: " .. typed(R.server))
