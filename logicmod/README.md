@@ -46,8 +46,9 @@ How the Lua mod uses it:
 7. Start Unreal Engine 5.1 once and close it. Then edit
    `%APPDATA%\Unreal Engine\UnrealBuildTool\BuildConfiguration.xml`:
    - under `VCProjectFileGenerator`: `<Version>VisualStudio2022</Version>`;
-   - under `WindowsPlatform`: `<Compiler>VisualStudio2022</Compiler>`, `<CompilerVersion>14.38.33130</CompilerVersion>`
-     and `<ToolchainVersion>14.38.33130</ToolchainVersion>`.
+   - under `WindowsPlatform`: `<Compiler>VisualStudio2022</Compiler>` and `<CompilerVersion>14.38.33130</CompilerVersion>`.
+     Leave out `ToolchainVersion`: UE 5.1 has no such setting and fails to read the file with it (Game PC setup,
+     2026-11-08; the first build then used the 14.38 toolchain).
 8. Double-click `C:\PMK\Pal.uproject`.
    - Answer **Yes** to "modules are out of date". The first compile takes a while.
    - Answer **Yes** to any Wwise compatibility prompt, and close any Wwise project-path popup.
