@@ -258,8 +258,18 @@ end
 -- row soft at the sides, the top row at the top, the bottom row at the bottom. Its own brush, written field by field in
 -- place (never assigned from another widget: dev.21). Plain colour when the piece can't be had.
 local ROW_BG = { R = 0.012, G = 0.035, B = 0.045, A = 0.82 }
-local BACKED = { go = "mid", back = "bottom" }        -- (the saved servers have their own panel, dark already)
+local BACKED = { go = true, back = true }              -- (the saved servers have their own panel, dark already)
 local PANEL_SIDE, PANEL_END = 28 / 64, 16 / 64        -- the pieces' margins (of their 64 px)
+-- The panel's soft ends in rows of their own above Server and below Back (dev.35: "I might move the whole text area
+-- further down and expand the background to better cover the top area"): the text rows all on its solid part, the text
+-- 24 lower. Without them, the first and last rows take the soft ends.
+local PAD_TOP, PAD_BOTTOM = 24, 16
+local padded = false                                  -- (while a menu's rows are made: it has its pads)
+local function edgeOf(kind)
+    if kind == "server" then return padded and "mid" or "top" end
+    if kind == "back" then return padded and "mid" or "bottom" end
+    return "mid"
+end
 local function softEdges(border, edge)
     local tex = ART.texture("ap-menu-panel-" .. edge)
     if not tex then return false end
@@ -298,7 +308,7 @@ local function addButton(menu, list, kind)
     local box = StaticConstructObject(sizeClass, menu)
     if kind ~= "mailbox" then box:SetWidthOverride(kind:match("^pick") and 420 or 600) end   -- (the Esc menu's column is narrower: fill it)
     local content, isBacked = button, false
-    if BACKED[kind] then content, isBacked = backed(menu, button, BACKED[kind]) end
+    if BACKED[kind] then content, isBacked = backed(menu, button, edgeOf(kind)) end
     box:SetHeightOverride(isBacked and 41 or 38)
     box:AddChild(content)
     local slot = list:AddChild(box)
@@ -1002,6 +1012,19 @@ local function colourEdit(edit)
     setColour(st.FocusedForegroundColor, fg)
     if not coloured then coloured = true; log("menu: text boxes coloured") end
 end
+-- A pad: the panel's soft end (edge "top" or "bottom"), h high, with nothing in it.
+local function addPad(menu, list, edge, h)
+    local spacer = StaticConstructObject(StaticFindObject("/Script/UMG.Spacer"), menu)
+    local content, isBacked = backed(menu, spacer, edge)
+    if not isBacked then return nil end
+    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
+    box:SetWidthOverride(600)
+    box:SetHeightOverride(h)
+    box:AddChild(content)
+    local slot = list:AddChild(box)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 0 }); slot:SetHorizontalAlignment(0) end)
+    return box
+end
 local function addTextRow(menu, list, kind)
     local cls, what = StaticFindObject("/Script/Pal.PalEditableTextBox"), "PalEditableTextBox"
     if not (cls and cls:IsValid()) then cls, what = StaticFindObject("/Script/UMG.EditableTextBox"), "EditableTextBox" end
@@ -1025,7 +1048,7 @@ local function addTextRow(menu, list, kind)
     pcall(function() es:SetSize({ SizeRule = 1, Value = 1 }); es:SetVerticalAlignment(2) end)                          -- Fill
     local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
     box:SetWidthOverride(600)
-    local content, isBacked = backed(menu, row, kind == "server" and "top" or "mid")
+    local content, isBacked = backed(menu, row, edgeOf(kind))
     box:SetHeightOverride(isBacked and 41 or 38)
     box:AddChild(content)
     local slot = list:AddChild(box)
@@ -1057,7 +1080,7 @@ end
 -- Under the Server box: the list's top (the Server row is its first while the menu shows) plus one row.
 local function placeDrop(m)
     local anchors, at = bannerSpot(m.list)
-    local y = at.Y + 8 + ROW_STEP
+    local y = at.Y + 8 + (m.padTop or 0) + ROW_STEP
     if m.drop.at and m.drop.at.X == at.X and m.drop.at.Y == y then return end
     m.drop.slot:SetAnchors(anchors)
     m.drop.slot:SetAlignment({ X = 0.5, Y = 0 })
@@ -1377,6 +1400,13 @@ function M.update(ctx)
                         rows[kind], boxes[kind], keys[#keys + 1] = b, box, tostring(b:GetAddress())
                         pcall(function() boxes[kind]:SetVisibility(1) end)                -- collapsed until the menu opens
                     end
+                    padded = ART.texture("ap-menu-panel-top") ~= nil and ART.texture("ap-menu-panel-bottom") ~= nil
+                    local function pad(kind, edge, h)
+                        local okP, box = pcall(addPad, menu, list, edge, h)
+                        if okP and box then boxes[kind] = box; pcall(function() box:SetVisibility(1) end)
+                        else padded = false; once("pad", "menu: the panel's " .. edge .. " pad not made (" .. tostring(box) .. ")") end
+                    end
+                    if padded then pad("padtop", "top", PAD_TOP) end
                     for _, kind in ipairs(TEXT_ROWS) do
                         if TYPED[kind] then
                             local box, edit, cls = addTextRow(menu, list, kind)
@@ -1386,12 +1416,14 @@ function M.update(ctx)
                             button(list, kind)
                         end
                     end
+                    if padded then pad("padbottom", "bottom", PAD_BOTTOM) end
                     -- the saved servers, once the rows are in: their own panel on the canvas (in the list without one)
                     local okD, d = pcall(makeDrop, menu, list)
                     drop = okD and d or nil
                     for i = 1, PICKS do button(drop and drop.list or list, "pick" .. i) end
                 end)
                 if not okT then
+                    padded = false
                     if drop then pcall(function() drop.box:RemoveFromParent() end); drop = nil end
                     for _, box in pairs(boxes) do pcall(function() list:RemoveChild(box) end) end
                     for _, k in ipairs(keys) do ours[k] = nil end
@@ -1407,7 +1439,8 @@ function M.update(ctx)
                     end
                 end
                 if not err then
-                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {}, drop = drop }
+                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {}, drop = drop,
+                          padTop = boxes.padtop and PAD_TOP or 0 }
                     menus[key] = m
                     added = true
                     addFails = 0                                  -- (the next run of failures is logged again)

@@ -1344,12 +1344,18 @@ function W.updateMap(enabled, passes, ctx)
     -- one is checked each time and given the greyed map whenever it shows anything else.
     -- Only the main world's screen: the game also builds the World Tree's (MapName "Tree"), which shows T_WorldMap for a
     -- moment as it is set up (dev.17 log, 2026-11-07); a screen whose name can't be read is kept, as before.
+    -- Not the last world's (dev.35 playtest: after Return to title and a second world load, the first world's screens
+    -- were still about until collected, and the icons went on one of them): a screen whose owning player is gone is left
+    -- alone; one whose owner can't be read is kept.
     local images, screens = {}, {}
     for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
         local okn, mapName = pcall(function() return b.MapName:ToString() end)
         local main = not (okn and type(mapName) == "string" and mapName ~= "" and mapName ~= "None") or mapName:find("Main", 1, true)
-        if b:IsValid() and ok and img and main then images[#images + 1] = img; screens[#screens + 1] = b end
+        local okp, owner = pcall(function() return b:GetOwningPlayer() end)
+        local gone = okp and not (owner and owner:IsValid())
+        if gone then once("stalescreen", "map: a map screen of the last world left alone (its player is gone)") end
+        if b:IsValid() and ok and img and main and not gone then images[#images + 1] = img; screens[#screens + 1] = b end
     end
     mapShownAt = #images
     -- The chart is drawn in the background from the start; the mask is read while the map is open.

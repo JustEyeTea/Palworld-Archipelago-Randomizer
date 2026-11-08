@@ -207,6 +207,7 @@ FindAllOf = function(class)
         if not mapOpen then return {} end
         local list = { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody }
         if treeOpen then list[#list + 1] = treeBody end              -- (global treeOpen: the World Tree's screen too)
+        if staleBody then list[#list + 1] = staleBody end            -- (global: the last world's, not yet collected)
         return list
     end
     if class == "PalPlayerState" then return noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
@@ -1178,6 +1179,13 @@ do
     W9.dir, W9.keep = MOD, function() end
     for _ = 1, 3 do W9.updateMap(true, {}, pawn) end           -- the map not built yet: the picture is made, no icons
     expect(#mapBody.icons == 0, "no icons before the map screen exists")
+    -- dev.35 playtest: after Return to title and a second world load, the first world's screen was still about (last in
+    -- FindAllOf here); its player is gone, so it is left alone and the icons go on the live one.
+    staleBody = { IsValid = function() return true end, GetAddress = function() return 79 end, icons = {}, MapName = FNameOf("MainMap"),
+                  Image_MapBody = { IsValid = function() return true end },
+                  GetOwningPlayer = function() return { IsValid = function() return false end } end }
+    staleBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
+    staleBody["Update Map Icons"] = function() end
     mapOpen, treeOpen = true, true
     for _ = 1, 2 do W9.updateMap(true, {}, pawn) end
     local job = composeJobs[#composeJobs]
@@ -1188,6 +1196,9 @@ do
     local c = locked1 and CENTRES[locked1]                          -- (keyed by the 0-based area index, as drawStamps)
     local at = c and W9.worldAt(c[1], c[2])
     expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked area: " .. #mapBody.icons .. " of " .. nLocked)
+    expect(#staleBody.icons == 0 and logged("a map screen of the last world left alone"),
+           "the last world's screen (its player gone) is left alone; the icons go on the live one")
+    staleBody = nil
     expect(first and first.tex and tostring(first.tex.path):find("ap%-map%-stamp") and first.ignoreMask == true
            and first.priority == false and first.visibility == 3 and first.parent == mapBody.Canvas_ForIcon_NoMask,
            "each shows its area's stamp, on the canvas the fog never hides, and ignores the pointer")
@@ -2530,7 +2541,8 @@ expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.a
        "its bottom 8 above the list's top, centred over it, with the list's anchors")
 expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
 -- The list: Start Game (the game's), Server, six picks, Port, Slot, Password, Connect, Back, then Quit Game.
-local R = { server = 2, port = 3, slot = 4, password = 5, go = 6, back = 7 }
+-- (dev.36: the panel's soft ends in pads of their own, above Server and below Back)
+local R = { padtop = 2, server = 3, port = 4, slot = 5, password = 6, go = 7, back = 8, padbottom = 9 }
 -- The saved servers: their panel on the canvas, its rows in its VerticalBox.
 local function pickBox(i) return drop.children[2].children[i] end
 local function pick(i) return pickBox(i).child end
@@ -2542,8 +2554,8 @@ local function edit(i) return inner(menuChildren[i]).children[2] end
 local function typed(i) return edit(i).Text:ToString() end
 local function typeInto(i, s) edit(i).Text = { ToString = function() return s end } end
 local allCollapsed = true
-for i = 2, 7 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
-expect(#menuChildren == 8 and menuChildren[8] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+for i = 2, 9 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
+expect(#menuChildren == 10 and menuChildren[10] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
        "the menu's rows in the title's own list, Quit Game moved back to the end with its padding")
 expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).colour and edit(R.password).password
        and inner(rowBox(R.server)).children[1].text == "Server:" and inner(rowBox(R.port)).children[1].text == "Port:"
@@ -2558,14 +2570,19 @@ for _, i in ipairs({ R.server, R.port, R.slot, R.password, R.go, R.back }) do
 end
 expect(allBacked, "the menu's rows on a dark backing, 41 high with no gap, so they read as one panel (dev.33: hard to read)")
 local function piece(i) local b = rowBox(i).child; return b.texture and b.texture.path, b.Background end
-local tp, tb = piece(R.server)
+local tp, tb = piece(R.padtop)
+local sp, sb = piece(R.server)
 local mp2, mb = piece(R.port)
 local gp, gb = piece(R.go)
-local bp, bb = piece(R.back)
+local kp, kb = piece(R.back)
+local bp, bb = piece(R.padbottom)
 expect(tp == "ap-menu-panel-top" and tb.DrawAs == 1 and tb.Margin.Top == 0.25 and tb.Margin.Bottom == 0 and tb.Margin.Left == 28 / 64
-       and mp2 == "ap-menu-panel-mid" and mb.Margin.Top == 0 and gp == "ap-menu-panel-mid"
+       and rowBox(R.padtop).height == 24 and rowBox(R.padbottom).height == 16
+       and sp == "ap-menu-panel-mid" and sb.Margin.Top == 0 and mp2 == "ap-menu-panel-mid" and gp == "ap-menu-panel-mid"
+       and kp == "ap-menu-panel-mid" and kb.Margin.Bottom == 0
        and bp == "ap-menu-panel-bottom" and bb.Margin.Bottom == 0.25 and bb.ImageSize.X == 64 and rowBox(R.server).child.pad.Left == 22,
-       "the panel's edges soft (dev.34): feathered pieces drawn as boxes, the top row soft at the top, the last at the bottom")
+       "the panel's edges soft (dev.34): feathered pieces drawn as boxes; its soft ends in pads above Server and below Back, "
+       .. "every text row on its solid part (dev.35: \"move the whole text area further down\")")
 expect(logged("not a live title menu %(a template%), left alone: .*/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title"),
        "the title screen asset's template (dev.25 log: rows tried on it every update) is left alone")
 expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
@@ -2573,7 +2590,7 @@ expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows
 expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
 local moves = bs and bs.moves
 run(3)
-expect(#menuChildren == 8 and #titleCanvasKids == 2, "added once")
+expect(#menuChildren == 10 and #titleCanvasKids == 2, "added once")
 expect(drop and drop.kind == "Overlay" and drop.vis == 1 and #drop.children[2].children == 6 and drop.canvasSlot.zorder == 20,
        "the saved servers wait in a panel of their own on the canvas, folded away (dev.25 test: in the list they pushed the rows down)")
 local st = edit(R.server).WidgetStyle
@@ -2631,7 +2648,7 @@ edit(R.server).focus = true
 run(1)
 expect(drop.vis == 0 and pickBox(1).vis == 0 and pickBox(2).vis == 0 and pickBox(3).vis == 1 and pickBox(1).width == 420
        and pick(1).Test_Content.text:find("archipelago.gg", 1, true) and pick(2).Test_Content.text:find("localhost   (chosen)", 1, true)
-       and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 41 and drop.canvasSlot.alignment.Y == 0,
+       and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 24 + 41 and drop.canvasSlot.alignment.Y == 0,
        "while the Server box has the keyboard, the saved servers show in their panel just under it")
 -- dev.27 test ("why does it still stick around at all?"): they stay while the pointer is on one of them (pressing it
 -- takes the keyboard from the box before the click lands), and go at the next update otherwise.
@@ -2724,7 +2741,7 @@ local goBtn = btn(R.go)
 -- failed, and the old rows were still used; the game crashed 4.6 s later. Now the old rows are never touched again.
 do
     local deadTouched = false
-    for i = 2, 7 do
+    for i = 2, 9 do
         local b = rowBox(i)
         if b then b.gone = true; b.SetVisibility = function() deadTouched = true end end
         if b and b.child then b.child.gone = true end
