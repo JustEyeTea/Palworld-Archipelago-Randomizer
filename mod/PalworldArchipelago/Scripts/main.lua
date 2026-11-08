@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.1-dev.1"
+local VERSION = "0.14.1-dev.2"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -531,18 +531,33 @@ end
 
 -- Everything the game's records say is done: levels, captures, alphas, fast travel, towers. The server ignores
 -- locations this seed doesn't have (options turned off), so the mod doesn't need to know which are in play.
-local function pollRecords(ps)
+-- The goal waits for the player to leave the boss's arena (a stage, as for the Teleport Trap): the user, 2026-11-08,
+-- beat the tower goal and the release flooded chat mid-arena, the goal line lost in it, before the game took them out
+-- of the tower. Sent once a check finds them out of any stage, or GOAL_WAIT_TICKS after (never stuck); with the banner.
+local GOAL_WAIT_TICKS = 400              -- 2 minutes of 300 ms updates
+local goalWait = nil                     -- { done = what, since = tick }
+local function pollRecords(ps, tick)
     local okp, found = pcall(R.progress, ps, D, os.time())
     if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
     sendChecks(found.locations)
     ap.level, ap.beaten = found.level, found.beaten
     if ap.goalSent then return end
     local done = goalReached(found)
-    if done then
-        ap.goalSent = true
-        AP_Goal()
-        notify("Goal complete: " .. done .. "!")
+    if done and not goalWait then
+        goalWait = { done = done, since = tick }
+        log("goal reached (" .. done .. "): sent once the player is out of the arena")
     end
+    if not goalWait then return end
+    local okS, inStage = pcall(function() return ps:IsInStage() end)
+    local out = not (okS and inStage)                  -- (not readable: no waiting, as before)
+    if not (out or tick - goalWait.since >= GOAL_WAIT_TICKS) then return end
+    ap.goalSent, done = true, goalWait.done
+    goalWait = nil
+    AP_Goal()
+    log("goal sent: " .. done .. (out and "" or " (still in a stage after 2 minutes)"))
+    notify("Goal complete: " .. done .. "!")
+    local okb, errb = pcall(POPUP.banner, done, tick)
+    if not okb then log("goal banner error: " .. tostring(errb)) end
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -1033,6 +1048,7 @@ local function resetSeed()
     CRATES.reset()
     SYNC.reset()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
+    goalWait = nil
     ap.world, seedWorld = nil, nil
     ap.from, ap.forgiven = {}, 0
     ap.visited = {}
@@ -1549,7 +1565,7 @@ local function update(ctx)
         if ps and ap.ready then seedWorld = checkWorld() end
         if ps and ap.ready and seedWorld then
             P.start("rec")
-            pollRecords(ps)
+            pollRecords(ps, tick)
             P.stop("rec")
         end
         P.stop("e7")

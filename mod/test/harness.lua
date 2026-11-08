@@ -2390,6 +2390,7 @@ end
 pawn.GetCharacterParameterComponent = ParamComponent
 local inStage = false
 ps.IsInStage = function() return inStage end
+setInStage = function(v) inStage = v end         -- (global: for tests outside this section)
 playerController.GetControlPalCharacter = function() return pawn end
 local trapAt = 9                                               -- items 0-8 are in; traps follow
 local function trap(name, sender)
@@ -3010,6 +3011,20 @@ towerList[#towerList + 1] = { Key = FNameOf("BOSS_BATTLE_NAME_ForestBoss"), Valu
 run(14)
 expect(goals == before + 1 and logged("Goal complete: 2 tower%(s%) beaten!") and checks[D.towers.ForestBoss],
        "two towers: the second (BOSS_BATTLE_NAME_ForestBoss) is counted, checked, and wins")
+-- 2026-11-08 run: the tower goal went out mid-arena and its line was lost in the release's flood. Now it waits for the
+-- player to be out of the stage (the boss's arena), then goes with the goal banner.
+setInStage(true)
+newSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
+before = goals
+run(14)
+expect(goals == before and logged("goal reached %(1 tower%(s%) beaten%): sent once the player is out of the arena"),
+       "a goal reached inside the boss's arena waits")
+run(40)
+expect(goals == before, "and keeps waiting while the player is in the arena")
+setInStage(false)
+run(14)
+expect(goals == before + 1 and logged("goal sent: 1 tower%(s%) beaten") and logged("goal banner:"),
+       "out of the arena, the goal goes, with the goal banner (or a log line saying why not)")
 print("mailbox off: bundles straight to the bag")
 local MB = require("mailbox")
 local mailOn = MB.on

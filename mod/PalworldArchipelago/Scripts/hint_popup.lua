@@ -119,6 +119,36 @@ function H.show(info, tick)
     return true
 end
 
+-- The goal banner (art/ap-goal-banner.png, 1200x300 drawn at 600x150) in the upper third with what was done in its
+-- pill (where the Ctrl+F4 HUD probe put a sample line, 2026-11-05), for BANNER_TICKS. It takes the pop-up's place.
+local BANNER_TICKS = 27                  -- 8 s
+local BANNER_W, BANNER_H, BANNER_TEXT = 600, 150, { 155, 111 }
+function H.banner(line, tick)
+    H.hide()
+    local canvas, layout, why = hudCanvas()
+    if not canvas then log("goal banner: " .. why .. "; chat only"); return false end      -- (a goal: rare, so each time)
+    local art = ART.box(layout, "ap-goal-banner", BANNER_W, BANNER_H)
+    if not art then log("goal banner: no ap-goal-banner.png; chat only"); return false end
+    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
+    box:SetWidthOverride(BANNER_W)
+    box:SetHeightOverride(BANNER_H)
+    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
+    box:AddChild(over)
+    local bs = over:AddChild(art)
+    pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
+    place(over, text(layout, line or "", 13, linear("CEE7E3")), BANNER_TEXT[1], BANNER_TEXT[2])
+    local slot = canvas:AddChildToCanvas(box)
+    pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0.3 }, Maximum = { X = 0.5, Y = 0.3 } }) end)
+    pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
+    pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
+    pcall(function() slot:SetAutoSize(true) end)
+    pcall(function() slot:SetZOrder(1000) end)
+    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
+    shown = { box = box, untilTick = tick + BANNER_TICKS }
+    log("goal banner: shown (" .. tostring(line) .. ")")
+    return true
+end
+
 -- Every update: takes it down when its time is up (or when its HUD went away with the world).
 function H.tick(tick)
     if not shown then return end
