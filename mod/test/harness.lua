@@ -3535,6 +3535,23 @@ end)()
     end
     expect(ended and #DB.active() == 0,
            "and the icon goes when the Slow Trap ends")
+    -- 2026-11-08 crash: Return to title during the goal banner; the update then called the old world's widget. With the
+    -- HUD gone (FindAllOf lists it no more) the banner is forgotten without a call to it.
+    local POP = require("hint_popup")
+    expect(POP.banner("10 Pals registered", 1) and logged("goal banner: shown %(10 Pals registered%)"), "the goal banner is shown on the HUD")
+    local bannerBox
+    for _, k in ipairs(hudKids) do if not k.removed then bannerBox = k end end
+    local touched = false
+    if bannerBox then
+        bannerBox.IsValid = function() touched = true; error("a dead widget called") end
+        bannerBox.RemoveFromParent = function() touched = true; error("a dead widget called") end
+    end
+    local liveFAO = FindAllOf
+    FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return {} end return savedFAO(class) end
+    local okT = pcall(POP.tick, 2)
+    FindAllOf = liveFAO
+    local okT2 = pcall(POP.tick, 3)
+    expect(bannerBox and okT and okT2 and not touched, "the world gone (Return to title), the banner is forgotten without touching it")
     FindAllOf = savedFAO
 end)()
 ;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time

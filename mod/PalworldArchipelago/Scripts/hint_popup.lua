@@ -28,7 +28,7 @@ local function linear(hex, a)
 end
 local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECBE6E"), linear("17324D", 0.94)
 
-local shown = nil                        -- { box, untilTick }
+local shown = nil                        -- { box, untilTick, hud = the HUD layout's address when shown }
 
 -- The canvas of the HUD layout the player sees, or nil and why.
 local function hudCanvas()
@@ -113,7 +113,7 @@ function H.show(info, tick)
     pcall(function() slot:SetZOrder(1000) end)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
     pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, untilTick = tick + SHOW_TICKS }
+    shown = { box = box, untilTick = tick + SHOW_TICKS, hud = layout:GetAddress() }
     once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen (" .. (plate and plateName or "plain box")
         .. ", opacity " .. OPACITY .. ")")
     return true
@@ -144,17 +144,28 @@ function H.banner(line, tick)
     pcall(function() slot:SetAutoSize(true) end)
     pcall(function() slot:SetZOrder(1000) end)
     pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, untilTick = tick + BANNER_TICKS }
+    shown = { box = box, untilTick = tick + BANNER_TICKS, hud = layout:GetAddress() }
     log("goal banner: shown (" .. tostring(line) .. ")")
     return true
 end
 
--- Every update: takes it down when its time is up (or when its HUD went away with the world).
+-- Every update: takes it down when its time is up. If its HUD went away with the world (Return to title), it is
+-- forgotten without a call: 2026-11-08, Return to title during the 15 s goal banner crashed the game in UE4SS (a widget
+-- of the world gone, called). Whether the HUD is still there is asked of FindAllOf, which lists only live objects.
+local function hudLive(addr)
+    for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
+        local ok, same = pcall(function() return l:GetAddress() == addr and l:IsValid() end)
+        if ok and same then return true end
+    end
+    return false
+end
 function H.tick(tick)
     if not shown then return end
-    local ok, valid = pcall(function() return shown.box:IsValid() end)
-    if not (ok and valid) or tick >= shown.untilTick then H.hide() end
+    if not hudLive(shown.hud) then shown = nil; return end
+    if tick >= shown.untilTick then H.hide() end
 end
+-- The world went (a new pawn, the title): forget what is shown, without touching it.
+function H.forget() shown = nil end
 
 H.SHOW_TICKS = SHOW_TICKS
 return H

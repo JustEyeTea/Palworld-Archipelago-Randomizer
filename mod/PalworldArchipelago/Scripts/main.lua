@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.1-dev.4"
+local VERSION = "0.14.1-dev.5"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -945,10 +945,23 @@ local function unlockableCheck(self, ...)
     end
     return r
 end
+-- The core update never runs inside a research hook. 2026-11-08 (dev.4) log: the update's player lookup ran nested
+-- inside IsUnlockRecipeTechnology's hook (its traceback: FindAllOf <- playerContext <- coreTick <- a:get() in techArg
+-- <- the hook); FindAllOf then got a bad argument and UE4SS logged "Ref was not function": UE4SS can run its game-thread
+-- queue from inside a hook. An update that finds itself inside one skips its turn. (The other way round is ordinary:
+-- the update refreshing the tech tree asks these hooks, and they answer as always.)
+local inHook, inTick = false, false
+local function guarded(fn, ...)
+    local was = inHook
+    inHook = true
+    local ok, v = pcall(fn, ...)
+    inHook = was
+    return ok, v
+end
 local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,
     function(self, ...)
         if not ap.shown then return nil end
-        local ok, v = pcall(unlockableCheck, self, ...)
+        local ok, v = guarded(unlockableCheck, self, ...)
         if not ok then once("unlockableErr", "research check error: " .. tostring(v)); return nil end
         return v
     end)
@@ -967,7 +980,7 @@ end
 local okr, errr = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology", function() end,
     function(self, ...)
         if hoveredTech == nil then return nil end      -- answers only for the card under the pointer
-        local ok, v = pcall(researchedCheck, ...)
+        local ok, v = guarded(researchedCheck, ...)
         if not ok then once("researchedErr", "researched check error: " .. tostring(v)); return nil end
         return v
     end)
@@ -1491,6 +1504,7 @@ local function update(ctx)
         if world ~= wallsWorld then
             wallsWorld, worldTicks = world, 0
             seedWorld = nil                            -- looked at again (every 7th update) before any wall goes up
+            POPUP.forget()                              -- (the pop-up or goal banner went with the old world's HUD)
             WALLS.reset()
             techsSeen = nil                              -- another world's tech list: compare it in full
         end
@@ -1636,7 +1650,7 @@ end
 -- The core update, on the game thread. LoopAsync's callback runs on another thread over the same Lua state, so it does
 -- nothing there but hand over this function, made once (2026-11-08: two crashes with the 08E98397 stack came from a
 -- 33 ms loop that ran Lua on that thread; building a new closure there every time is the same risk, smaller).
-local function coreTick()
+local function coreTickBody()
     -- Ctrl+8 (perf test tools) pauses the whole update, the controller walk included, so the pause takes away
     -- all of the mod's per-update work. That walk is timed as "ctx" and counted in the update's "lua" time.
     local ran = not P.paused
@@ -1657,6 +1671,14 @@ local function coreTick()
     end
     frame = nil
     P.frameEnd(ran)
+end
+-- Never inside a research hook, nor inside itself (see guarded(), above the research hooks).
+local function coreTick()
+    if inHook or inTick then once("nested", "update skipped: it came inside a research hook or itself (UE4SS ran it nested)"); return end
+    inTick = true
+    local ok, err = pcall(coreTickBody)
+    inTick = false
+    if not ok then onceErr("coreTick", err, "update error: " .. tostring(err)) end
 end
 LoopAsync(300, function()
     ExecuteInGameThread(coreTick)
