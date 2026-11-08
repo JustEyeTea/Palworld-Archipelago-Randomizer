@@ -2568,6 +2568,12 @@ pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
                          RemoveStatus = function(_, id) statuses[id] = nil end }
 require("test_tools").install()
 expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools bind Ctrl+F3 to the wall skins")
+;(function()  -- Ctrl+F2: faster for testing, through the game's named walk speed multiplier (as the Slow Trap)
+    local seen = {}
+    for _ = 1, 3 do keyBinds["key:F2"](); run(1); seen[#seen + 1] = movement.mult.APTestSpeed end
+    expect(seen[1] == 3 and seen[2] == 6 and seen[3] == 1 and logged("%-%-%- speed x6 %(walk multipliers now: player 6"),
+           "Ctrl+F2 cycles the player's speed x3, x6, back to x1: " .. table.concat(seen, ", "))
+end)()
 ;(function()  -- Ctrl+F4, the HUD probe (a function: the main chunk is at Lua's 200-local limit)
     local canvasKids, angles, removed = {}, {}, false
     local root = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("Canvas_Root") end,

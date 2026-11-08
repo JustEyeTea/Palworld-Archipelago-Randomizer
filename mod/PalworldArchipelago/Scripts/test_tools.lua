@@ -51,6 +51,34 @@ local function pawn()
 end
 local function fixed(v) return type(v) == "table" and tostring(v.Value) or tostring(v) end
 
+-- Ctrl+F2: move faster for testing (the user, 2026-11-08: walls are minutes away on foot). The game's own named walk
+-- speed multiplier, as the Slow Trap uses it (verified in game); on the player and on the Pal ridden, if any. Gone
+-- with the world (it lives on the movement component).
+local SPEEDS, SPEED_KEY = { 1, 3, 6 }, "APTestSpeed"
+local speedAt = 1
+local function speedUp()
+    speedAt = speedAt % #SPEEDS + 1
+    local factor = SPEEDS[speedAt]
+    local p = assert(pawn(), "no player character")
+    local parts = {}
+    local function apply(who, label)
+        local comp = who:GetPalCharacterMovementComponent()
+        comp:SetWalkSpeedMultiplier(FName(SPEED_KEY), factor)
+        parts[#parts + 1] = label .. " " .. tostring(comp:GetWalkSpeedMultiplier())
+    end
+    apply(p, "player")
+    for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
+        local ok, m = pcall(function() return pc:GetControlPalCharacter() end)
+        if ok and m and m:IsValid() and m ~= p then
+            local okm, err = pcall(apply, m, "mount")
+            if not okm then parts[#parts + 1] = "mount: " .. tostring(err) end
+            break
+        end
+    end
+    return factor, table.concat(parts, ", ")
+end
+T.speedUp = speedUp
+
 local function exhaustion()
     local p = assert(pawn(), "no player character")
     local cp = p:GetCharacterParameterComponent()
@@ -298,6 +326,13 @@ function T.install()
             log("--- wall skin " .. tostring(name) .. " (on at the next update)")
         end)
     end)
+    RegisterKeyBind(Key.F2, { ModifierKey.CONTROL }, function()
+        ExecuteInGameThread(function()
+            local ok, factor, how = pcall(speedUp)
+            log("--- speed " .. (ok and ("x" .. factor .. " (walk multipliers now: " .. how .. ")") or ("error: " .. tostring(factor))))
+        end)
+    end)
+    log("test tools on: Ctrl+F2 move faster (x1, x3, x6)")
     log("test tools on: Ctrl+F3 wall skin (" .. table.concat(require("walls").SKINS, ", ") .. ")")
     RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function()
         ExecuteInGameThread(function()
