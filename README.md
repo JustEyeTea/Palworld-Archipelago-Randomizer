@@ -1,5 +1,8 @@
 # Palworld Archipelago Randomizer
 
+> **Players:** download the mod from [Releases](https://github.com/JustEyeTee/Palworld-Archipelago-Randomizer/releases)
+> and follow the [setup guide](apworld/palworld/docs/setup_en.md). The rest of this repository is the source.
+
 An [Archipelago](https://archipelago.gg) multiworld randomizer for Palworld. It is playable and being playtested; the
 World Tree goal and alpha checks are not tested in game yet.
 
@@ -25,9 +28,11 @@ generated from the APWorld by `tools/gen_lua_data.py`), and `mod/test/` its test
 packages it with the Lua mod.
 
 `mod/PERF-PROBE.md` explains the test builds' performance probe (`perf_log=1`) and how to read its log lines.
-`logicmod/` holds the optional PalworldArchipelagoUI Blueprint pak (the Archipelago Mailbox's own window), built in
-the community Palworld Modding Kit; its README has the steps. `spike/` holds the feasibility probes (a server-side probe and the client tech-shop probe). `tools/` reads Palworld's
-own data through the probe and turns it into the facts the randomizer needs; `data/` holds those facts (areas, where
+`logicmod/` holds the optional Blueprint paks built in the community Palworld Modding Kit (PalworldArchipelagoArt, the
+area walls' material, and PalworldArchipelagoUI, the Archipelago Mailbox's own window, not released yet); its README
+has the steps. `tools/probe/` is the server-side probe whose commands dump the game's tables, and `tools/` turns that
+data into the facts the randomizer needs (the area borders came once from the game's region triggers, read from its
+paks with a CUE4Parse tool kept outside this repository); `data/` holds those facts (areas, where
 each Pal can be obtained). Raw dumps of Pocketpair's game tables are not distributed here: they are Pocketpair's, not
 covered by this repository's licence, and are regenerated from your own copy of the game with the probe's
 `dumptable` and `dumpactors` commands.

@@ -4,6 +4,3 @@ cppmod/RE-UE4SS/
 cppmod/deps/
 build/
 luac.out
-tools/texdump/bin/
-tools/texdump/obj/
-tools/texdump/out/
