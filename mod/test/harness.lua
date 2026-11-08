@@ -142,8 +142,18 @@ loaded, badLoads = {}, {}
 LoadAsset = function(path)
     local pkg, asset = path:match("^(/[^.]+)%.([^./:]+)$")
     if not pkg or asset:match("_C$") or asset ~= pkg:match("([^/]+)$") then badLoads[#badLoads + 1] = path; return end
+    -- dev.39 playtest: the PalworldArchipelagoArt pak was mounted (BPModLoader spawned its ModActor) but LoadAsset never
+    -- found M_APWall in it; the asset registry's GetAsset, as BPModLoader uses, is what loads it.
+    if pkg:find("^/Game/Mods/PalworldArchipelagoArt/") then return end
     loaded[pkg] = true
 end
+assetRegistryHelpers = { IsValid = function() return true end,
+    GetAsset = function(_, data)
+        local pkg, name = data.PackageName:ToString(), data.AssetName:ToString()
+        if not (logicMod and pkg:find("^/Game/Mods/") and pkg:match("([^/]+)$") == name) then return { IsValid = function() return false end } end
+        loaded[pkg] = true
+        return Texture(pkg .. "." .. name)
+    end }
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
 stampAt = {}                                                 -- global: stamp texture -> where it was last drawn
 drawLog = {}                                                  -- global: the textures drawn into render targets, in order
@@ -282,6 +292,7 @@ StaticFindObject = function(path)
     if path:find("PalItemUtility") then
         return { CountLocalPlayerInventoryItemNum64 = function(_, _, id) return bagHas[id:ToString()] or 0 end }
     end
+    if path == "/Script/AssetRegistry.Default__AssetRegistryHelpers" then return assetRegistryHelpers end
     if path:find("^/Game/Mods/") then return logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
     if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then return loaded[path:match("^[^.]+")] and Texture(path) or nil end
     if path:find("BP_BuildObject_ItemChest_04_C:", 1, true) then
@@ -831,6 +842,10 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
            and known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
            and logged("wall skin paws: the paw layer from the pak, with mips") and logged("wall skin paws: colours paws:"),
            "the paws skin: the cooked paw layer on M_APWall over each piece's area colour (" .. nBacks .. " colours)")
+    local notes, before = {}, #badLoads
+    local fresh = W.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
+    expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry" and #badLoads == before,
+           "a pak asset LoadAsset can't find (dev.39 playtest) comes through the asset registry, as BPModLoader's ModActor does")
     W.setSkin("colour-paws"); run(1)
     cm.parent.IsValid = function() return false end            -- now without the pak
     logicMod = false

@@ -356,8 +356,6 @@ local function linearOf(hex)
 end
 W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS
 local FLOW = 0.05
-local AP_WALL = "/Game/Mods/PalworldArchipelagoArt/M_APWall.M_APWall"
-local PAW_LAYER = "/Game/Mods/PalworldArchipelagoArt/T_APWallPaws.T_APWallPaws"
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
 local apWall = nil                                             -- M_APWall once loaded
 local DENSE = { 10, 6 }
@@ -379,23 +377,46 @@ local function meshOf(a)
     ok, m = pcall(function() return a:GetComponentByClass(smc) end)
     if ok and m and m:IsValid() then return m end
 end
+-- An asset of the PalworldArchipelagoArt pak: already loaded, else through the asset registry as BPModLoader loads the
+-- pak's ModActor (AssetRegistryHelpers:GetAsset with PackageName and AssetName), else LoadAsset. 2026-11-08 dev.39
+-- playtest: BPModLoader spawned the pak's ModActor in every level, yet LoadAsset + StaticFindObject found no M_APWall.
+-- Each step is guarded; how it went is noted for the one-time probe line.
+local function modAsset(pkg, name, notes)
+    local full = pkg .. "." .. name
+    local function found()
+        local ok, o = pcall(StaticFindObject, full)
+        return ok and o and o:IsValid() and o or nil
+    end
+    local o = found()
+    if o then notes[#notes + 1] = name .. " already loaded"; return o end
+    local ok, got = pcall(function()
+        local helpers = StaticFindObject("/Script/AssetRegistry.Default__AssetRegistryHelpers")
+        if not (helpers and helpers:IsValid()) then return "no AssetRegistryHelpers" end
+        local function fname(s) return EFindName and FName(s, EFindName.FNAME_Add) or FName(s) end
+        local a = helpers:GetAsset({ PackageName = fname(pkg), AssetName = fname(name) })
+        return a and a:IsValid() and a or "GetAsset gave nothing"
+    end)
+    if ok and type(got) ~= "string" then notes[#notes + 1] = name .. " from the asset registry"; return got end
+    notes[#notes + 1] = name .. " registry: " .. tostring(got)
+    local okL, err = pcall(LoadAsset, full)
+    o = found()
+    if o then notes[#notes + 1] = name .. " from LoadAsset"; return o end
+    notes[#notes + 1] = name .. " LoadAsset " .. (okL and "found nothing" or ("errored: " .. tostring(err)))
+end
+W.modAsset = modAsset
 local apWallProbed = false
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
-    local okL, got = pcall(LoadAsset, AP_WALL)
-    local m = StaticFindObject(AP_WALL)
-    if m and m:IsValid() then apWall = m; W.keep(m); return m end
-    -- Not found (2026-11-08 playtest: every colour skin said so, though BPModLoader listed the pak): once, what the
-    -- loader returned, whether the package or the pak's ModActor class is there (is the pak mounted at all?).
+    local notes = {}
+    local m = modAsset("/Game/Mods/PalworldArchipelagoArt/M_APWall", "M_APWall", notes)
     if not apWallProbed then
         apWallProbed = true
-        local function valid(path) local o = StaticFindObject(path); return o and o:IsValid() and "yes" or "no" end
-        local okA, actor = pcall(LoadAsset, "/Game/Mods/PalworldArchipelagoArt/ModActor.ModActor")
-        log("wall material probe: LoadAsset(M_APWall) " .. (okL and ("returned " .. tostring(got)) or ("errored: " .. tostring(got)))
-            .. "; package /Game/Mods/PalworldArchipelagoArt/M_APWall " .. valid("/Game/Mods/PalworldArchipelagoArt/M_APWall")
-            .. "; ModActor_C " .. valid("/Game/Mods/PalworldArchipelagoArt/ModActor.ModActor_C")
-            .. " (LoadAsset " .. (okA and tostring(actor) or ("errored: " .. tostring(actor))) .. ")")
+        local okA, actor = pcall(StaticFindObject, "/Game/Mods/PalworldArchipelagoArt/ModActor.ModActor_C")
+        local hasActor = okA and actor and actor:IsValid()
+        log("wall material probe: " .. (m and "found" or "not found") .. " (" .. table.concat(notes, "; ") .. "); ModActor_C "
+            .. (hasActor and "loaded" or "not loaded"))
     end
+    if m then apWall = m; W.keep(m); return m end
 end
 local function colourMaterial(name, gi, krl, kml)
     local base = apWallMaterial()
@@ -422,8 +443,8 @@ end
 local pawLayer = nil
 local function pawLayerTexture(gi, krl)
     if pawLayer and pawLayer:IsValid() then return pawLayer end
-    pcall(LoadAsset, PAW_LAYER)
-    local t, from = StaticFindObject(PAW_LAYER), "the pak, with mips"
+    local notes = {}
+    local t, from = modAsset("/Game/Mods/PalworldArchipelagoArt/T_APWallPaws", "T_APWallPaws", notes), "the pak, with mips"
     if not (t and t:IsValid()) then
         t, from = krl:ImportFileAsTexture2D(gi, W.dir .. "\\walls\\ap-wall-paws-layer.png"), "walls\\ap-wall-paws-layer.png, no mips"
     end
