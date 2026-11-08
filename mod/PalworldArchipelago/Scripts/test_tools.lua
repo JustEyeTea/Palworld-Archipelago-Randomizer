@@ -51,6 +51,34 @@ local function pawn()
 end
 local function fixed(v) return type(v) == "table" and tostring(v.Value) or tostring(v) end
 
+-- Ctrl+F2: move faster for testing (the user, 2026-11-08: walls are minutes away on foot). The game's own named walk
+-- speed multiplier, as the Slow Trap uses it (verified in game); on the player and on the Pal ridden, if any. Gone
+-- with the world (it lives on the movement component).
+local SPEEDS, SPEED_KEY = { 1, 3, 6 }, "APTestSpeed"
+local speedAt = 1
+local function speedUp()
+    speedAt = speedAt % #SPEEDS + 1
+    local factor = SPEEDS[speedAt]
+    local p = assert(pawn(), "no player character")
+    local parts = {}
+    local function apply(who, label)
+        local comp = who:GetPalCharacterMovementComponent()
+        comp:SetWalkSpeedMultiplier(FName(SPEED_KEY), factor)
+        parts[#parts + 1] = label .. " " .. tostring(comp:GetWalkSpeedMultiplier())
+    end
+    apply(p, "player")
+    for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
+        local ok, m = pcall(function() return pc:GetControlPalCharacter() end)
+        if ok and m and m:IsValid() and m ~= p then
+            local okm, err = pcall(apply, m, "mount")
+            if not okm then parts[#parts + 1] = "mount: " .. tostring(err) end
+            break
+        end
+    end
+    return factor, table.concat(parts, ", ")
+end
+T.speedUp = speedUp
+
 local function exhaustion()
     local p = assert(pawn(), "no player character")
     local cp = p:GetCharacterParameterComponent()
@@ -298,7 +326,14 @@ function T.install()
             log("--- wall skin " .. tostring(name) .. " (on at the next update)")
         end)
     end)
-    log("test tools on: Ctrl+F3 wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense)")
+    RegisterKeyBind(Key.F2, { ModifierKey.CONTROL }, function()
+        ExecuteInGameThread(function()
+            local ok, factor, how = pcall(speedUp)
+            log("--- speed " .. (ok and ("x" .. factor .. " (walk multipliers now: " .. how .. ")") or ("error: " .. tostring(factor))))
+        end)
+    end)
+    log("test tools on: Ctrl+F2 move faster (x1, x3, x6)")
+    log("test tools on: Ctrl+F3 wall skin (" .. table.concat(require("walls").SKINS, ", ") .. ")")
     RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function()
         ExecuteInGameThread(function()
             log("--- HUD probe")
@@ -306,13 +341,14 @@ function T.install()
             if not ok then log("HUD probe: error " .. tostring(err)); hudProbe = nil end
         end)
     end)
-    LoopAsync(33, function()                                   -- made here, at module load
-        if hudProbe then
-            ExecuteInGameThread(function()
-                local ok, err = pcall(hudProbeStep)
-                if not ok then log("HUD probe: step error " .. tostring(err)); hudProbe = nil end
-            end)
-        end
+    -- Loops: made here, at module load; off the game thread they only read a flag and hand over a function made once
+    -- (walls.lua, loopStep: running Lua there crashed the game).
+    local function probeStep()
+        local ok, err = pcall(hudProbeStep)
+        if not ok then log("HUD probe: step error " .. tostring(err)); hudProbe = nil end
+    end
+    LoopAsync(33, function()
+        if hudProbe then ExecuteInGameThread(probeStep) end
         return false
     end)
     log("test tools on: Ctrl+F4 HUD probe")
@@ -330,13 +366,12 @@ function T.install()
         end)
     end
     -- Made here, at module load (a loop made inside ExecuteInGameThread fails); 250 ms, not the core loop's 300.
+    local function pollStep()
+        local ok, err = pcall(poll)
+        if not ok then log("give Pal: poll error " .. tostring(err)); pending = nil end
+    end
     LoopAsync(250, function()
-        if pending then
-            ExecuteInGameThread(function()
-                local ok, err = pcall(poll)
-                if not ok then log("give Pal: poll error " .. tostring(err)); pending = nil end
-            end)
-        end
+        if pending then ExecuteInGameThread(pollStep) end
         return false
     end)
     log("test tools on: give Pal by Ctrl+Shift+F5 party_debug, F6 party_plain, F7 handle, F8 palbox, F9 auto")

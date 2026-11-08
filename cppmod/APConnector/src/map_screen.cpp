@@ -48,6 +48,7 @@ namespace map_screen_unreal
     std::atomic<UObject*> g_class{nullptr};    // WBP_Map_Body_C, for logging its functions
     std::atomic<uint64_t> g_frame{0};
     std::atomic<int> g_setups{0}, g_bodies{0}, g_fogs{0}, g_fogpics{0};
+    std::atomic<int> g_logged{0};              // Setups logged in detail since Setup was (last) found
     std::mutex g_probe_lock;                   // guards the probe's burst state below
     std::unordered_set<std::string> g_burst_names;
     uint64_t g_burst_frame = 0;
@@ -159,7 +160,7 @@ namespace map_screen_unreal
             std::lock_guard<std::mutex> guard(g_lock);
             g_last = did.str();
         }
-        if (n <= 5 || n % 50 == 0) say(did.str());
+        if (++g_logged <= 5 || n % 50 == 0) say(did.str());
     }
 
     // One of the screen's own functions ran: logged the first time its name shows up in this burst of calls.
@@ -200,21 +201,42 @@ namespace map_screen_unreal
         seen(context, fn, "event");
     }
 
-    // Game thread, every frame: counts frames, and until it is found looks for Setup every 60.
+    // Game thread, every frame: counts frames, and every 60 looks for Setup: the first time to hook the Blueprint VM, then
+    // to follow it. dev.35 playtest (2026-11-08): after Return to title and a second world load the hook went silent (no
+    // Setup seen, the map showing the game's dark fog): the screen's class goes with the first world and is loaded anew,
+    // so Setup is a new object, and the pointer kept from the first load never matched again. The callbacks are
+    // registered once; only the pointer they compare against changes.
     auto tick() -> void
     {
         const uint64_t frame = ++g_frame;
-        if (g_hooked.load(std::memory_order_relaxed) || frame % 60 != 0) return;
+        if (frame % 60 != 0) return;
         auto* fn = UObjectGlobals::StaticFindObject<UFunction*>(nullptr, nullptr, SETUP_PATH);
-        if (!fn) return;
+        if (fn == g_setup.load(std::memory_order_relaxed)) return;
+        if (!fn)                                   // (the class unloaded, as at Return to title)
+        {
+            g_setup = nullptr;
+            g_class = nullptr;
+            say("Setup gone (its class unloaded) at frame " + std::to_string(frame));
+            return;
+        }
         g_class = fn->GetOuterPrivate();
         g_setup = fn;
-        const Hook::FCallbackOptions options{false, true, STR("APConnector"), STR("MapScreen")};
-        Hook::RegisterProcessLocalScriptFunctionPostCallback(&script_post, options);
-        Hook::RegisterProcessInternalPostCallback(&script_post, options);
-        Hook::RegisterProcessEventPostCallback(&event_post, options);
-        g_hooked = true;
-        say("hooked " + to_string(fn->GetFullName()) + " at frame " + std::to_string(frame));
+        g_logged = 0;
+        {
+            std::lock_guard<std::mutex> guard(g_probe_lock);
+            g_bursts = 0;                          // (the new world's first openings are probed too)
+        }
+        if (!g_hooked.load(std::memory_order_relaxed))
+        {
+            const Hook::FCallbackOptions options{false, true, STR("APConnector"), STR("MapScreen")};
+            Hook::RegisterProcessLocalScriptFunctionPostCallback(&script_post, options);
+            Hook::RegisterProcessInternalPostCallback(&script_post, options);
+            Hook::RegisterProcessEventPostCallback(&event_post, options);
+            g_hooked = true;
+            say("hooked " + to_string(fn->GetFullName()) + " at frame " + std::to_string(frame));
+        }
+        else
+            say("found Setup again (its class loaded anew) at frame " + std::to_string(frame));
     }
 } // namespace map_screen_unreal
 

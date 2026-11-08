@@ -250,6 +250,54 @@ local function bannerStatus(b)
     if b.dot and b.state ~= st then b.state = st; pcall(function() b.dot:SetColorAndOpacity(DOT[st] or DOT.other) end) end
 end
 
+-- A dark backing behind a row of the Archipelago menu (the user, dev.33: "perhaps there needs to be a dark BG behind the
+-- Archipelago connection fields so that they can be more readable"): each row in a Border, 41 high with no gap between,
+-- so together they read as one panel (the row itself still 38 high). The bare row when a Border can't be made.
+-- Soft edges (dev.34: "Perhaps the edges of the BG could be a bit more soft/diffuse"): the Border's brush is a feathered
+-- piece (art/ap-menu-panel-<edge>.png, tools/menu_panel_art.py) drawn as a Box, so the feather keeps its width: every
+-- row soft at the sides, the top row at the top, the bottom row at the bottom. Its own brush, written field by field in
+-- place (never assigned from another widget: dev.21). Plain colour when the piece can't be had.
+local ROW_BG = { R = 0.012, G = 0.035, B = 0.045, A = 0.82 }
+local BACKED = { go = true, back = true }              -- (the saved servers have their own panel, dark already)
+local PANEL_SIDE, PANEL_END = 28 / 64, 16 / 64        -- the pieces' margins (of their 64 px)
+-- The panel's soft ends in rows of their own above Server and below Back (dev.35: "I might move the whole text area
+-- further down and expand the background to better cover the top area"): the text rows all on its solid part, the text
+-- 24 lower. Without them, the first and last rows take the soft ends.
+local PAD_TOP, PAD_BOTTOM = 24, 16
+local padded = false                                  -- (while a menu's rows are made: it has its pads)
+local function edgeOf(kind)
+    if kind == "server" then return padded and "mid" or "top" end
+    if kind == "back" then return padded and "mid" or "bottom" end
+    return "mid"
+end
+local function softEdges(border, edge)
+    local tex = ART.texture("ap-menu-panel-" .. edge)
+    if not tex then return false end
+    local ok = pcall(function()
+        local b = border.Background
+        b.DrawAs = 1                                  -- ESlateBrushDrawType::Box
+        b.Margin.Left, b.Margin.Right = PANEL_SIDE, PANEL_SIDE
+        b.Margin.Top = edge == "top" and PANEL_END or 0
+        b.Margin.Bottom = edge == "bottom" and PANEL_END or 0
+        b.ImageSize.X, b.ImageSize.Y = 64, 64
+    end)
+    if not ok then return false end
+    return (pcall(function() border:SetBrushFromTexture(tex) end))
+end
+local function backed(menu, child, edge)
+    local cls = StaticFindObject("/Script/UMG.Border")
+    if not (cls and cls:IsValid()) then once("rowbg", "menu: no Border class; the rows have no backing"); return child, false end
+    local okB, border = pcall(StaticConstructObject, cls, menu)
+    if not (okB and border and border:IsValid()) then once("rowbg", "menu: could not make a Border; the rows have no backing"); return child, false end
+    local soft = softEdges(border, edge or "mid")
+    if not soft then once("rowsoft", "menu: the panel's soft edges could not be had; plain rows") end
+    pcall(function() border:SetBrushColor(ROW_BG) end)
+    pcall(function() border:SetPadding({ Left = soft and 22 or 10, Top = 1.5, Right = soft and 22 or 10, Bottom = 1.5 }) end)
+    local okA = pcall(function() border:AddChild(child) end)
+    if not okA then once("rowbg", "menu: a Border would not take a row; the rows have no backing"); return child, false end
+    return border, true
+end
+
 local function addButton(menu, list, kind)
     local class = find(BUTTON)
     local sizeClass = StaticFindObject("/Script/UMG.SizeBox")
@@ -259,13 +307,15 @@ local function addButton(menu, list, kind)
     if not button or not button:IsValid() then return nil end
     local box = StaticConstructObject(sizeClass, menu)
     if kind ~= "mailbox" then box:SetWidthOverride(kind:match("^pick") and 420 or 600) end   -- (the Esc menu's column is narrower: fill it)
-    box:SetHeightOverride(38)
-    box:AddChild(button)
+    local content, isBacked = button, false
+    if BACKED[kind] then content, isBacked = backed(menu, button, edgeOf(kind)) end
+    box:SetHeightOverride(isBacked and 41 or 38)
+    box:AddChild(content)
     local slot = list:AddChild(box)
-    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 3 }) end)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = isBacked and 0 or 3 }) end)
     pcall(function() slot:SetHorizontalAlignment(0) end)
     ours[tostring(button:GetAddress())] = kind
-    return button
+    return button, box                                -- (the size box: the button's parent is its Border when backed)
 end
 
 -- The Esc menu's own small button (WBP_MenuESC_Button_S, as Emergency Respawn and Return to Title), straight in the
@@ -946,7 +996,7 @@ end
 -- nothing assigned from another object, no brush touched. A line goes to the log just before the first, so a crash there
 -- would point at it.
 local EDIT_COLOUR = { R = 0.86, G = 0.95, B = 0.94, A = 1 }
-local EDIT_BG = { 0.012, 0.035, 0.045, 0.88 }          -- a dark, slightly see-through teal-black
+local EDIT_BG = { 0.0, 0.006, 0.01, 0.97 }             -- near black (dev.34: "the text boxes themselves should be darker")
 local coloured = false
 local function setColour(slate, c)
     local sc = slate.SpecifiedColor
@@ -961,6 +1011,19 @@ local function colourEdit(edit)
     setColour(st.ForegroundColor, fg)
     setColour(st.FocusedForegroundColor, fg)
     if not coloured then coloured = true; log("menu: text boxes coloured") end
+end
+-- A pad: the panel's soft end (edge "top" or "bottom"), h high, with nothing in it.
+local function addPad(menu, list, edge, h)
+    local spacer = StaticConstructObject(StaticFindObject("/Script/UMG.Spacer"), menu)
+    local content, isBacked = backed(menu, spacer, edge)
+    if not isBacked then return nil end
+    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
+    box:SetWidthOverride(600)
+    box:SetHeightOverride(h)
+    box:AddChild(content)
+    local slot = list:AddChild(box)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 0 }); slot:SetHorizontalAlignment(0) end)
+    return box
 end
 local function addTextRow(menu, list, kind)
     local cls, what = StaticFindObject("/Script/Pal.PalEditableTextBox"), "PalEditableTextBox"
@@ -985,10 +1048,11 @@ local function addTextRow(menu, list, kind)
     pcall(function() es:SetSize({ SizeRule = 1, Value = 1 }); es:SetVerticalAlignment(2) end)                          -- Fill
     local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
     box:SetWidthOverride(600)
-    box:SetHeightOverride(38)
-    box:AddChild(row)
+    local content, isBacked = backed(menu, row, edgeOf(kind))
+    box:SetHeightOverride(isBacked and 41 or 38)
+    box:AddChild(content)
     local slot = list:AddChild(box)
-    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 3 }); slot:SetHorizontalAlignment(0) end)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = isBacked and 0 or 3 }); slot:SetHorizontalAlignment(0) end)
     return box, edit, what
 end
 -- The saved servers' drop-down: a panel on the canvas the button list sits on, over the rows below the Server box
@@ -1016,7 +1080,7 @@ end
 -- Under the Server box: the list's top (the Server row is its first while the menu shows) plus one row.
 local function placeDrop(m)
     local anchors, at = bannerSpot(m.list)
-    local y = at.Y + 8 + ROW_STEP
+    local y = at.Y + 8 + (m.padTop or 0) + ROW_STEP
     if m.drop.at and m.drop.at.X == at.X and m.drop.at.Y == y then return end
     m.drop.slot:SetAnchors(anchors)
     m.drop.slot:SetAlignment({ X = 0.5, Y = 0 })
@@ -1331,11 +1395,18 @@ function M.update(ctx)
                 local drop = nil
                 local okT, whyT = pcall(function()
                     local function button(into, kind)
-                        local b = addButton(menu, into, kind)
+                        local b, box = addButton(menu, into, kind)
                         if not b then error("no button for " .. kind) end
-                        rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                        rows[kind], boxes[kind], keys[#keys + 1] = b, box, tostring(b:GetAddress())
                         pcall(function() boxes[kind]:SetVisibility(1) end)                -- collapsed until the menu opens
                     end
+                    padded = ART.texture("ap-menu-panel-top") ~= nil and ART.texture("ap-menu-panel-bottom") ~= nil
+                    local function pad(kind, edge, h)
+                        local okP, box = pcall(addPad, menu, list, edge, h)
+                        if okP and box then boxes[kind] = box; pcall(function() box:SetVisibility(1) end)
+                        else padded = false; once("pad", "menu: the panel's " .. edge .. " pad not made (" .. tostring(box) .. ")") end
+                    end
+                    if padded then pad("padtop", "top", PAD_TOP) end
                     for _, kind in ipairs(TEXT_ROWS) do
                         if TYPED[kind] then
                             local box, edit, cls = addTextRow(menu, list, kind)
@@ -1345,12 +1416,14 @@ function M.update(ctx)
                             button(list, kind)
                         end
                     end
+                    if padded then pad("padbottom", "bottom", PAD_BOTTOM) end
                     -- the saved servers, once the rows are in: their own panel on the canvas (in the list without one)
                     local okD, d = pcall(makeDrop, menu, list)
                     drop = okD and d or nil
                     for i = 1, PICKS do button(drop and drop.list or list, "pick" .. i) end
                 end)
                 if not okT then
+                    padded = false
                     if drop then pcall(function() drop.box:RemoveFromParent() end); drop = nil end
                     for _, box in pairs(boxes) do pcall(function() list:RemoveChild(box) end) end
                     for _, k in ipairs(keys) do ours[k] = nil end
@@ -1359,14 +1432,15 @@ function M.update(ctx)
                     addFails = addFails + 1
                     if addFails <= 5 then log("menu: typed fields not made (" .. why .. "); the text window instead (try " .. addFails .. ")") end
                     for _, kind in ipairs(ROWS) do
-                        local ok, b = pcall(addButton, menu, list, kind)
+                        local ok, b, box = pcall(addButton, menu, list, kind)
                         if not (ok and b) then err = b or "no button"; break end
-                        rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                        rows[kind], boxes[kind], keys[#keys + 1] = b, box, tostring(b:GetAddress())
                         pcall(function() boxes[kind]:SetVisibility(1) end)
                     end
                 end
                 if not err then
-                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {}, drop = drop }
+                    m = { rows = rows, boxes = boxes, keys = keys, list = list, open = false, shown = {}, edits = edits, typed = {}, drop = drop,
+                          padTop = boxes.padtop and PAD_TOP or 0 }
                     menus[key] = m
                     added = true
                     addFails = 0                                  -- (the next run of failures is logged again)
@@ -1377,8 +1451,8 @@ function M.update(ctx)
                     if okB then m.banner = banner else log("menu: title banner error: " .. tostring(banner)) end
                     local okO, why = pcall(bannerButton, menu, m)
                     if not okO then
-                        local ok2, b = pcall(addButton, menu, list, "open")          -- no banner: a row of its own
-                        if ok2 and b then rows.open, boxes.open, keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress()) end
+                        local ok2, b, box = pcall(addButton, menu, list, "open")     -- no banner: a row of its own
+                        if ok2 and b then rows.open, boxes.open, keys[#keys + 1] = b, box, tostring(b:GetAddress()) end
                         log("menu: no button on the banner (" .. tostring(why) .. "): an \"Archipelago...\" row instead")
                     end
                     local okq, whyq = pcall(quitLast, menu, list)
@@ -1388,7 +1462,7 @@ function M.update(ctx)
                         .. (m.openButton and "; the banner opens it" or "")
                         .. (edits and ("; fields typed in " .. tostring(what)) or "; fields in the text window"))
                 else
-                    for _, b in pairs(rows) do pcall(function() b:GetParent():RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
+                    for kind, b in pairs(rows) do pcall(function() boxes[kind]:RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
                     addFails = addFails + 1
                     fails[key] = fails[key] + 1
                     if addFails <= 5 then log("menu: could not add the Archipelago menu's rows: " .. tostring(err) .. " (try " .. addFails .. ")") end
@@ -1460,7 +1534,29 @@ function M.update(ctx)
     end
 end
 
-function M.install(functions) api = functions end
+-- Esc closes the Archipelago menu as Back does (the user, dev.36: "It would be nice if we could hit 'ESC' to back out of
+-- that Archipelago Menu"). A UE4SS key bind (it fires whatever has the keyboard, a text box too), acted on at the next
+-- game tick for each live menu that is open; Esc anywhere else is left to the game.
+local escBound = false
+local function escapeMenus()
+    for _, m in pairs(menus) do
+        if m.live and m.open then
+            local ok, err = pcall(act, m, "back")
+            if not ok then log("menu: Esc error: " .. tostring(err)) end
+            refreshRows(m)
+            once("esc", "menu: Esc closes the Archipelago menu (as Back)")
+        end
+    end
+end
+M.escape = escapeMenus
+
+function M.install(functions)
+    api = functions
+    if not escBound and RegisterKeyBind and Key and Key.ESCAPE and ExecuteInGameThread then
+        escBound = true
+        RegisterKeyBind(Key.ESCAPE, function() ExecuteInGameThread(function() pcall(escapeMenus) end) end)
+    end
+end
 
 
 return M

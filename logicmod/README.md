@@ -46,8 +46,9 @@ How the Lua mod uses it:
 7. Start Unreal Engine 5.1 once and close it. Then edit
    `%APPDATA%\Unreal Engine\UnrealBuildTool\BuildConfiguration.xml`:
    - under `VCProjectFileGenerator`: `<Version>VisualStudio2022</Version>`;
-   - under `WindowsPlatform`: `<Compiler>VisualStudio2022</Compiler>`, `<CompilerVersion>14.38.33130</CompilerVersion>`
-     and `<ToolchainVersion>14.38.33130</ToolchainVersion>`.
+   - under `WindowsPlatform`: `<Compiler>VisualStudio2022</Compiler>` and `<CompilerVersion>14.38.33130</CompilerVersion>`.
+     Leave out `ToolchainVersion`: UE 5.1 has no such setting and fails to read the file with it (Game PC setup,
+     2026-11-08; the first build then used the 14.38 toolchain).
 8. Double-click `C:\PMK\Pal.uproject`.
    - Answer **Yes** to "modules are out of date". The first compile takes a while.
    - Answer **Yes** to any Wwise compatibility prompt, and close any Wwise project-path popup.
@@ -150,12 +151,21 @@ Part 1's setup, not Parts 2 and 3.
    `UnrealEditor-Cmd.exe ... -run=pythonscript` line with this script). It builds the whole material and its chunk
    label (chunk 2); nothing is by hand. The Output Log lines start with `[PalworldArchipelagoArt]`.
 2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and look for a compile error at the bottom.
-3. Package as in Part 4 (Use Pak File and Generate Chunks on). Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc`
+3. Package as in Part 4 (Use Pak File and Generate Chunks on), and also, in `Config\DefaultGame.ini` under
+   `[/Script/UnrealEd.ProjectPackagingSettings]`, `bShareMaterialShaderCode=False` (and
+   `bSharedMaterialNativeLibraries=False`), so the material's compiled shaders go in its own pak, not in a shared
+   shader library in chunk 0, which is never installed. (The first build, 2026-11-08, was 33 KB: too small to hold
+   them.) The script also makes an empty `ModActor`, so BPModLoader's log says whether the game loaded the pak. Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc`
    if there), rename to `PalworldArchipelagoArt.pak` (and `.ucas` / `.utoc`), and copy to `Pal\Content\Paks\LogicMods\`.
 4. In game with `test_tools=1`, Ctrl+F3 to a `colour-...` skin. UE4SS.log says `wall skin colour-...: material made on
    M_APWall`. Without the pak it says `needs the PalworldArchipelagoArt pak` and Ctrl+F3 skips it.
 
-What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour-<name>.png`), and optionally
-`CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`, `Opacity`, `FadeStart`/`FadeEnd`
-(900 / 1500 cm). The pattern is laid on the wall in world space, so it keeps its size on every piece and recedes in
+What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour-<name>.png`, or the cream-paw layer
+for the default `paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; the paws skin puts the
+area's colour at 0.34), `CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`,
+`Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm), `OffsetU`/`OffsetV`/`MirrorU` (each of the 75 Areas a variant of
+its Region's look), and `DissolveStart`/`DissolveTime` (an unlock: the wall dissolves by the game's clock). It also glows and ripples
+near the player, whose position the mod sets as `PlayerPos` each update (300 ms) (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`,
+`ReactColor`). The script also cooks `walls\ap-wall-paws-layer.png` into the pak as
+`T_APWallPaws`, with mips; it reads the PNG from this repo, so run it from a full checkout. The pattern is laid on the wall in world space, so it keeps its size on every piece and recedes in
 perspective.

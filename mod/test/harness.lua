@@ -107,6 +107,7 @@ util.GetLocalPlayerState = function() return ps end
 
 -- UE4SS.
 local hooks, postHooks, loop, extraLoops = {}, {}, nil, {}
+gameSeconds = 1234.5                                         -- the game's clock: 33 ms a turn of the 33 ms loops
 local function Card(tech)
     local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
     local function text(field)
@@ -142,11 +143,23 @@ loaded, badLoads = {}, {}
 LoadAsset = function(path)
     local pkg, asset = path:match("^(/[^.]+)%.([^./:]+)$")
     if not pkg or asset:match("_C$") or asset ~= pkg:match("([^/]+)$") then badLoads[#badLoads + 1] = path; return end
+    -- dev.39 playtest: the PalworldArchipelagoArt pak was mounted (BPModLoader spawned its ModActor) but LoadAsset never
+    -- found M_APWall in it; the asset registry's GetAsset, as BPModLoader uses, is what loads it.
+    if pkg:find("^/Game/Mods/PalworldArchipelagoArt/") then return end
     loaded[pkg] = true
 end
+assetRegistryHelpers = { IsValid = function() return true end,
+    GetAsset = function(_, data)
+        local pkg, name = data.PackageName:ToString(), data.AssetName:ToString()
+        if not (logicMod and pkg:find("^/Game/Mods/") and pkg:match("([^/]+)$") == name) then return { IsValid = function() return false end } end
+        loaded[pkg] = true
+        return Texture(pkg .. "." .. name)
+    end }
 local greyBoxes, mapDraws, mapOpen = 0, 0, false
 stampAt = {}                                                 -- global: stamp texture -> where it was last drawn
-local canvas = { K2_DrawTexture = function(_, tex, pos)
+drawLog = {}                                                  -- global: the textures drawn into render targets, in order
+local canvas = { K2_DrawTexture = function(_, tex, pos, size, uv0, uvSize, colour, blend)
+                     drawLog[#drawLog + 1] = { path = tex and tex.path, blend = blend }
                      if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end
                      if tex and tostring(tex.path):find("ap%-map%-stamp") then stampAt[tex.path] = pos end
                  end,
@@ -205,6 +218,7 @@ FindAllOf = function(class)
         if not mapOpen then return {} end
         local list = { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody }
         if treeOpen then list[#list + 1] = treeBody end              -- (global treeOpen: the World Tree's screen too)
+        if staleBody then list[#list + 1] = staleBody end            -- (global: the last world's, not yet collected)
         return list
     end
     if class == "PalPlayerState" then return noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
@@ -271,6 +285,7 @@ local gameplay = { IsValid = function() return true end,
                    end,
                    FinishSpawningActor = function(_, a) wallsUp[a] = true end,
                    GetWorldDeltaSeconds = function() return 0.016 end,
+                   GetTimeSeconds = function() return gameSeconds end,
                    SpawnObject = function() return Widget() end }
 local function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
 StaticFindObject = function(path)
@@ -279,6 +294,7 @@ StaticFindObject = function(path)
     if path:find("PalItemUtility") then
         return { CountLocalPlayerInventoryItemNum64 = function(_, _, id) return bagHas[id:ToString()] or 0 end }
     end
+    if path == "/Script/AssetRegistry.Default__AssetRegistryHelpers" then return assetRegistryHelpers end
     if path:find("^/Game/Mods/") then return logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
     if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then return loaded[path:match("^[^.]+")] and Texture(path) or nil end
     if path:find("BP_BuildObject_ItemChest_04_C:", 1, true) then
@@ -453,6 +469,7 @@ StaticConstructObject = function(cls)
     local kind = type(cls) == "table" and cls.umg or "SizeBox"
     if kind == "PalEditableTextBox" or kind == "EditableTextBox" then return EditBox(kind) end
     local box = Widget({ GetClass = function() return classed(kind) end, kind = kind, children = {}, Font = { Size = 24 },
+                         Background = { Margin = {}, ImageSize = {} },      -- (a Border's brush, written field by field)
                          SetWidthOverride = function(self, w) self.width = w end, SetHeightOverride = function(self, h) self.height = h end,
                          SetBrushFromTexture = function(self, t) self.texture = t end,
                          SetFont = function(self, f) self.fontSize = f.Size end,
@@ -461,6 +478,7 @@ StaticConstructObject = function(cls)
                          GetVisibility = function(self) return self.vis or 0 end,
                          SetRenderTransformPivot = function(self, v) self.pivot = v end,
                          SetRenderScale = function(self, v) self.scale = v end,
+                         SetBrushColor = function(self, c) self.brush = c end, SetPadding = function(self, p) self.pad = p end,
                          RemoveFromParent = function(self) self.removedFromParent = true end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
@@ -536,9 +554,12 @@ end
 local function run(ticks)
     for _ = 1, ticks do
         clock, frameCount = clock + 0.3, frameCount + 20
+        gameSeconds = gameSeconds + 0.3
         loop()
         for i = #extraLoops, 1, -1 do                     -- other loops (the walls sinking) end by returning true
-            for _ = 1, 10 do if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end end
+            for _ = 1, 10 do
+                if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end
+            end
         end
     end
 end
@@ -808,6 +829,28 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
     local fm = a.Cube.mat
     expect(fm.textures.Pattern.path == "ap-wall-colour-rainbow" and fm.scalars.ScrollU == 0.05 and fm.scalars.ScrollV == 0,
            "the -flow skin: the same tile, drifting sideways")
+    -- paws: the Art lane's cream-paw layer (cooked in the pak) over each piece's area colour at 0.34, on M_APWall
+    W.setSkin("paws"); run(1)
+    local pm = a.Cube.mat
+    local function close(c, d) return c and d and math.abs(c.R - d.R) < 1e-3 and math.abs(c.G - d.G) < 1e-3 and math.abs(c.B - d.B) < 1e-3 end
+    local backs, colours = {}, { W.linearOf("9AA3B5"), W.linearOf("24E0CC") }
+    for _, hex in pairs(W.AREA_COLOURS) do colours[#colours + 1] = W.linearOf(hex) end
+    local known = false
+    for _, c in ipairs(colours) do if pm.vectors and pm.vectors.Back and close(pm.vectors.Back, c) then known = true end end
+    for w in pairs(wallsUp) do
+        local b = w.Cube.mat.vectors and w.Cube.mat.vectors.Back
+        if b then backs[string.format("%.3f,%.3f,%.3f", b.R, b.G, b.B)] = true end
+    end
+    local nBacks = 0
+    for _ in pairs(backs) do nBacks = nBacks + 1 end
+    expect(pm ~= cm and pm.parent == cm.parent and pm.textures.Pattern.path:find("T_APWallPaws", 1, true)
+           and known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
+           and logged("wall skin paws: the paw layer from the pak, with mips") and logged("wall skin paws: colours paws:"),
+           "the paws skin: the cooked paw layer on M_APWall over each piece's area colour (" .. nBacks .. " colours)")
+    local notes, before = {}, #badLoads
+    local fresh = W.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
+    expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry" and #badLoads == before,
+           "a pak asset LoadAsset can't find (dev.39 playtest) comes through the asset registry, as BPModLoader's ModActor does")
     W.setSkin("colour-paws"); run(1)
     cm.parent.IsValid = function() return false end            -- now without the pak
     logicMod = false
@@ -918,7 +961,120 @@ expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] =
        "an Area Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)
 expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
-
+do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
+    -- module is driven directly with one extra pass, so no real pass is given (later tests count on which areas are open).
+    local W = require("walls")
+    local hadPak = logicMod
+    logicMod = true
+    W.setSkin("paws"); run(2)
+    local target
+    for _, w in ipairs(WD.walls) do
+        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
+        if other and other ~= "Open sea" and not open[other] then target = other; break end
+    end
+    local before = {}
+    for wa in pairs(wallsUp) do before[wa] = true end
+    local passes = { [target] = true }
+    for k in pairs(open) do passes[k] = true end
+    local standIn = { IsValid = function() return true end, K2_GetActorLocation = function() return pawnAt end }
+    for _ = 1, 40 do W.update(true, passes, standIn) end
+    local fading, shrunk = nil, 0
+    for wa in pairs(before) do
+        local m = wa.Cube.mat
+        if m and m.scalars and m.scalars.DissolveStart and not fading then fading = wa end
+        if wa.shrunkTo then shrunk = shrunk + 1 end
+    end
+    expect(fading and math.abs(fading.Cube.mat.scalars.DissolveStart - gameSeconds) < 1 and fading.Cube.mat.scalars.DissolveTime == 1.6
+           and shrunk == 0 and logged("an opened wall dissolves"),
+           "an opened paws wall gets a dissolving copy of its material, from now, over 1.6 s, and doesn't shrink: " .. tostring(target))
+    local t0 = fading and fading.Cube.mat.scalars.DissolveStart
+    local seen = {}
+    for _ = 1, 40 do
+        run(1)
+        if fading and not seen.open and fading.collision == false then seen.open = gameSeconds - t0 end
+        if fading and not seen.gone and fading.gone then seen.gone = gameSeconds - t0 end
+    end
+    expect(seen.open and seen.open >= 0.8 and seen.open < 1.2 and seen.gone and seen.gone >= 4.0 and seen.gone < 4.4
+           and logged("an opened wall went 4%.%d+ s after it began dissolving")
+           and fading.shrunkTo == nil,
+           "by the game's clock it stops blocking halfway and goes well after the dissolve is through (4 s), never shrunk: "
+           .. tostring(seen.open) .. " / " .. tostring(seen.gone))
+    expect(fading and fading.Cube.mat.vectors and fading.Cube.mat.vectors.PlayerPos,
+           "the glow follows the player: the dissolving material has the player's position too")
+    if fading then fading.Cube.mat.parent.IsValid = function() return false end end   -- the pak "gone" again, as before
+    logicMod = hadPak
+    W.setSkin("red"); run(40)
+    expect(wallCount() == expected(open), "(the core's own passes put that area's walls back up: " .. wallCount() .. ")")
+end
+do  -- dev.42 crash (a dead object called at a wall, after Return to title and a new world): after a world change no
+    -- material of the world before is called again, by the glow or anything else
+    local W = require("walls")
+    local hadPak = logicMod
+    logicMod = true
+    W.radius = 0
+    W.setSkin("paws"); run(3)
+    pawnAt = { X = pawnAt.X + 300, Y = pawnAt.Y, Z = pawnAt.Z }; run(2)          -- the glow tells the materials
+    local old, deadCalls = {}, 0
+    for wa in pairs(wallsUp) do local m = wa.Cube.mat; if m and m.parent then old[m] = true end end
+    local nOld = 0
+    for m in pairs(old) do
+        nOld = nOld + 1
+        m.IsValid = function() deadCalls = deadCalls + 1; return false end
+        m.SetVectorParameterValue = function() deadCalls = deadCalls + 1 end
+        m.SetScalarParameterValue = m.SetVectorParameterValue
+    end
+    for wa in pairs(wallsUp) do wa:K2_DestroyActor() end                       -- the world went
+    W.reset()                                                                  -- the core, on the new pawn
+    run(40)
+    pawnAt = { X = pawnAt.X + 300, Y = pawnAt.Y, Z = pawnAt.Z }; run(5)
+    local fresh = next(wallsUp)
+    expect(nOld > 0 and deadCalls == 0 and fresh and fresh.Cube.mat and not old[fresh.Cube.mat] and fresh.Cube.mat.vectors.PlayerPos,
+           "after a world change the old world's materials are never called again (" .. nOld .. " old, " .. deadCalls
+           .. " calls); the new pieces get new ones, which the glow tells")
+    pawnAt = { X = pawnAt.X - 600, Y = pawnAt.Y, Z = pawnAt.Z }
+    for m in pairs(old) do m.parent.IsValid = function() return false end end -- the pak "gone" again, as before
+    logicMod = hadPak
+    W.setSkin("red"); run(40)
+end
+do  -- dev.43: every piece is raised at load (as before); only those within 75 m are shown, past 100 m hidden
+    local W = require("walls")
+    W.radius = 7500
+    local spot
+    for k, w in ipairs(WD.walls) do
+        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        if not (open[a1] or a1 == "Open sea" or a1 == WD.start) or not (open[a2] or a2 == "Open sea" or a2 == WD.start) then spot = k; break end
+    end
+    local home = { X = pawnAt.X, Y = pawnAt.Y, Z = pawnAt.Z }
+    local spawnedBefore = spawned
+    pawnAt = { X = WD.walls[spot][1], Y = WD.walls[spot][2], Z = -1700 }   -- standing at a locked wall
+    run(40)
+    local function tally()
+        local shown, hiddenN, wrong = 0, 0, 0
+        for wa in pairs(wallsUp) do
+            local i
+            for k, w in ipairs(WD.walls) do if w[1] == wa.t.Translation.X and w[2] == wa.t.Translation.Y then i = k; break end end
+            local d = i and W.segDist(i, pawnAt.X, pawnAt.Y) or 1e9
+            if wa.hidden then hiddenN = hiddenN + 1; if d <= 7500 then wrong = wrong + 1 end
+            else shown = shown + 1; if d > 10000 then wrong = wrong + 1 end end
+        end
+        return shown, hiddenN, wrong
+    end
+    local shown, hiddenN, wrong = tally()
+    expect(wallCount() == expected(open) and shown > 0 and hiddenN > 0 and wrong == 0 and spawned == spawnedBefore,
+           "with wall_radius 75 every piece stays raised (none spawned or destroyed); only those near show: "
+           .. shown .. " shown, " .. hiddenN .. " hidden, " .. wrong .. " wrong")
+    pawnAt = { X = pawnAt.X + 60000, Y = pawnAt.Y, Z = pawnAt.Z }   -- 600 m away
+    run(40)
+    local shown2, _, wrong2 = tally()
+    expect(wallCount() == expected(open) and wrong2 == 0 and spawned == spawnedBefore,
+           "walking 600 m away hides those and shows any near there, still none spawned or destroyed: " .. shown2 .. " shown")
+    pawnAt = home
+    W.radius = 0
+    run(40)
+    local shown3, hidden3 = tally()
+    expect(hidden3 == 0 and shown3 == expected(open), "wall_radius 0: every piece shown: " .. shown3)
+end
 print("the world map")
 -- dev.16 playtest (2026-11-07): composed only once the map opened, the first opening showed the game's map for ~3 s.
 local jobs0 = #composeJobs
@@ -1044,8 +1200,8 @@ do
         return ""
     end
     AP_ChartStatus = function() return "done" end
-    AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps)
-        jobs[#jobs + 1] = { kind = "fog", chart = chartFile, mask = mask, spec = spec, out = out, stamps = stamps }
+    AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps, regions)
+        jobs[#jobs + 1] = { kind = "fog", chart = chartFile, mask = mask, spec = spec, out = out, stamps = stamps, regions = regions }
         local f = io.open(out, "w"); f:write("fog"); f:close()
         return ""
     end
@@ -1080,6 +1236,12 @@ do
     for _, j in ipairs(jobs) do if j.kind == "fog" then fog = fog or j end end
     expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png") and logged("explored reads a%-"),
            "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
+    local rf = {}
+    for part in ((fog and fog.regions or "") .. "|"):gmatch("([^|]*)|") do rf[#rf + 1] = part end
+    expect(#rf == 10 and rf[1]:find("area_labels%.png$") and rf[10] == "0.4545" and select(2, rf[2]:gsub(",", "")) >= 9 and rf[4] == "59,42,26,210"
+           and tonumber(rf[5]) == 3 and tonumber(rf[6]) == 14 and tonumber(rf[7]) == 8 and tonumber(rf[8]) == 0.28,
+           "the fog is made with the areas' borders and the locked areas' hatch (labels, locked indexes, ink, width, hatch): "
+           .. tostring(fog and fog.regions))
     local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
     expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked areas' stamps go on the fog: " .. stamps)
     local fogpic
@@ -1100,6 +1262,8 @@ do
     for _, j in ipairs(jobs) do if j.kind == "fog" then last = j end end
     local fewer = select(2, (last and last.stamps or ""):gsub("ap%-map%-stamp", ""))
     expect(last ~= fog and fewer == stamps - 1, "a pass remakes the fog from the same mask with one stamp fewer: " .. fewer)
+    local function lockedIn(j) return select(2, ((j.regions or ""):match("^[^|]*|([^|]*)") or ""):gsub(",", "")) + 1 end
+    expect(lockedIn(last) == lockedIn(fog) - 1, "and its hatch over one locked area fewer")
     local nChart = 0
     for _, j in ipairs(jobs) do if j.kind == "chart" then nChart = nChart + 1 end end
     expect(nChart == 1, "the chart itself is drawn once a session")
@@ -1166,6 +1330,13 @@ do
     W9.dir, W9.keep = MOD, function() end
     for _ = 1, 3 do W9.updateMap(true, {}, pawn) end           -- the map not built yet: the picture is made, no icons
     expect(#mapBody.icons == 0, "no icons before the map screen exists")
+    -- dev.35 playtest: after Return to title and a second world load, the first world's screen was still about (last in
+    -- FindAllOf here); its player is gone, so it is left alone and the icons go on the live one.
+    staleBody = { IsValid = function() return true end, GetAddress = function() return 79 end, icons = {}, MapName = FNameOf("MainMap"),
+                  Image_MapBody = { IsValid = function() return true end },
+                  GetOwningPlayer = function() return { IsValid = function() return false end } end }
+    staleBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
+    staleBody["Update Map Icons"] = function() end
     mapOpen, treeOpen = true, true
     for _ = 1, 2 do W9.updateMap(true, {}, pawn) end
     local job = composeJobs[#composeJobs]
@@ -1176,6 +1347,9 @@ do
     local c = locked1 and CENTRES[locked1]                          -- (keyed by the 0-based area index, as drawStamps)
     local at = c and W9.worldAt(c[1], c[2])
     expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked area: " .. #mapBody.icons .. " of " .. nLocked)
+    expect(#staleBody.icons == 0 and logged("a map screen of the last world left alone"),
+           "the last world's screen (its player gone) is left alone; the icons go on the live one")
+    staleBody = nil
     expect(first and first.tex and tostring(first.tex.path):find("ap%-map%-stamp") and first.ignoreMask == true
            and first.priority == false and first.visibility == 3 and first.parent == mapBody.Canvas_ForIcon_NoMask,
            "each shows its area's stamp, on the canvas the fog never hides, and ignores the pointer")
@@ -1192,7 +1366,23 @@ do
     expect(#mapBody.icons == nLocked and mapBody.iconUpdates == 1, "added once, not every update")
     local area4 = require("area_walls").areas[4]
     for _ = 1, 3 do W9.updateMap(true, { [area4] = true }, pawn) end
-    expect(first.removed and #mapBody.icons == 2 * nLocked - 1, "a pass: the old icons go, and one fewer comes back")
+    expect(first.removed and #mapBody.icons == 2 * nLocked and logged("1 open not yet visited"),
+           "a pass: the old icons go; one locked stamp fewer comes back, and an open one where the pass is (art/ap-map-stamp-open-*)")
+    -- An unlocked area not stood in yet: an open stamp there (the Art lane's ap-map-stamp-open, once the mod has it).
+    local openArt = require("art").dir .. "\\art\\ap-map-stamp-open.png"   -- (where the mod looks for its art)
+    local fa = io.open(openArt, "w"); fa:write("png"); fa:close()
+    local count = #mapBody.icons
+    local area5 = require("area_walls").areas[5]
+    W9.visited = {}
+    for _ = 1, 3 do W9.updateMap(true, { [area4] = true, [area5] = true }, pawn) end      -- (a second pass: icons made again)
+    local newest = mapBody.icons[#mapBody.icons]
+    expect(#mapBody.icons == count + nLocked and tostring(newest.tex.path):find("ap%-map%-stamp%-open") and logged("2 open not yet visited"),
+           "unlocked areas not yet visited get an open stamp: " .. tostring(newest.tex.path))
+    W9.visited[area4] = true
+    count = #mapBody.icons
+    for _ = 1, 3 do W9.updateMap(true, { [area4] = true, [area5] = true }, pawn) end
+    expect(#mapBody.icons == count + nLocked - 1 and logged("1 open not yet visited"), "once stood in, its open stamp goes")
+    os.remove(openArt)
     -- The icons failing (here: the screen without the function): the stamps are drawn into the picture again.
     mapBody.icons = {}
     local add = mapBody["Add Icon By Location"]
@@ -1211,8 +1401,158 @@ do
     mapOpen, treeOpen, AP_MapScreen = false, false, nil
 end
 
+;(function()   -- (a function of its own: the main chunk is at Lua's 200 locals)
+-- "Territories" (the user's direction 1 with the Art lane, 2026-11-07): the C++ part composes an overlay from each area's
+-- state and colour and the standing walls; the map picture is the game's own map with it drawn over; the fog picture is
+-- made from its fog art. Visiting an area makes it again; map_style=chart keeps the explorer's chart.
+local jobs, fogArt = {}, nil
+AP_ComposeTerritories = function(labels, areas, walls, style, out, fogart, fog, size)
+    jobs[#jobs + 1] = { labels = labels, areas = areas, walls = walls, style = style, out = out, fogart = fogart, fog = fog, size = size }
+    for _, f in ipairs({ out, fogart }) do local h = io.open(f, "w"); h:write("png"); h:close() end
+    return ""
+end
+AP_TerritoriesStatus = function() return "done" end
+local pics = {}
+AP_MapScreen = function(what, arg) if what == "fogpic" then pics[#pics + 1] = arg end return "" end
+local fogSize
+AP_ComposeFog = function(chartFile, _, _, _, out, size) fogArt, fogSize = chartFile, size; local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
+AP_FogStatus = function() return "done" end
+AP_ComposeChart = function() error("Territories draws no chart") end
+AP_ChartStatus = function() return "done" end
+AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
+mapBody.MaskTextureMaterial = { IsValid = function() return true end,      -- (the fog's explored mask, as in the chart test)
+    GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_3" end,
+    K2_GetTextureParameterValue = function(_, name)
+        if name:ToString() == "TargetTexture" then
+            return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
+                     GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
+        end
+    end }
+local AW = require("area_walls")
+local area4, sealedArea = AW.areas[4], AW.areas[16]
+local T = dofile(MOD .. "/Scripts/walls.lua")
+T.dir, T.keep = MOD, function() end
+T.beyond = { [sealedArea] = true }
+T.visited = {}
+local passes = { [area4] = true }
+local stale = io.open(MOD .. "/map-fog.png", "w"); stale:write("png"); stale:close()   -- (dev.31's chart fog, last session)
+os.remove(MOD .. "/map-fog-territories.png")
+mapOpen, drawLog = false, {}
+for _ = 1, 3 do T.updateMap(true, passes, pawn) end
+local job = jobs[#jobs]
+local st = {}
+for item in (job and job.areas or ""):gmatch("[^,]+") do local i, s, c = item:match("^(%d+):(%a):(%x+)$"); st[tonumber(i)] = { s = s, c = c } end
+expect(job and job.labels:find("area_labels%.png$") and job.size == "2048" and job.fog == "0E1A24" and job.style == "FFE9B0,0.35,FFF4DC,0.6,10,3,5",
+       "the overlay is composed from the area labels at 2048, with the dark fog colour and the Art lane's walls, see-through")
+expect(st[1] and st[1].s == "v" and st[1].c == "24E0CC" and st[3] and st[3].s == "u" and st[2] and st[2].s == "l"
+       and st[15] and st[15].s == "s" and st[15].c == "5A6472" and st[0] == nil,
+       "states: the start visited (teal), an area with its pass unvisited, the rest locked, beyond the goal sealed (slate); no sea")
+local standing = 0
+for _, w in ipairs(AW.walls) do
+    local function open(a) local nm = AW.areas[a + 1]; return nm == "Open sea" or nm == AW.start or passes[nm] end
+    if not (open(w[5]) and open(w[6])) then standing = standing + 1 end
+end
+local segs, inside = 0, true
+for s in (job and job.walls or ""):gmatch("[^;]+") do
+    segs = segs + 1
+    for v in s:gmatch("[^,]+") do v = tonumber(v); if not v or v < -0.01 or v > 1.01 then inside = false end end
+end
+expect(segs == standing and segs > 100 and inside, "the standing walls only, as segments on the map square: " .. segs .. " of " .. #AW.walls)
+local overDrawn = false
+for i = 2, #drawLog do
+    if tostring(drawLog[i - 1].path):find("T_WorldMap") and drawLog[i - 1].blend == 0 and tostring(drawLog[i].path):find("map%-territories")
+       and drawLog[i].blend == 2 then overDrawn = true end
+end
+expect(overDrawn and logged("map territories: drawn over the game's map"), "the map picture: the game's map, the overlay drawn over it")
+mapOpen = true
+for _ = 1, 4 do T.updateMap(true, passes, pawn) end
+expect(fogArt and fogArt:find("map%-territories%-fog%.png$"), "the fog picture is made from the territories' fog art: " .. tostring(fogArt))
+local chartPic = false
+for _, p in ipairs(pics) do if not tostring(p):find("territories") then chartPic = true end end
+expect(#pics > 0 and not chartPic and tostring(pics[#pics]):find("map%-fog%-territories"),
+       "the territories' own fog picture, never the chart's from the last session: " .. table.concat(pics, " "))
+local n = #jobs
+T.visited[area4] = true
+for _ = 1, 3 do T.updateMap(true, passes, pawn) end
+expect(#jobs == n + 1 and jobs[#jobs].areas:find("3:v:", 1, true), "visiting an area makes the overlay again, the area visited")
+expect(fogSize == "2048" and logged("map territories: composing from the label map at 2048"),
+       "an older DLL (no AP_ComposeField): the label map at 2048, the fog at 2048")
+mapOpen = false
+-- dev.34: with the DLL's AP_ComposeField, from the Art lane's distance field (shipped) at 4096, the fog at 4096.
+local fjobs = {}
+AP_ComposeField = function(field, areas, walls, style, out, fogart, fog, size, colour, gamma)
+    fjobs[#fjobs + 1] = { field = field, areas = areas, walls = walls, style = style, size = size, colour = colour, gamma = gamma }
+    for _, f in ipairs({ out, fogart }) do local h = io.open(f, "w"); h:write("png"); h:close() end
+    return ""
+end
+local colourFile = MOD .. "\\map-colour-1.png"                  -- (the mod's Windows path, as a file name here)
+local hadColour = io.open(colourFile, "rb")
+if hadColour then hadColour:close() end
+local cf = io.open(colourFile, "w"); cf:write("png"); cf:close()
+-- dev.34 playtest: the explored mask from the player's world map data, so the fog picture is new before the map opens.
+local askedMap
+util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
+    GetRenderTargetByMapName = function(_, name) askedMap = name:ToString(); return { IsValid = function() return true end } end } end
+local F = dofile(MOD .. "/Scripts/walls.lua")
+F.dir, F.keep = MOD, function() end
+F.beyond, F.visited = { [sealedArea] = true }, {}
+n = #jobs
+drawLog = {}
+local picsBefore = #pics
+for _ = 1, 3 do F.updateMap(true, passes, pawn) end
+local whole = #drawLog > 0
+for _, d in ipairs(drawLog) do if not (tostring(d.path):find("map%-territories") and d.blend == 0) then whole = false end end
+expect(fjobs[1] and fjobs[1].colour == colourFile and fjobs[1].gamma == "0.4545" and whole
+       and logged("map, locked areas greyscale"),
+       "with the saved colour map: the whole picture from it (locked areas greyscale), drawn alone, not over the game's map")
+for _ = 1, 25 do F.updateMap(true, passes, pawn) end
+local earlyPic = false
+for i = picsBefore + 1, #pics do if tostring(pics[i]):find("map%-fog%-territories") then earlyPic = true end end
+expect(askedMap == "MainMap" and earlyPic and logged("the explored mask read before the map opened"),
+       "the map never opened: the explored mask read from the world's map data and the fog picture made and handed over")
+util.GetLocalWorldMapData = nil
+mapOpen = true
+for _ = 1, 4 do F.updateMap(true, passes, pawn) end
+local fj = fjobs[#fjobs]
+local shipped = io.open(MOD .. "/area_field.png", "rb")
+if shipped then shipped:close() end
+expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096" and fj.style == job.style
+       and fj.areas == job.areas and fj.walls == job.walls and #jobs == n and fogSize == "4096"
+       and logged("map territories: composing from the distance field at 4096"),
+       "with AP_ComposeField: the shipped distance field at 4096 (same areas, walls and look), not the label map; the fog at 4096")
+-- No colour map (and no game map to save one from): the overlay, drawn over the game's map as before.
+os.remove(colourFile)
+local G2 = dofile(MOD .. "/Scripts/walls.lua")
+G2.dir, G2.keep = MOD, function() end
+G2.beyond, G2.visited = { [sealedArea] = true }, {}
+local savedLoad = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
+mapOpen, drawLog = false, {}
+local nf = #fjobs
+for _ = 1, 3 do G2.updateMap(true, passes, pawn) end
+local overGame = false
+for i = 2, #drawLog do
+    if tostring(drawLog[i - 1].path):find("T_WorldMap") and tostring(drawLog[i].path):find("map%-territories") and drawLog[i].blend == 2 then overGame = true end
+end
+expect(#fjobs > nf and (fjobs[#fjobs].colour == "" or fjobs[#fjobs].colour == colourFile) and (fjobs[#fjobs].colour ~= "" or overGame),
+       "without a saved colour map: the overlay over the game's map (or the colour map saved from it first)")
+loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = savedLoad
+if hadColour then cf = io.open(colourFile, "w"); cf:write("png"); cf:close() else os.remove(colourFile) end
+AP_ComposeField = nil
+mapOpen = false
+local C = dofile(MOD .. "/Scripts/walls.lua")
+C.dir, C.keep, C.mapStyle = MOD, function() end, "chart"
+n = #jobs
+for _ = 1, 3 do C.updateMap(true, {}, pawn) end
+expect(#jobs == n, "map_style=chart: no territories")
+AP_ComposeTerritories, AP_TerritoriesStatus, AP_MapScreen, AP_ComposeFog, AP_FogStatus = nil, nil, nil, nil, nil
+AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil
+mapBody.MaskTextureMaterial = nil
+os.remove(MOD .. "/map-fog.png"); os.remove(MOD .. "/map-fog-territories.png")
+end)()
+
 print("a new world")
 -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
+run(10)                                                       -- (walls opened above finish shrinking: 2 s of updates)
 local before, up = spawned, wallCount()
 pawnGone = true
 run(5)
@@ -2064,7 +2404,10 @@ local t = ticksUntil("trap #9 Slow Trap from Friend: player multiplier 1%.0 %-> 
 expect(t and movement:GetWalkSpeedMultiplier() == 0.5, "a Slow Trap halves walking speed: " .. movement:GetWalkSpeedMultiplier())
 expect(told("Slow Trap from Friend: your legs feel heavy (1 minute).") and not told("Received Slow Trap"),
        "chat names the trap and its sender, with no 'Received' line")
-expect(saveText():find("given=9\nworld=AP_WORLD\ndeaths=0\ntraps=\n", 1, true), "applied: the save has it given and nothing waiting: " .. saveText())
+expect(saveText():find("given=9\nworld=AP_WORLD\ndeaths=0\n", 1, true) and saveText():find("\ntraps=\n", 1, true),
+       "applied: the save has it given and nothing waiting: " .. saveText())
+expect(saveText():find("\nvisited=[^\n]*Windswept Island", 1) and logged("visited Windswept Island"),
+       "the open areas stood in are remembered in the save (the map's open stamps): the starting area")
 -- Two at once: both fire together (2026-11-05: not staggered).
 trap("Hunger Trap", "Friend")
 trap("Fool Trap", "Friend")
@@ -2261,6 +2604,12 @@ pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
                          RemoveStatus = function(_, id) statuses[id] = nil end }
 require("test_tools").install()
 expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools bind Ctrl+F3 to the wall skins")
+;(function()  -- Ctrl+F2: faster for testing, through the game's named walk speed multiplier (as the Slow Trap)
+    local seen = {}
+    for _ = 1, 3 do keyBinds["key:F2"](); run(1); seen[#seen + 1] = movement.mult.APTestSpeed end
+    expect(seen[1] == 3 and seen[2] == 6 and seen[3] == 1 and logged("%-%-%- speed x6 %(walk multipliers now: player 6"),
+           "Ctrl+F2 cycles the player's speed x3, x6, back to x1: " .. table.concat(seen, ", "))
+end)()
 ;(function()  -- Ctrl+F4, the HUD probe (a function: the main chunk is at Lua's 200-local limit)
     local canvasKids, angles, removed = {}, {}, false
     local root = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("Canvas_Root") end,
@@ -2350,24 +2699,48 @@ expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.a
        "its bottom 8 above the list's top, centred over it, with the list's anchors")
 expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
 -- The list: Start Game (the game's), Server, six picks, Port, Slot, Password, Connect, Back, then Quit Game.
-local R = { server = 2, port = 3, slot = 4, password = 5, go = 6, back = 7 }
+-- (dev.36: the panel's soft ends in pads of their own, above Server and below Back)
+local R = { padtop = 2, server = 3, port = 4, slot = 5, password = 6, go = 7, back = 8, padbottom = 9 }
 -- The saved servers: their panel on the canvas, its rows in its VerticalBox.
 local function pickBox(i) return drop.children[2].children[i] end
 local function pick(i) return pickBox(i).child end
 local function rowBox(i) return menuChildren[i] end
-local function btn(i) return menuChildren[i] and menuChildren[i].child end
-local function edit(i) return menuChildren[i].child.children[2] end
+-- (a row of ours: its size box, a dark Border (dev.34), then the row: label and text box, or the button)
+local function inner(b) local c = b and b.child; if c and c.kind == "Border" then c = c.child end return c end
+local function btn(i) return inner(menuChildren[i]) end
+local function edit(i) return inner(menuChildren[i]).children[2] end
 local function typed(i) return edit(i).Text:ToString() end
 local function typeInto(i, s) edit(i).Text = { ToString = function() return s end } end
 local allCollapsed = true
-for i = 2, 7 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
-expect(#menuChildren == 8 and menuChildren[8] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
+for i = 2, 9 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = false end end
+expect(#menuChildren == 10 and menuChildren[10] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
        "the menu's rows in the title's own list, Quit Game moved back to the end with its padding")
 expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).colour and edit(R.password).password
-       and rowBox(R.server).child.children[1].text == "Server:" and rowBox(R.port).child.children[1].text == "Port:"
-       and rowBox(R.server).child.children[1].fontSize == 20,
+       and inner(rowBox(R.server)).children[1].text == "Server:" and inner(rowBox(R.port)).children[1].text == "Port:"
+       and inner(rowBox(R.server)).children[1].fontSize == 20,
        "Server, Port, Slot and Password: a label and the game's own text box, its text colour set (its style never copied)")
 expect(logged("fields typed in PalEditableTextBox"), "and the log says so")
+local allBacked = true
+for _, i in ipairs({ R.server, R.port, R.slot, R.password, R.go, R.back }) do
+    local b = rowBox(i)
+    if not (b and b.child and b.child.kind == "Border" and b.child.brush and b.child.brush.A > 0.5 and b.height == 41
+            and b.padding and b.padding.Bottom == 0) then allBacked = false end
+end
+expect(allBacked, "the menu's rows on a dark backing, 41 high with no gap, so they read as one panel (dev.33: hard to read)")
+local function piece(i) local b = rowBox(i).child; return b.texture and b.texture.path, b.Background end
+local tp, tb = piece(R.padtop)
+local sp, sb = piece(R.server)
+local mp2, mb = piece(R.port)
+local gp, gb = piece(R.go)
+local kp, kb = piece(R.back)
+local bp, bb = piece(R.padbottom)
+expect(tp == "ap-menu-panel-top" and tb.DrawAs == 1 and tb.Margin.Top == 0.25 and tb.Margin.Bottom == 0 and tb.Margin.Left == 28 / 64
+       and rowBox(R.padtop).height == 24 and rowBox(R.padbottom).height == 16
+       and sp == "ap-menu-panel-mid" and sb.Margin.Top == 0 and mp2 == "ap-menu-panel-mid" and gp == "ap-menu-panel-mid"
+       and kp == "ap-menu-panel-mid" and kb.Margin.Bottom == 0
+       and bp == "ap-menu-panel-bottom" and bb.Margin.Bottom == 0.25 and bb.ImageSize.X == 64 and rowBox(R.server).child.pad.Left == 22,
+       "the panel's edges soft (dev.34): feathered pieces drawn as boxes; its soft ends in pads above Server and below Back, "
+       .. "every text row on its solid part (dev.35: \"move the whole text area further down\")")
 expect(logged("not a live title menu %(a template%), left alone: .*/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title"),
        "the title screen asset's template (dev.25 log: rows tried on it every update) is left alone")
 expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
@@ -2375,11 +2748,11 @@ expect(allCollapsed and gameButtonWrap.vis ~= 1 and quitWrap.vis ~= 1, "the rows
 expect(bannerTexts[#bannerTexts]:find("Connected | localhost:38281 | Slot: Tester", 1, true), "the banner shows the connection")
 local moves = bs and bs.moves
 run(3)
-expect(#menuChildren == 8 and #titleCanvasKids == 2, "added once")
+expect(#menuChildren == 10 and #titleCanvasKids == 2, "added once")
 expect(drop and drop.kind == "Overlay" and drop.vis == 1 and #drop.children[2].children == 6 and drop.canvasSlot.zorder == 20,
        "the saved servers wait in a panel of their own on the canvas, folded away (dev.25 test: in the list they pushed the rows down)")
 local st = edit(R.server).WidgetStyle
-expect(st.BackgroundColor.SpecifiedColor.A == 0.88 and st.BackgroundColor.SpecifiedColor.R < 0.1 and st.BackgroundColor.ColorUseRule == 0
+expect(st.BackgroundColor.SpecifiedColor.A >= 0.95 and st.BackgroundColor.SpecifiedColor.R < 0.02 and st.BackgroundColor.ColorUseRule == 0
        and st.FocusedForegroundColor.SpecifiedColor.R > 0.8 and logged("text boxes coloured"),
        "the boxes: a dark backing and light text, focused or not (dev.25 test: white boxes, pale text), written field by field")
 expect(bs and bs.moves == moves, "and the banner left where it is while the list keeps its size")
@@ -2433,7 +2806,7 @@ edit(R.server).focus = true
 run(1)
 expect(drop.vis == 0 and pickBox(1).vis == 0 and pickBox(2).vis == 0 and pickBox(3).vis == 1 and pickBox(1).width == 420
        and pick(1).Test_Content.text:find("archipelago.gg", 1, true) and pick(2).Test_Content.text:find("localhost   (chosen)", 1, true)
-       and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 41 and drop.canvasSlot.alignment.Y == 0,
+       and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 24 + 41 and drop.canvasSlot.alignment.Y == 0,
        "while the Server box has the keyboard, the saved servers show in their panel just under it")
 -- dev.27 test ("why does it still stick around at all?"): they stay while the pointer is on one of them (pressing it
 -- takes the keyboard from the box before the click lands), and go at the next update otherwise.
@@ -2513,6 +2886,18 @@ run(1)
 local cb = #connects
 click(btn(R.back)); run(1)
 expect(gameButtonWrap.vis == 0 and #connects == cb and logged("Archipelago menu closed"), "Back: the game's buttons again, nothing connected")
+-- dev.36 ("It would be nice if we could hit 'ESC' to back out of that Archipelago Menu"): Esc does what Back does.
+click(openBtn); run(1)
+typeInto(R.server, "10.0.0.9")
+run(1)
+local escBind = keyBinds["key:ESCAPE"]
+if escBind then escBind() end
+tick(); run(1)                                                  -- (the key's work, at the next game tick)
+expect(escBind and gameButtonWrap.vis == 0 and rowBox(R.server).vis == 1 and #connects == cb
+       and logged("Esc closes the Archipelago menu"), "Esc closes the menu as Back does: the game's buttons again, nothing connected")
+if escBind then escBind() end
+tick(); run(1)
+expect(gameButtonWrap.vis == 0 and #connects == cb, "Esc with the menu closed: nothing happens")
 click(openBtn); run(1)
 expect(typed(R.server) == "archipelago.gg" and btn(R.go).Test_Content.text == "Disconnect (connected as Other)",
        "reopened, it starts from the connection: " .. typed(R.server))
@@ -2526,11 +2911,12 @@ local goBtn = btn(R.go)
 -- failed, and the old rows were still used; the game crashed 4.6 s later. Now the old rows are never touched again.
 do
     local deadTouched = false
-    for i = 2, 7 do
+    for i = 2, 9 do
         local b = rowBox(i)
         if b then b.gone = true; b.SetVisibility = function() deadTouched = true end end
-        local inner = b and b.child
-        if inner then inner.gone = true end
+        if b and b.child then b.child.gone = true end
+        local c = inner(b)                                           -- (through the Border, dev.34)
+        if c then c.gone = true end
     end
     local create = wbl.Create
     wbl.Create = function() return nil end
@@ -2932,6 +3318,16 @@ do  -- area_size regions: every named region of the game its own, opened by a Re
     expect(wallCount() < up, "a Region Pass takes its region's walls down: " .. up .. " -> " .. wallCount())
     expect(W.parentOf("Golden Hills") == "Bamboo Groves" and W.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
            "a region wears its area's colour, ticket and stamp (area_parents_regions.lua)")
+    local perHex = {}
+    for i in ipairs(RD.walls) do
+        local name = W.pieceSkin(i, {}, "paws")
+        local hex, own = name:match("^paws:(%x+):(%d+)$")
+        if hex then perHex[hex] = perHex[hex] or {}; perHex[hex][own] = true end
+    end
+    local sisters = 0
+    for _, owns in pairs(perHex) do local n = 0; for _ in pairs(owns) do n = n + 1 end; if n >= 2 then sisters = sisters + 1 end end
+    expect(sisters >= 5, "75 Areas, paws: sister Areas wear their Region's colour, each its own variant (paws:<colour>:<area>): "
+           .. sisters .. " regions with several")
     slotData["options.area_size"] = nil                          -- an areas seed again (and seeds made before the option)
     push("status", "disconnected")
     push("status", "connected", "Tester")
@@ -3315,6 +3711,35 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     pawnAddress, pawnAt = addrWas, atWas
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     playerController.K2_GetPawn = pawnWas
+end)()
+;(function()  -- the rule from the 2026-11-08 crashes: a LoopAsync callback (another thread, the same Lua state) only
+    -- reads a flag and hands a function made beforehand to ExecuteInGameThread; no other Lua runs there
+    local bad = {}
+    for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates" }) do
+        local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
+        local src = fh and fh:read("a") or ""
+        if fh then fh:close() end
+        local lines, n = {}, 0
+        for line in (src .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
+        for k, line in ipairs(lines) do
+            local ind, ms = line:match("^(%s*)LoopAsync%((%d+), function%(%)%s*$")
+            if ind and f ~= "test_tools" and tonumber(ms) < 300 then
+                bad[#bad + 1] = f .. ".lua:" .. k .. ": a " .. ms .. " ms loop (dev.45: a 33 ms loop corrupted Lua's state)"
+            end
+            if ind then
+                n = n + 1
+                local j = k + 1
+                while lines[j] and lines[j] ~= ind .. "end)" do
+                    local body = lines[j]:gsub("^%s+", "")
+                    local ok = body:match("^ExecuteInGameThread%([%w_.]+%)$") or body:match("^if [%w_.]+ then ExecuteInGameThread%([%w_.]+%) end$")
+                        or body == "return false" or body:match("^%-%-")
+                    if not ok then bad[#bad + 1] = f .. ".lua:" .. j .. ": " .. body end
+                    j = j + 1
+                end
+            end
+        end
+    end
+    expect(#bad == 0, "every LoopAsync callback only reads a flag and hands over a function made beforehand, none faster than 300 ms outside the test tools: " .. table.concat(bad, " | "))
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")

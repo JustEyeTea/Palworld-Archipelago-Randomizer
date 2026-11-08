@@ -23,7 +23,16 @@ local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km
 local MID_Z = 50000
 local THICK = 4               -- 4 m, so nothing fast slips through
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
-local SINK_STEPS = 60         -- an opened wall sinks into the ground over 60 steps of 33 ms (2 s), then goes
+local SHRINK_S = 2.0          -- an opened wall (not a dissolving one) shrinks away over 2 s of the game's clock
+-- Every piece is raised at world load, as before; only those near the player are shown (the user, 2026-11-08: fewer
+-- walls drawn, more FPS, and "let the borders load in at the beginning"): shown within W.radius, hidden (the game's
+-- own SetActorHiddenInGame; collision stays) past W.radius + HIDE_MARGIN, so a piece at the edge doesn't flicker.
+-- dev.41-42 raised and destroyed pieces as the player moved; dev.42 crashed at a wall (a dead object called), and
+-- spawning and destroying all the time only makes more dead objects. 0: every piece shown.
+W.radius = 7500               -- 75 m (config wall_radius, in metres)
+local HIDE_MARGIN = 2500      -- 25 m
+local VIS_PER_TICK = 120      -- pieces shown or hidden an update (a teleport changes many at once)
+local hiddenAt = {}           -- piece -> true while hidden by distance
 
 local raised = {}             -- piece index -> wall actor
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
@@ -65,11 +74,24 @@ end
 -- are really gone are forgotten: the core's world key is the pawn, which also changes (or reads nil for a moment) in
 -- the same world, and a wall forgotten while still standing could never be taken down.
 function W.reset()
+    W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
+    W.dropCaches()
     for i, a in pairs(raised) do
         local ok, valid = pcall(function() return a:IsValid() end)
         if not (ok and valid) then raised[i], nRaised = nil, nRaised - 1 end
     end
 end
+
+-- How far a spot is from piece i (a segment: its middle, its direction, its length), in the plane.
+local function segDist(i, x, y)
+    local w, t = DATA.walls[i], trig[i]
+    local dx, dy = x - w[1], y - w[2]
+    local along, half = dx * t[1] + dy * t[2], w[3] / 2
+    if along > half then along = half elseif along < -half then along = -half end
+    local px, py = dx - along * t[1], dy - along * t[2]
+    return math.sqrt(px * px + py * py)
+end
+W.segDist = segDist
 
 local function raise(i, context)
     local w = DATA.walls[i]
@@ -91,21 +113,38 @@ end
 -- unfilled without a sweep) UE4SS copies back into Lua: that crashed the game twice on 2026-11-05, both times within
 -- 2 s of a Region Pass, in UE4SS's nested push_structproperty (reading 0x7b and 0x0a). SetActorScale3D has no
 -- out-parameters.
--- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. One loop for
--- the session, made when this module loads (UE4SS cannot start one from inside a game-thread callback); it idles while
--- nothing sinks.
-local sinking = {}            -- list of { actor, scale X, scale Y, step }
+-- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. Stepped from the
+-- core's 300 ms update, on the game thread: no loop of its own. dev.42-45 had a 33 ms LoopAsync for it and the glow;
+-- LoopAsync's callback runs on another thread over the same Lua state, and with it running 30 times a second the game
+-- crashed twice (stack 08E98397) and dev.45, its callback cut down to a flag and a prebuilt function, still logged
+-- "Ref was not function" three times and a broken ipairs iterator: Lua's state corrupted.
+local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), dissolving = true or nil }
+-- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
+-- at 80 to 85% dissolved; dev.46, its tail 0.8 s, still not quite through): blocking stops at DISSOLVE_S/2, the piece
+-- goes at DISSOLVE_S + DISSOLVE_TAIL (the material's Time node may run behind GetTimeSeconds; the first one logs it).
+local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 2.4
 local function sinkStep()
     local still = {}
     for _, s in ipairs(sinking) do
         local a = s[1]
         if a:IsValid() then
-            s[4] = s[4] + 1
-            local t = s[4] / SINK_STEPS
-            local eased = t * t * (3 - 2 * t)            -- slow, fast, slow
-            pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
-            if s[4] == SINK_STEPS // 2 then pcall(function() a:SetActorEnableCollision(false) end) end
-            if s[4] >= SINK_STEPS then
+            s.steps = (s.steps or 0) + 1
+            local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
+            if not (ok and type(now) == "number") then now = s[4] + s.steps * 0.3 end
+            local span = s.dissolving and DISSOLVE_S or SHRINK_S
+            local half = not s.open and now >= s[4] + span / 2
+            local done = now >= s[4] + span + (s.dissolving and DISSOLVE_TAIL or 0)
+            if not s.dissolving then                     -- shrinking: top and bottom towards the middle
+                local t = math.min(1, (now - s[4]) / SHRINK_S)
+                local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
+                pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
+            end
+            if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
+            if done then
+                if s.dissolving then
+                    once("dissolved", string.format("wall skin paws: an opened wall went %.2f s after it began dissolving"
+                        .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s[4], DISSOLVE_S, s.steps))
+                end
                 pcall(function() a:K2_DestroyActor() end)
             else
                 still[#still + 1] = s
@@ -114,28 +153,37 @@ local function sinkStep()
     end
     sinking = still
 end
-if LoopAsync then
-    LoopAsync(33, function()
-        if #sinking > 0 then
-            ExecuteInGameThread(function()
-                local ok, err = pcall(sinkStep)
-                if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
-            end)
-        end
-        return false
-    end)
+-- Each core update (game thread): the opening pieces stepped, then the glow told where the player is.
+local function stepOpening()
+    if #sinking > 0 then
+        local ok, err = pcall(sinkStep)
+        if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
+    end
+    local ok, err = pcall(W.glowTick)
+    if not ok then once("glow", "wall glow error: " .. tostring(err)) end
 end
 local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
 local function forget(i)
     if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
     dressedAs[i] = nil
+    hiddenAt[i] = nil
 end
-local function lower(i)
-    local a = raised[i]
+-- Opening: with the paws skin the piece dissolves (W.dissolving, below: its material eats it away over 2 s by the
+-- game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway and then goes.
+W.dissolving = function() return nil end
+W.glowing, W.glowTick, W.dropCaches = function() return false end, function() end, function() end
+local function lower(i, context)
+    local a, wore = raised[i], dressedAs[i]
     forget(i)
     if not (a and a:IsValid()) then return end
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0 }
+    local ok, mid, start = pcall(W.dissolving, wore, context)
+    local m = ok and mid and W.meshOf(a)
+    if m then pcall(function() m:SetMaterial(0, mid) end) end
+    local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
+    now = (m and start) or (okT and type(now) == "number" and now) or 0
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, now, dissolving = m and true or nil, mid = m and mid or nil }
 end
+
 
 -- Walls the game removed (back to the title, another world) are noticed by checking a share of the pieces each
 -- update, all of them every 14 updates (4 s): 6dd356e checked all 818 every update (an estimated 0.3-0.5 ms,
@@ -154,12 +202,36 @@ function W.oldSweep()                 -- 6dd356e's check of every piece (only fo
     for _, a in pairs(raised) do a:IsValid() end
 end
 
+-- Shows the raised pieces near the player and hides the rest (W.radius; a few at a time; a dissolving piece has left
+-- raised already). Without the player's position, or with W.radius 0, every piece is shown.
+function W.showNear(context)
+    local px, py = nil, nil
+    if W.radius > 0 then
+        local okL, loc = pcall(function() return context:K2_GetActorLocation() end)
+        if okL and loc and loc.X then px, py = loc.X, loc.Y end
+    end
+    local budget = VIS_PER_TICK
+    for i, a in pairs(raised) do
+        if budget <= 0 then break end
+        local d = px and segDist(i, px, py)
+        local hide = (d and d > W.radius + HIDE_MARGIN) and true or nil
+        if d and not hide and hiddenAt[i] and d > W.radius then hide = true end   -- between: as it was
+        if hide ~= hiddenAt[i] then
+            if a:IsValid() then
+                pcall(function() a:SetActorHiddenInGame(hide == true) end)
+                hiddenAt[i] = hide
+                budget = budget - 1
+            end
+        end
+    end
+end
+
 -- Brings the walls in line with the passes held: raises missing pieces of locked borders, takes down pieces whose
 -- areas are both open (a few per call).
 local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
 function W.update(enabled, passes, context)
     checkSome()
-    W.lastPasses = passes
+    W.lastPasses, W.lastContext = passes, context
     if not ready() then return end
     local budget = PER_TICK
     for i, w in ipairs(DATA.walls) do
@@ -174,12 +246,14 @@ function W.update(enabled, passes, context)
             end
             budget = budget - 1
         elseif not up and raised[i] then
-            lower(i)
+            lower(i, context)
             budget = budget - 1
         end
     end
+    W.showNear(context)
     W.skinTick()
     W.recolour(passes)
+    stepOpening()
     if catchingUp and budget == PER_TICK then
         catchingUp = false
         P.wallsCaughtUp(nRaised)
@@ -323,8 +397,13 @@ end
 -- locked areas wears the one that isn't beyond the goal. Areas beyond the seed's goal (sealed for good) wear
 -- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour
 -- when the area it wore opens and the other side is still locked.
+-- paws (the default with the pak): the Art lane's cream paws (walls/ap-wall-paws-layer.png, cooked into the pak as
+-- T_APWallPaws with mips) on M_APWall, over the same area colour at 0.34 (the material's Back and BackAlpha; the user's
+-- pick C, 2026-11-05: "cream paws on the area colour"); sealed areas over the slate grey. Without the pak, area.
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
-                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area" }
+                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
+local function byArea(name) return name == "area" or name == "paws" end
+W.SKINS = SKINS
 local AREA_COLOURS = {
     ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
     ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
@@ -352,7 +431,7 @@ local function linearOf(hex)
 end
 W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS
 local FLOW = 0.05
-local AP_WALL = "/Game/Mods/PalworldArchipelagoArt/M_APWall.M_APWall"
+local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
 local apWall = nil                                             -- M_APWall once loaded
 local DENSE = { 10, 6 }
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
@@ -373,11 +452,54 @@ local function meshOf(a)
     ok, m = pcall(function() return a:GetComponentByClass(smc) end)
     if ok and m and m:IsValid() then return m end
 end
+W.meshOf = meshOf
+-- An asset of the PalworldArchipelagoArt pak: already loaded, else through the asset registry as BPModLoader loads the
+-- pak's ModActor (AssetRegistryHelpers:GetAsset with PackageName and AssetName), else LoadAsset. 2026-11-08 dev.39
+-- playtest: BPModLoader spawned the pak's ModActor in every level, yet LoadAsset + StaticFindObject found no M_APWall.
+-- Each step is guarded; how it went is noted for the one-time probe line.
+local function modAsset(pkg, name, notes)
+    local full = pkg .. "." .. name
+    local function found()
+        local ok, o = pcall(StaticFindObject, full)
+        return ok and o and o:IsValid() and o or nil
+    end
+    local o = found()
+    if o then notes[#notes + 1] = name .. " already loaded"; return o end
+    local ok, got = pcall(function()
+        local helpers = StaticFindObject("/Script/AssetRegistry.Default__AssetRegistryHelpers")
+        if not (helpers and helpers:IsValid()) then return "no AssetRegistryHelpers" end
+        local function fname(s) return EFindName and FName(s, EFindName.FNAME_Add) or FName(s) end
+        local a = helpers:GetAsset({ PackageName = fname(pkg), AssetName = fname(name) })
+        return a and a:IsValid() and a or "GetAsset gave nothing"
+    end)
+    if ok and type(got) ~= "string" then notes[#notes + 1] = name .. " from the asset registry"; return got end
+    notes[#notes + 1] = name .. " registry: " .. tostring(got)
+    local okL, err = pcall(LoadAsset, full)
+    o = found()
+    if o then notes[#notes + 1] = name .. " from LoadAsset"; return o end
+    notes[#notes + 1] = name .. " LoadAsset " .. (okL and "found nothing" or ("errored: " .. tostring(err)))
+end
+W.modAsset = modAsset
+-- M_APWall's fade (the user, 2026-11-08: dev.40's 9 to 15 m "loads in MUCH closer"): fully there within FADE[1] cm,
+-- gone at FADE[2] (config wall_fade=near,far in metres).
+W.fade = { 1500, 2500 }
+local function fadeOn(mid)
+    mid:SetScalarParameterValue(FName("FadeStart"), W.fade[1])
+    mid:SetScalarParameterValue(FName("FadeEnd"), W.fade[2])
+end
+local apWallProbed = false
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
-    pcall(LoadAsset, AP_WALL)
-    local m = StaticFindObject(AP_WALL)
-    if m and m:IsValid() then apWall = m; W.keep(m); return m end
+    local notes = {}
+    local m = modAsset("/Game/Mods/PalworldArchipelagoArt/M_APWall", "M_APWall", notes)
+    if not apWallProbed then
+        apWallProbed = true
+        local okA, actor = pcall(StaticFindObject, "/Game/Mods/PalworldArchipelagoArt/ModActor.ModActor_C")
+        local hasActor = okA and actor and actor:IsValid()
+        log("wall material probe: " .. (m and "found" or "not found") .. " (" .. table.concat(notes, "; ") .. "); ModActor_C "
+            .. (hasActor and "loaded" or "not loaded"))
+    end
+    if m then apWall = m; W.keep(m); return m end
 end
 local function colourMaterial(name, gi, krl, kml)
     local base = apWallMaterial()
@@ -391,6 +513,7 @@ local function colourMaterial(name, gi, krl, kml)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("Pattern"), tex)
+    fadeOn(mid)
     local scroll = flow and { FLOW, 0 } or W.scroll
     if scroll then
         mid:SetScalarParameterValue(FName("ScrollU"), scroll[1])
@@ -399,6 +522,127 @@ local function colourMaterial(name, gi, krl, kml)
     skin.mids[name], skin.failed[name] = mid, nil
     log("wall skin " .. name .. ": material made on M_APWall" .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
     return mid
+end
+-- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every area.
+local pawLayer = nil
+local function pawLayerTexture(gi, krl)
+    if pawLayer and pawLayer:IsValid() then return pawLayer end
+    local notes = {}
+    local t, from = modAsset("/Game/Mods/PalworldArchipelagoArt/T_APWallPaws", "T_APWallPaws", notes), "the pak, with mips"
+    if not (t and t:IsValid()) then
+        t, from = krl:ImportFileAsTexture2D(gi, W.dir .. "\\walls\\ap-wall-paws-layer.png"), "walls\\ap-wall-paws-layer.png, no mips"
+    end
+    if not (t and t:IsValid()) then return nil end
+    W.keep(t)
+    pawLayer = t
+    log("wall skin paws: the paw layer from " .. from)
+    return t
+end
+-- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour (made, not kept in skin.mids).
+local function makePaws(name, gi, krl, kml)
+    local base = apWallMaterial()
+    if not base then log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
+    local tex = pawLayerTexture(gi, krl)
+    if not tex then log("wall skin paws: could not load walls\\ap-wall-paws-layer.png"); return nil end
+    local hex, own = name:match("^paws:(%x%x%x%x%x%x):?(%d*)$")
+    local back = hex and linearOf(hex) or SEALED
+    local s = nil
+    if own and own ~= "" then
+        -- The Art lane (2026-11-08): s in 0..1 from the Area's number; offset (frac(s*7.13), frac(s*3.71)) tiles, mirrored
+        -- when s > 0.5, Back x (0.88 + 0.24 s). Never hue, rotation or scale.
+        local v = math.sin(tonumber(own) * 12.9898 + 1.0) * 43758.5453
+        s = v - math.floor(v)
+        local k = 0.88 + 0.24 * s
+        back = { R = back.R * k, G = back.G * k, B = back.B * k, A = 1 }
+    end
+    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), 0)
+    if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
+    W.keep(mid)
+    mid:SetTextureParameterValue(FName("Pattern"), tex)
+    mid:SetVectorParameterValue(FName("Back"), back)
+    mid:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
+    mid:SetScalarParameterValue(FName("Brightness"), PAW_BRIGHT)
+    if s then
+        mid:SetScalarParameterValue(FName("OffsetU"), (s * 7.13) % 1)
+        mid:SetScalarParameterValue(FName("OffsetV"), (s * 3.71) % 1)
+        mid:SetScalarParameterValue(FName("MirrorU"), s > 0.5 and 1 or 0)
+    end
+    fadeOn(mid)
+    if W.scroll then
+        mid:SetScalarParameterValue(FName("ScrollU"), W.scroll[1])
+        mid:SetScalarParameterValue(FName("ScrollV"), W.scroll[2])
+    end
+    return mid
+end
+local function pawsMaterial(name, gi, krl, kml)
+    local mid = makePaws(name, gi, krl, kml)
+    if not mid then return nil end
+    skin.mids[name], skin.failed[name] = mid, nil
+    log("wall skin " .. name .. ": material made on M_APWall")
+    return mid
+end
+-- An opening piece's material: its paws, dissolving from now over DISSOLVE_S by the game's clock (M_APWall's
+-- DissolveStart and DissolveTime against its Time node; an edge glows as it goes). One per look per second, so the
+-- pieces an update opens share it; nil for any other skin (those shrink).
+local gone, goneStart = {}, {}
+local glowAt = nil             -- where the player was last told to the M_APWall materials (W.glowTick, below)
+function W.dissolving(name, context)
+    if not (name and name:find("^paws:")) then return nil end
+    local ok, now = pcall(function() return gs:GetTimeSeconds(context) end)
+    if not (ok and type(now) == "number") then return nil end
+    local key = name .. "@" .. math.floor(now)
+    if gone[key] and gone[key]:IsValid() then return gone[key], goneStart[key] end
+    local gi = owner()
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
+    if not (gi and krl and krl:IsValid() and kml and kml:IsValid()) then return nil end
+    local mid = makePaws(name, gi, krl, kml)
+    if not mid then return nil end
+    mid:SetScalarParameterValue(FName("DissolveStart"), now)
+    mid:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
+    if glowAt then mid:SetVectorParameterValue(FName("PlayerPos"), glowAt) end
+    gone[key], goneStart[key] = mid, now
+    once("dissolve", "wall skin paws: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now) .. " s)")
+    return mid, now
+end
+-- The glow near the player (M_APWall's PlayerPos; dev.41 playtest: keyed to the camera it sat off to the side of the
+-- character): the player's position on the M_APWall materials of pieces shown, each core update (300 ms; a faster
+-- loop of our own corrupted Lua's state, see sinking above), only when the player has moved. The pawn is the core's,
+-- handed to W.update; checked each time.
+function W.glowing()
+    if nRaised == 0 or not apWall then return false end
+    return skin.now == "paws" or skin.now:find("^colour%-") ~= nil
+end
+function W.glowTick()
+    if not W.glowing() then return end
+    local pawn = W.lastContext
+    if not (pawn and pawn:IsValid()) then return end
+    local loc = pawn:K2_GetActorLocation()
+    if not (loc and loc.X) then return end
+    if glowAt and math.abs(glowAt.R - loc.X) + math.abs(glowAt.G - loc.Y) + math.abs(glowAt.B - loc.Z) < 5 then return end
+    glowAt = { R = loc.X, G = loc.Y, B = loc.Z, A = 1 }
+    -- Only the materials pieces shown now wear (dev.42 crash: every material ever made was called, those of the world
+    -- before included), and the dissolving ones of pieces still there.
+    local name, done = FName("PlayerPos"), {}
+    local function tell(mid)
+        if mid and not done[mid] and mid:IsValid() then done[mid] = true; mid:SetVectorParameterValue(name, glowAt) end
+    end
+    local wears = skin.now == "paws" and nil or skin.mids[skin.now]
+    for i in pairs(raised) do
+        if not hiddenAt[i] then
+            if wears then tell(wears); break end
+            local n = dressedAs[i]
+            if n then tell(skin.mids[n]) end
+        end
+    end
+    for _, sk in ipairs(sinking) do if sk.dissolving and sk[1]:IsValid() then tell(sk.mid) end end
+end
+-- A new world (or the player's pawn changed): every material, texture and handle kept from before is let go, never
+-- called again (dev.42 crash: the world before's materials, dead, called 30 times a second); made again when needed.
+function W.dropCaches()
+    skin.mids, skin.failed = {}, {}                             -- (skin.base: the game's own red, an asset, kept)
+    if skin.now ~= "red" then skin.now = "red" end           -- so skinTick dresses the new world's pieces again
+    gone, goneStart, glowAt, apWall, pawLayer = {}, {}, nil, nil, nil
 end
 local function skinMaterial(name)
     local mid = skin.mids[name]
@@ -414,6 +658,7 @@ local function skinMaterial(name)
         return nil
     end
     if name:find("^colour%-") then return colourMaterial(name, gi, krl, kml) end
+    if name:find("^paws:") then return pawsMaterial(name, gi, krl, kml) end
     local tint, file = TEAL, name:match("^(.-)%-dense$")
     local tiling = file and DENSE or W.tiling
     local hex = name:match("^area:(%x%x%x%x%x%x)$")
@@ -460,27 +705,34 @@ local function dress(a, mid)
     m:SetMaterial(0, mid or skin.base)
     return true
 end
--- The material a piece wears with the area skin, by name (see SKINS).
-local function pieceSkin(i, passes)
+-- The material a piece wears with the area skin (or paws), by name (see SKINS).
+local function pieceSkin(i, passes, mode)
     local w = DATA.walls[i]
     local a1, a2 = DATA.areas[w[5] + 1], DATA.areas[w[6] + 1]
     local l1, l2 = not isOpen(a1, passes), not isOpen(a2, passes)
     local area = (l1 and not l2) and a1 or (l2 and not l1) and a2 or (W.beyond[a1] and a2 or a1)
-    if W.beyond[area] then return "sealed" end
     local hex = AREA_COLOURS[W.parentOf(area)]
+    if mode == "paws" then
+        if W.beyond[area] then return "paws:sealed" end
+        -- 75 Areas: each Area its Region's look, varied by its own number (pattern offset, mirror, Back shade).
+        local own = ""
+        if W.layout == "regions" and W.parentOf(area) ~= area then own = ":" .. (area == a1 and w[5] or w[6]) end
+        return "paws:" .. (hex or "24E0CC") .. own             -- an area without a colour: the start island's teal
+    end
+    if W.beyond[area] then return "sealed" end
     return hex and ("area:" .. hex) or "a"
 end
 W.pieceSkin = pieceSkin
--- With the area skin: that piece's own material (made on first use; the teal lattice if it can't be made).
-local function areaDress(a, i, passes)
-    local name = pieceSkin(i, passes or {})
+-- With the area skin (or paws): that piece's own material (made on first use; the teal lattice if it can't be made).
+local function areaDress(a, i, passes, mode)
+    local name = pieceSkin(i, passes or {}, mode)
     local mid = skinMaterial(name)
     if not mid and name ~= "a" then name, mid = "a", skinMaterial("a") end
     if mid and dress(a, mid) then dressedAs[i] = name end
 end
 function W.skinNew(a, i)
-    if skin.now == "area" then
-        if i then pcall(areaDress, a, i, W.lastPasses) end
+    if byArea(skin.now) then
+        if i then pcall(areaDress, a, i, W.lastPasses, skin.now) end
     elseif skin.now ~= "red" then
         pcall(dress, a, skin.mids[skin.now])
     end
@@ -490,7 +742,7 @@ end
 local RECOLOUR = 40
 local recolourAt, passSig = nil, nil
 function W.recolour(passes)
-    if skin.now ~= "area" then return end
+    if not byArea(skin.now) then return end
     local n = 0
     for _ in pairs(passes) do n = n + 1 end
     local sig = n .. "/" .. (W.beyondSig or "")
@@ -499,8 +751,8 @@ function W.recolour(passes)
     local budget = RECOLOUR
     while recolourAt <= #DATA.walls and budget > 0 do
         local i, a = recolourAt, raised[recolourAt]
-        if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes) then
-            pcall(areaDress, a, i, passes)
+        if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
+            pcall(areaDress, a, i, passes, skin.now)
             budget = budget - 1
         end
         recolourAt = recolourAt + 1
@@ -515,9 +767,8 @@ function W.setBeyond(set)
     table.sort(names)
     W.beyondSig = table.concat(names, "|")
 end
--- Empty or unset: the teal hex lattice, a (the user, 2026-11-05: "stick with the hex layout"); wall_skin=red for the
--- game's own red grid.
-W.DEFAULT_SKIN = "area"
+-- Empty or unset: paws (area without the pak); wall_skin=red for the game's own red grid.
+W.DEFAULT_SKIN = "paws"
 function W.setSkin(name)
     if name == "" or name == nil then name = W.DEFAULT_SKIN end
     for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
@@ -546,8 +797,18 @@ function W.skinTick()
         if not skin.base then return end
         W.keep(skin.base)
     end
+    -- paws without the pak: area instead, and Ctrl+F3 skips paws from then on.
+    if skin.want == "paws" then
+        if apWallMaterial() then
+            skin.failed.paws = nil
+        else
+            log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found); the area colours instead")
+            skin.failed.paws, skin.want = true, "area"
+            if skin.want == skin.now then return end
+        end
+    end
     local mid = nil
-    if skin.want ~= "red" and skin.want ~= "area" then
+    if skin.want ~= "red" and not byArea(skin.want) then
         mid = skinMaterial(skin.want)
         if not mid then skin.want = skin.now; return end
     end
@@ -555,8 +816,8 @@ function W.skinTick()
     for i, a in pairs(raised) do
         if a:IsValid() then
             local ok, done
-            if skin.want == "area" then
-                ok = pcall(areaDress, a, i, W.lastPasses)
+            if byArea(skin.want) then
+                ok = pcall(areaDress, a, i, W.lastPasses, skin.want)
                 done = dressedAs[i] ~= nil
             else
                 ok, done = pcall(dress, a, mid)
@@ -566,13 +827,13 @@ function W.skinTick()
         end
     end
     skin.now = skin.want
-    if skin.now == "area" then
+    if byArea(skin.now) then
         local kinds = {}
         for _, name in pairs(dressedAs) do kinds[name] = true end
         local list = {}
         for name in pairs(kinds) do list[#list + 1] = name end
         table.sort(list)
-        log("wall skin area: colours " .. table.concat(list, ", "))
+        log("wall skin " .. skin.now .. ": colours " .. table.concat(list, ", "))
     end
     log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " without a mesh") or ""))
 end
@@ -805,6 +1066,133 @@ local function lockedIndexes(passes)
     end
     return table.concat(out, ",")
 end
+-- The "Territories" look (the user's direction 1, worked out with the Art & Assets lane, 2026-11-07; their lean, tweaks
+-- may follow): the game's own map and fog underneath; every area tinted in its colour by its state, with a soft rim
+-- inside its edge, over land and sea alike (areas take in their waters, and so do their walls); the standing walls as a
+-- cream glow and core, drawn from their own positions. The C++ part composes it (AP_ComposeTerritories) from the
+-- layout's labels, the areas' states and the standing walls: an overlay for the map picture (drawn over the game's map)
+-- and the same over a dark fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the
+-- explorer's chart and greyscale instead.
+W.mapStyle = "territories"
+local TERR_OVERLAY, TERR_FOG, TERR_SIZE = "map-territories.png", "map-territories-fog.png", 2048
+local TERR_FOG_COLOUR = "0E1A24"
+local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
+-- The walls: "glow colour,alpha,core colour,alpha,glow px,blur sigma,core px" (px of a 4096 map). The Art lane's colours;
+-- see-through (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the
+-- core was solid, the glow 0.55).
+local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
+local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }
+local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
+-- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
+local function areaSpec(passes)
+    local out = {}
+    for k, name in ipairs(DATA.areas) do
+        if name ~= SEA then
+            local st
+            if W.beyond[name] then st = "s"
+            elseif isOpen(name, passes) then st = (name == START or W.visited[name]) and "v" or "u"
+            else st = "l" end
+            local parent = W.parentOf(name)
+            local hex = st == "s" and SEALED_COLOUR or AREA_COLOURS[parent] or (parent == START and START_COLOUR) or "9AA3B5"
+            out[#out + 1] = (k - 1) .. ":" .. st .. ":" .. hex
+        end
+    end
+    return table.concat(out, ",")
+end
+-- The standing walls (up unless both sides are open; open sea counts as open) as "u1,v1,u2,v2;..." on the map square.
+-- A piece runs along its yaw: (sin yaw, -cos yaw) in map u, v (the Art lane's mock lined them up with the labels so).
+local function wallSpec(passes)
+    local x0, x1, y0, y1 = MAP.bounds[1], MAP.bounds[2], MAP.bounds[3], MAP.bounds[4]
+    local out = {}
+    for _, w in ipairs(DATA.walls) do
+        if not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes)) then
+            local u, v = (w[2] - y0) / (y1 - y0), (x1 - w[1]) / (x1 - x0)
+            local half = w[3] / 2 / (x1 - x0)
+            local yaw = math.rad(w[4])
+            local du, dv = math.sin(yaw) * half, -math.cos(yaw) * half
+            out[#out + 1] = string.format("%.5f,%.5f,%.5f,%.5f", u - du, v - dv, u + du, v + dv)
+        end
+    end
+    return table.concat(out, ";")
+end
+W.areaSpec, W.wallSpec = areaSpec, wallSpec
+-- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
+local function composeTerritories(ctx, passes, key)
+    if not terr.composing then
+        if terr.done == key then return true end
+        if terr.failed == key then return "failed" end
+    end
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local gi = owner()
+    if not gi then return false end
+    if terr.composing then
+        local st = AP_TerritoriesStatus()
+        if st == "busy" then return false end
+        local k = terr.composing
+        terr.composing = nil
+        if st ~= "done" then log("map territories: composing failed: " .. tostring(st)); terr.failed = k; return "failed" end
+        pcall(LoadAsset, MAP_TEXTURE)
+        local map = StaticFindObject(MAP_TEXTURE)
+        local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
+        if terr.whole then map = over end                                    -- (the whole picture: the map in it)
+        if not (map and map:IsValid() and over and over:IsValid()) then
+            log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
+        end
+        W.keep(over)
+        if not mapRT or not mapRT:IsValid() then
+            mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
+            W.keep(mapRT)
+        end
+        local canvasOut, contextOut, extra = {}, {}, {}
+        krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
+        canvasOut.Canvas:K2_DrawTexture(map, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+            { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+        if not terr.whole then
+            canvasOut.Canvas:K2_DrawTexture(over, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+                { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+        end
+        krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+        terr.done = k
+        once("terrdrawn" .. tostring(terr.whole), terr.whole and "map territories: drawn (the player's map, locked areas greyscale)"
+            or "map territories: drawn over the game's map")
+        return k == key
+    end
+    -- From the Art lane's distance field when the DLL has it (dev.34: smooth at 4096, where the 2048 label map gave stairs
+    -- and octagons; area_field*.png, made from the label maps by tools/map_fields.py), else from the label map at 2048.
+    local field = W.dir .. "\\area_field" .. SUFFIX .. ".png"
+    local fh = AP_ComposeField and io.open(field, "rb")
+    if fh then fh:close() end
+    local err, size, whole
+    if fh then
+        -- With the colour map (the player's own map, saved once; the user, dev.33: locked areas' "interior should be the
+        -- greyscale"): the whole map picture, greyscale where locked, the walls there in the area's colour.
+        local colour = W.dir .. "\\" .. COLOUR_FILE
+        local ch = io.open(colour, "rb")
+        if ch then ch:close()
+        else
+            pcall(LoadAsset, MAP_TEXTURE)
+            local tex = StaticFindObject(MAP_TEXTURE)
+            if tex and tex:IsValid() then
+                local okc, path = pcall(colourMap, krl, tex, gi)
+                ch = okc and path and io.open(path, "rb")
+                if ch then ch:close() end
+            end
+        end
+        size, whole = 4096, ch and true or false
+        err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
+            W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", "0.4545")
+    else
+        size = TERR_SIZE
+        err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), TERR_WALLS,
+            W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size))
+    end
+    if err == "" then
+        terr.composing, terr.size, terr.whole = key, size, whole or false
+        once("terrfrom" .. size, "map territories: composing " .. (fh and "from the distance field" or "from the label map") .. " at " .. size)
+    elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
+    return false
+end
+
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
 -- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
 -- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
@@ -812,6 +1200,7 @@ end
 -- as it is, without loading the game's 8192 px map; at the first opening the game's map is checked against it once
 -- (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
 local function composeMap(ctx, passes, key, open)
+    if territories() then return composeTerritories(ctx, passes, key) end
     if not composing then                    -- the usual case: nothing to do, nothing to look up
         if composedKey == key then
             if open and not printChecked then
@@ -887,7 +1276,7 @@ local function tellCpp()
     if not cpp.fog then
         cpp.fog = true
         AP_MapScreen("enable", W.cppOff and "0" or "1")
-        AP_MapScreen("fog", FOG_TEST)
+        AP_MapScreen("fog", territories() and "" or FOG_TEST)   -- (Territories: the game's own fog until its picture)
     end
     if mapRT and mapRT:IsValid() then
         local full = mapRT:GetFullName()
@@ -947,6 +1336,9 @@ end
 -- UNTESTED IN GAME. config.txt map_chart=0 keeps the game's fog.
 local CHART_SIZE = 2048
 local CHART_FILE, FOG_FILE = "map-chart.png", "map-fog.png"
+-- Each look keeps its own fog picture (dev.32 playtest, 2026-11-08: the first opening showed dev.31's chart, the last
+-- session's map-fog.png, until the territories' one was made).
+local function fogFile() return territories() and "map-fog-territories.png" or FOG_FILE end
 local EXPORT_GAP = 200                     -- updates (about a minute) between exports of the explored mask
 W.chartOff = false
 local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
@@ -983,6 +1375,22 @@ local function exportMask(screen, krl, gi)
     krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
     return true
 end
+-- The explored mask without the map screen (dev.34 playtest: the first opening showed the last session's fog picture,
+-- and a second opening the game made without Setup kept it, so the new look showed about a minute in): the player's own
+-- world map data holds it (UPalWorldMapUIData:GetRenderTargetByMapName "MainMap", the render target the screen's fog
+-- shows), so it is read once the fog art is ready, before the map ever opens. nil while there is none.
+local function worldMask(ctx)
+    local ok, rt = pcall(function()
+        local util = StaticFindObject("/Script/Pal.Default__PalUtility")
+        local wmd = util and util:IsValid() and util:GetLocalWorldMapData(ctx)
+        if not (wmd and wmd:IsValid()) then return nil end
+        local r = wmd:GetRenderTargetByMapName(FName("MainMap"))
+        if r and r:IsValid() then return r end
+        r = wmd:GetCurrentRenderTarget()
+        return r and r:IsValid() and r or nil
+    end)
+    return ok and rt or nil
+end
 -- The stamps for the fog picture: "path|u|v|px;..." (as drawStamps places them on the 4096 map).
 local function stampList(locked)
     if iconsActive() then return "" end
@@ -998,11 +1406,30 @@ local function stampList(locked)
     end
     return table.concat(parts, ";")
 end
-local function startFog(stamps)
+-- The areas on the chart (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?";
+-- go): a border between neighbouring areas and a hatch over locked ones, drawn by the C++ compositor from the area
+-- labels (dev.29's DLL; an older one ignores it). The user's picks in the Art lane (2026-11-07): "dashed brown ink"
+-- (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and the single diagonal hatch (art/ap-chart-hatch.png; a
+-- plain hatch in the ink if the file is missing). dev.30 test: both ran out over the sea (an area's labels take in its
+-- waters), the hatch made the map busy, and the line stair-stepped zoomed in: now on land only (the colour map tells
+-- land from sea, as for the chart), the hatch at 0.28 (was 0.45), and the line's edge softened (dev.31's DLL).
+-- config.txt map_regions=0: none.
+W.regionsOff = false
+local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.28
+local function regionSpec(passes)
+    if W.regionsOff then return "" end
+    return table.concat({ W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes), artFile("ap-chart-hatch"),
+        REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH),
+        exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", "0.4545" }, "|")
+end
+W.regionSpec = regionSpec
+local function startFog(stamps, regions, tag)
     local def = W.dir .. "\\fog-default-mask.png"
-    local err = AP_ComposeFog(W.dir .. "\\" .. CHART_FILE, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
-        W.dir .. "\\" .. FOG_FILE, tostring(CHART_SIZE), stamps)
-    if err == "" then chart.fog, chart.stampKey = "composing", stamps
+    local art = territories() and TERR_FOG or CHART_FILE
+    local size = territories() and terr.size or CHART_SIZE                  -- (the fog art's own size: its 8-bit path)
+    local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
+        W.dir .. "\\" .. fogFile(), tostring(size), stamps, regions)
+    if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end
 local function chartTick(ctx, screens, opening, passes)
@@ -1013,7 +1440,10 @@ local function chartTick(ctx, screens, opening, passes)
     local gi = owner()
     if not gi then return end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    if chart.state == "none" then                                            -- 1. the chart
+    if chart.state == "none" and territories() then                          -- 1. (the territories' fog art)
+        if terr.done and exists(W.dir .. "\\" .. TERR_FOG) then chart.state = "ready"; log("map territories: the fog art is ready") end
+        return
+    elseif chart.state == "none" then                                        -- 1. the chart
         local colour = W.dir .. "\\" .. COLOUR_FILE
         if not exists(colour) then return end
         local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
@@ -1036,12 +1466,29 @@ local function chartTick(ctx, screens, opening, passes)
         chart.fog = "idle"
         if st ~= "done" then once("fogerr" .. tostring(st), "map chart: the fog failed: " .. tostring(st)); return end
         load = true
-    elseif not chart.old and not chart.tex and exists(W.dir .. "\\" .. FOG_FILE) then
+    elseif not chart.old and not chart.tex and exists(W.dir .. "\\" .. fogFile()) then
         chart.old, load = true, true                                         -- the last session's, until a new one
     end
     if chart.fog == "idle" and not load then
-        local stamps = stampList(lockedList(passes))
-        if chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
+        local tagged = territories()
+        local stamps = tagged and "" or stampList(lockedList(passes))
+        local regions = tagged and "" or regionSpec(passes)
+        local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
+        if not chart.exportedAt and not chart.want and (chart.early or 0) < 10 and chart.ticks % 20 == 0 then
+            chart.early = (chart.early or 0) + 1                              -- (before the map opens: see worldMask)
+            local rt = worldMask(ctx)
+            local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png") end)
+            local spec, info = chart.spec, nil
+            if okE and not spec then spec, info = maskSpec(ctx) end
+            if okE and spec then
+                chart.spec, chart.exportedAt = spec, chart.ticks
+                log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
+                startFog(stamps, regions, tag)
+            elseif chart.early == 10 then
+                log("map chart: the explored mask could not be read before the map opened (" .. (rt and tostring(info) or "no world map data")
+                    .. "); from the first opening instead")
+            end
+        elseif chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
             chart.exportedAt, chart.want = chart.ticks, false
             local ok, res = pcall(exportMask, screens[#screens], krl, gi)
             if not ok or res ~= true then once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res)); return end
@@ -1051,14 +1498,14 @@ local function chartTick(ctx, screens, opening, passes)
                 if not spec then chart.state = "failed"; return end
                 chart.spec = spec
             end
-            startFog(stamps)
-        elseif chart.spec and chart.stampKey and stamps ~= chart.stampKey then
-            startFog(stamps)                                                 -- a pass: the same mask, new stamps
+            startFog(stamps, regions, tag)
+        elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions .. tag ~= chart.stampKey then
+            startFog(stamps, regions, tag)                                   -- a pass: the same mask, new stamps, hatch or look
         end
     end
     if load then                                                             -- 3. shown from the next opening
-        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. FOG_FILE)
-        if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. FOG_FILE); return end
+        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. fogFile())
+        if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
         W.keep(tex)
         chart.tex = tex
         local full = tex:GetFullName()
@@ -1079,6 +1526,24 @@ W.chartStatus = function() return chart end
 -- Return to title), so the icons are added once per screen, and again when a pass changes the locked set or the game
 -- drops them. UNTESTED IN GAME: if anything fails, the stamps are drawn into the picture again (iconsFailed).
 local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon.WBP_WorldMap_IconBase_OnlyIcon"
+-- Unlocked areas the player has not stood in yet get an open stamp (the user, 2026-11-07: "some other image type ... to
+-- show that a region has been unlocked, even when it is unexplored"; go): the Art lane's ap-map-stamp-open-<area>.png
+-- (or ap-map-stamp-open.png), none until there is one. W.visited: the core's set of areas stood in (in its save).
+W.visited = {}
+local function openList(passes)
+    local out = {}
+    for k, name in ipairs(DATA.areas) do
+        if name ~= SEA and name ~= START and passes[name] and not W.beyond[name] and not W.visited[name] then out[#out + 1] = k - 1 end
+    end
+    return out
+end
+local function openTexture(k)
+    local name = DATA.areas[k + 1]
+    local own = name and ("ap-map-stamp-open-" .. slugOf(W.parentOf(name)))
+    if own and artFile(own) ~= "" then return ART.texture(own) end
+    if artFile("ap-map-stamp-open") ~= "" then return ART.texture("ap-map-stamp-open") end
+    return nil
+end
 local mapIcons = { screen = nil, key = nil, list = {} }
 -- A map point (0-1 across and down the 4096 map) as a world location (game-systems: pixel = ((Y + 724400) / 1448800,
 -- (349400 - X) / 1448800) of the map's width).
@@ -1110,11 +1575,25 @@ local function placeIcons(screen, passes, key)
             if out.Added then shown = shown + 1 end
         end
     end
+    local opened = 0
+    for _, k in ipairs(openList(passes)) do
+        local c, tex = CENTRES[k], openTexture(k)
+        if c and tex then
+            local icon = wbl:Create(screen, cls, nil)
+            if not (icon and icon:IsValid()) then error("could not make a map icon") end
+            icon:ChangeTexture(tex)
+            screen["Add Icon By Location"](screen, icon, worldAt(c[1], c[2]), true, false, {})
+            pcall(function() icon:SetVisibility(3) end)
+            mapIcons.list[#mapIcons.list + 1] = icon
+            opened = opened + 1
+        end
+    end
     screen["Update Map Icons"](screen)          -- each icon's scale for the current zoom (the game does it on scroll/zoom)
     local where = ""
     local okw, parent = pcall(function() return mapIcons.list[1] and mapIcons.list[1]:GetParent():GetFName():ToString() end)
     if okw and parent then where = " on " .. parent end
-    log("map icons: " .. added .. " locked area(s) added" .. where .. " (" .. shown .. " said visible)")
+    log("map icons: " .. added .. " locked area(s) added" .. where .. " (" .. shown .. " said visible), " .. opened
+        .. " open not yet visited")
 end
 
 function W.updateMap(enabled, passes, ctx)
@@ -1126,12 +1605,18 @@ function W.updateMap(enabled, passes, ctx)
     -- one is checked each time and given the greyed map whenever it shows anything else.
     -- Only the main world's screen: the game also builds the World Tree's (MapName "Tree"), which shows T_WorldMap for a
     -- moment as it is set up (dev.17 log, 2026-11-07); a screen whose name can't be read is kept, as before.
+    -- Not the last world's (dev.35 playtest: after Return to title and a second world load, the first world's screens
+    -- were still about until collected, and the icons went on one of them): a screen whose owning player is gone is left
+    -- alone; one whose owner can't be read is kept.
     local images, screens = {}, {}
     for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
         local okn, mapName = pcall(function() return b.MapName:ToString() end)
         local main = not (okn and type(mapName) == "string" and mapName ~= "" and mapName ~= "None") or mapName:find("Main", 1, true)
-        if b:IsValid() and ok and img and main then images[#images + 1] = img; screens[#screens + 1] = b end
+        local okp, owner = pcall(function() return b:GetOwningPlayer() end)
+        local gone = okp and not (owner and owner:IsValid())
+        if gone then once("stalescreen", "map: a map screen of the last world left alone (its player is gone)") end
+        if b:IsValid() and ok and img and main and not gone then images[#images + 1] = img; screens[#screens + 1] = b end
     end
     mapShownAt = #images
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
@@ -1158,7 +1643,10 @@ function W.updateMap(enabled, passes, ctx)
     end
     -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
     -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
+    local been = {}
+    if territories() then for area in pairs(W.visited) do been[#been + 1] = area end; table.sort(been) end
     local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "") .. (iconsActive() and "#icons" or "#stamps")
+        .. (territories() and ("#territories#" .. table.concat(been, "|")) or "")
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then
@@ -1187,7 +1675,7 @@ function W.updateMap(enabled, passes, ctx)
     if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
     if #images == 0 then return end
     if iconsActive() then
-        local oki, erri = pcall(placeIcons, screens[#screens], passes, key)
+        local oki, erri = pcall(placeIcons, screens[#screens], passes, key .. "#open:" .. table.concat(openList(passes), ","))
         if not oki then
             iconsFailed = true
             for _, icon in ipairs(mapIcons.list) do pcall(function() if icon:IsValid() then icon:RemoveFromParent() end end) end
