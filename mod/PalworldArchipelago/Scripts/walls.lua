@@ -323,8 +323,12 @@ end
 -- locked areas wears the one that isn't beyond the goal. Areas beyond the seed's goal (sealed for good) wear
 -- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour
 -- when the area it wore opens and the other side is still locked.
+-- paws (the default with the pak): the Art lane's cream paws (walls/ap-wall-paws-layer.png, cooked into the pak as
+-- T_APWallPaws with mips) on M_APWall, over the same area colour at 0.34 (the material's Back and BackAlpha; the user's
+-- pick C, 2026-11-05: "cream paws on the area colour"); sealed areas over the slate grey. Without the pak, area.
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
-                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area" }
+                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
+local function byArea(name) return name == "area" or name == "paws" end
 local AREA_COLOURS = {
     ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
     ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
@@ -353,6 +357,8 @@ end
 W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS
 local FLOW = 0.05
 local AP_WALL = "/Game/Mods/PalworldArchipelagoArt/M_APWall.M_APWall"
+local PAW_LAYER = "/Game/Mods/PalworldArchipelagoArt/T_APWallPaws.T_APWallPaws"
+local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
 local apWall = nil                                             -- M_APWall once loaded
 local DENSE = { 10, 6 }
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
@@ -412,6 +418,44 @@ local function colourMaterial(name, gi, krl, kml)
     log("wall skin " .. name .. ": material made on M_APWall" .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
     return mid
 end
+-- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every area.
+local pawLayer = nil
+local function pawLayerTexture(gi, krl)
+    if pawLayer and pawLayer:IsValid() then return pawLayer end
+    pcall(LoadAsset, PAW_LAYER)
+    local t, from = StaticFindObject(PAW_LAYER), "the pak, with mips"
+    if not (t and t:IsValid()) then
+        t, from = krl:ImportFileAsTexture2D(gi, W.dir .. "\\walls\\ap-wall-paws-layer.png"), "walls\\ap-wall-paws-layer.png, no mips"
+    end
+    if not (t and t:IsValid()) then return nil end
+    W.keep(t)
+    pawLayer = t
+    log("wall skin paws: the paw layer from " .. from)
+    return t
+end
+-- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour.
+local function pawsMaterial(name, gi, krl, kml)
+    local base = apWallMaterial()
+    if not base then log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
+    local tex = pawLayerTexture(gi, krl)
+    if not tex then log("wall skin paws: could not load walls\\ap-wall-paws-layer.png"); return nil end
+    local hex = name:match("^paws:(%x%x%x%x%x%x)$")
+    local back = hex and linearOf(hex) or SEALED
+    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), 0)
+    if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
+    W.keep(mid)
+    mid:SetTextureParameterValue(FName("Pattern"), tex)
+    mid:SetVectorParameterValue(FName("Back"), back)
+    mid:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
+    mid:SetScalarParameterValue(FName("Brightness"), PAW_BRIGHT)
+    if W.scroll then
+        mid:SetScalarParameterValue(FName("ScrollU"), W.scroll[1])
+        mid:SetScalarParameterValue(FName("ScrollV"), W.scroll[2])
+    end
+    skin.mids[name], skin.failed[name] = mid, nil
+    log("wall skin " .. name .. ": material made on M_APWall")
+    return mid
+end
 local function skinMaterial(name)
     local mid = skin.mids[name]
     if mid and mid:IsValid() then return mid end
@@ -426,6 +470,7 @@ local function skinMaterial(name)
         return nil
     end
     if name:find("^colour%-") then return colourMaterial(name, gi, krl, kml) end
+    if name:find("^paws:") then return pawsMaterial(name, gi, krl, kml) end
     local tint, file = TEAL, name:match("^(.-)%-dense$")
     local tiling = file and DENSE or W.tiling
     local hex = name:match("^area:(%x%x%x%x%x%x)$")
@@ -472,27 +517,31 @@ local function dress(a, mid)
     m:SetMaterial(0, mid or skin.base)
     return true
 end
--- The material a piece wears with the area skin, by name (see SKINS).
-local function pieceSkin(i, passes)
+-- The material a piece wears with the area skin (or paws), by name (see SKINS).
+local function pieceSkin(i, passes, mode)
     local w = DATA.walls[i]
     local a1, a2 = DATA.areas[w[5] + 1], DATA.areas[w[6] + 1]
     local l1, l2 = not isOpen(a1, passes), not isOpen(a2, passes)
     local area = (l1 and not l2) and a1 or (l2 and not l1) and a2 or (W.beyond[a1] and a2 or a1)
-    if W.beyond[area] then return "sealed" end
     local hex = AREA_COLOURS[W.parentOf(area)]
+    if mode == "paws" then
+        if W.beyond[area] then return "paws:sealed" end
+        return "paws:" .. (hex or "24E0CC")                    -- an area without a colour: the start island's teal
+    end
+    if W.beyond[area] then return "sealed" end
     return hex and ("area:" .. hex) or "a"
 end
 W.pieceSkin = pieceSkin
--- With the area skin: that piece's own material (made on first use; the teal lattice if it can't be made).
-local function areaDress(a, i, passes)
-    local name = pieceSkin(i, passes or {})
+-- With the area skin (or paws): that piece's own material (made on first use; the teal lattice if it can't be made).
+local function areaDress(a, i, passes, mode)
+    local name = pieceSkin(i, passes or {}, mode)
     local mid = skinMaterial(name)
     if not mid and name ~= "a" then name, mid = "a", skinMaterial("a") end
     if mid and dress(a, mid) then dressedAs[i] = name end
 end
 function W.skinNew(a, i)
-    if skin.now == "area" then
-        if i then pcall(areaDress, a, i, W.lastPasses) end
+    if byArea(skin.now) then
+        if i then pcall(areaDress, a, i, W.lastPasses, skin.now) end
     elseif skin.now ~= "red" then
         pcall(dress, a, skin.mids[skin.now])
     end
@@ -502,7 +551,7 @@ end
 local RECOLOUR = 40
 local recolourAt, passSig = nil, nil
 function W.recolour(passes)
-    if skin.now ~= "area" then return end
+    if not byArea(skin.now) then return end
     local n = 0
     for _ in pairs(passes) do n = n + 1 end
     local sig = n .. "/" .. (W.beyondSig or "")
@@ -511,8 +560,8 @@ function W.recolour(passes)
     local budget = RECOLOUR
     while recolourAt <= #DATA.walls and budget > 0 do
         local i, a = recolourAt, raised[recolourAt]
-        if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes) then
-            pcall(areaDress, a, i, passes)
+        if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
+            pcall(areaDress, a, i, passes, skin.now)
             budget = budget - 1
         end
         recolourAt = recolourAt + 1
@@ -527,9 +576,8 @@ function W.setBeyond(set)
     table.sort(names)
     W.beyondSig = table.concat(names, "|")
 end
--- Empty or unset: the teal hex lattice, a (the user, 2026-11-05: "stick with the hex layout"); wall_skin=red for the
--- game's own red grid.
-W.DEFAULT_SKIN = "area"
+-- Empty or unset: paws (area without the pak); wall_skin=red for the game's own red grid.
+W.DEFAULT_SKIN = "paws"
 function W.setSkin(name)
     if name == "" or name == nil then name = W.DEFAULT_SKIN end
     for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
@@ -558,8 +606,18 @@ function W.skinTick()
         if not skin.base then return end
         W.keep(skin.base)
     end
+    -- paws without the pak: area instead, and Ctrl+F3 skips paws from then on.
+    if skin.want == "paws" then
+        if apWallMaterial() then
+            skin.failed.paws = nil
+        else
+            log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found); the area colours instead")
+            skin.failed.paws, skin.want = true, "area"
+            if skin.want == skin.now then return end
+        end
+    end
     local mid = nil
-    if skin.want ~= "red" and skin.want ~= "area" then
+    if skin.want ~= "red" and not byArea(skin.want) then
         mid = skinMaterial(skin.want)
         if not mid then skin.want = skin.now; return end
     end
@@ -567,8 +625,8 @@ function W.skinTick()
     for i, a in pairs(raised) do
         if a:IsValid() then
             local ok, done
-            if skin.want == "area" then
-                ok = pcall(areaDress, a, i, W.lastPasses)
+            if byArea(skin.want) then
+                ok = pcall(areaDress, a, i, W.lastPasses, skin.want)
                 done = dressedAs[i] ~= nil
             else
                 ok, done = pcall(dress, a, mid)
@@ -578,13 +636,13 @@ function W.skinTick()
         end
     end
     skin.now = skin.want
-    if skin.now == "area" then
+    if byArea(skin.now) then
         local kinds = {}
         for _, name in pairs(dressedAs) do kinds[name] = true end
         local list = {}
         for name in pairs(kinds) do list[#list + 1] = name end
         table.sort(list)
-        log("wall skin area: colours " .. table.concat(list, ", "))
+        log("wall skin " .. skin.now .. ": colours " .. table.concat(list, ", "))
     end
     log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " without a mesh") or ""))
 end

@@ -11,7 +11,12 @@ colour-paws, colour-routes, colour-grid; one tile is 3 m of wall):
   ap-wall-colour-grid.png    a fine cream grid (25 cm cells) with small paws in the five colours
   ap-wall-colour-rainbow.png the logo pawprint in cream on a see-through rainbow (skins colour-rainbow, and
                              colour-rainbow-flow, which drifts it sideways)
-Default (wall_skin unset or area): ap-wall-pattern-pawholes.png (an area-coloured wall with see-through paw-shaped
+Default (wall_skin unset or paws), with the PalworldArchipelagoArt pak:
+  ap-wall-paws-layer.png     two cream 1.1 m paws a tile with pillow shading, a navy rim and a drop shadow, clear
+                             elsewhere (Art & Assets lane, 2026-11-08; the user's pick C, 2026-11-05). M_APWall lays it
+                             over the area's colour at 0.34 (slate grey for sealed areas); the pak also holds it cooked
+                             with mips (T_APWallPaws), which the mod prefers.
+Without the pak (or wall_skin=area): ap-wall-pattern-pawholes.png (an area-coloured wall with see-through paw-shaped
 holes; ap-wall-pattern-a.png until that file is here) in the colour of the locked area behind each wall (that area's
 pass ticket colour; a region takes its area's), and for areas beyond the seed's goal:
   ap-wall-pattern-sealed.png the lattice dimmed, crossed by caution tape, in slate grey (2026-11-05)

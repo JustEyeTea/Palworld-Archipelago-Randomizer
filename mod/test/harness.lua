@@ -813,6 +813,24 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
     local fm = a.Cube.mat
     expect(fm.textures.Pattern.path == "ap-wall-colour-rainbow" and fm.scalars.ScrollU == 0.05 and fm.scalars.ScrollV == 0,
            "the -flow skin: the same tile, drifting sideways")
+    -- paws: the Art lane's cream-paw layer (cooked in the pak) over each piece's area colour at 0.34, on M_APWall
+    W.setSkin("paws"); run(1)
+    local pm = a.Cube.mat
+    local function close(c, d) return c and d and math.abs(c.R - d.R) < 1e-3 and math.abs(c.G - d.G) < 1e-3 and math.abs(c.B - d.B) < 1e-3 end
+    local backs, colours = {}, { W.linearOf("9AA3B5"), W.linearOf("24E0CC") }
+    for _, hex in pairs(W.AREA_COLOURS) do colours[#colours + 1] = W.linearOf(hex) end
+    local known = false
+    for _, c in ipairs(colours) do if pm.vectors and pm.vectors.Back and close(pm.vectors.Back, c) then known = true end end
+    for w in pairs(wallsUp) do
+        local b = w.Cube.mat.vectors and w.Cube.mat.vectors.Back
+        if b then backs[string.format("%.3f,%.3f,%.3f", b.R, b.G, b.B)] = true end
+    end
+    local nBacks = 0
+    for _ in pairs(backs) do nBacks = nBacks + 1 end
+    expect(pm ~= cm and pm.parent == cm.parent and pm.textures.Pattern.path:find("T_APWallPaws", 1, true)
+           and known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
+           and logged("wall skin paws: the paw layer from the pak, with mips") and logged("wall skin paws: colours paws:"),
+           "the paws skin: the cooked paw layer on M_APWall over each piece's area colour (" .. nBacks .. " colours)")
     W.setSkin("colour-paws"); run(1)
     cm.parent.IsValid = function() return false end            -- now without the pak
     logicMod = false

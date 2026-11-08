@@ -160,7 +160,9 @@ Part 1's setup, not Parts 2 and 3.
 4. In game with `test_tools=1`, Ctrl+F3 to a `colour-...` skin. UE4SS.log says `wall skin colour-...: material made on
    M_APWall`. Without the pak it says `needs the PalworldArchipelagoArt pak` and Ctrl+F3 skips it.
 
-What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour-<name>.png`), and optionally
-`CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`, `Opacity`, `FadeStart`/`FadeEnd`
-(900 / 1500 cm). The pattern is laid on the wall in world space, so it keeps its size on every piece and recedes in
+What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour-<name>.png`, or the cream-paw layer
+for the default `paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; the paws skin puts the
+area's colour at 0.34), `CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`,
+`Opacity`, `FadeStart`/`FadeEnd` (900 / 1500 cm). The script also cooks `walls\ap-wall-paws-layer.png` into the pak as
+`T_APWallPaws`, with mips; it reads the PNG from this repo, so run it from a full checkout. The pattern is laid on the wall in world space, so it keeps its size on every piece and recedes in
 perspective.

@@ -5,6 +5,9 @@ Run it inside the kit's editor (Tools > Execute Python Script...), or without op
 
 It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipelagoArt):
   M_APWall                    the area walls' material, built node by node here (nothing by hand)
+  T_APWallPaws                the Art lane's cream-paw layer (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png in
+                              this repo), cooked with mips so its navy rims don't shimmer far off
+  ModActor                    an empty Actor Blueprint, so BPModLoader's log shows the pak loaded
   PalworldArchipelagoArt_Label  Primary Asset Label: chunk 2, always cooked, everything in the folder
 
 Why: the game's wall material (MI_AirBlock_v2) multiplies one tint by one channel of its texture, so a wall piece can
@@ -17,11 +20,16 @@ distance from the camera like the game's walls. Parameters the Lua mod sets on i
   CellSize              centimetres per tile, both ways (300)
   ScrollU, ScrollV      tiles per second (0, 0)
   Tint (colour)         multiplies the colour (white)
+  Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws skin
+                        puts each area's colour at 0.34 under the cream-paw layer (the Art lane's formula, 2026-11-08:
+                        A = a + BackAlpha*(1 - a), colour = (rgb*a + Back*BackAlpha*(1 - a)) / A)
   Brightness            emissive strength (1.5); NightDim multiplies it (1, the Lua mod lowers it at night)
   Opacity               overall (0.85)
   FadeStart, FadeEnd    centimetres from the camera where it starts to fade, and where it is gone (900, 1500)
 The material is replaced as a whole if it already exists, so it is safe to run again after changing this script.
 """
+import os
+
 import unreal
 
 ROOT = "/Game/Mods/PalworldArchipelagoArt"
@@ -109,13 +117,43 @@ def material():
     tex = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -50, 200, parameter_name="Pattern", texture=white)
     link(final_uv, "", tex, "UVs")
 
-    # Colour: pattern x tint x brightness x night dimming.
+    # The pattern over the Back colour at BackAlpha: a = the pattern's alpha, under = BackAlpha*(1 - a),
+    # solid = a + under, colour = (rgb*a + Back*under) / solid (kept off zero). BackAlpha 0 leaves the pattern as it is.
+    back = node(mat, unreal.MaterialExpressionVectorParameter, -50, -250, parameter_name="Back",
+                default_value=unreal.LinearColor(0, 0, 0, 1))
+    back_a = scalar(mat, "BackAlpha", 0.0, -50, -150)
+    clear = node(mat, unreal.MaterialExpressionOneMinus, 100, 300)
+    link(tex, "A", clear, "")
+    under = node(mat, unreal.MaterialExpressionMultiply, 250, 300)
+    link(back_a, "", under, "A")
+    link(clear, "", under, "B")
+    solid = node(mat, unreal.MaterialExpressionAdd, 400, 300)
+    link(tex, "A", solid, "A")
+    link(under, "", solid, "B")
+    front = node(mat, unreal.MaterialExpressionMultiply, 100, -100)
+    link(tex, "RGB", front, "A")
+    link(tex, "A", front, "B")
+    behind = node(mat, unreal.MaterialExpressionMultiply, 250, -200)
+    link(back, "", behind, "A")
+    link(under, "", behind, "B")
+    mixed = node(mat, unreal.MaterialExpressionAdd, 400, -150)
+    link(front, "", mixed, "A")
+    link(behind, "", mixed, "B")
+    tiny = node(mat, unreal.MaterialExpressionConstant, 400, 400, r=0.0001)
+    safe = node(mat, unreal.MaterialExpressionMax, 550, 350)
+    link(solid, "", safe, "A")
+    link(tiny, "", safe, "B")
+    seen = node(mat, unreal.MaterialExpressionDivide, 550, -100)
+    link(mixed, "", seen, "A")
+    link(safe, "", seen, "B")
+
+    # Colour: that x tint x brightness x night dimming.
     tint = node(mat, unreal.MaterialExpressionVectorParameter, -50, -50, parameter_name="Tint",
                 default_value=unreal.LinearColor(1, 1, 1, 1))
     bright = scalar(mat, "Brightness", 1.5, -50, 450)
     night = scalar(mat, "NightDim", 1.0, -50, 550)
     c1 = node(mat, unreal.MaterialExpressionMultiply, 250, 50)
-    link(tex, "RGB", c1, "A")
+    link(seen, "", c1, "A")
     link(tint, "", c1, "B")
     c2 = node(mat, unreal.MaterialExpressionMultiply, 400, 150)
     link(bright, "", c2, "A")
@@ -125,7 +163,7 @@ def material():
     link(c2, "", colour, "B")
     mel.connect_material_property(colour, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
-    # Opacity: pattern alpha x overall opacity x distance fade (1 up to FadeStart, 0 from FadeEnd).
+    # Opacity: how solid (above) x overall opacity x distance fade (1 up to FadeStart, 0 from FadeEnd).
     cam = node(mat, unreal.MaterialExpressionCameraPositionWS, -50, 700)
     dist = node(mat, unreal.MaterialExpressionDistance, 150, 700)
     link(cam, "", dist, "A")
@@ -147,7 +185,7 @@ def material():
     link(clamp, "", fade, "")
     opac = scalar(mat, "Opacity", 0.85, 500, 600)
     o1 = node(mat, unreal.MaterialExpressionMultiply, 650, 550)
-    link(tex, "A", o1, "A")
+    link(solid, "", o1, "A")
     link(opac, "", o1, "B")
     o2 = node(mat, unreal.MaterialExpressionMultiply, 950, 600)
     link(o1, "", o2, "A")
@@ -177,6 +215,42 @@ def label():
     return lab
 
 
+def paw_layer():
+    # The paws skin's layer, cooked into the pak with mips (the Art lane, 2026-11-08: a file imported at run time has
+    # none, and the navy rims shimmer at a distance). The Lua mod loads the file itself if this is missing.
+    name = "T_APWallPaws"
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        here = os.environ.get("AP_REPO_LOGICMOD", "")
+    src = os.path.normpath(os.path.join(here, "..", "mod", "PalworldArchipelago", "walls", "ap-wall-paws-layer.png"))
+    if not os.path.isfile(src):
+        log(f"{name}: skipped, no {src} (the Lua mod will load the PNG at run time, without mips)")
+        return None
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", src)
+    task.set_editor_property("destination_path", ROOT)
+    task.set_editor_property("destination_name", name)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("save", False)
+    tools.import_asset_tasks([task])
+    tex = assets.load_asset(f"{ROOT}/{name}")
+    if not tex:
+        log(f"{name}: the import of {src} failed (the Lua mod will load the PNG at run time, without mips)")
+        return None
+    tex.set_editor_property("srgb", True)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)
+    tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP)
+    tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
+    try:
+        size = f"{tex.blueprint_get_size_x()}x{tex.blueprint_get_size_y()}"
+    except Exception:
+        size = "size unknown"
+    log(f"{name}: imported from {src} ({size}, sRGB, with mips)")
+    return tex
+
+
 def mod_actor():
     # An empty Actor Blueprint named ModActor: UE4SS's BPModLoader then loads the pak's ModActor and says so, proof that
     # the game mounted the pak (2026-11-08 playtest: without one it said "ModClass ... is not valid" and the mod's
@@ -195,8 +269,9 @@ def mod_actor():
 def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
-    for a in (material(), mod_actor(), label()):
-        assets.save_loaded_asset(a, only_if_is_dirty=False)
+    for a in (material(), paw_layer(), mod_actor(), label()):
+        if a:
+            assets.save_loaded_asset(a, only_if_is_dirty=False)
     log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as PalworldArchipelagoArt.pak")
 
 
