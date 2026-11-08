@@ -121,7 +121,7 @@ end
 
 -- The goal banner (art/ap-goal-banner.png, 1200x300 drawn at 600x150) in the upper third with what was done in its
 -- pill (where the Ctrl+F4 HUD probe put a sample line, 2026-11-05), for BANNER_TICKS. It takes the pop-up's place.
-local BANNER_TICKS = 27                  -- 8 s
+local BANNER_TICKS = 50                  -- 15 s (2026-11-08 test: 8 s was short; "could stick around a little longer")
 local BANNER_W, BANNER_H, BANNER_TEXT = 600, 150, { 155, 111 }
 function H.banner(line, tick)
     H.hide()
