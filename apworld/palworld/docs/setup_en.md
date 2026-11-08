@@ -9,10 +9,12 @@ with `[PalworldAP]`.
 
 - Palworld 1.0.5 on Steam (Windows).
 - UE4SS for Palworld: the Palworld build from Okaetsu/RE-UE4SS. The mod is built against its release `2281fa31`.
-- The mod package, `PalworldArchipelago-mod`. Until a release is published, it is the artifact of the project's CI
-  build on GitHub. It holds `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
-- Optional: `PalworldArchipelagoUI.pak`, which gives the Archipelago Mailbox its own window. Without it the mailbox
-  opens in the game's chest window.
+- The mod package, `PalworldArchipelago-v<version>.zip`, from the project's
+  [Releases](https://github.com/JustEyeTee/Palworld-Archipelago-Randomizer/releases) page. It holds
+  `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
+- Optional: `PalworldArchipelagoArt.pak` from the same release, the area walls' own material (paws in each area's
+  colour, a glow near you, a dissolve when an area opens). Without it the walls use the game's own wall material in
+  your area colours.
 
 ## Installing
 
@@ -30,8 +32,10 @@ with `[PalworldAP]`.
    ```
 
    Without APConnector the log says `APConnector is not installed` and the mod stays off.
-5. Optional: copy `PalworldArchipelagoUI.pak` to `Pal\Content\Paks\LogicMods` (make the folder if it isn't there).
-   `BPModLoaderMod` must stay on in `mods.txt`; UE4SS ships it on.
+5. Optional: copy `PalworldArchipelagoArt.pak` to `Pal\Content\Paks\LogicMods` (make the folder if it isn't there).
+   `BPModLoaderMod` must stay on in `mods.txt`; UE4SS ships it on. (A second pak, `PalworldArchipelagoUI.pak`, would
+   give the Archipelago Mailbox its own window; it isn't released yet, and the mailbox works in the game's chest
+   window without it.)
 
 ## Making your game
 
