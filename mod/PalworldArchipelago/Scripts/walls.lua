@@ -816,6 +816,10 @@ W.mapStyle = "territories"
 local TERR_OVERLAY, TERR_FOG, TERR_SIZE = "map-territories.png", "map-territories-fog.png", 2048
 local TERR_FOG_COLOUR = "0E1A24"
 local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
+-- The walls: "glow colour,alpha,core colour,alpha,glow px,blur sigma,core px" (px of a 4096 map). The Art lane's colours;
+-- see-through (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the
+-- core was solid, the glow 0.55).
+local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
 local terr = { composing = nil, done = nil, failed = nil }
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
 -- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
@@ -888,7 +892,7 @@ local function composeTerritories(ctx, passes, key)
         once("terrdrawn", "map territories: drawn over the game's map")
         return k == key
     end
-    local err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), "",
+    local err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), TERR_WALLS,
         W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(TERR_SIZE))
     if err == "" then terr.composing = key elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
     return false
@@ -1037,6 +1041,9 @@ end
 -- UNTESTED IN GAME. config.txt map_chart=0 keeps the game's fog.
 local CHART_SIZE = 2048
 local CHART_FILE, FOG_FILE = "map-chart.png", "map-fog.png"
+-- Each look keeps its own fog picture (dev.32 playtest, 2026-11-08: the first opening showed dev.31's chart, the last
+-- session's map-fog.png, until the territories' one was made).
+local function fogFile() return territories() and "map-fog-territories.png" or FOG_FILE end
 local EXPORT_GAP = 200                     -- updates (about a minute) between exports of the explored mask
 W.chartOff = false
 local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
@@ -1109,7 +1116,7 @@ local function startFog(stamps, regions, tag)
     local def = W.dir .. "\\fog-default-mask.png"
     local art = territories() and TERR_FOG or CHART_FILE
     local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
-        W.dir .. "\\" .. FOG_FILE, tostring(CHART_SIZE), stamps, regions)
+        W.dir .. "\\" .. fogFile(), tostring(CHART_SIZE), stamps, regions)
     if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end
@@ -1147,7 +1154,7 @@ local function chartTick(ctx, screens, opening, passes)
         chart.fog = "idle"
         if st ~= "done" then once("fogerr" .. tostring(st), "map chart: the fog failed: " .. tostring(st)); return end
         load = true
-    elseif not chart.old and not chart.tex and exists(W.dir .. "\\" .. FOG_FILE) then
+    elseif not chart.old and not chart.tex and exists(W.dir .. "\\" .. fogFile()) then
         chart.old, load = true, true                                         -- the last session's, until a new one
     end
     if chart.fog == "idle" and not load then
@@ -1171,8 +1178,8 @@ local function chartTick(ctx, screens, opening, passes)
         end
     end
     if load then                                                             -- 3. shown from the next opening
-        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. FOG_FILE)
-        if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. FOG_FILE); return end
+        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. fogFile())
+        if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
         W.keep(tex)
         chart.tex = tex
         local full = tex:GetFullName()

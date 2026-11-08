@@ -1248,8 +1248,9 @@ AP_ComposeTerritories = function(labels, areas, walls, style, out, fogart, fog, 
     return ""
 end
 AP_TerritoriesStatus = function() return "done" end
-AP_MapScreen = function() return "" end
-AP_ComposeFog = function(chartFile) fogArt = chartFile; return "" end
+local pics = {}
+AP_MapScreen = function(what, arg) if what == "fogpic" then pics[#pics + 1] = arg end return "" end
+AP_ComposeFog = function(chartFile, _, _, _, out) fogArt = chartFile; local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
 AP_FogStatus = function() return "done" end
 AP_ComposeChart = function() error("Territories draws no chart") end
 AP_ChartStatus = function() return "done" end
@@ -1269,13 +1270,15 @@ T.dir, T.keep = MOD, function() end
 T.beyond = { [sealedArea] = true }
 T.visited = {}
 local passes = { [area4] = true }
+local stale = io.open(MOD .. "/map-fog.png", "w"); stale:write("png"); stale:close()   -- (dev.31's chart fog, last session)
+os.remove(MOD .. "/map-fog-territories.png")
 mapOpen, drawLog = false, {}
 for _ = 1, 3 do T.updateMap(true, passes, pawn) end
 local job = jobs[#jobs]
 local st = {}
 for item in (job and job.areas or ""):gmatch("[^,]+") do local i, s, c = item:match("^(%d+):(%a):(%x+)$"); st[tonumber(i)] = { s = s, c = c } end
-expect(job and job.labels:find("area_labels%.png$") and job.size == "2048" and job.fog == "0E1A24" and job.style == "",
-       "the overlay is composed from the area labels at 2048, with the dark fog colour and the Art lane's walls")
+expect(job and job.labels:find("area_labels%.png$") and job.size == "2048" and job.fog == "0E1A24" and job.style == "FFE9B0,0.35,FFF4DC,0.6,10,3,5",
+       "the overlay is composed from the area labels at 2048, with the dark fog colour and the Art lane's walls, see-through")
 expect(st[1] and st[1].s == "v" and st[1].c == "24E0CC" and st[3] and st[3].s == "u" and st[2] and st[2].s == "l"
        and st[15] and st[15].s == "s" and st[15].c == "5A6472" and st[0] == nil,
        "states: the start visited (teal), an area with its pass unvisited, the rest locked, beyond the goal sealed (slate); no sea")
@@ -1299,6 +1302,10 @@ expect(overDrawn and logged("map territories: drawn over the game's map"), "the 
 mapOpen = true
 for _ = 1, 4 do T.updateMap(true, passes, pawn) end
 expect(fogArt and fogArt:find("map%-territories%-fog%.png$"), "the fog picture is made from the territories' fog art: " .. tostring(fogArt))
+local chartPic = false
+for _, p in ipairs(pics) do if not tostring(p):find("territories") then chartPic = true end end
+expect(#pics > 0 and not chartPic and tostring(pics[#pics]):find("map%-fog%-territories"),
+       "the territories' own fog picture, never the chart's from the last session: " .. table.concat(pics, " "))
 local n = #jobs
 T.visited[area4] = true
 for _ = 1, 3 do T.updateMap(true, passes, pawn) end
@@ -1312,6 +1319,7 @@ expect(#jobs == n, "map_style=chart: no territories")
 AP_ComposeTerritories, AP_TerritoriesStatus, AP_MapScreen, AP_ComposeFog, AP_FogStatus = nil, nil, nil, nil, nil
 AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil
 mapBody.MaskTextureMaterial = nil
+os.remove(MOD .. "/map-fog.png"); os.remove(MOD .. "/map-fog-territories.png")
 end)()
 
 print("a new world")
