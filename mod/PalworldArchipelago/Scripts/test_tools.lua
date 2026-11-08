@@ -31,12 +31,11 @@ local function try(what, fn)
     log(what .. ": " .. (ok and ("ok " .. tostring(a)) or ("FAILED " .. tostring(a))))
     return ok and a or nil
 end
+-- After `ms`, on the game thread (soon.lua; ExecuteWithDelay ran Lua off-thread, the 2026-11-08 crashes' race).
 local function later(ms, fn)
-    ExecuteWithDelay(ms, function()
-        ExecuteInGameThread(function()
-            local ok, err = pcall(fn)
-            if not ok then log("error: " .. tostring(err)) end
-        end)
+    require("soon").after(ms, function()
+        local ok, err = pcall(fn)
+        if not ok then log("error: " .. tostring(err)) end
     end)
 end
 
@@ -321,28 +320,28 @@ function T.install()
         { "F5", "Slow Trap" }, { "F6", "Hunger Trap" }, { "F7", "Teleport Trap" }, { "F8", "Fool Trap" },
         { "F9", "exhaustion probe", exhaustion }, { "F10", "nightfall probe", nightfall }, { "F11", "status probe", status },
     }
+    -- Every key bind hands ExecuteInGameThread a function made here, once: its callback runs off the game thread, where
+    -- making a new function each press is the Lua-state race of 2026-11-08.
     for _, b in ipairs(binds) do
-        RegisterKeyBind(Key[b[1]], { ModifierKey.CONTROL }, function()
-            ExecuteInGameThread(function()
-                log("--- " .. b[2])
-                local ok, err = pcall(b[3] or function()
-                    TRAPS.test(b[2])
-                    log(b[2] .. " queued: fires on the next update the gates allow")
-                end)
-                if not ok then log(b[2] .. " error: " .. tostring(err)) end
+        local function onKey()
+            log("--- " .. b[2])
+            local ok, err = pcall(b[3] or function()
+                TRAPS.test(b[2])
+                log(b[2] .. " queued: fires on the next update the gates allow")
             end)
-        end)
+            if not ok then log(b[2] .. " error: " .. tostring(err)) end
+        end
+        RegisterKeyBind(Key[b[1]], { ModifierKey.CONTROL }, function() ExecuteInGameThread(onKey) end)
     end
     log("test tools on: Ctrl+F5-F8 Slow/Hunger/Teleport/Fool Trap, Ctrl+F9 exhaustion, Ctrl+F10 nightfall, Ctrl+F11 status")
     -- Ctrl+F3: the next wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense; walls.lua), put on at the next update.
     -- On the game thread like every other key (v0.13.5 playtest: run straight from the key bind, it shared the Lua
     -- state with the update; a walls error with a number for an actor, and UE4SS's "Ref was not function").
-    RegisterKeyBind(Key.F3, { ModifierKey.CONTROL }, function()
-        ExecuteInGameThread(function()
-            local name = require("walls").cycleSkin()
-            log("--- wall skin " .. tostring(name) .. " (on at the next update)")
-        end)
-    end)
+    local function skinKey()
+        local name = require("walls").cycleSkin()
+        log("--- wall skin " .. tostring(name) .. " (on at the next update)")
+    end
+    RegisterKeyBind(Key.F3, { ModifierKey.CONTROL }, function() ExecuteInGameThread(skinKey) end)
     local function speedKey()
         local ok, factor, how = pcall(speedUp)
         log("--- speed " .. (ok and ("x" .. factor .. " (walk multipliers now: " .. how .. ")") or ("error: " .. tostring(factor))))
@@ -359,13 +358,12 @@ function T.install()
     RegisterKeyBind(Key.F1, { ModifierKey.CONTROL }, function() ExecuteInGameThread(levelKey) end)
     log("test tools on: Ctrl+F1 " .. LEVEL_EXP .. " EXP (the game's GiveExpToAroundPlayerCharacter)")
     log("test tools on: Ctrl+F3 wall skin (" .. table.concat(require("walls").SKINS, ", ") .. ")")
-    RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function()
-        ExecuteInGameThread(function()
-            log("--- HUD probe")
-            local ok, err = pcall(hudProbeStart)
-            if not ok then log("HUD probe: error " .. tostring(err)); hudProbe = nil end
-        end)
-    end)
+    local function probeKey()
+        log("--- HUD probe")
+        local ok, err = pcall(hudProbeStart)
+        if not ok then log("HUD probe: error " .. tostring(err)); hudProbe = nil end
+    end
+    RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function() ExecuteInGameThread(probeKey) end)
     -- Loops: made here, at module load; off the game thread they only read a flag and hand over a function made once
     -- (walls.lua, loopStep: running Lua there crashed the game).
     local function probeStep()
@@ -382,13 +380,12 @@ function T.install()
         return
     end
     for _, g in ipairs(GIFTS) do
-        RegisterKeyBind(Key[g.key], { ModifierKey.CONTROL, ModifierKey.SHIFT }, function()
-            -- Key binds run off the game thread; the connector refuses game calls there.
-            ExecuteInGameThread(function()
-                local ok, err = pcall(give, g)
-                if not ok then log("give Pal " .. g.route .. ": error " .. tostring(err)) end
-            end)
-        end)
+        -- Key binds run off the game thread (the connector refuses game calls there): hand over a function made once.
+        local function giftKey()
+            local ok, err = pcall(give, g)
+            if not ok then log("give Pal " .. g.route .. ": error " .. tostring(err)) end
+        end
+        RegisterKeyBind(Key[g.key], { ModifierKey.CONTROL, ModifierKey.SHIFT }, function() ExecuteInGameThread(giftKey) end)
     end
     -- Made here, at module load (a loop made inside ExecuteInGameThread fails); 250 ms, not the core loop's 300.
     local function pollStep()

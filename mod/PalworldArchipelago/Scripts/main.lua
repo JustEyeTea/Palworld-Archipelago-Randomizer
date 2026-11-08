@@ -7,7 +7,7 @@
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.1-dev.3"
+local VERSION = "0.14.1-dev.4"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -782,6 +782,10 @@ end
 
 -- Blueprint hooks can only be registered once their class has loaded (when a menu first opens). UE4SS runs the FIRST
 -- callback AFTER a Blueprint function, so these change what the function produced.
+-- Work for the next updates, on the game thread (soon.lua: ExecuteWithDelay's callbacks ran Lua off-thread).
+local SOON = require("soon")
+local later = SOON.later
+
 local lazyHooks = {
     -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
     { class = CONTENT, fn = CONTENT .. ":IsUnlocked", cb = function(self, out)
@@ -820,20 +824,22 @@ local lazyHooks = {
         hoveredTech = nil
     end },
     -- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
-    -- re-applied a few times over the first half second (only while it still differs).
+    -- applied on the next frame and again on the next two updates (only while it still differs): about the first
+    -- half second, as the five ExecuteWithDelay re-applies did, all on the game thread.
     { class = DIALOG, fn = DIALOG .. ":SetupUI", cb = function(self, dialogType, message)
         local tech = hoveredTech
         once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
         if not shopCard(tech) or bought(tech) then return end
         local dialog, text = self:get(), confirmText(tech)
-        for _, delay in ipairs({ 0, 50, 150, 300, 500 }) do
-            ExecuteWithDelay(delay, function() ExecuteInGameThread(function()
-                if not dialog:IsValid() then return end
-                local popup = dialog.WBP_CommonPopupWindow
-                local msg = safe(function() return popup.BP_PalRichTextBlock_Message:GetText():ToString() end)
-                if msg ~= text then pcall(function() popup:SetMainText(FText(text)) end) end
-            end) end)
+        local function apply()
+            if not dialog:IsValid() then return end
+            local popup = dialog.WBP_CommonPopupWindow
+            local msg = safe(function() return popup.BP_PalRichTextBlock_Message:GetText():ToString() end)
+            if msg ~= text then pcall(function() popup:SetMainText(FText(text)) end) end
         end
+        ExecuteInGameThread(apply)                      -- (from this hook, on the game thread: the next frame)
+        later(1, apply)
+        later(2, apply)
     end },
 }
 local function registerLazyHooks()
@@ -886,10 +892,10 @@ local okh, errh = pcall(RegisterHook, "/Script/Pal.PalNetworkPlayerComponent:Req
         -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
         -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
         if P.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on"); return end
-        ExecuteWithDelay(300, function() ExecuteInGameThread(function()
+        later(1, function()                             -- the next update (within 300 ms), on the game thread
             local ok, err = pcall(buy, tech)
             if not ok then log("buy error: " .. tostring(err)) end
-        end) end)
+        end)
     end)
 log(okh and "hooked research requests" or ("could not hook research requests: " .. tostring(errh)))
 
@@ -1261,13 +1267,13 @@ local function askHint()
     AP_Say("!hint " .. WALLS.passName(area))
     notify("Asking the Archipelago server where " .. WALLS.passName(area) .. " is...")
 end
+-- Key binds run off the game thread: they only hand over a function made here, once (no new function there).
+local function hintKey()
+    local ok, err = pcall(askHint)
+    if not ok then log("hint error: " .. tostring(err)) end
+end
 if RegisterKeyBind and Key and Key[hints.key] then
-    RegisterKeyBind(Key[hints.key], function()
-        ExecuteInGameThread(function()
-            local ok, err = pcall(askHint)
-            if not ok then log("hint error: " .. tostring(err)) end
-        end)
-    end)
+    RegisterKeyBind(Key[hints.key], function() ExecuteInGameThread(hintKey) end)
 end
 
 -- Death Link (the slot's death_link option): dying sends a death to everyone linked; a death from them faints the
@@ -1425,6 +1431,7 @@ end
 
 local function update(ctx)
     tick = tick + 1
+    SOON.run()
     pcall(POPUP.tick, tick)
     local okdb, errdb = pcall(DEBUFFS.tick, tick)
     if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end

@@ -492,13 +492,14 @@ local function hotkeys()
     if not RegisterKeyBind or not Key or not ModifierKey then log("no key binds in this UE4SS"); return end
     -- Ctrl and the number keys 6 to 0: the traps' test keys have Ctrl+F5 to Ctrl+F11 and the Pal gifts' Ctrl+Shift+F5 to F9
     -- (test_tools.lua), and a key bound twice would run both.
+    -- (The function handed over is made here, once: a key bind runs off the game thread, where making a new function
+    -- each press is the Lua-state race of 2026-11-08.)
     local function bind(key, label, fn)
-        RegisterKeyBind(Key[key], { ModifierKey.CONTROL }, function()
-            ExecuteInGameThread(function()
-                local ok, err = pcall(fn)
-                if not ok then log("Ctrl+" .. label .. " error: " .. tostring(err)) end
-            end)
-        end)
+        local function onKey()
+            local ok, err = pcall(fn)
+            if not ok then log("Ctrl+" .. label .. " error: " .. tostring(err)) end
+        end
+        RegisterKeyBind(Key[key], { ModifierKey.CONTROL }, function() ExecuteInGameThread(onKey) end)
     end
     bind("SIX", "6", function()
         marks = marks + 1

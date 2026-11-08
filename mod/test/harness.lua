@@ -1691,6 +1691,8 @@ req.get = function(self) return self.v end
 req.set = function(self, v) self.v = v end
 research(nil, req)
 expect(req.v:ToString() == "AP_ShopSlot", "request rewritten")
+expect(not checks[D.shop.RepairBench.loc], "the purchase waits for the next update (on the game thread; no ExecuteWithDelay)")
+run(1)
 expect(checks[D.shop.RepairBench.loc], "shop check sent")
 expect(td.TechnologyPoint == 12 - D.shop.RepairBench.cost, "points charged: " .. td.TechnologyPoint)
 local before = td.TechnologyPoint
@@ -2663,6 +2665,7 @@ expect(sp.Value == 0 and logged("exhaustion: stamina 900000 of 1000000 %-> 0"), 
 keyBinds["key:F10"]()
 expect(hour == 22 and logged("nightfall: hour 9 %-> 22"), "Ctrl+F10: nightfall probe logs the hour")
 keyBinds["key:F11"]()
+run(40)                                                        -- (its 2 s and 10 s follow-ups run on updates now)
 expect(logged("status LowGravity: running right after: BP_Status") and logged("RemoveStatus%(LowGravity%): ok")
        and logged("status LowGravity: running after removal: not running"),
        "Ctrl+F11: a status is added, checked and removed")
@@ -3285,7 +3288,7 @@ if PERF then
            "and a confirm during the bypass buys nothing (the dialog showed the game's text)")
     keyBinds["key:NINE"]()
     expect(cardUnlocked() == false, "and back to the mod's answer (the slot still unbought)")
-    req.v = FNameOf("RepairBench"); research(nil, req)
+    req.v = FNameOf("RepairBench"); research(nil, req); run(1)
     expect(cardUnlocked() == true, "bought once the bypass is off")
 
     local ffo = lookups["first:PalPlayerController"] or 0
@@ -3737,13 +3740,21 @@ end)()
 ;(function()  -- the rule from the 2026-11-08 crashes: a LoopAsync callback (another thread, the same Lua state) only
     -- reads a flag and hands a function made beforehand to ExecuteInGameThread; no other Lua runs there
     local bad = {}
-    for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates" }) do
+    for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates",
+                         "perf", "soon", "sync", "records", "art", "crate_window", "tech_gifts", "techscan", "tech_icons" }) do
         local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
         local src = fh and fh:read("a") or ""
         if fh then fh:close() end
         local lines, n = {}, 0
         for line in (src .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
         for k, line in ipairs(lines) do
+            -- (2026-11-08 tech-shop crash: ExecuteWithDelay runs its callback off the game thread too; and a key bind's
+            -- callback must hand over a function made beforehand, not make one there.)
+            local code = line:gsub("%-%-.*$", "")
+            if code:find("ExecuteWithDelay%(") then bad[#bad + 1] = f .. ".lua:" .. k .. ": ExecuteWithDelay (off-thread)" end
+            if code:find("RegisterKeyBind%(") and not code:find("function%(%) ExecuteInGameThread%([%w_.]+%) end%)") then
+                bad[#bad + 1] = f .. ".lua:" .. k .. ": a key bind that does more than hand over a function made beforehand"
+            end
             local ind, ms = line:match("^(%s*)LoopAsync%((%d+), function%(%)%s*$")
             if ind and f ~= "test_tools" and tonumber(ms) < 300 then
                 bad[#bad + 1] = f .. ".lua:" .. k .. ": a " .. ms .. " ms loop (dev.45: a 33 ms loop corrupted Lua's state)"
@@ -3761,7 +3772,7 @@ end)()
             end
         end
     end
-    expect(#bad == 0, "every LoopAsync callback only reads a flag and hands over a function made beforehand, none faster than 300 ms outside the test tools: " .. table.concat(bad, " | "))
+    expect(#bad == 0, "no Lua off the game thread: every LoopAsync and key bind callback only hands over a function made beforehand (LoopAsync no faster than 300 ms outside the test tools), and no ExecuteWithDelay: " .. table.concat(bad, " | "))
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")

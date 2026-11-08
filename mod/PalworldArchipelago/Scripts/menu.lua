@@ -1554,7 +1554,8 @@ function M.install(functions)
     api = functions
     if not escBound and RegisterKeyBind and Key and Key.ESCAPE and ExecuteInGameThread then
         escBound = true
-        RegisterKeyBind(Key.ESCAPE, function() ExecuteInGameThread(function() pcall(escapeMenus) end) end)
+        local function escKey() pcall(escapeMenus) end      -- (made once: a key bind runs off the game thread)
+        RegisterKeyBind(Key.ESCAPE, function() ExecuteInGameThread(escKey) end)
     end
 end
 
