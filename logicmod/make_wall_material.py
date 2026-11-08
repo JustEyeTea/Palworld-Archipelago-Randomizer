@@ -233,9 +233,27 @@ def paw_layer():
     task.set_editor_property("destination_name", name)
     task.set_editor_property("automated", True)
     task.set_editor_property("replace_existing", True)
-    task.set_editor_property("save", False)
+    task.set_editor_property("save", True)
+    # The classic texture factory imports at once. Without it UE 5.1 used Interchange, whose texture was not in the
+    # asset registry yet when load_asset asked for it (Game PC, 2026-11-08: "Import Done", then "LoadAsset failed ...
+    # could not be found in the Asset Registry", and nothing saved). So the texture is taken from the task itself.
+    task.set_editor_property("factory", unreal.TextureFactory())
     tools.import_asset_tasks([task])
-    tex = assets.load_asset(f"{ROOT}/{name}")
+    tex = None
+    try:
+        tex = next((o for o in task.get_objects() if isinstance(o, unreal.Texture2D)), None)
+    except Exception:
+        pass
+    if not tex:
+        for p in task.get_editor_property("imported_object_paths") or []:
+            tex = unreal.load_object(None, p)
+            if tex:
+                break
+    if not tex:
+        tex = unreal.find_object(None, f"{ROOT}/{name}.{name}")
+    if not tex:
+        unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous([ROOT], True)
+        tex = assets.load_asset(f"{ROOT}/{name}") if assets.does_asset_exist(f"{ROOT}/{name}") else None
     if not tex:
         log(f"{name}: the import of {src} failed (the Lua mod will load the PNG at run time, without mips)")
         return None
