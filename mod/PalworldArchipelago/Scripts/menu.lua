@@ -253,15 +253,36 @@ end
 -- A dark backing behind a row of the Archipelago menu (the user, dev.33: "perhaps there needs to be a dark BG behind the
 -- Archipelago connection fields so that they can be more readable"): each row in a Border, 41 high with no gap between,
 -- so together they read as one panel (the row itself still 38 high). The bare row when a Border can't be made.
-local ROW_BG = { R = 0.012, G = 0.035, B = 0.045, A = 0.78 }
-local BACKED = { go = true, back = true }              -- (the saved servers have their own panel, dark already)
-local function backed(menu, child)
+-- Soft edges (dev.34: "Perhaps the edges of the BG could be a bit more soft/diffuse"): the Border's brush is a feathered
+-- piece (art/ap-menu-panel-<edge>.png, tools/menu_panel_art.py) drawn as a Box, so the feather keeps its width: every
+-- row soft at the sides, the top row at the top, the bottom row at the bottom. Its own brush, written field by field in
+-- place (never assigned from another widget: dev.21). Plain colour when the piece can't be had.
+local ROW_BG = { R = 0.012, G = 0.035, B = 0.045, A = 0.82 }
+local BACKED = { go = "mid", back = "bottom" }        -- (the saved servers have their own panel, dark already)
+local PANEL_SIDE, PANEL_END = 28 / 64, 16 / 64        -- the pieces' margins (of their 64 px)
+local function softEdges(border, edge)
+    local tex = ART.texture("ap-menu-panel-" .. edge)
+    if not tex then return false end
+    local ok = pcall(function()
+        local b = border.Background
+        b.DrawAs = 1                                  -- ESlateBrushDrawType::Box
+        b.Margin.Left, b.Margin.Right = PANEL_SIDE, PANEL_SIDE
+        b.Margin.Top = edge == "top" and PANEL_END or 0
+        b.Margin.Bottom = edge == "bottom" and PANEL_END or 0
+        b.ImageSize.X, b.ImageSize.Y = 64, 64
+    end)
+    if not ok then return false end
+    return (pcall(function() border:SetBrushFromTexture(tex) end))
+end
+local function backed(menu, child, edge)
     local cls = StaticFindObject("/Script/UMG.Border")
     if not (cls and cls:IsValid()) then once("rowbg", "menu: no Border class; the rows have no backing"); return child, false end
     local okB, border = pcall(StaticConstructObject, cls, menu)
     if not (okB and border and border:IsValid()) then once("rowbg", "menu: could not make a Border; the rows have no backing"); return child, false end
+    local soft = softEdges(border, edge or "mid")
+    if not soft then once("rowsoft", "menu: the panel's soft edges could not be had; plain rows") end
     pcall(function() border:SetBrushColor(ROW_BG) end)
-    pcall(function() border:SetPadding({ Left = 10, Top = 1.5, Right = 10, Bottom = 1.5 }) end)
+    pcall(function() border:SetPadding({ Left = soft and 22 or 10, Top = 1.5, Right = soft and 22 or 10, Bottom = 1.5 }) end)
     local okA = pcall(function() border:AddChild(child) end)
     if not okA then once("rowbg", "menu: a Border would not take a row; the rows have no backing"); return child, false end
     return border, true
@@ -277,7 +298,7 @@ local function addButton(menu, list, kind)
     local box = StaticConstructObject(sizeClass, menu)
     if kind ~= "mailbox" then box:SetWidthOverride(kind:match("^pick") and 420 or 600) end   -- (the Esc menu's column is narrower: fill it)
     local content, isBacked = button, false
-    if BACKED[kind] then content, isBacked = backed(menu, button) end
+    if BACKED[kind] then content, isBacked = backed(menu, button, BACKED[kind]) end
     box:SetHeightOverride(isBacked and 41 or 38)
     box:AddChild(content)
     local slot = list:AddChild(box)
@@ -965,7 +986,7 @@ end
 -- nothing assigned from another object, no brush touched. A line goes to the log just before the first, so a crash there
 -- would point at it.
 local EDIT_COLOUR = { R = 0.86, G = 0.95, B = 0.94, A = 1 }
-local EDIT_BG = { 0.012, 0.035, 0.045, 0.88 }          -- a dark, slightly see-through teal-black
+local EDIT_BG = { 0.0, 0.006, 0.01, 0.97 }             -- near black (dev.34: "the text boxes themselves should be darker")
 local coloured = false
 local function setColour(slate, c)
     local sc = slate.SpecifiedColor
@@ -1004,7 +1025,7 @@ local function addTextRow(menu, list, kind)
     pcall(function() es:SetSize({ SizeRule = 1, Value = 1 }); es:SetVerticalAlignment(2) end)                          -- Fill
     local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
     box:SetWidthOverride(600)
-    local content, isBacked = backed(menu, row)
+    local content, isBacked = backed(menu, row, kind == "server" and "top" or "mid")
     box:SetHeightOverride(isBacked and 41 or 38)
     box:AddChild(content)
     local slot = list:AddChild(box)

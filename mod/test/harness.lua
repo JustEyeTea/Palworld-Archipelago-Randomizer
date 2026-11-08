@@ -455,6 +455,7 @@ StaticConstructObject = function(cls)
     local kind = type(cls) == "table" and cls.umg or "SizeBox"
     if kind == "PalEditableTextBox" or kind == "EditableTextBox" then return EditBox(kind) end
     local box = Widget({ GetClass = function() return classed(kind) end, kind = kind, children = {}, Font = { Size = 24 },
+                         Background = { Margin = {}, ImageSize = {} },      -- (a Border's brush, written field by field)
                          SetWidthOverride = function(self, w) self.width = w end, SetHeightOverride = function(self, h) self.height = h end,
                          SetBrushFromTexture = function(self, t) self.texture = t end,
                          SetFont = function(self, f) self.fontSize = f.Size end,
@@ -1326,17 +1327,28 @@ local colourFile = MOD .. "\\map-colour-1.png"                  -- (the mod's Wi
 local hadColour = io.open(colourFile, "rb")
 if hadColour then hadColour:close() end
 local cf = io.open(colourFile, "w"); cf:write("png"); cf:close()
+-- dev.34 playtest: the explored mask from the player's world map data, so the fog picture is new before the map opens.
+local askedMap
+util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
+    GetRenderTargetByMapName = function(_, name) askedMap = name:ToString(); return { IsValid = function() return true end } end } end
 local F = dofile(MOD .. "/Scripts/walls.lua")
 F.dir, F.keep = MOD, function() end
 F.beyond, F.visited = { [sealedArea] = true }, {}
 n = #jobs
 drawLog = {}
+local picsBefore = #pics
 for _ = 1, 3 do F.updateMap(true, passes, pawn) end
 local whole = #drawLog > 0
 for _, d in ipairs(drawLog) do if not (tostring(d.path):find("map%-territories") and d.blend == 0) then whole = false end end
 expect(fjobs[1] and fjobs[1].colour == colourFile and fjobs[1].gamma == "0.4545" and whole
        and logged("map, locked areas greyscale"),
        "with the saved colour map: the whole picture from it (locked areas greyscale), drawn alone, not over the game's map")
+for _ = 1, 25 do F.updateMap(true, passes, pawn) end
+local earlyPic = false
+for i = picsBefore + 1, #pics do if tostring(pics[i]):find("map%-fog%-territories") then earlyPic = true end end
+expect(askedMap == "MainMap" and earlyPic and logged("the explored mask read before the map opened"),
+       "the map never opened: the explored mask read from the world's map data and the fog picture made and handed over")
+util.GetLocalWorldMapData = nil
 mapOpen = true
 for _ = 1, 4 do F.updateMap(true, passes, pawn) end
 local fj = fjobs[#fjobs]
@@ -2545,6 +2557,15 @@ for _, i in ipairs({ R.server, R.port, R.slot, R.password, R.go, R.back }) do
             and b.padding and b.padding.Bottom == 0) then allBacked = false end
 end
 expect(allBacked, "the menu's rows on a dark backing, 41 high with no gap, so they read as one panel (dev.33: hard to read)")
+local function piece(i) local b = rowBox(i).child; return b.texture and b.texture.path, b.Background end
+local tp, tb = piece(R.server)
+local mp2, mb = piece(R.port)
+local gp, gb = piece(R.go)
+local bp, bb = piece(R.back)
+expect(tp == "ap-menu-panel-top" and tb.DrawAs == 1 and tb.Margin.Top == 0.25 and tb.Margin.Bottom == 0 and tb.Margin.Left == 28 / 64
+       and mp2 == "ap-menu-panel-mid" and mb.Margin.Top == 0 and gp == "ap-menu-panel-mid"
+       and bp == "ap-menu-panel-bottom" and bb.Margin.Bottom == 0.25 and bb.ImageSize.X == 64 and rowBox(R.server).child.pad.Left == 22,
+       "the panel's edges soft (dev.34): feathered pieces drawn as boxes, the top row soft at the top, the last at the bottom")
 expect(logged("not a live title menu %(a template%), left alone: .*/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title"),
        "the title screen asset's template (dev.25 log: rows tried on it every update) is left alone")
 expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
@@ -2556,7 +2577,7 @@ expect(#menuChildren == 8 and #titleCanvasKids == 2, "added once")
 expect(drop and drop.kind == "Overlay" and drop.vis == 1 and #drop.children[2].children == 6 and drop.canvasSlot.zorder == 20,
        "the saved servers wait in a panel of their own on the canvas, folded away (dev.25 test: in the list they pushed the rows down)")
 local st = edit(R.server).WidgetStyle
-expect(st.BackgroundColor.SpecifiedColor.A == 0.88 and st.BackgroundColor.SpecifiedColor.R < 0.1 and st.BackgroundColor.ColorUseRule == 0
+expect(st.BackgroundColor.SpecifiedColor.A >= 0.95 and st.BackgroundColor.SpecifiedColor.R < 0.02 and st.BackgroundColor.ColorUseRule == 0
        and st.FocusedForegroundColor.SpecifiedColor.R > 0.8 and logged("text boxes coloured"),
        "the boxes: a dark backing and light text, focused or not (dev.25 test: white boxes, pale text), written field by field")
 expect(bs and bs.moves == moves, "and the banner left where it is while the list keeps its size")

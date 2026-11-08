@@ -1114,6 +1114,22 @@ local function exportMask(screen, krl, gi)
     krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
     return true
 end
+-- The explored mask without the map screen (dev.34 playtest: the first opening showed the last session's fog picture,
+-- and a second opening the game made without Setup kept it, so the new look showed about a minute in): the player's own
+-- world map data holds it (UPalWorldMapUIData:GetRenderTargetByMapName "MainMap", the render target the screen's fog
+-- shows), so it is read once the fog art is ready, before the map ever opens. nil while there is none.
+local function worldMask(ctx)
+    local ok, rt = pcall(function()
+        local util = StaticFindObject("/Script/Pal.Default__PalUtility")
+        local wmd = util and util:IsValid() and util:GetLocalWorldMapData(ctx)
+        if not (wmd and wmd:IsValid()) then return nil end
+        local r = wmd:GetRenderTargetByMapName(FName("MainMap"))
+        if r and r:IsValid() then return r end
+        r = wmd:GetCurrentRenderTarget()
+        return r and r:IsValid() and r or nil
+    end)
+    return ok and rt or nil
+end
 -- The stamps for the fog picture: "path|u|v|px;..." (as drawStamps places them on the 4096 map).
 local function stampList(locked)
     if iconsActive() then return "" end
@@ -1197,7 +1213,21 @@ local function chartTick(ctx, screens, opening, passes)
         local stamps = tagged and "" or stampList(lockedList(passes))
         local regions = tagged and "" or regionSpec(passes)
         local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
-        if chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
+        if not chart.exportedAt and not chart.want and (chart.early or 0) < 10 and chart.ticks % 20 == 0 then
+            chart.early = (chart.early or 0) + 1                              -- (before the map opens: see worldMask)
+            local rt = worldMask(ctx)
+            local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png") end)
+            local spec, info = chart.spec, nil
+            if okE and not spec then spec, info = maskSpec(ctx) end
+            if okE and spec then
+                chart.spec, chart.exportedAt = spec, chart.ticks
+                log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
+                startFog(stamps, regions, tag)
+            elseif chart.early == 10 then
+                log("map chart: the explored mask could not be read before the map opened (" .. (rt and tostring(info) or "no world map data")
+                    .. "); from the first opening instead")
+            end
+        elseif chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
             chart.exportedAt, chart.want = chart.ticks, false
             local ok, res = pcall(exportMask, screens[#screens], krl, gi)
             if not ok or res ~= true then once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res)); return end
