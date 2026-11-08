@@ -66,15 +66,20 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
                          const std::string& fog, int size) -> std::string;
 
 // The Territories overlay from a distance field (the Art & Assets lane, 2026-11-08: smooth curves at 4096 where the
-// 2048 label map gave stairs and octagons): field is ap-map-field-<layout>.png, 4096 RGB, R the area label, G the area
-// across the nearest border (for the open sea: the nearest area), B the distance to that border in 1/8 px. Fill and rim
-// as compose_territories, from the field's distance; the open sea next to an area takes its look over the last part of a
+// 2048 label map gave stairs and octagons): field is area_field*.png, 4096 RGB, R the area label, G the area across the
+// nearest border (for the open sea: the nearest area), B the distance to that border in 1/8 px. Fill and rim as
+// compose_territories, from the field's distance; the open sea next to an area takes its look over the last part of a
 // pixel. The walls are drawn along the field's borders, a glow (a Gaussian across the border, sd glowW * 0.4) and a core
-// (coreW wide), only where a standing piece of walls is near, fading past its ends: some borders have no walls in the
-// game. A piece away from every border (a few stand out at sea) is drawn straight where it stands. Other arguments, the outputs and the result as compose_territories (glowSigma is not used).
+// (coreW wide), only where a standing piece is near, fading past its ends: some borders have no walls in the game. A
+// piece away from every border (a few stand out at sea) is drawn straight where it stands. Other arguments, the outputs
+// and the result as compose_territories (glowSigma is not used).
+// colour (the player's saved map, "" for none) and gamma as compose_map: then out is the whole map picture, opaque: the
+// map, greyscale in closed (locked, sealed) areas with no fill there (the user, dev.33: "the interior should be the
+// greyscale"), the rims, and the walls in the closed side's colour, lighter (style fields 8, 9: their glow and core
+// alpha, default 0.3, 0.5); the fog picture keeps the cream walls and the fills. Without colour, out is the overlay.
 auto compose_field(const std::string& field, const std::string& areas, const std::string& walls,
                    const std::string& style, const std::string& out, const std::string& fogart,
-                   const std::string& fog, int size) -> std::string;
+                   const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0) -> std::string;
 
 // One background job at a time per slot (the map, the chart, the fog each have their own), as compose_map_start:
 // start returns "" (started), "busy" or an error; status "busy", "done" (once), "error: ..." or "".

@@ -463,6 +463,7 @@ StaticConstructObject = function(cls)
                          GetVisibility = function(self) return self.vis or 0 end,
                          SetRenderTransformPivot = function(self, v) self.pivot = v end,
                          SetRenderScale = function(self, v) self.scale = v end,
+                         SetBrushColor = function(self, c) self.brush = c end, SetPadding = function(self, p) self.pad = p end,
                          RemoveFromParent = function(self) self.removedFromParent = true end,
                          SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
     function box:AddChild(c)
@@ -1316,16 +1317,26 @@ expect(fogSize == "2048" and logged("map territories: composing from the label m
 mapOpen = false
 -- dev.34: with the DLL's AP_ComposeField, from the Art lane's distance field (shipped) at 4096, the fog at 4096.
 local fjobs = {}
-AP_ComposeField = function(field, areas, walls, style, out, fogart, fog, size)
-    fjobs[#fjobs + 1] = { field = field, areas = areas, walls = walls, style = style, size = size }
+AP_ComposeField = function(field, areas, walls, style, out, fogart, fog, size, colour, gamma)
+    fjobs[#fjobs + 1] = { field = field, areas = areas, walls = walls, style = style, size = size, colour = colour, gamma = gamma }
     for _, f in ipairs({ out, fogart }) do local h = io.open(f, "w"); h:write("png"); h:close() end
     return ""
 end
+local colourFile = MOD .. "\\map-colour-1.png"                  -- (the mod's Windows path, as a file name here)
+local hadColour = io.open(colourFile, "rb")
+if hadColour then hadColour:close() end
+local cf = io.open(colourFile, "w"); cf:write("png"); cf:close()
 local F = dofile(MOD .. "/Scripts/walls.lua")
 F.dir, F.keep = MOD, function() end
 F.beyond, F.visited = { [sealedArea] = true }, {}
 n = #jobs
+drawLog = {}
 for _ = 1, 3 do F.updateMap(true, passes, pawn) end
+local whole = #drawLog > 0
+for _, d in ipairs(drawLog) do if not (tostring(d.path):find("map%-territories") and d.blend == 0) then whole = false end end
+expect(fjobs[1] and fjobs[1].colour == colourFile and fjobs[1].gamma == "0.4545" and whole
+       and logged("map, locked areas greyscale"),
+       "with the saved colour map: the whole picture from it (locked areas greyscale), drawn alone, not over the game's map")
 mapOpen = true
 for _ = 1, 4 do F.updateMap(true, passes, pawn) end
 local fj = fjobs[#fjobs]
@@ -1335,6 +1346,23 @@ expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096
        and fj.areas == job.areas and fj.walls == job.walls and #jobs == n and fogSize == "4096"
        and logged("map territories: composing from the distance field at 4096"),
        "with AP_ComposeField: the shipped distance field at 4096 (same areas, walls and look), not the label map; the fog at 4096")
+-- No colour map (and no game map to save one from): the overlay, drawn over the game's map as before.
+os.remove(colourFile)
+local G2 = dofile(MOD .. "/Scripts/walls.lua")
+G2.dir, G2.keep = MOD, function() end
+G2.beyond, G2.visited = { [sealedArea] = true }, {}
+local savedLoad = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
+mapOpen, drawLog = false, {}
+local nf = #fjobs
+for _ = 1, 3 do G2.updateMap(true, passes, pawn) end
+local overGame = false
+for i = 2, #drawLog do
+    if tostring(drawLog[i - 1].path):find("T_WorldMap") and tostring(drawLog[i].path):find("map%-territories") and drawLog[i].blend == 2 then overGame = true end
+end
+expect(#fjobs > nf and (fjobs[#fjobs].colour == "" or fjobs[#fjobs].colour == colourFile) and (fjobs[#fjobs].colour ~= "" or overGame),
+       "without a saved colour map: the overlay over the game's map (or the colour map saved from it first)")
+loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = savedLoad
+if hadColour then cf = io.open(colourFile, "w"); cf:write("png"); cf:close() else os.remove(colourFile) end
 AP_ComposeField = nil
 mapOpen = false
 local C = dofile(MOD .. "/Scripts/walls.lua")
@@ -2495,8 +2523,10 @@ local R = { server = 2, port = 3, slot = 4, password = 5, go = 6, back = 7 }
 local function pickBox(i) return drop.children[2].children[i] end
 local function pick(i) return pickBox(i).child end
 local function rowBox(i) return menuChildren[i] end
-local function btn(i) return menuChildren[i] and menuChildren[i].child end
-local function edit(i) return menuChildren[i].child.children[2] end
+-- (a row of ours: its size box, a dark Border (dev.34), then the row: label and text box, or the button)
+local function inner(b) local c = b and b.child; if c and c.kind == "Border" then c = c.child end return c end
+local function btn(i) return inner(menuChildren[i]) end
+local function edit(i) return inner(menuChildren[i]).children[2] end
 local function typed(i) return edit(i).Text:ToString() end
 local function typeInto(i, s) edit(i).Text = { ToString = function() return s end } end
 local allCollapsed = true
@@ -2504,10 +2534,17 @@ for i = 2, 7 do if not (rowBox(i) and rowBox(i).vis == 1) then allCollapsed = fa
 expect(#menuChildren == 8 and menuChildren[8] == quitWrap and quitWrap.padding and quitWrap.padding.Bottom == 7,
        "the menu's rows in the title's own list, Quit Game moved back to the end with its padding")
 expect(edit(R.server).kind == "PalEditableTextBox" and edit(R.server).colour and edit(R.password).password
-       and rowBox(R.server).child.children[1].text == "Server:" and rowBox(R.port).child.children[1].text == "Port:"
-       and rowBox(R.server).child.children[1].fontSize == 20,
+       and inner(rowBox(R.server)).children[1].text == "Server:" and inner(rowBox(R.port)).children[1].text == "Port:"
+       and inner(rowBox(R.server)).children[1].fontSize == 20,
        "Server, Port, Slot and Password: a label and the game's own text box, its text colour set (its style never copied)")
 expect(logged("fields typed in PalEditableTextBox"), "and the log says so")
+local allBacked = true
+for _, i in ipairs({ R.server, R.port, R.slot, R.password, R.go, R.back }) do
+    local b = rowBox(i)
+    if not (b and b.child and b.child.kind == "Border" and b.child.brush and b.child.brush.A > 0.5 and b.height == 41
+            and b.padding and b.padding.Bottom == 0) then allBacked = false end
+end
+expect(allBacked, "the menu's rows on a dark backing, 41 high with no gap, so they read as one panel (dev.33: hard to read)")
 expect(logged("not a live title menu %(a template%), left alone: .*/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title"),
        "the title screen asset's template (dev.25 log: rows tried on it every update) is left alone")
 expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
@@ -2669,8 +2706,9 @@ do
     for i = 2, 7 do
         local b = rowBox(i)
         if b then b.gone = true; b.SetVisibility = function() deadTouched = true end end
-        local inner = b and b.child
-        if inner then inner.gone = true end
+        if b and b.child then b.child.gone = true end
+        local c = inner(b)                                           -- (through the Border, dev.34)
+        if c then c.gone = true end
     end
     local create = wbl.Create
     wbl.Create = function() return nil end

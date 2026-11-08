@@ -820,7 +820,7 @@ local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
 -- see-through (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the
 -- core was solid, the glow 0.55).
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
-local terr = { composing = nil, done = nil, failed = nil, size = nil }
+local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
 -- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
 local function areaSpec(passes)
@@ -873,6 +873,7 @@ local function composeTerritories(ctx, passes, key)
         pcall(LoadAsset, MAP_TEXTURE)
         local map = StaticFindObject(MAP_TEXTURE)
         local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
+        if terr.whole then map = over end                                    -- (the whole picture: the map in it)
         if not (map and map:IsValid() and over and over:IsValid()) then
             log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
         end
@@ -885,11 +886,14 @@ local function composeTerritories(ctx, passes, key)
         krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
         canvasOut.Canvas:K2_DrawTexture(map, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
             { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-        canvasOut.Canvas:K2_DrawTexture(over, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-            { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+        if not terr.whole then
+            canvasOut.Canvas:K2_DrawTexture(over, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+                { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+        end
         krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
         terr.done = k
-        once("terrdrawn", "map territories: drawn over the game's map")
+        once("terrdrawn" .. tostring(terr.whole), terr.whole and "map territories: drawn (the player's map, locked areas greyscale)"
+            or "map territories: drawn over the game's map")
         return k == key
     end
     -- From the Art lane's distance field when the DLL has it (dev.34: smooth at 4096, where the 2048 label map gave stairs
@@ -897,18 +901,32 @@ local function composeTerritories(ctx, passes, key)
     local field = W.dir .. "\\area_field" .. SUFFIX .. ".png"
     local fh = AP_ComposeField and io.open(field, "rb")
     if fh then fh:close() end
-    local err, size
+    local err, size, whole
     if fh then
-        size = 4096
+        -- With the colour map (the player's own map, saved once; the user, dev.33: locked areas' "interior should be the
+        -- greyscale"): the whole map picture, greyscale where locked, the walls there in the area's colour.
+        local colour = W.dir .. "\\" .. COLOUR_FILE
+        local ch = io.open(colour, "rb")
+        if ch then ch:close()
+        else
+            pcall(LoadAsset, MAP_TEXTURE)
+            local tex = StaticFindObject(MAP_TEXTURE)
+            if tex and tex:IsValid() then
+                local okc, path = pcall(colourMap, krl, tex, gi)
+                ch = okc and path and io.open(path, "rb")
+                if ch then ch:close() end
+            end
+        end
+        size, whole = 4096, ch and true or false
         err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
-            W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size))
+            W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", "0.4545")
     else
         size = TERR_SIZE
         err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), TERR_WALLS,
             W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size))
     end
     if err == "" then
-        terr.composing, terr.size = key, size
+        terr.composing, terr.size, terr.whole = key, size, whole or false
         once("terrfrom" .. size, "map territories: composing " .. (fh and "from the distance field" or "from the label map") .. " at " .. size)
     elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
     return false

@@ -250,6 +250,23 @@ local function bannerStatus(b)
     if b.dot and b.state ~= st then b.state = st; pcall(function() b.dot:SetColorAndOpacity(DOT[st] or DOT.other) end) end
 end
 
+-- A dark backing behind a row of the Archipelago menu (the user, dev.33: "perhaps there needs to be a dark BG behind the
+-- Archipelago connection fields so that they can be more readable"): each row in a Border, 41 high with no gap between,
+-- so together they read as one panel (the row itself still 38 high). The bare row when a Border can't be made.
+local ROW_BG = { R = 0.012, G = 0.035, B = 0.045, A = 0.78 }
+local BACKED = { go = true, back = true }              -- (the saved servers have their own panel, dark already)
+local function backed(menu, child)
+    local cls = StaticFindObject("/Script/UMG.Border")
+    if not (cls and cls:IsValid()) then once("rowbg", "menu: no Border class; the rows have no backing"); return child, false end
+    local okB, border = pcall(StaticConstructObject, cls, menu)
+    if not (okB and border and border:IsValid()) then once("rowbg", "menu: could not make a Border; the rows have no backing"); return child, false end
+    pcall(function() border:SetBrushColor(ROW_BG) end)
+    pcall(function() border:SetPadding({ Left = 10, Top = 1.5, Right = 10, Bottom = 1.5 }) end)
+    local okA = pcall(function() border:AddChild(child) end)
+    if not okA then once("rowbg", "menu: a Border would not take a row; the rows have no backing"); return child, false end
+    return border, true
+end
+
 local function addButton(menu, list, kind)
     local class = find(BUTTON)
     local sizeClass = StaticFindObject("/Script/UMG.SizeBox")
@@ -259,13 +276,15 @@ local function addButton(menu, list, kind)
     if not button or not button:IsValid() then return nil end
     local box = StaticConstructObject(sizeClass, menu)
     if kind ~= "mailbox" then box:SetWidthOverride(kind:match("^pick") and 420 or 600) end   -- (the Esc menu's column is narrower: fill it)
-    box:SetHeightOverride(38)
-    box:AddChild(button)
+    local content, isBacked = button, false
+    if BACKED[kind] then content, isBacked = backed(menu, button) end
+    box:SetHeightOverride(isBacked and 41 or 38)
+    box:AddChild(content)
     local slot = list:AddChild(box)
-    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 3 }) end)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = isBacked and 0 or 3 }) end)
     pcall(function() slot:SetHorizontalAlignment(0) end)
     ours[tostring(button:GetAddress())] = kind
-    return button
+    return button, box                                -- (the size box: the button's parent is its Border when backed)
 end
 
 -- The Esc menu's own small button (WBP_MenuESC_Button_S, as Emergency Respawn and Return to Title), straight in the
@@ -985,10 +1004,11 @@ local function addTextRow(menu, list, kind)
     pcall(function() es:SetSize({ SizeRule = 1, Value = 1 }); es:SetVerticalAlignment(2) end)                          -- Fill
     local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), menu)
     box:SetWidthOverride(600)
-    box:SetHeightOverride(38)
-    box:AddChild(row)
+    local content, isBacked = backed(menu, row)
+    box:SetHeightOverride(isBacked and 41 or 38)
+    box:AddChild(content)
     local slot = list:AddChild(box)
-    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = 3 }); slot:SetHorizontalAlignment(0) end)
+    pcall(function() slot:SetPadding({ Left = 0, Top = 0, Right = 0, Bottom = isBacked and 0 or 3 }); slot:SetHorizontalAlignment(0) end)
     return box, edit, what
 end
 -- The saved servers' drop-down: a panel on the canvas the button list sits on, over the rows below the Server box
@@ -1331,9 +1351,9 @@ function M.update(ctx)
                 local drop = nil
                 local okT, whyT = pcall(function()
                     local function button(into, kind)
-                        local b = addButton(menu, into, kind)
+                        local b, box = addButton(menu, into, kind)
                         if not b then error("no button for " .. kind) end
-                        rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                        rows[kind], boxes[kind], keys[#keys + 1] = b, box, tostring(b:GetAddress())
                         pcall(function() boxes[kind]:SetVisibility(1) end)                -- collapsed until the menu opens
                     end
                     for _, kind in ipairs(TEXT_ROWS) do
@@ -1359,9 +1379,9 @@ function M.update(ctx)
                     addFails = addFails + 1
                     if addFails <= 5 then log("menu: typed fields not made (" .. why .. "); the text window instead (try " .. addFails .. ")") end
                     for _, kind in ipairs(ROWS) do
-                        local ok, b = pcall(addButton, menu, list, kind)
+                        local ok, b, box = pcall(addButton, menu, list, kind)
                         if not (ok and b) then err = b or "no button"; break end
-                        rows[kind], boxes[kind], keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress())
+                        rows[kind], boxes[kind], keys[#keys + 1] = b, box, tostring(b:GetAddress())
                         pcall(function() boxes[kind]:SetVisibility(1) end)
                     end
                 end
@@ -1377,8 +1397,8 @@ function M.update(ctx)
                     if okB then m.banner = banner else log("menu: title banner error: " .. tostring(banner)) end
                     local okO, why = pcall(bannerButton, menu, m)
                     if not okO then
-                        local ok2, b = pcall(addButton, menu, list, "open")          -- no banner: a row of its own
-                        if ok2 and b then rows.open, boxes.open, keys[#keys + 1] = b, b:GetParent(), tostring(b:GetAddress()) end
+                        local ok2, b, box = pcall(addButton, menu, list, "open")     -- no banner: a row of its own
+                        if ok2 and b then rows.open, boxes.open, keys[#keys + 1] = b, box, tostring(b:GetAddress()) end
                         log("menu: no button on the banner (" .. tostring(why) .. "): an \"Archipelago...\" row instead")
                     end
                     local okq, whyq = pcall(quitLast, menu, list)
@@ -1388,7 +1408,7 @@ function M.update(ctx)
                         .. (m.openButton and "; the banner opens it" or "")
                         .. (edits and ("; fields typed in " .. tostring(what)) or "; fields in the text window"))
                 else
-                    for _, b in pairs(rows) do pcall(function() b:GetParent():RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
+                    for kind, b in pairs(rows) do pcall(function() boxes[kind]:RemoveFromParent() end); ours[tostring(b:GetAddress())] = nil end
                     addFails = addFails + 1
                     fails[key] = fails[key] + 1
                     if addFails <= 5 then log("menu: could not add the Archipelago menu's rows: " .. tostring(err) .. " (try " .. addFails .. ")") end

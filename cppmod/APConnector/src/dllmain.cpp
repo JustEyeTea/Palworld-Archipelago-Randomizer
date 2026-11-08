@@ -223,10 +223,12 @@ namespace
         });
         lua.register_function("AP_ComposeField", [](const LuaMadeSimple::Lua& l) -> int {   // (the territories' job slot)
             const auto field = arg(l), areas = arg(l), walls = arg(l), style = arg(l), out = arg(l), fogart = arg(l), fog = arg(l);
-            const auto size = arg(l);
+            const auto size = arg(l), colour = arg(l), gamma = arg(l);
             int s = 4096;
+            double g = 1.0;
             try { s = std::stoi(size); } catch (...) {}
-            l.set_string(territory_jobs().start([=] { return compose_field(field, areas, walls, style, out, fogart, fog, s); }));
+            try { if (!gamma.empty()) g = std::stod(gamma); } catch (...) {}
+            l.set_string(territory_jobs().start([=] { return compose_field(field, areas, walls, style, out, fogart, fog, s, colour, g); }));
             return 1;
         });
         lua.register_function("AP_TerritoriesStatus", [](const LuaMadeSimple::Lua& l) -> int {

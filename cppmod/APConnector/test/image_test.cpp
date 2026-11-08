@@ -226,5 +226,30 @@ int main()
                 fg ? fp(40, 223)[3] : -1, fg ? fp(200, 100)[3] : -1, fg ? fp(128, 50)[0] : -1, fg ? fp(128, 50)[1] : -1,
                 fg ? fp(128, 50)[2] : -1, fg ? fp(128, 50)[3] : -1, fg ? fp(128, 170)[2] : -1, fg ? fp(128, 170)[3] : -1,
                 fg ? fp(160, 250)[3] : -1, fg ? fp(76, 243)[3] : -1);
-    return fieldOk ? 0 : 1;
+    if (!fieldOk) return 1;
+
+    // compose_field with the player's map (dev.33 playtest): the whole picture, opaque; the locked area greyscale with no
+    // fill, the visited one in colour; the wall in the locked side's red, lighter; the fog picture as without it.
+    std::vector<unsigned char> cmap(256 * 256 * 4);
+    for (int i = 0; i < 256 * 256; ++i) { cmap[i * 4] = 60; cmap[i * 4 + 1] = 160; cmap[i * 4 + 2] = 90; cmap[i * 4 + 3] = 255; }
+    stbi_write_png("/tmp/field_colour.png", 256, 256, 4, cmap.data(), 256 * 4);
+    const auto mres = compose_field("/tmp/field.png", "1:l:FF0000,2:v:00FF00", "0.5,0.05,0.5,0.45;0.2,0.95,0.4,0.95",
+                                    "FFE9B0,0.35,FFF4DC,0.6,160,48,80", "/tmp/field_map.png", "/tmp/field_fog2.png", "102030",
+                                    256, "/tmp/field_colour.png", 1.0);
+    unsigned char* mg = mres.empty() ? stbi_load("/tmp/field_map.png", &w, &h, &n, 4) : nullptr;
+    unsigned char* mf = mres.empty() ? stbi_load("/tmp/field_fog2.png", &w, &h, &n, 3) : nullptr;
+    auto mp = [&](int x, int y) { return mg + (y * 256 + x) * 4; };
+    const bool mGrey = mg && mp(40, 100)[0] == mp(40, 100)[1] && mp(40, 100)[1] == mp(40, 100)[2] && mp(40, 100)[3] == 255;
+    const bool mColour = mg && mp(220, 100)[1] > mp(220, 100)[0] + 60 && mp(220, 100)[3] == 255;   // visited: the map's green
+    const bool mRim = mg && mp(40, 223)[0] > mp(40, 223)[1] + 60;                   // the locked area's red rim on the coast
+    const bool mWall = mg && mp(127, 50)[0] > 200 && mp(127, 50)[0] > mp(127, 50)[2] + 40;   // the wall: light red, not cream
+    int fogDiff = mf && ff ? 0 : 999;
+    for (int i = 0; mf && ff && i < 256 * 256 * 3; ++i) fogDiff = std::max(fogDiff, std::abs(mf[i] - ff[i]));
+    const bool mapOk = mres.empty() && mGrey && mColour && mRim && mWall && fogDiff == 0;
+    std::printf("%s field map picture: %s, locked %d,%d,%d, visited %d,%d,%d, rim %d,%d, wall %d,%d,%d, fog diff %d\n",
+                mapOk ? "ok" : "FAIL", mres.empty() ? "written" : mres.c_str(), mg ? mp(40, 100)[0] : -1, mg ? mp(40, 100)[1] : -1,
+                mg ? mp(40, 100)[2] : -1, mg ? mp(220, 100)[0] : -1, mg ? mp(220, 100)[1] : -1, mg ? mp(220, 100)[2] : -1,
+                mg ? mp(40, 223)[0] : -1, mg ? mp(40, 223)[1] : -1, mg ? mp(127, 50)[0] : -1, mg ? mp(127, 50)[1] : -1,
+                mg ? mp(127, 50)[2] : -1, fogDiff);
+    return mapOk ? 0 : 1;
 }

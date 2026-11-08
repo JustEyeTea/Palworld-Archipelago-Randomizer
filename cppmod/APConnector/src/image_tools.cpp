@@ -741,6 +741,7 @@ struct TerrLook
     float colour[256][3] = {};
     float glowC[3] = {1.f, 0.914f, 0.690f}, coreC[3] = {1.f, 0.957f, 0.863f};
     float glowA = 0.55f, coreA = 1.f, glowW = 10.f, glowSigma = 3.f, coreW = 5.f;
+    float mapGlowA = 0.3f, mapCoreA = 0.5f;                       // compose_field's map picture (style fields 8, 9)
     float fogC[3] = {0.055f, 0.102f, 0.141f};
 };
 
@@ -767,9 +768,10 @@ static auto parse_look(const std::string& areas, const std::string& style, const
         for (std::string p; std::getline(sf, p, ',');) f.push_back(p);
         try
         {
-            if (f.size() != 7 || !hex_rgb(f[0], t.glowC) || !hex_rgb(f[2], t.coreC)) throw 0;
+            if ((f.size() != 7 && f.size() != 9) || !hex_rgb(f[0], t.glowC) || !hex_rgb(f[2], t.coreC)) throw 0;
             t.glowA = std::stof(f[1]); t.coreA = std::stof(f[3]); t.glowW = std::stof(f[4]); t.glowSigma = std::stof(f[5]);
             t.coreW = std::stof(f[6]);
+            if (f.size() == 9) { t.mapGlowA = std::stof(f[7]); t.mapCoreA = std::stof(f[8]); }
         }
         catch (...) { return "style '" + style + "'"; }
     }
@@ -936,7 +938,7 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
 
 auto compose_field(const std::string& field, const std::string& areas, const std::string& walls,
                    const std::string& style, const std::string& out, const std::string& fogart,
-                   const std::string& fog, int size) -> std::string
+                   const std::string& fog, int size, const std::string& colour, double gamma) -> std::string
 {
     const int S = size;
     if (S < 64 || S > 4096) return "field size " + std::to_string(S);
@@ -947,6 +949,15 @@ auto compose_field(const std::string& field, const std::string& areas, const std
     std::unique_ptr<unsigned char, void (*)(void*)> fld(stbi_load(field.c_str(), &fw, &fh, &fn, 3), stbi_image_free);
     if (!fld) return "could not read " + field + ": " + stbi_failure_reason();
     if (fw != fh) return "field " + field + " is not square";
+    int cw = 0, ch = 0, cn = 0;
+    std::unique_ptr<unsigned char, void (*)(void*)> col(nullptr, stbi_image_free);
+    if (!colour.empty())
+    {
+        col.reset(stbi_load(colour.c_str(), &cw, &ch, &cn, 4));
+        if (!col) return "could not read " + colour + ": " + stbi_failure_reason();
+    }
+    unsigned char lut[256];
+    for (int i = 0; i < 256; ++i) lut[i] = static_cast<unsigned char>(std::lround(255.0 * std::pow(i / 255.0, gamma)));
     std::vector<std::array<float, 4>> segs;
     const std::string badWalls = parse_walls(walls, static_cast<float>(S), segs);
     if (!badWalls.empty()) return badWalls;
@@ -998,46 +1009,85 @@ auto compose_field(const std::string& field, const std::string& areas, const std
             const unsigned char* q = fld.get() + (static_cast<size_t>(fy) * fw + fx) * 3;
             const int R = q[0], G = q[1];
             const float d = q[2] / 8.f * toMap;                   // to the nearest border, px of a 4096 map
-            float c[3] = {0, 0, 0}, a = 0;
-            auto over = [&](const float* col, float al) {
-                if (al <= 0.f) return;
-                const float ao = al + a * (1 - al);
-                for (int k2 = 0; k2 < 3; ++k2) c[k2] = ao > 0 ? (col[k2] * al + c[k2] * a * (1 - al)) / ao : 0.f;
-                a = ao;
-            };
-            // Fill and rim: an area's own pixels; the open sea's next to an area take its look over the last part of a
-            // pixel (the field's smoothed distance), so the coast's edge is a curve, not the label map's stairs.
             const int lab = R ? R : G;
-            if (lab && t.state[lab])
-            {
-                float fill = 0, rimA = 0;
-                state_alpha(t.state[lab], fill, rimA);
-                const float cover = R ? 1.f : std::min(1.f, std::max(0.f, 1.f - d));
-                const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
-                over(t.colour[lab], std::min(1.f, std::max(0.f, fill + rim * rimA)) * cover);
-            }
-            // The walls: a glow and a core across the border, where a standing piece is near (fading out past its end).
-            const float up = std::min(1.f, std::max(0.f, 1.f - std::max(segd[i] - d - 4.f, 0.f) / 4.f));
-            if (up > 0.f)
-            {
-                over(t.glowC, t.glowA * up * std::exp(-d * d / (2.f * glowSd * glowSd)));
-                over(t.coreC, t.coreA * up * std::min(1.f, std::max(0.f, t.coreW / 2.f + 0.5f - d)));
-            }
-            if (!freed.empty() && freed[i] < reach)
-            {
-                const float e = freed[i];
-                over(t.glowC, t.glowA * std::exp(-e * e / (2.f * glowSd * glowSd)));
-                over(t.coreC, t.coreA * std::min(1.f, std::max(0.f, t.coreW / 2.f + 0.5f - e)));
-            }
+            const char st = lab ? t.state[lab] : 0;
+            const bool closed = R && (t.state[R] == 'l' || t.state[R] == 's');
+            // The walls' colour on the map picture: the closed side's own colour, lighter (the user, dev.33: "a more
+            // translucent version of the border edge"), where the fog picture keeps the cream.
+            const int wallArea = closed ? R : G;
+            float mapCore[3], mapGlow[3];
             for (int k2 = 0; k2 < 3; ++k2)
             {
-                o[i * 4 + k2] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, c[k2]))));
-                if (!f.empty())
-                    f[i * 3 + k2] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, c[k2] * a + t.fogC[k2] * (1 - a)))));
+                mapGlow[k2] = t.colour[wallArea][k2];
+                mapCore[k2] = t.colour[wallArea][k2] * 0.6f + 0.4f;
             }
-            o[i * 4 + 3] = static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, a))));
+            const float up = std::min(1.f, std::max(0.f, 1.f - std::max(segd[i] - d - 4.f, 0.f) / 4.f));
+            // One look over (c, a): fill and rim (an area's own pixels; the open sea's next to an area take its look over
+            // the last part of a pixel, the field's smoothed distance, so the coast's edge is a curve, not the label map's
+            // stairs), then the walls (a glow and a core across the border, where a standing piece is near, fading out past
+            // its end; free pieces where they stand). map: the map picture's look (no fill on closed areas: they are
+            // greyscale; the walls in the area's colour), else the fog's.
+            auto paint = [&](float* c, float& a, bool map) {
+                auto over = [&](const float* cl, float al) {
+                    if (al <= 0.f) return;
+                    const float ao = al + a * (1 - al);
+                    for (int k2 = 0; k2 < 3; ++k2) c[k2] = ao > 0 ? (cl[k2] * al + c[k2] * a * (1 - al)) / ao : 0.f;
+                    a = ao;
+                };
+                if (st)
+                {
+                    float fill = 0, rimA = 0;
+                    state_alpha(st, fill, rimA);
+                    if (map && (st == 'l' || st == 's')) fill = 0.f;
+                    const float cover = R ? 1.f : std::min(1.f, std::max(0.f, 1.f - d));
+                    const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
+                    over(t.colour[lab], std::min(1.f, std::max(0.f, fill + rim * rimA)) * cover);
+                }
+                const float* gc = map ? mapGlow : t.glowC;
+                const float* cc = map ? mapCore : t.coreC;
+                const float ga = map ? t.mapGlowA : t.glowA, ca = map ? t.mapCoreA : t.coreA;
+                if (up > 0.f)
+                {
+                    over(gc, ga * up * std::exp(-d * d / (2.f * glowSd * glowSd)));
+                    over(cc, ca * up * std::min(1.f, std::max(0.f, t.coreW / 2.f + 0.5f - d)));
+                }
+                if (!freed.empty() && freed[i] < reach)
+                {
+                    const float e = freed[i];
+                    over(t.glowC, ga * std::exp(-e * e / (2.f * glowSd * glowSd)));   // (out at sea, no area's: cream)
+                    over(t.coreC, ca * std::min(1.f, std::max(0.f, t.coreW / 2.f + 0.5f - e)));
+                }
+            };
+            auto byte = [](float v) { return static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, v)))); };
+            if (col)
+            {
+                // The map picture: the player's own map (gamma to light), greyscale where the area is closed, the look over it.
+                const int cx = std::min(cw - 1, (2 * x + 1) * cw / (2 * S)), cy = std::min(ch - 1, (2 * y + 1) * ch / (2 * S));
+                const unsigned char* m = col.get() + (static_cast<size_t>(cy) * cw + cx) * 4;
+                float c[3] = {lut[m[0]] / 255.f, lut[m[1]] / 255.f, lut[m[2]] / 255.f}, a = 1.f;
+                if (closed)
+                {
+                    const float yv = 0.2126f * c[0] + 0.7152f * c[1] + 0.0722f * c[2];
+                    c[0] = c[1] = c[2] = yv;
+                }
+                paint(c, a, true);
+                for (int k2 = 0; k2 < 3; ++k2) o[i * 4 + k2] = byte(c[k2]);
+                o[i * 4 + 3] = 255;
+            }
+            // The fog's look: the fog picture over the fog colour; without a colour map, also the overlay (drawn over the
+            // game's map).
+            float c[3] = {0, 0, 0}, a = 0;
+            if (!col || !f.empty()) paint(c, a, false);
+            if (!col)
+            {
+                for (int k2 = 0; k2 < 3; ++k2) o[i * 4 + k2] = byte(c[k2]);
+                o[i * 4 + 3] = byte(a);
+            }
+            if (!f.empty())
+                for (int k2 = 0; k2 < 3; ++k2) f[i * 3 + k2] = byte(c[k2] * a + t.fogC[k2] * (1 - a));
         }
     fld.reset();
+    col.reset();
     Plane().swap(segd);
     Plane().swap(freed);
     stbi_write_png_compression_level = 1;
