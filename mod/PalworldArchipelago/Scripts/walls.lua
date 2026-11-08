@@ -23,7 +23,7 @@ local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km
 local MID_Z = 50000
 local THICK = 4               -- 4 m, so nothing fast slips through
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
-local SINK_STEPS = 60         -- an opened wall sinks into the ground over 60 steps of 33 ms (2 s), then goes
+local SHRINK_S = 2.0          -- an opened wall (not a dissolving one) shrinks away over 2 s of the game's clock
 -- Every piece is raised at world load, as before; only those near the player are shown (the user, 2026-11-08: fewer
 -- walls drawn, more FPS, and "let the borders load in at the beginning"): shown within W.radius, hidden (the game's
 -- own SetActorHiddenInGame; collision stays) past W.radius + HIDE_MARGIN, so a piece at the edge doesn't flicker.
@@ -113,10 +113,12 @@ end
 -- unfilled without a sweep) UE4SS copies back into Lua: that crashed the game twice on 2026-11-05, both times within
 -- 2 s of a Region Pass, in UE4SS's nested push_structproperty (reading 0x7b and 0x0a). SetActorScale3D has no
 -- out-parameters.
--- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. One loop for
--- the session, made when this module loads (UE4SS cannot start one from inside a game-thread callback); it idles while
--- nothing sinks.
-local sinking = {}            -- list of { actor, scale X, scale Y, step, dissolve start (game s) or nil }
+-- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. Stepped from the
+-- core's 300 ms update, on the game thread: no loop of its own. dev.42-45 had a 33 ms LoopAsync for it and the glow;
+-- LoopAsync's callback runs on another thread over the same Lua state, and with it running 30 times a second the game
+-- crashed twice (stack 08E98397) and dev.45, its callback cut down to a flag and a prebuilt function, still logged
+-- "Ref was not function" three times and a broken ipairs iterator: Lua's state corrupted.
+local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), dissolving = true or nil }
 -- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
 -- at 80 to 85% dissolved): blocking stops at DISSOLVE_S/2, the piece goes at DISSOLVE_S + DISSOLVE_TAIL.
 local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 0.8
@@ -125,17 +127,14 @@ local function sinkStep()
     for _, s in ipairs(sinking) do
         local a = s[1]
         if a:IsValid() then
-            s[4] = s[4] + 1
-            local half, done = s[4] == SINK_STEPS // 2, s[4] >= SINK_STEPS
-            if s[5] then                                 -- dissolving: its material does the show, by the game's clock
-                local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
-                if ok and type(now) == "number" then
-                    half = not s.open and now >= s[5] + DISSOLVE_S / 2
-                    done = now >= s[5] + DISSOLVE_S + DISSOLVE_TAIL
-                end
-                done = done or s[4] >= SINK_STEPS * 4  -- (never stuck, whatever the clock says)
-            else
-                local t = s[4] / SINK_STEPS
+            s.steps = (s.steps or 0) + 1
+            local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
+            if not (ok and type(now) == "number") then now = s[4] + s.steps * 0.3 end
+            local span = s.dissolving and DISSOLVE_S or SHRINK_S
+            local half = not s.open and now >= s[4] + span / 2
+            local done = now >= s[4] + span + (s.dissolving and DISSOLVE_TAIL or 0)
+            if not s.dissolving then                     -- shrinking: top and bottom towards the middle
+                local t = math.min(1, (now - s[4]) / SHRINK_S)
                 local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
                 pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
             end
@@ -149,23 +148,14 @@ local function sinkStep()
     end
     sinking = still
 end
--- The 33 ms loop's work, on the game thread. The loop's own callback runs on another thread over the same Lua state:
--- there it reads one flag and hands over this function, made once, and does nothing else (dev.42 and dev.44 crashed,
--- stack 08E98397, while it called W.glowing() there 30 times a second; the game thread was raising 818 pieces).
-local loopBusy = false        -- set on the game thread: a piece sinking or dissolving, or the glow on
-local function loopStep()
-    local ok, err = pcall(sinkStep)
-    if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
-    ok, err = pcall(W.glowTick)
+-- Each core update (game thread): the opening pieces stepped, then the glow told where the player is.
+local function stepOpening()
+    if #sinking > 0 then
+        local ok, err = pcall(sinkStep)
+        if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
+    end
+    local ok, err = pcall(W.glowTick)
     if not ok then once("glow", "wall glow error: " .. tostring(err)) end
-    loopBusy = #sinking > 0 or W.glowing()
-end
-function W.loopBusy() return loopBusy end
-if LoopAsync then
-    LoopAsync(33, function()
-        if loopBusy then ExecuteInGameThread(loopStep) end
-        return false
-    end)
 end
 local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
 local function forget(i)
@@ -184,8 +174,9 @@ local function lower(i, context)
     local ok, mid, start = pcall(W.dissolving, wore, context)
     local m = ok and mid and W.meshOf(a)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, 0, m and start or nil, mid = m and mid or nil }
-    loopBusy = true
+    local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
+    now = (m and start) or (okT and type(now) == "number" and now) or 0
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, now, dissolving = m and true or nil, mid = m and mid or nil }
 end
 
 
@@ -257,7 +248,7 @@ function W.update(enabled, passes, context)
     W.showNear(context)
     W.skinTick()
     W.recolour(passes)
-    loopBusy = #sinking > 0 or W.glowing()
+    stepOpening()
     if catchingUp and budget == PER_TICK then
         catchingUp = false
         P.wallsCaughtUp(nRaised)
@@ -610,8 +601,9 @@ function W.dissolving(name, context)
     return mid, now
 end
 -- The glow near the player (M_APWall's PlayerPos; dev.41 playtest: keyed to the camera it sat off to the side of the
--- character): the player's position on every M_APWall material, from the 33 ms loop while walls of ours stand, only
--- when the player has moved. The pawn is the core's, handed to W.update every 300 ms; checked each time.
+-- character): the player's position on the M_APWall materials of pieces shown, each core update (300 ms; a faster
+-- loop of our own corrupted Lua's state, see sinking above), only when the player has moved. The pawn is the core's,
+-- handed to W.update; checked each time.
 function W.glowing()
     if nRaised == 0 or not apWall then return false end
     return skin.now == "paws" or skin.now:find("^colour%-") ~= nil
@@ -638,7 +630,7 @@ function W.glowTick()
             if n then tell(skin.mids[n]) end
         end
     end
-    for _, sk in ipairs(sinking) do if sk[5] and sk[1]:IsValid() then tell(sk.mid) end end
+    for _, sk in ipairs(sinking) do if sk.dissolving and sk[1]:IsValid() then tell(sk.mid) end end
 end
 -- A new world (or the player's pawn changed): every material, texture and handle kept from before is let go, never
 -- called again (dev.42 crash: the world before's materials, dead, called 30 times a second); made again when needed.

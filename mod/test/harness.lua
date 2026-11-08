@@ -554,10 +554,10 @@ end
 local function run(ticks)
     for _ = 1, ticks do
         clock, frameCount = clock + 0.3, frameCount + 20
+        gameSeconds = gameSeconds + 0.3
         loop()
         for i = #extraLoops, 1, -1 do                     -- other loops (the walls sinking) end by returning true
             for _ = 1, 10 do
-                gameSeconds = gameSeconds + 0.033 / #extraLoops
                 if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end
             end
         end
@@ -1551,6 +1551,7 @@ end)()
 
 print("a new world")
 -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
+run(10)                                                       -- (walls opened above finish shrinking: 2 s of updates)
 local before, up = spawned, wallCount()
 pawnGone = true
 run(5)
@@ -3720,7 +3721,10 @@ end)()
         local lines, n = {}, 0
         for line in (src .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
         for k, line in ipairs(lines) do
-            local ind = line:match("^(%s*)LoopAsync%(%d+, function%(%)%s*$")
+            local ind, ms = line:match("^(%s*)LoopAsync%((%d+), function%(%)%s*$")
+            if ind and f ~= "test_tools" and tonumber(ms) < 300 then
+                bad[#bad + 1] = f .. ".lua:" .. k .. ": a " .. ms .. " ms loop (dev.45: a 33 ms loop corrupted Lua's state)"
+            end
             if ind then
                 n = n + 1
                 local j = k + 1
@@ -3734,7 +3738,7 @@ end)()
             end
         end
     end
-    expect(#bad == 0, "every LoopAsync callback only reads a flag and hands over a function made beforehand: " .. table.concat(bad, " | "))
+    expect(#bad == 0, "every LoopAsync callback only reads a flag and hands over a function made beforehand, none faster than 300 ms outside the test tools: " .. table.concat(bad, " | "))
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")

@@ -29,7 +29,7 @@ distance from the camera like the game's walls. Parameters the Lua mod sets on i
   OffsetU, OffsetV, MirrorU  the pattern shifted (tiles) and mirrored (1) per area (the Art lane, 2026-11-08: sister
                         Areas of one Region differ by an offset, a mirror and a shade of the Back colour, never hue)
   PlayerPos, ReactRadius, ReactStrength, RippleSize, RippleSpeed, ReactColor  the wall glows and ripples near the
-                        player (PlayerPos, set by the Lua mod ~30 times a second; dev.41 measured from the camera,
+                        player (PlayerPos, set by the Lua mod each update, 300 ms; dev.41 measured from the camera,
                         which sits off to the side): within ReactRadius cm (600), rings RippleSize cm apart (60)
                         moving RippleSpeed a second
   DissolveStart, DissolveTime, EdgeColor  the wall dissolves from DissolveStart (game seconds, the Time node's clock;
