@@ -76,7 +76,10 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
 // colour (the player's saved map, "" for none) and gamma as compose_map: then out is the whole map picture, opaque: the
 // map, greyscale in closed (locked, sealed) areas with no fill there (the user, dev.33: "the interior should be the
 // greyscale"), the rims, and the walls in the closed side's colour, lighter (style fields 8, 9: their glow and core
-// alpha, default 0.3, 0.5); the fog picture keeps the cream walls and the fills. Without colour, out is the overlay.
+// alpha, default 0.3, 0.5); and the fog picture is the duotone (the Art lane's combo C, the user's pick): the open sea
+// the map's brightness over the fog colour, each area its colour from dark to light with the map's brightness (dimmer
+// locked or sealed), rims (no fills) and the cream walls. Without colour, out is the overlay and the fog picture the fills
+// and rims over the fog colour.
 auto compose_field(const std::string& field, const std::string& areas, const std::string& walls,
                    const std::string& style, const std::string& out, const std::string& fogart,
                    const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0) -> std::string;

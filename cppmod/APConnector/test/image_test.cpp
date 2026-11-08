@@ -229,7 +229,9 @@ int main()
     if (!fieldOk) return 1;
 
     // compose_field with the player's map (dev.33 playtest): the whole picture, opaque; the locked area greyscale with no
-    // fill, the visited one in colour; the wall in the locked side's red, lighter; the fog picture as without it.
+    // fill, the visited one in colour; the wall in the locked side's red, lighter. The fog picture the duotone (combo C):
+    // the map (lum 0.469) gives the locked red area dark red (~123,28,32), the visited green one brighter green (G ~163),
+    // the open sea a blue grey (~59,69,78).
     std::vector<unsigned char> cmap(256 * 256 * 4);
     for (int i = 0; i < 256 * 256; ++i) { cmap[i * 4] = 60; cmap[i * 4 + 1] = 160; cmap[i * 4 + 2] = 90; cmap[i * 4 + 3] = 255; }
     stbi_write_png("/tmp/field_colour.png", 256, 256, 4, cmap.data(), 256 * 4);
@@ -243,13 +245,18 @@ int main()
     const bool mColour = mg && mp(220, 100)[1] > mp(220, 100)[0] + 60 && mp(220, 100)[3] == 255;   // visited: the map's green
     const bool mRim = mg && mp(40, 223)[0] > mp(40, 223)[1] + 60;                   // the locked area's red rim on the coast
     const bool mWall = mg && mp(127, 50)[0] > 200 && mp(127, 50)[0] > mp(127, 50)[2] + 40;   // the wall: light red, not cream
-    int fogDiff = mf && ff ? 0 : 999;
-    for (int i = 0; mf && ff && i < 256 * 256 * 3; ++i) fogDiff = std::max(fogDiff, std::abs(mf[i] - ff[i]));
+    auto fq = [&](int x, int y) { return mf + (y * 256 + x) * 3; };
+    const bool duoLocked = mf && std::abs(fq(40, 100)[0] - 123) <= 4 && std::abs(fq(40, 100)[1] - 28) <= 4;
+    const bool duoVisited = mf && std::abs(fq(220, 100)[1] - 163) <= 4 && fq(220, 100)[1] > fq(220, 100)[0] + 80;
+    const bool duoSea = mf && std::abs(fq(160, 250)[0] - 59) <= 3 && std::abs(fq(160, 250)[2] - 78) <= 3;
+    const int fogDiff = duoLocked && duoVisited && duoSea ? 0 : 1;
     const bool mapOk = mres.empty() && mGrey && mColour && mRim && mWall && fogDiff == 0;
-    std::printf("%s field map picture: %s, locked %d,%d,%d, visited %d,%d,%d, rim %d,%d, wall %d,%d,%d, fog diff %d\n",
+    std::printf("%s field map picture: %s, locked %d,%d,%d, visited %d,%d,%d, rim %d,%d, wall %d,%d,%d, duotone %s\n",
                 mapOk ? "ok" : "FAIL", mres.empty() ? "written" : mres.c_str(), mg ? mp(40, 100)[0] : -1, mg ? mp(40, 100)[1] : -1,
                 mg ? mp(40, 100)[2] : -1, mg ? mp(220, 100)[0] : -1, mg ? mp(220, 100)[1] : -1, mg ? mp(220, 100)[2] : -1,
                 mg ? mp(40, 223)[0] : -1, mg ? mp(40, 223)[1] : -1, mg ? mp(127, 50)[0] : -1, mg ? mp(127, 50)[1] : -1,
-                mg ? mp(127, 50)[2] : -1, fogDiff);
+                mg ? mp(127, 50)[2] : -1,
+                mf ? (std::to_string(fq(40, 100)[0]) + "," + std::to_string(fq(40, 100)[1]) + " / " + std::to_string(fq(220, 100)[1])
+                      + " / " + std::to_string(fq(160, 250)[0]) + "," + std::to_string(fq(160, 250)[2])).c_str() : "none");
     return mapOk ? 0 : 1;
 }

@@ -1038,7 +1038,11 @@ auto compose_field(const std::string& field, const std::string& areas, const std
                 {
                     float fill = 0, rimA = 0;
                     state_alpha(st, fill, rimA);
-                    if (map && (st == 'l' || st == 's')) fill = 0.f;
+                    if (col)                                      // (the duotone look, combo C: rims, no fills)
+                    {
+                        fill = 0.f;
+                        rimA = st == 'v' ? 0.35f : st == 's' ? 0.65f : 0.80f;
+                    }
                     const float cover = R ? 1.f : std::min(1.f, std::max(0.f, 1.f - d));
                     const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
                     over(t.colour[lab], std::min(1.f, std::max(0.f, fill + rim * rimA)) * cover);
@@ -1074,9 +1078,35 @@ auto compose_field(const std::string& field, const std::string& areas, const std
                 for (int k2 = 0; k2 < 3; ++k2) o[i * 4 + k2] = byte(c[k2]);
                 o[i * 4 + 3] = 255;
             }
-            // The fog's look: the fog picture over the fog colour; without a colour map, also the overlay (drawn over the
-            // game's map).
+            // The fog's look. With the colour map, the duotone (the Art lane's combo C, the user's pick, 2026-11-08): the open
+            // sea the map's brightness over the fog colour; an area its own colour, dark to light with the map's brightness,
+            // dimmer while locked or sealed; then the rims and the cream walls. Without it, the fills and rims over the fog
+            // colour, and that is also the overlay (drawn over the game's map).
             float c[3] = {0, 0, 0}, a = 0;
+            if (col && !f.empty())
+            {
+                const int cx = std::min(cw - 1, (2 * x + 1) * cw / (2 * S)), cy = std::min(ch - 1, (2 * y + 1) * ch / (2 * S));
+                const unsigned char* m = col.get() + (static_cast<size_t>(cy) * cw + cx) * 4;
+                const float lum = 0.30f * lut[m[0]] / 255.f + 0.55f * lut[m[1]] / 255.f + 0.15f * lut[m[2]] / 255.f;
+                const char own = R ? t.state[R] : 0;
+                if (!own)
+                    for (int k2 = 0; k2 < 3; ++k2) c[k2] = lum * 0.42f + t.fogC[k2] * 0.58f;
+                else
+                {
+                    const float tt = std::pow(std::min(1.f, std::max(0.f, (lum - 0.12f) / 0.60f)), 0.9f);
+                    const float kk = own == 'l' ? 0.62f : own == 's' ? 0.55f : 0.85f;
+                    for (int k2 = 0; k2 < 3; ++k2)
+                    {
+                        const float dark = t.fogC[k2] * 0.70f + t.colour[R][k2] * 0.22f;
+                        const float light = (t.colour[R][k2] * 0.80f + 0.20f) * kk;
+                        c[k2] = dark + (light - dark) * tt;
+                    }
+                }
+                a = 1.f;
+                paint(c, a, false);
+                for (int k2 = 0; k2 < 3; ++k2) f[i * 3 + k2] = byte(c[k2]);
+                continue;
+            }
             if (!col || !f.empty()) paint(c, a, false);
             if (!col)
             {
