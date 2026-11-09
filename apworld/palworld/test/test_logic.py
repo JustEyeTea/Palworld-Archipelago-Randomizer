@@ -7,13 +7,13 @@ class TestLevels(PalworldTestBase):
 
     def test_a_pass_alone_is_not_a_level(self):
         """Reaching a high-level area does not let a fresh player level there, or beat its tower."""
-        self.collect_by_name(["Area Pass: Sky Islands", "Tech: Nitewing Saddle", "Tech: Surfent Saddle"])
+        self.collect_by_name(["Region Pass: Sky Islands", "Tech: Nitewing Saddle", "Tech: Surfent Saddle"])
         self.assertFalse(self.world.level_ok(self.multiworld.state, 30))
         self.assertFalse(self.can_reach_location("Sky Islands Tower Defeated"))
 
     def test_levels_climb_with_spheres_and_furnaces(self):
         state = self.multiworld.state
-        self.collect_by_name("Area Pass: Bamboo Groves")
+        self.collect_by_name("Region Pass: Bamboo Groves")
         self.collect_n("Progressive Sphere", 2)
         start = self.world.max_level(state)
         self.assertLess(start, 20, "Bamboo Groves' Pals need the Mega Sphere, and that needs Copper Ingots")
@@ -31,7 +31,7 @@ class TestMounts(PalworldTestBase):
     options = {"goal": "world_tree", "gear_logic": True, "progressive_spheres": True}
 
     def test_the_sea_needs_a_mount_and_the_sky_islands_a_flying_one(self):
-        self.collect_by_name([i.name for i in self.multiworld.itempool if i.name.startswith("Area Pass")])
+        self.collect_by_name([i.name for i in self.multiworld.itempool if i.name.startswith("Region Pass")])
         self.assertFalse(self.can_reach_region("Open sea"))
         self.collect_n("Progressive Sphere", 2)
         self.collect_by_name("Tech: Primitive Furnace")

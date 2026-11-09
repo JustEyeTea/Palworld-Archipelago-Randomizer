@@ -206,7 +206,7 @@
      "key": "area_locks",
      "name": "Area Locks",
      "type": "DefaultOnToggle",
-     "help": "Areas beyond the starting zone open with an Area Pass item. Until its pass arrives, a locked area is walled off\n(a red grid at its border) and shown grey on the map; the open sea is always free.",
+     "help": "The map beyond the starting zone is locked, and each locked part opens when its pass item arrives (Lock Size\nsets how big the parts are). Until then a locked part is walled off (a red grid at its border) and shown grey on\nthe map; the open sea is always free.",
      "choices": [
       {
        "name": "false",
@@ -222,29 +222,29 @@
      "default": "true"
     },
     {
-     "key": "area_size",
-     "name": "Area Size",
+     "key": "lock_size",
+     "name": "Lock Size",
      "type": "Choice",
-     "help": "How finely the map is cut into locked parts (with Area Locks on).\nAreas: 15 areas, each a group of the game's regions, opened by Area Passes. The game starts in Windswept Island and\nits two nearby isles.\nRegions: every named region of the game on its own (75), opened by Region Passes. The game starts in the\nWindswept Island region alone, where the first tower stands: a cramped start, and many small unlocks.",
+     "help": "How finely the map is cut into locked parts (with Area Locks on).\nRegions: 15 regions, each a group of the game's named areas, opened by Region Passes. The game starts in Windswept\nIsland and its two nearby isles.\nAreas: every named area of the game on its own (75), opened by Area Passes. The game starts in the Windswept\nIsland area alone, where the first tower stands: a cramped start, and many small unlocks.",
      "choices": [
       {
-       "name": "areas",
+       "name": "regions",
        "value": 0,
-       "yaml": "areas"
+       "yaml": "regions"
       },
       {
-       "name": "regions",
+       "name": "areas",
        "value": 1,
-       "yaml": "regions"
+       "yaml": "areas"
       }
      ],
-     "default": "areas"
+     "default": "regions"
     },
     {
      "key": "beyond_goal",
-     "name": "Areas Beyond the Goal",
+     "name": "Regions Beyond the Goal",
      "type": "Choice",
-     "help": "Area Locks: what becomes of the areas this goal never needs, the ones whose Pals are all above the Check Level\nCap. The areas on the way to the goal's towers always stay in.\nLocked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.\nPasses: every area has its pass somewhere in the multiworld, as with no cap at all.\nOpen: their walls are down from the start, but nothing in them is a check.",
+     "help": "Area Locks: what becomes of the regions (or areas) this goal never needs, the ones whose Pals are all above the\nCheck Level Cap. The ones on the way to the goal's towers always stay in.\nLocked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.\nPasses: every one has its pass somewhere in the multiworld, as with no cap at all.\nOpen: their walls are down from the start, but nothing in them is a check.",
      "choices": [
       {
        "name": "locked",
@@ -268,7 +268,7 @@
      "key": "gear_logic",
      "name": "Gear Logic",
      "type": "Toggle",
-     "help": "What the logic counts on besides Area Passes and levels.\nOff: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,\nfurnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need\nanother tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only\nwhere the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when\nan area can't be reached by land.\nOn: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every\ntech's prerequisites, the Lab, breeding, and a mount for the open sea.",
+     "help": "What the logic counts on besides passes and levels.\nOff: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,\nfurnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need\nanother tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only\nwhere the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when\na region can't be reached by land.\nOn: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every\ntech's prerequisites, the Lab, breeding, and a mount for the open sea.",
      "choices": [
       {
        "name": "false",
@@ -548,7 +548,7 @@
      "key": "teleport_trap_weight",
      "name": "Teleport Trap Weight",
      "type": "Range",
-     "help": "How often a trap is a Teleport Trap: back to the starting area (it waits while you are in a dungeon).",
+     "help": "How often a trap is a Teleport Trap: back to the starting region (it waits while you are in a dungeon).",
      "min": 0,
      "max": 100,
      "default": 15

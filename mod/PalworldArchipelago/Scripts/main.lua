@@ -2,12 +2,12 @@
 -- registers AP_* functions here when this mod starts (see cppmod/APConnector/src/dllmain.cpp).
 --  * Technology levels 2+ are a shop: each card shows what its slot holds in the multiworld, researching it spends the
 --    points and sends the check, and never unlocks the tech itself. Techs unlock as their items arrive.
---  * Received items: techs, Progressive Spheres, Area Passes, points, bundles (into the mailbox, mailbox.lua), and traps
+--  * Received items: techs, Progressive Spheres, Region and Area Passes, points, bundles (into the mailbox, mailbox.lua), and traps
 --    (traps.lua).
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.1-dev.6"
+local VERSION = "0.14.1-dev.7"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -718,13 +718,13 @@ local function relabel(card, key, full)
     local clickable = not sent or mine ~= nil
     local it = own and D.items[r.id]
     local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
-    -- An Area Pass shows its own area's ticket (art/ap-pass-<area>.png, round 2); a Region Pass (area_size regions) its
-    -- area's, else the Region Pass ticket (ap-pass-region.png); else the shared one.
+    -- A Region Pass shows its own region's ticket (art/ap-pass-<region>.png); an Area Pass (Lock Size: areas) its
+    -- region's, else the small-pass ticket (ap-pass-region.png, named before the rename); else the shared one.
     local ART = require("art")
     local tex = mine and techIcon(mine)
         or (it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld"))
         or (kind == "area-pass" and (ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
-                                     or (it.name:find("^Region Pass") and ART.texture("ap-pass-region"))))
+                                     or (it.name:find("^Area Pass") and ART.texture("ap-pass-region"))))
         or icon(kind, card)
     local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
     local sig = name .. "\0" .. category .. "\0" .. tostring(clickable) .. "\0" .. tostring(texAddr)
@@ -1112,9 +1112,18 @@ local function onEvent(line)
             if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
             local locks = AP_SlotData("options.area_locks")
             areaLocks = locks == "1" or locks == "true"
-            -- The seed's cut of the map (options.area_size: 0 the 15 areas, 1 every region; older seeds have none).
-            local size = AP_SlotData("options.area_size")
-            WALLS.setLayout((size == "1" or size == "regions") and "regions" or "areas")
+            -- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the
+            -- rename send options.area_size, with the same numbers; older seeds send neither. WALLS still names the
+            -- 75-area cut "regions".
+            local size = AP_SlotData("options.lock_size")
+            local useAreas                                  -- true: the 75 areas; false: the 15 regions
+            if size ~= nil and size ~= "" then
+                useAreas = size == "1" or size == "areas"
+            else                                            -- a seed made before the rename
+                local old = AP_SlotData("options.area_size")
+                useAreas = old == "1" or old == "regions"
+            end
+            WALLS.setLayout(useAreas and "regions" or "areas")
             -- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes
             -- are not in this seed. Locked, their walls stay up for good; open, they are open from the start.
             ap.beyond = {}
@@ -1245,7 +1254,7 @@ else
     log("not connected: click the Archipelago banner on the title menu (or set server and slot in config.txt)")
 end
 
--- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.
+-- Hints for Region and Area Passes, bought with the server's hint points (!hint), offered at the walls.
 -- Returns the chat line, and what the hint pop-up shows (hint_popup.lua: two short lines and the points bar).
 local function wallNotice(area)
     if ap.beyond and ap.beyond[area] then

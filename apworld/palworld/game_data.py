@@ -3,7 +3,7 @@
 GAME_VERSION = "1.0.5.102999"
 START_AREA = 'Windswept Island'
 
-# Areas, one Area Pass each (the first is where a game starts).
+# The 15 regions (called areas in this code), one Region Pass each (the first is where a game starts).
 AREA_LIST = ['Windswept Island',
  'Bamboo Groves',
  'Sea Breeze Archipelago',
@@ -3304,7 +3304,7 @@ TOWERS = [('Desert Tower', 'Desiccated Dunes'),
  ('Starting Zone Tower', 'Windswept Island'),
  ('Volcano Tower', 'Mount Obsidian')]
 
-# area_size: regions. Every named region of the game on its own, one Region Pass each, from a start in the region
+# Lock Size: areas. Every named area of the game on its own, one Area Pass each, from a start in the area
 # the first tower stands in. The locations above keep their names; here are the pieces they sit in instead, and
 # the regions' own pieces, borders, levels and Pal sources (keys as above).
 REGION_MODE = {'START': 'Windswept Island',

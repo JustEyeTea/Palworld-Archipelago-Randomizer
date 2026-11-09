@@ -15,14 +15,15 @@ same pull request as the code it describes. The rules for writing the code itsel
 ## Contents
 
 1. [Overview](#overview)
-2. [Repository map](#repository-map)
-3. [Generated files](#generated-files)
-4. [The APWorld](#the-apworld)
-5. [The APConnector (C++)](#the-apconnector-c) *(not written yet)*
-6. [The Lua mod](#the-lua-mod) *(not written yet)*
-7. [The LogicMod paks](#the-logicmod-paks) *(not written yet)*
-8. [Tests, tools and releases](#tests-tools-and-releases) *(not written yet)*
-9. [Where to look when something breaks](#where-to-look-when-something-breaks)
+2. [Words](#words)
+3. [Repository map](#repository-map)
+4. [Generated files](#generated-files)
+5. [The APWorld](#the-apworld)
+6. [The APConnector (C++)](#the-apconnector-c) *(not written yet)*
+7. [The Lua mod](#the-lua-mod) *(not written yet)*
+8. [The LogicMod paks](#the-logicmod-paks) *(not written yet)*
+9. [Tests, tools and releases](#tests-tools-and-releases) *(not written yet)*
+10. [Where to look when something breaks](#where-to-look-when-something-breaks)
 
 ## Overview
 
@@ -50,6 +51,21 @@ data the other parts use (see [Generated files](#generated-files)).
    - The player's records (`records.lua`) become location checks.
 5. **Save.** The mod keeps a small save of its own for each seed, beside the game's. It holds how many items have
    arrived, the mailbox, the crates and whether the goal banner has shown.
+
+## Words
+
+| Word | Means |
+|---|---|
+| **Area Locks** | The feature as a whole: the map is walled off in parts, and each part opens when its pass arrives. |
+| **Region** | One of the 15 large locked parts (Lock Size: regions, the default), opened by a **Region Pass**. Each is a group of areas. |
+| **Area** | One of the game's 75 named places (the game's `DT_WorldMapAreaData`), locked one by one with Lock Size: areas and opened by an **Area Pass**. |
+| **Piece** | The logic's smallest part of the map: an Archipelago `Region` in `__init__.py`. Each piece belongs to one region or area. |
+| **Archipelago Region** | Archipelago's own class for a node in the logic's map (`BaseClasses.Region`). This code makes one per piece. |
+
+**Older names in the code.** Much of the code still uses these two words the other way round: "area"
+(`AREA_LIST`, `PASS_AREAS`, the `areas` layout, `area_walls.lua`) means one of the 15 regions, and "region"
+(`REGION_MODE`, the `regions` layout, the `_regions` files) means one of the 75 areas. Files say so where it matters,
+and the names are changed file by file during the code tour.
 
 ## Repository map
 
@@ -90,7 +106,8 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 ## The APWorld
 
 Archipelago loads `apworld/palworld/` to build a Palworld slot. The files build on each other: `game_data.py` holds the
-raw facts, `data.py` turns them into items and locations, and `__init__.py` adds regions and rules.
+raw facts, `data.py` turns them into items and locations, and `__init__.py` builds the logic's map (Archipelago
+Regions, one per piece) and its rules.
 
 ### `data.py`: items and locations
 
@@ -108,14 +125,13 @@ Every item and every location, each with its name and permanent id.
     (`DIRECT`).
   - Pals bred from two such parents also count (`BREEDABLE`).
 - **Areas and filler.**
-  - Area Pass and Region Pass names.
+  - Region Pass and Area Pass names (`region_pass`, `area_pass`).
   - `FILLER`, `TRAPS`, `PROGRESSIVE_SPHERE`, `CRATE` (Palworld Crate, the default filler), `RELIC` (the Relic Hunt
     item).
 - **`ITEMS` and `LOCATIONS`.** These are made by `_items()` and `_locations()`; each entry is an `ItemDef` or
   `LocationDef`.
-- **`LAYOUTS`.** The two ways of cutting the map (the Area Size option), in one shape (`Layout`) that the logic reads:
-  `areas`, 15 areas opened by Area Passes, each a group of the game's named regions; and `regions`, each of the
-  game's 75 named regions on its own, opened by Region Passes.
+- **`LAYOUTS`.** The two ways of cutting the map (the Lock Size option), in one shape (`Layout`) that the logic reads.
+  Its keys use the older names: `areas` is the 15 regions (Region Passes) and `regions` the 75 areas (Area Passes).
 - **Groups.** `ITEM_GROUPS` and `LOCATION_GROUPS` are the names players can use for hints and `start_inventory`.
 
 A few `assert`s at import time stop generation at once if two items share a name or an id.
@@ -128,7 +144,7 @@ added at the end. `test/test_ids.py` fails if any 1.0.5 id moves.
 
 | Offset | Items | Locations |
 |---|---|---|
-| +0 | Area Passes | none |
+| +0 | Region Passes (the 15) | none |
 | +900 | Progressive Sphere | none |
 | +940 | Palpagos Relic | none |
 | +950 | filler (+958 Palworld Crate; up to +969 kept for filler) | none |
@@ -139,13 +155,13 @@ added at the end. `test/test_ids.py` fails if any 1.0.5 id moves.
 | +4000 | none | fast-travel points |
 | +5000 | none | levels (+5000 + the level: "Level 24" is +5024) |
 | +6000 | none | towers |
-| +7000 | Region Passes | none |
+| +7000 | Area Passes (the 75) | none |
 
 Items and locations are separate id spaces in Archipelago, so a tech item and a shop slot sharing an offset is fine.
 
 ### `options.py`: the player's options *(not written yet)*
 
-### `__init__.py`: regions and logic *(not written yet)*
+### `__init__.py`: the logic *(not written yet)*
 
 ## The APConnector (C++)
 

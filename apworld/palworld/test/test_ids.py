@@ -7,7 +7,10 @@ from ..data import BASE, ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID
 # (tools/gen_apworld_data.py appends new rows), but must never move or drop one: worlds already generated and the mod's
 # saved state rely on them. Per table: {block: last 1.0.5 offset in it}, then the sha256 of "name<TAB>id" lines.
 FROZEN = {
-    "items": ({0: 957, 1: 587}, "c5576bb2e85a76b4987bdcee6fc0518f5a0bed4c5cfc6c32ac265a0aaba286c1"),
+    "items": ({0: 957, 1: 587},
+              # 0.9.0: the 15 passes renamed "Area Pass: <name>" -> "Region Pass: <name>" (same ids; the old names
+              # gave c5576bb2...)
+              "e97c8c0064ae68efbfc3b7a10cb1f8b6239f2fa5abd019c5572f67da6be053a6"),
     "locations": ({1: 587, 2: 285, 3: 89, 4: 173, 5: 80, 6: 7},
                   # 0.7.1: tech-tree checks renamed "Shop: <tech>" -> "Tech Level N Slot M" (same ids; the old
                   # names gave 498b936d...)

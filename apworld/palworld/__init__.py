@@ -1,5 +1,5 @@
-"""Palworld for Archipelago: the Technology tree (levels 2+) is a shop of checks, every tech is an item, areas open with
-Area Passes, and captures, alphas, fast-travel points, levels and towers are further checks."""
+"""Palworld for Archipelago: the Technology tree (levels 2+) is a shop of checks, every tech is an item, regions open
+with Region Passes, and captures, alphas, fast-travel points, levels and towers are further checks."""
 import heapq
 import logging
 import math
@@ -40,7 +40,7 @@ TOWER_LEVELS = {"Starting Zone Tower": 10, "Forest Tower": 20, "Volcano Tower": 
 
 
 class Levels:
-    """The levels a layout (the area_size option) gives: towers' bosses, techs behind them, and the first level each Pal
+    """The levels a layout (the Lock Size option) gives: towers' bosses, techs behind them, and the first level each Pal
     can be had at."""
     def __init__(self, layout: Layout):
         self.layout = layout
@@ -92,7 +92,7 @@ class PalworldWeb(WebWorld):
 
 class PalworldWorld(World):
     """Catch, build and fight across the Palpagos Islands, where every technology is a shop slot that may hold
-    another player's item, and new areas open as Area Passes arrive from the multiworld."""
+    another player's item, and new regions open as Region Passes arrive from the multiworld."""
     game = "Palworld"
     web = PalworldWeb()
     options_dataclass = PalworldOptions
@@ -105,8 +105,10 @@ class PalworldWorld(World):
 
     def generate_early(self) -> None:
         o = self.options
-        self.layout = LAYOUTS["regions" if o.area_size == o.area_size.option_regions else "areas"]
-        self.lv = LEVELS["regions" if o.area_size == o.area_size.option_regions else "areas"]
+        # The layouts still have the older names: "regions" is Lock Size: areas (75), "areas" the 15 regions.
+        cut = "regions" if o.lock_size == o.lock_size.option_areas else "areas"
+        self.layout = LAYOUTS[cut]
+        self.lv = LEVELS[cut]
         if 0 < o.check_level.value <= STARTER_LEVEL:    # nothing to buy below level 2, not even the first sphere
             raise OptionError(f"Palworld ({self.player_name}): the Check Level Cap must be 0 (auto) or at least "
                               f"{STARTER_LEVEL + 1}.")
@@ -605,7 +607,7 @@ class PalworldWorld(World):
         self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)
 
     def fill_slot_data(self) -> Dict[str, Any]:
-        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "area_size", "beyond_goal", "gear_logic",
+        return {"options": self.options.as_dict("goal", "tower_count", "paldeck_count", "area_locks", "lock_size", "beyond_goal", "gear_logic",
                                                 "progressive_spheres",
                                                 "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks",
                                                 "level_checks", "death_link", "death_link_amnesty", "trap_chance",

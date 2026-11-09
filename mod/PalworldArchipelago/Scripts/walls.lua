@@ -1,9 +1,11 @@
 -- Area locks: the game's own blocking wall (BP_PalBlockingVolume, the red energy grid beside the World Tree gate),
--- stretched into pieces along every border between areas (area_walls.lua, from tools/area_walls.py). A piece stays up
--- while either area it separates is locked; an Area Pass opens its area. Open sea is never locked, so an area that
--- is locked is ringed from the sea as well.
--- Two cuts of the map (the seed's area_size option, W.setLayout): "areas", the 15 areas (area_walls.lua and the rest);
--- "regions", every named region of the game (the same files with _regions). The areas' are loaded at start.
+-- stretched into pieces along every border between locked parts (area_walls.lua, from tools/area_walls.py). A piece
+-- stays up while either part it separates is locked; the part's pass opens it. Open sea is never locked, so a locked
+-- part is ringed from the sea as well.
+-- Two cuts of the map (the seed's Lock Size option, W.setLayout). Players call the 15 parts regions (Region Passes)
+-- and the 75 areas (Area Passes); this file still uses the older words the other way round, until the code tour
+-- renames them: "areas" is the 15 regions (area_walls.lua and the rest), "regions" the 75 areas (the same files with
+-- _regions). In this file "area" means a locked part of either cut. The 15 regions' walls are loaded at start.
 local DATA = require("area_walls")
 local MAP = require("area_map")
 local SHAPES = nil            -- area_shapes(_regions).lua: only for a map drawn without the compositor, loaded then
@@ -48,9 +50,9 @@ local function buildTrig()
 end
 buildTrig()
 
--- The item that opens an area: an Area Pass, or with area_size regions a Region Pass.
+-- The item that opens a locked part: a Region Pass for one of the 15 regions, an Area Pass for one of the 75 areas.
 function W.passName(area)
-    return (W.layout == "regions" and "Region Pass: " or "Area Pass: ") .. area
+    return (W.layout == "regions" and "Area Pass: " or "Region Pass: ") .. area
 end
 
 local function isOpen(area, passes)
@@ -1713,9 +1715,10 @@ function W.count()
 end
 
 
--- The seed's cut of the map (slot data options.area_size: 0 areas, 1 regions), set once a connection is ready and
--- before any wall goes up. A change takes every wall down at once (their piece numbers mean other pieces in the other
--- cut) and forgets the map pictures made for the old one; the update raises the new cut's walls.
+-- The seed's cut of the map ("areas" for the 15 regions, "regions" for the 75 areas: the older words, see the top of
+-- this file; main.lua reads it from the seed's Lock Size), set once a connection is ready and before any wall goes up.
+-- A change takes every wall down at once (their piece numbers mean other pieces in the other cut) and forgets the map
+-- pictures made for the old one; the update raises the new cut's walls.
 function W.setLayout(name)
     name = name == "regions" and "regions" or "areas"
     if name == W.layout then return false end
@@ -1729,7 +1732,8 @@ function W.setLayout(name)
     buildTrig()
     decoded, triangles, bands = {}, {}, {}
     mapKey, composing, composedKey, failedKey, composingList = nil, nil, nil, nil, {}
-    log("area locks: " .. name .. " (" .. (#DATA.areas - 1) .. " " .. name .. ", " .. #DATA.walls .. " border pieces)")
+    local parts = name == "regions" and " areas" or " regions"         -- in the players' words
+    log("area locks: " .. (#DATA.areas - 1) .. parts .. " (" .. #DATA.walls .. " border pieces)")
     return true
 end
 

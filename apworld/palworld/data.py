@@ -84,21 +84,28 @@ CATCHABLE = {e: v for e, v in PALDECK.items() if e in DIRECT | BREEDABLE}
 _names = [v[0] for v in CATCHABLE.values()]
 CAPTURE_NAMES = {e: f"Capture: {v[0]}" + (f" ({e})" if _names.count(v[0]) > 1 else '') for e, v in CATCHABLE.items()}
 
-# --- areas -----------------------------------------------------------------------------------------------------
+# --- regions and areas -----------------------------------------------------------------------------------------
+# Players see two sizes of locked map part (the Lock Size option): 15 *regions*, each opened by a Region Pass, and the
+# game's 75 named *areas*, each opened by an Area Pass. A region is a group of areas.
+# The code still uses the older words, the other way round: "area" (AREA_LIST, PASS_AREAS, the "areas" layout)
+# means one of the 15 regions, and "region" (REGION_MODE, REGION_PASS_AREAS, the "regions" layout) one of the 75
+# areas. They are renamed file by file during the code tour (docs/architecture.md).
 PASS_AREAS = [a for a in AREA_LIST if a != START_AREA]
 SEA = "Open sea"
 
 
-def area_pass(area: str) -> str:
-    return f"Area Pass: {area}"
+def region_pass(region: str) -> str:
+    """The pass item for one of the 15 regions."""
+    return f"Region Pass: {region}"
 
 
-# The per-region set (area_size: regions): each named region of the game its own, with a Region Pass.
+# The 75 areas (Lock Size: areas): each named area of the game on its own, with an Area Pass.
 REGION_PASS_AREAS = [r for r in REGION_MODE['AREA_LIST'] if r != REGION_MODE['START']]
 
 
-def region_pass(region: str) -> str:
-    return f"Region Pass: {region}"
+def area_pass(area: str) -> str:
+    """The pass item for one of the 75 areas."""
+    return f"Area Pass: {area}"
 
 
 TOWER_EVENTS = {name: f"{name} Defeated" for name, _ in TOWERS}
@@ -123,14 +130,14 @@ class ItemDef(NamedTuple):
 
 
 def _items() -> List[ItemDef]:
-    out = [ItemDef(area_pass(a), BASE + i, "pass") for i, a in enumerate(PASS_AREAS)]
+    out = [ItemDef(region_pass(a), BASE + i, "pass") for i, a in enumerate(PASS_AREAS)]
     out += [ItemDef(tech_item(t[0]), BASE + 1000 + i, "tech") for i, t in enumerate(TECHS) if t[2] > STARTER_LEVEL]
     out.append(ItemDef(PROGRESSIVE_SPHERE, BASE + 900, "progressive"))
     out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
     out.append(ItemDef(CRATE, BASE + 958, "filler"))
     out += [ItemDef(n, BASE + 970 + i, "trap") for i, n in enumerate(TRAPS)]      # 959-969 stay free for filler
-    out += [ItemDef(region_pass(r), BASE + 7000 + i, "pass") for i, r in enumerate(REGION_PASS_AREAS)]
+    out += [ItemDef(area_pass(r), BASE + 7000 + i, "pass") for i, r in enumerate(REGION_PASS_AREAS)]
     return out
 
 
@@ -172,7 +179,7 @@ SHARED_ALPHAS = frozenset(name for name, _, level, _ in ALPHAS
 
 
 class Layout(NamedTuple):
-    """One way of cutting the map into lockable parts (the area_size option): what the logic reads about the map."""
+    """One way of cutting the map into lockable parts (the Lock Size option): what the logic reads about the map."""
     start: str                     # the area or region a game starts in (no pass)
     passes: Dict[str, str]         # area or region -> its pass item
     pieces: Dict[str, str]         # piece (the logic's region) -> its area or region; "Open sea" needs no pass
@@ -195,11 +202,12 @@ def _regions_location_piece() -> Dict[str, Optional[str]]:
     return out
 
 
+# Keyed by the older words (see "regions and areas" above): "areas" is the 15 regions, "regions" the 75 areas.
 LAYOUTS = {
-    "areas": Layout(START_AREA, {a: area_pass(a) for a in PASS_AREAS}, PIECES, BORDERS, AREAS,
+    "areas": Layout(START_AREA, {a: region_pass(a) for a in PASS_AREAS}, PIECES, BORDERS, AREAS,
                     {e: v[1] for e, v in PALDECK.items()}, {l.name: l.area for l in LOCATIONS}, dict(TOWERS),
                     frozenset({"Sky Islands"}), "World Tree"),
-    "regions": Layout(REGION_MODE['START'], {r: region_pass(r) for r in REGION_PASS_AREAS}, REGION_MODE['PIECES'],
+    "regions": Layout(REGION_MODE['START'], {r: area_pass(r) for r in REGION_PASS_AREAS}, REGION_MODE['PIECES'],
                       REGION_MODE['BORDERS'], REGION_MODE['AREAS'], REGION_MODE['SOURCES'], _regions_location_piece(),
                       REGION_MODE['TOWERS'], frozenset(REGION_MODE['SKY']), REGION_MODE['WORLD_TREE']),
 }

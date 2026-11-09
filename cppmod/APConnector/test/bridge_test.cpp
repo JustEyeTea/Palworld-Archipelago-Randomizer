@@ -37,7 +37,7 @@ int main(int argc, char** argv)
     }
     b.say("bridge test says hello");
     std::printf("== hint points,cost = %s\n", b.hint_points().c_str());
-    b.say("!hint Area Pass: Desiccated Dunes");
+    b.say("!hint Region Pass: Desiccated Dunes");
     b.set_tags("AP,DeathLink");
     drain(b, 500);
     b.bounce("{\"time\":1,\"source\":\"Tester\",\"cause\":\"bridge test\"}", "DeathLink");

@@ -1,8 +1,9 @@
 # Palworld
 
 Palworld's Technology tree (levels 2 and up) becomes a shop: each card shows what buying it sends to the multiworld,
-and every tech is an item that arrives from Archipelago. New areas open with Area Passes. Captures, alphas,
-fast-travel points, levels and towers are further checks.
+and every tech is an item that arrives from Archipelago. The map is locked: its 15 regions open with Region Passes
+(or, with Lock Size: areas, the game's 75 named areas open with Area Passes). Captures, alphas, fast-travel points,
+levels and towers are further checks.
 
 ## Goals
 
@@ -29,10 +30,10 @@ game has about 180):
 | Async | 3 towers | ~585 |
 | Full Game Async | World Tree | ~1,150 |
 
-With Area Locks on, a short goal keeps a small map: areas whose Pals are all above the cap have no pass and no checks,
-and their walls stay up (Areas Beyond the Goal: locked, the default). A two-tower game has passes for the areas up to
-level 28 only. Areas Beyond the Goal can instead open them from the start (still with no checks in them), or keep a
-pass for every area as before.
+With Area Locks on, a short goal keeps a small map: regions whose Pals are all above the cap have no pass and no
+checks, and their walls stay up (Regions Beyond the Goal: locked, the default). A two-tower game has passes for the
+regions up to level 28 only. Regions Beyond the Goal can instead open them from the start (still with no checks in
+them), or keep a pass for every region as before. With Lock Size: areas, the same goes for areas.
 
 Shop slots cost their usual tech points. Long goals ask for more points than levelling gives: Technical Manuals from
 dungeons, treasure chests and the Bounty shop make up the rest.
@@ -42,11 +43,11 @@ game.
 
 ## What the logic expects
 
-Levels climb area by area: an area counts for levelling once it is open and you are no more than 8 levels below its
-Pals. Nothing stops you levelling; the logic just won't expect a level-20 boss or a level-23 Pal before your open areas
-let you reach that level.
+Levels climb region by region: a region counts for levelling once it is open and you are no more than 8 levels below
+its Pals. Nothing stops you levelling; the logic just won't expect a level-20 boss or a level-23 Pal before your open
+regions let you reach that level.
 
-By default (Gear Logic off) only Area Passes and levels decide where things can be. Your first Pal Sphere comes early,
+By default (Gear Logic off) only passes and levels decide where things can be. Your first Pal Sphere comes early,
 and gear never holds up progression: better spheres, furnaces, prerequisites, the Pal Labor Research Lab and breeding
 are ordinary items. Tech cards that need another tech or Lab research first stay normal research, bred-only Pals
 aren't checks, and parts of the map only the open sea reaches have no checks. A saddle counts only where the map needs
@@ -113,7 +114,7 @@ the trap weights. None of them can make you faint:
 
 - **Slow Trap**: half walking speed for a minute.
 - **Hunger Trap**: your stomach loses half a full meter of satiety, but never drops below a quarter (so it never starts starving damage).
-- **Teleport Trap**: back to the starting area. It waits while you are in a dungeon.
+- **Teleport Trap**: back to the starting region. It waits while you are in a dungeon.
 - **Fool Trap**: an alarming notice, then "just kidding" a few seconds later. Nothing happens.
 
 Traps go off as they arrive, and wait while you are fainted, while the world is loading and while the mailbox is

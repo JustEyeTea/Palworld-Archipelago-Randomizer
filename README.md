@@ -7,7 +7,7 @@ An [Archipelago](https://archipelago.gg) multiworld randomizer for Palworld. It 
 World Tree goal and alpha checks are not tested in game yet.
 
 Palworld's Technology tree (levels 2 and up) becomes an Archipelago shop whose cards show what each purchase sends to
-the multiworld, with captures, alphas, towers, fast-travel points and levels as further checks and Area Passes gating
+the multiworld, with captures, alphas, towers, fast-travel points and levels as further checks and Region Passes gating
 progression. It runs as a UE4SS mod inside the player's own game: a Lua core plus a C++ part that connects to the
 Archipelago server. Targets Palworld 1.0.5 and Archipelago 0.6.8. To install and connect, follow the setup guide,
 `apworld/palworld/docs/setup_en.md` (also the Setup Guide on an Archipelago site's Palworld page).
@@ -18,8 +18,8 @@ Archipelago server. Targets Palworld 1.0.5 and Archipelago 0.6.8. To install and
 </picture>
 
 <img src="art/readme/feature-shop.png" alt="The Technology tree becomes an Archipelago shop" width="800">
-<img src="art/readme/feature-passes.png" alt="Areas open with Area Passes" width="800">
-<img src="art/readme/feature-walls.png" alt="Locked areas are walled off until their pass arrives" width="800">
+<img src="art/readme/feature-passes.png" alt="Regions open with Region Passes" width="800">
+<img src="art/readme/feature-walls.png" alt="Locked regions are walled off until their pass arrives" width="800">
 
 `apworld/palworld/` is the APWorld: options, items, locations and logic, with `game_data.py` generated from the game's
 tables by `tools/gen_apworld_data.py`. `mod/PalworldArchipelago/` is the UE4SS Lua mod (its `Scripts/ap_data.lua` is

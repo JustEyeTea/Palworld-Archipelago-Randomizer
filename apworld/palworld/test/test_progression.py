@@ -2,12 +2,12 @@ from . import PalworldTestBase
 from .. import TOWER_LEVELS
 
 # The areas with Pals at level 28 or below, besides the start: a two-tower seed's map (areas layout).
-TWO_TOWER_PASSES = {"Area Pass: Marsh Island", "Area Pass: Sea Breeze Archipelago", "Area Pass: Isles of Silence",
-                    "Area Pass: Bamboo Groves", "Area Pass: Volcano Foothills", "Area Pass: Crescent Moon Shore"}
+TWO_TOWER_PASSES = {"Region Pass: Marsh Island", "Region Pass: Sea Breeze Archipelago", "Region Pass: Isles of Silence",
+                    "Region Pass: Bamboo Groves", "Region Pass: Volcano Foothills", "Region Pass: Crescent Moon Shore"}
 
 
 def passes(test):
-    return {i.name for i in test.multiworld.itempool if i.name.startswith(("Area Pass: ", "Region Pass: "))}
+    return {i.name for i in test.multiworld.itempool if i.name.startswith(("Region Pass: ", "Area Pass: "))}
 
 
 class TestTwoTowers(PalworldTestBase):
@@ -39,12 +39,12 @@ class TestTwoTowers(PalworldTestBase):
     def test_the_goal_needs_lily(self):
         """Another tower would do in game, but the logic counts on the first two: Lily's area needs its pass."""
         state = self.multiworld.state
-        self.collect([i for i in self.multiworld.itempool if i.name != "Area Pass: Crescent Moon Shore"])
+        self.collect([i for i in self.multiworld.itempool if i.name != "Region Pass: Crescent Moon Shore"])
         state.sweep_for_advancements()
         self.assertTrue(state.has("Starting Zone Tower Defeated", self.player))
         self.assertFalse(state.has("Forest Tower Defeated", self.player))
         self.assertFalse(self.can_reach_location("Goal Complete"))
-        self.collect_by_name("Area Pass: Crescent Moon Shore")
+        self.collect_by_name("Region Pass: Crescent Moon Shore")
         state.sweep_for_advancements()
         self.assertTrue(self.can_reach_location("Goal Complete"))
 
@@ -55,7 +55,7 @@ class TestOneTower(PalworldTestBase):
     def test_cap_and_goal(self):
         self.assertEqual(self.world.cap, 18)
         self.assertEqual(self.world.goal_towers, ["Starting Zone Tower"])
-        self.assertNotIn("Area Pass: Crescent Moon Shore", passes(self))
+        self.assertNotIn("Region Pass: Crescent Moon Shore", passes(self))
 
 
 class TestBeyondGoalPasses(PalworldTestBase):
@@ -81,12 +81,12 @@ class TestBeyondGoalOpen(PalworldTestBase):
 
 
 class TestRegionsTwoTowers(PalworldTestBase):
-    options = {"area_size": "regions"}
+    options = {"lock_size": "areas"}
 
     def test_fewer_region_passes(self):
         got = passes(self)
         self.assertTrue(0 < len(got) < 74, len(got))
-        self.assertTrue(all(p.startswith("Region Pass: ") for p in got))
+        self.assertTrue(all(p.startswith("Area Pass: ") for p in got))
         self.assertEqual(self.world.cap, 28)
 
 
@@ -102,7 +102,7 @@ class TestNoGearLogic(PalworldTestBase):
 
     def test_only_passes_and_the_first_sphere_are_progression(self):
         prog = sorted({i.name for i in self.multiworld.itempool if i.advancement})
-        others = [n for n in prog if not n.startswith("Area Pass: ")]
+        others = [n for n in prog if not n.startswith("Region Pass: ")]
         self.assertEqual(others, [], "a two-tower seed reaches everything by land: no saddle needed")
         first = [l for l in self.multiworld.get_locations(self.player) if l.item and l.item.name == "Tech: Pal Sphere"]
         self.assertEqual(len(first), 1)

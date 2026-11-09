@@ -14,7 +14,9 @@ rules and old code is not made worse.
 ## Naming
 
 - **Say what it is in words a player would recognize.** Use `tower_level`, not `tl`. Use game terms (Area Pass,
-  Paldeck, alpha, fast-travel point) the way the game and this project's docs use them.
+  Paldeck, alpha, fast-travel point) the way the game and this project's docs use them. A *region* is one of the 15
+  large locked parts and an *area* one of the game's 75 named places; the full list is under
+  [Words](architecture.md#words).
 - **Read fields by name, never by position.** Write `tech.level`, not `tech[2]`. Give a row of data a `NamedTuple`
   (Python) or a table with named keys (Lua).
 - **Define in-house words once.** Words this project made up, such as *piece* (the smallest part of the map the logic
@@ -74,7 +76,10 @@ that state. These rules keep the mod's code on the game thread. `mod/test/harnes
   CI builds and tests the C++. Judge a run by its exit code, not by reading its output.
 - **Ids never move** (see [Ids never move](architecture.md#ids-never-move)). `test/test_ids.py` enforces it.
 - **A change that only makes code clearer** starts its commit message with `readability:` and changes no behaviour.
-  The tests prove it; for the APWorld, the same seed must also give the same spoiler log before and after.
+  The tests prove it; for the APWorld, the same seed must also give the same spoiler log before and after. (Renaming
+  an item is the exception: Archipelago sorts the item pool by name before shuffling, so new names place items
+  differently. Then compare the location list and the item pool, which must match apart from the names, and check
+  the seed is still beatable.)
 - **Pocketpair's data stays out of the repository:** no table dumps, textures or maps. Commit the generators, and
   make the data from your own copy of the game.
 - **Say plainly when work is AI-written,** in docs and release notes.

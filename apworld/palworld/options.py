@@ -64,30 +64,31 @@ class CheckLevel(Range):
 
 
 class AreaLocks(DefaultOnToggle):
-    """Areas beyond the starting zone open with an Area Pass item. Until its pass arrives, a locked area is walled off
-    (a red grid at its border) and shown grey on the map; the open sea is always free."""
+    """The map beyond the starting zone is locked, and each locked part opens when its pass item arrives (Lock Size
+    sets how big the parts are). Until then a locked part is walled off (a red grid at its border) and shown grey on
+    the map; the open sea is always free."""
     display_name = "Area Locks"
 
 
-class AreaSize(Choice):
+class LockSize(Choice):
     """How finely the map is cut into locked parts (with Area Locks on).
-    Areas: 15 areas, each a group of the game's regions, opened by Area Passes. The game starts in Windswept Island and
-    its two nearby isles.
-    Regions: every named region of the game on its own (75), opened by Region Passes. The game starts in the
-    Windswept Island region alone, where the first tower stands: a cramped start, and many small unlocks."""
-    display_name = "Area Size"
-    option_areas = 0
-    option_regions = 1
+    Regions: 15 regions, each a group of the game's named areas, opened by Region Passes. The game starts in Windswept
+    Island and its two nearby isles.
+    Areas: every named area of the game on its own (75), opened by Area Passes. The game starts in the Windswept
+    Island area alone, where the first tower stands: a cramped start, and many small unlocks."""
+    display_name = "Lock Size"
+    option_regions = 0
+    option_areas = 1
     default = 0
 
 
 class BeyondGoal(Choice):
-    """Area Locks: what becomes of the areas this goal never needs, the ones whose Pals are all above the Check Level
-    Cap. The areas on the way to the goal's towers always stay in.
+    """Area Locks: what becomes of the regions (or areas) this goal never needs, the ones whose Pals are all above the
+    Check Level Cap. The ones on the way to the goal's towers always stay in.
     Locked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.
-    Passes: every area has its pass somewhere in the multiworld, as with no cap at all.
+    Passes: every one has its pass somewhere in the multiworld, as with no cap at all.
     Open: their walls are down from the start, but nothing in them is a check."""
-    display_name = "Areas Beyond the Goal"
+    display_name = "Regions Beyond the Goal"
     option_locked = 0
     option_passes = 1
     option_open = 2
@@ -100,12 +101,12 @@ class ProgressiveSpheres(Toggle):
 
 
 class GearLogic(Toggle):
-    """What the logic counts on besides Area Passes and levels.
+    """What the logic counts on besides passes and levels.
     Off: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,
     furnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need
     another tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only
     where the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when
-    an area can't be reached by land.
+    a region can't be reached by land.
     On: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every
     tech's prerequisites, the Lab, breeding, and a mount for the open sea."""
     display_name = "Gear Logic"
@@ -285,7 +286,7 @@ class HungerTrapWeight(Range):
 
 
 class TeleportTrapWeight(Range):
-    """How often a trap is a Teleport Trap: back to the starting area (it waits while you are in a dungeon)."""
+    """How often a trap is a Teleport Trap: back to the starting region (it waits while you are in a dungeon)."""
     display_name = "Teleport Trap Weight"
     range_start = 0
     range_end = 100
@@ -314,7 +315,7 @@ class PalworldOptions(PerGameCommonOptions):
     relics_needed: RelicsNeeded
     check_level: CheckLevel
     area_locks: AreaLocks
-    area_size: AreaSize
+    lock_size: LockSize
     beyond_goal: BeyondGoal
     progressive_spheres: ProgressiveSpheres
     gear_logic: GearLogic
@@ -342,7 +343,7 @@ class PalworldOptions(PerGameCommonOptions):
 option_groups = [
     OptionGroup("Goal", [Goal, TowerCount, PaldeckCount, RelicCount, RelicsNeeded]),
     OptionGroup("Run Style", [RunStyle, SpeedBoost, BoostExpRate, BoostWorkSpeed, BoostGatherRate]),
-    OptionGroup("Progression", [AreaLocks, AreaSize, BeyondGoal, GearLogic, ProgressiveSpheres]),
+    OptionGroup("Progression", [AreaLocks, LockSize, BeyondGoal, GearLogic, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
     OptionGroup("Filler", [CrateSphereWeight, CrateFoodWeight, CrateCommonWeight, CrateRareWeight, CrateJackpotWeight,
                            MaterialBundles, TechPointItems]),
