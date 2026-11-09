@@ -19,7 +19,7 @@ same pull request as the code it describes. The rules for writing the code itsel
 3. [Repository map](#repository-map)
 4. [Generated files](#generated-files)
 5. [The APWorld](#the-apworld)
-6. [The APConnector (C++)](#the-apconnector-c) *(not written yet)*
+6. [The APConnector (C++)](#the-apconnector-c) *(the connection written; the helpers not yet)*
 7. [The Lua mod](#the-lua-mod) *(not written yet)*
 8. [The LogicMod paks](#the-logicmod-paks) *(not written yet)*
 9. [Tests, tools and releases](#tests-tools-and-releases) *(tests and the build written; tools, CI and releases not yet)*
@@ -188,7 +188,19 @@ are the constants at the top of the file.
 
 ## The APConnector (C++)
 
-*(not written yet)*
+Lua in UE4SS can't open network connections, so `cppmod/APConnector` does it.
+
+- `ap_bridge.cpp` runs apclientpp (the standard C++ Archipelago client) on its own thread, polled every 20 ms, and
+  turns everything the server sends into text lines in an event list: `item`, `scout`, `checked`, `message`,
+  `bounce`, `status` (the format is in `ap_bridge.hpp`). It needs no Unreal, so it is tested on Linux
+  (`tools/bridge_test.sh`).
+- `dllmain.cpp` registers the `AP_*` functions into the Lua mod when it starts; the list is at the top of the file.
+- The Lua mod calls `AP_Poll()` every 300 ms on the game thread and acts on each line; it sends checks with
+  `AP_Check`. Nothing on the bridge's thread touches the game or Lua.
+- When the server drops, apclientpp reconnects by itself, and the bridge joins the slot again when the server sends
+  `RoomInfo`; `main.lua` then re-reads the slot data and sends every check again.
+- Beside the mod: `client_uuid.txt` (one id per installation, so the server recognises the client) and `cacert.pem`
+  (trusted certificates for `wss://`).
 
 ## The Lua mod
 
@@ -222,6 +234,7 @@ are the constants at the top of the file.
 |---|---|---|
 | A check (a capture, a level, a tower) never reaches the server | The Lua mod: `records.lua` (does it read the record?), `main.lua` (does it send?). Search the log for `[PalworldAP]`. | The APConnector, `AP_Check` in `dllmain.cpp` and `ap_bridge.cpp`: the mod sent it, but the server never got it. |
 | A game update adds Pals, techs or items | Don't edit `game_data.py`. Dump the tables and run `tools/gen_apworld_data.py`, then `tools/gen_lua_data.py`. | `test/test_ids.py` proves no old id moved. |
+| Can't connect, or the connection drops | The UE4SS log's `[PalworldAP] status:` lines (connecting, socket, connected; or refused, with the reason) | `ap_bridge.cpp`, `wire_handlers`; for a secure (`wss://`) server, that `cacert.pem` is beside the mod |
 | An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
 | A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVEL_SLACK`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
 | The options page or YAML template shows old text, or CI's options page check fails | `docs/options/options.json` is out of date: run `tools/gen_options_page.py`, then `tools/test_options_page.py` | The option's class in `options.py` (its docstring and `display_name`) |
