@@ -40,6 +40,10 @@ covered by this repository's licence, and are regenerated from your own copy of 
 Most of its code, tools and documentation are written by Claude, an AI model made by Anthropic, at JustEyeTee's
 direction.
 
+To work on the code, start with the [architecture guide](docs/architecture.md): what each part does, which file
+owns what, and where to look when something breaks. The [style guide](docs/style-guide.md) has the rules the code
+follows.
+
 ## Options page
 
 `docs/options/` is a page where a player picks the Palworld options (or a preset) and downloads a player YAML for
