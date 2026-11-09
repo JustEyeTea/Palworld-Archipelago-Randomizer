@@ -72,8 +72,10 @@ that state. These rules keep the mod's code on the game thread. `mod/test/harnes
 
 ## Tests and commits
 
-- **Run the tests before committing:** `tools/ap_tests.sh` for the APWorld, `tools/lua_harness.sh` for the Lua mod.
-  CI builds and tests the C++. Judge a run by its exit code, not by reading its output.
+- **Run the tests before committing:** `tools/ap_tests.sh` for the APWorld, `tools/lua_harness.sh` for the Lua mod,
+  and `tools/test_options_page.py` after any change to the options or the APWorld's version (it checks
+  `docs/options/options.json` is current and that every preset makes a beatable seed). CI builds and tests the C++.
+  Judge a run by its exit code, not by reading its output.
 - **Ids never move** (see [Ids never move](architecture.md#ids-never-move)). `test/test_ids.py` enforces it.
 - **A change that only makes code clearer** starts its commit message with `readability:` and changes no behaviour.
   The tests prove it; for the APWorld, the same seed must also give the same spoiler log before and after. (Renaming
