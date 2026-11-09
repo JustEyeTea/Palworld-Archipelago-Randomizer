@@ -607,7 +607,7 @@ push("item", "3", tostring(itemId["Tech Points +2"]), "4", "2", "0", "Tech Point
 push("scout", tostring(D.shop.RepairBench.loc), "77", "2", "1", "Map Width", "Friend", "ChecksFinder")
 push("scout", tostring(D.shop.PalBox.loc), tostring(itemId["Tech: Campfire"]), "1", "1", "Tech: Campfire", "Tester", "Palworld")
 push("scout", tostring(D.shop.Product_Cooking_Grade_01.loc), tostring(itemId["Wood Bundle"]), "1", "0", "Wood Bundle", "Tester", "Palworld")
-push("scout", tostring(D.shop.Special_PalSphere_Grade_01.loc), tostring(itemId["Area Pass: Feybreak"]), "1", "1", "Area Pass: Feybreak", "Tester", "Palworld")
+push("scout", tostring(D.shop.Special_PalSphere_Grade_01.loc), tostring(itemId["Region Pass: Feybreak"]), "1", "1", "Region Pass: Feybreak", "Tester", "Palworld")
 push("checked", tostring(D.shop.Wooden_houseset.loc))
 run(14)
 local have = {}
@@ -682,7 +682,7 @@ expect(#kept >= 3, "textures kept alive: " .. #kept)
 local passCard = Card("Special_PalSphere_Grade_01")
 cards[#cards + 1] = passCard
 run(1)
-expect(passCard.shown.icon == "ap-pass-feybreak", "your Area Pass shows its own area's ticket: " .. tostring(passCard.shown.icon))
+expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own area's ticket: " .. tostring(passCard.shown.icon))
 
 do   -- (its own block: the harness main chunk is near Lua's 200-local limit)
 print("cards are labelled again only when needed")
@@ -871,7 +871,7 @@ expect(teleported and teleported.X == WALLS.home[1], "a player inside a locked a
 local sent = false
 for _, t in ipairs(announced) do if t:find("Bamboo Groves is locked") then sent = true end end
 expect(sent, "and told why")
-push("item", "6", tostring(itemId["Area Pass: Bamboo Groves"]), "1", "1", "1", "Area Pass: Bamboo Groves", "Tester")
+push("item", "6", tostring(itemId["Region Pass: Bamboo Groves"]), "1", "1", "1", "Region Pass: Bamboo Groves", "Tester")
 run(40)
 open["Bamboo Groves"] = true
 teleported = nil
@@ -897,7 +897,7 @@ pawnAt = hintAt
 run(14)
 local offered
 for i = before + 1, #announced do
-    if announced[i]:find("needs Area Pass: " .. hintArea, 1, true)
+    if announced[i]:find("needs Region Pass: " .. hintArea, 1, true)
        and announced[i]:find("Press H for a hint: you have 200 points, a hint costs 121.", 1, true) then offered = true end
 end
 expect(offered, "walking up to a wall names its pass and offers a hint, with the points and the cost: " .. tostring(announced[#announced]))
@@ -905,23 +905,23 @@ local count = #announced
 run(14)
 expect(#announced == count, "and not again straight away")
 keyBinds["key:H"]()
-expect(said[#said] == "!hint Area Pass: " .. hintArea, "the hint key asks the server: " .. tostring(said[#said]))
-push("message", "[Hint]: Tester's Area Pass: " .. hintArea .. " is at Shop: Foo Stand in Tester's World. (not found)", "Hint")
+expect(said[#said] == "!hint Region Pass: " .. hintArea, "the hint key asks the server: " .. tostring(said[#said]))
+push("message", "[Hint]: Tester's Region Pass: " .. hintArea .. " is at Shop: Foo Stand in Tester's World. (not found)", "Hint")
 run(1)
 expect(announced[#announced]:find("is at Shop: Foo Stand", 1, true), "the server's answer shows in chat")
 run(420)
 local remembered
 for i = count + 1, #announced do
-    if announced[i]:find(hintArea .. " is sealed. Tester's Area Pass: " .. hintArea .. " is at Shop: Foo Stand", 1, true) then remembered = true end
+    if announced[i]:find(hintArea .. " is sealed. Tester's Region Pass: " .. hintArea .. " is at Shop: Foo Stand", 1, true) then remembered = true end
 end
 expect(remembered, "the wall then says where the pass is")
--- The finder hears hints too: another player's Area Pass of the same name, sitting in our world, is not ours.
-push("message", "[Hint]: Friend's Area Pass: " .. hintArea .. " is at Shop: Palbox in Tester's World. (not found)", "Hint")
+-- The finder hears hints too: another player's Region Pass of the same name, sitting in our world, is not ours.
+push("message", "[Hint]: Friend's Region Pass: " .. hintArea .. " is at Shop: Palbox in Tester's World. (not found)", "Hint")
 local count2 = #announced
 run(420)
 local stillOurs, theirs = false, false
 for i = count2 + 1, #announced do
-    if announced[i]:find("sealed. Tester's Area Pass: " .. hintArea, 1, true) then stillOurs = true end
+    if announced[i]:find("sealed. Tester's Region Pass: " .. hintArea, 1, true) then stillOurs = true end
     if announced[i]:find("sealed. Friend's", 1, true) then theirs = true end
 end
 expect(stillOurs and not theirs, "another player's pass hint is not shown at our wall as ours")
@@ -946,7 +946,7 @@ hintPoints = "3,121"
     pawnAt = at; run(14)
     local short = false
     for i = n + 1, #announced do
-        if announced[i]:find("needs Area Pass: " .. tostring(area), 1, true)
+        if announced[i]:find("needs Region Pass: " .. tostring(area), 1, true)
            and announced[i]:find("Not enough points for a hint: you have 3 points, a hint costs 121.", 1, true) then short = true end
     end
     expect(at and short, "short of points, the wall says so with the points and the cost: " .. tostring(announced[#announced]))
@@ -958,7 +958,7 @@ expect(lastGone and lastGone.collision == false and lastGone.shrunkTo and lastGo
        "an opened wall shrinks to nothing (no K2_SetActorLocation: its FHitResult crashed UE4SS), stops blocking on the way, then goes: "
        .. tostring(lastGone and lastGone.shrunkTo))
 expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),
-       "an Area Pass takes its area's walls down: " .. wallCount())
+       "an Region Pass takes its area's walls down: " .. wallCount())
 local sample = next(wallsUp)
 expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
 do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
@@ -1106,7 +1106,7 @@ end
 local lockedFirst = composeJobs[jobs0].locked
 expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
        "locked areas passed by index: " .. lockedFirst)
-push("item", "7", tostring(itemId["Area Pass: Marsh Island"]), "1", "1", "1", "Area Pass: Marsh Island", "Tester")
+push("item", "7", tostring(itemId["Region Pass: Marsh Island"]), "1", "1", "1", "Region Pass: Marsh Island", "Tester")
 run(3)
 expect(#composeJobs == jobs0 + 1 and select(2, composeJobs[jobs0 + 1].locked:gsub(",", "")) == 11, "a pass recomposes with one fewer")
 run(3)
@@ -1691,6 +1691,8 @@ req.get = function(self) return self.v end
 req.set = function(self, v) self.v = v end
 research(nil, req)
 expect(req.v:ToString() == "AP_ShopSlot", "request rewritten")
+expect(not checks[D.shop.RepairBench.loc], "the purchase waits for the next update (on the game thread; no ExecuteWithDelay)")
+run(1)
 expect(checks[D.shop.RepairBench.loc], "shop check sent")
 expect(td.TechnologyPoint == 12 - D.shop.RepairBench.cost, "points charged: " .. td.TechnologyPoint)
 local before = td.TechnologyPoint
@@ -1716,7 +1718,7 @@ expect(not logged("update error"), "no errors while the player's tech data is no
 
 req.v = FNameOf("Special_PalSphere_Grade_01"); research(nil, req)
 run(1)
-expect(passCard.shown.category == "Received" and passCard.shown.name == "Your Area Pass: Feybreak",
+expect(passCard.shown.category == "Received" and passCard.shown.name == "Your Region Pass: Feybreak",
        "bought, your other items say Received: " .. tostring(passCard.shown.category) .. " / " .. tostring(passCard.shown.name))
 expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent: prefix")
 
@@ -2390,6 +2392,7 @@ end
 pawn.GetCharacterParameterComponent = ParamComponent
 local inStage = false
 ps.IsInStage = function() return inStage end
+setInStage = function(v) inStage = v end         -- (global: for tests outside this section)
 playerController.GetControlPalCharacter = function() return pawn end
 local trapAt = 9                                               -- items 0-8 are in; traps follow
 local function trap(name, sender)
@@ -2604,6 +2607,13 @@ pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
                          RemoveStatus = function(_, id) statuses[id] = nil end }
 require("test_tools").install()
 expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools bind Ctrl+F3 to the wall skins")
+;(function()  -- Ctrl+F1: EXP for testing through PalUtility:GiveExpToAroundPlayerCharacter
+    local given = nil
+    util.GiveExpToAroundPlayerCharacter = function(_, who, at, radius, exp, cb) given = { who = who, at = at, radius = radius, exp = exp, cb = cb } end
+    keyBinds["key:F1"](); run(1)
+    expect(given and given.exp == 200000 and given.radius == 500.0 and given.cb == true and given.at and logged("%-%-%- level up %(200000 EXP%): level"),
+           "Ctrl+F1 gives the player 200000 EXP through the game's own GiveExpToAroundPlayerCharacter")
+end)()
 ;(function()  -- Ctrl+F2: faster for testing, through the game's named walk speed multiplier (as the Slow Trap)
     local seen = {}
     for _ = 1, 3 do keyBinds["key:F2"](); run(1); seen[#seen + 1] = movement.mult.APTestSpeed end
@@ -2655,6 +2665,7 @@ expect(sp.Value == 0 and logged("exhaustion: stamina 900000 of 1000000 %-> 0"), 
 keyBinds["key:F10"]()
 expect(hour == 22 and logged("nightfall: hour 9 %-> 22"), "Ctrl+F10: nightfall probe logs the hour")
 keyBinds["key:F11"]()
+run(40)                                                        -- (its 2 s and 10 s follow-ups run on updates now)
 expect(logged("status LowGravity: running right after: BP_Status") and logged("RemoveStatus%(LowGravity%): ok")
        and logged("status LowGravity: running after removal: not running"),
        "Ctrl+F11: a status is added, checked and removed")
@@ -3003,6 +3014,32 @@ towerList[#towerList + 1] = { Key = FNameOf("BOSS_BATTLE_NAME_ForestBoss"), Valu
 run(14)
 expect(goals == before + 1 and logged("Goal complete: 2 tower%(s%) beaten!") and checks[D.towers.ForestBoss],
        "two towers: the second (BOSS_BATTLE_NAME_ForestBoss) is counted, checked, and wins")
+-- 2026-11-08 run: the tower goal went out mid-arena and its line was lost in the release's flood. Now it waits for the
+-- player to be out of the stage (the boss's arena), then goes with the goal banner.
+setInStage(true)
+newSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
+before = goals
+run(14)
+expect(goals == before and logged("goal reached %(1 tower%(s%) beaten%): sent once the player is out of the arena"),
+       "a goal reached inside the boss's arena waits")
+run(40)
+expect(goals == before, "and keeps waiting while the player is in the arena")
+setInStage(false)
+run(14)
+expect(goals == before + 1 and logged("goal sent: 1 tower%(s%) beaten") and logged("goal banner:"),
+       "out of the arena, the goal goes, with the goal banner (or a log line saying why not)")
+-- 2026-11-08: loading a won world showed the goal banner again. Once per seed (goal=shown in the save).
+;(function()
+    local function n(pat) local c = 0; for _, l in ipairs(printed) do if l:find(pat) then c = c + 1 end end; return c end
+    -- (Another seed and back: the won seed's state comes from its save again, as in a new session.)
+    newSeed("70011", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
+    run(14)
+    local banners, sends = n("goal banner"), n("goal sent: ")
+    newSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
+    run(14)
+    expect(n("goal sent: ") > sends and n("goal banner") == banners,
+           "a won seed loaded again: the goal is sent again (the server takes it once), the banner not shown again")
+end)()
 print("mailbox off: bundles straight to the bag")
 local MB = require("mailbox")
 local mailOn = MB.on
@@ -3263,7 +3300,7 @@ if PERF then
            "and a confirm during the bypass buys nothing (the dialog showed the game's text)")
     keyBinds["key:NINE"]()
     expect(cardUnlocked() == false, "and back to the mod's answer (the slot still unbought)")
-    req.v = FNameOf("RepairBench"); research(nil, req)
+    req.v = FNameOf("RepairBench"); research(nil, req); run(1)
     expect(cardUnlocked() == true, "bought once the bypass is off")
 
     local ffo = lookups["first:PalPlayerController"] or 0
@@ -3301,23 +3338,24 @@ do  -- the Art & Assets lane's round-1 art (art.lua): the title banner with its 
            "the mailbox emblem goes beside the chest window's heading (the mailbox's own window)")
     expect(not logged("art: could not load"), "every art file loads")
 end
-do  -- area_size regions: every named region of the game its own, opened by a Region Pass (slot data options.area_size)
+do  -- Lock Size: areas (slot data options.lock_size 1): every named area of the game on its own, opened by an Area Pass.
+    -- walls.lua still calls this cut "regions" (the older word).
     local RD = dofile(MOD .. "/Scripts/area_walls_regions.lua")
     local W = require("walls")
-    slotData["options.area_size"] = "1"
+    slotData["options.lock_size"] = "1"
     push("status", "disconnected")
     push("status", "connected", "Tester")
     for _, line in ipairs(itemHistory) do events[#events + 1] = line end
     run(80)
-    expect(logged("area locks: regions %(75 regions, " .. #RD.walls .. " border pieces%)") and W.layout == "regions"
-           and W.passName("Golden Hills") == "Region Pass: Golden Hills", "a regions seed: the regions' walls and passes")
+    expect(logged("area locks: 75 areas %(" .. #RD.walls .. " border pieces%)") and W.layout == "regions"
+           and W.passName("Golden Hills") == "Area Pass: Golden Hills", "a 75-areas seed: the areas' walls and passes")
     local up = wallCount()
-    expect(up > 1000 and up <= #RD.walls, "the regions' walls go up (the areas' came down): " .. up)
-    push("item", "9000", tostring(itemId["Region Pass: Golden Hills"]), "1", "1", "1", "Region Pass: Golden Hills", "Tester")
+    expect(up > 1000 and up <= #RD.walls, "the 75 areas' walls go up (the 15 regions' came down): " .. up)
+    push("item", "9000", tostring(itemId["Area Pass: Golden Hills"]), "1", "1", "1", "Area Pass: Golden Hills", "Tester")
     run(60)
-    expect(wallCount() < up, "a Region Pass takes its region's walls down: " .. up .. " -> " .. wallCount())
+    expect(wallCount() < up, "an Area Pass takes its area's walls down: " .. up .. " -> " .. wallCount())
     expect(W.parentOf("Golden Hills") == "Bamboo Groves" and W.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
-           "a region wears its area's colour, ticket and stamp (area_parents_regions.lua)")
+           "an area wears its region's colour, ticket and stamp (area_parents_regions.lua)")
     local perHex = {}
     for i in ipairs(RD.walls) do
         local name = W.pieceSkin(i, {}, "paws")
@@ -3328,11 +3366,16 @@ do  -- area_size regions: every named region of the game its own, opened by a Re
     for _, owns in pairs(perHex) do local n = 0; for _ in pairs(owns) do n = n + 1 end; if n >= 2 then sisters = sisters + 1 end end
     expect(sisters >= 5, "75 Areas, paws: sister Areas wear their Region's colour, each its own variant (paws:<colour>:<area>): "
            .. sisters .. " regions with several")
-    slotData["options.area_size"] = nil                          -- an areas seed again (and seeds made before the option)
+    slotData["options.lock_size"], slotData["options.area_size"] = nil, "1"   -- a seed made before the rename
     push("status", "disconnected")
     push("status", "connected", "Tester")
     run(80)
-    expect(W.layout == "areas" and logged("area locks: areas %(15 areas"), "back to an areas seed: the areas' walls")
+    expect(W.layout == "regions", "a seed from before the rename (options.area_size 1) still gets the 75 areas")
+    slotData["options.area_size"] = nil                          -- a 15-regions seed again (and seeds made before the option)
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(80)
+    expect(W.layout == "areas" and logged("area locks: 15 regions"), "back to a 15-regions seed: the regions' walls")
 end
 do  -- Areas beyond the goal (slot data beyond_goal_areas and options.beyond_goal): sealed for good, or open from the start
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = hintArea, "0"
@@ -3347,7 +3390,7 @@ do  -- Areas beyond the goal (slot data beyond_goal_areas and options.beyond_goa
     local said, offered = false, false
     for i = before + 1, #announced do
         if announced[i]:find(hintArea .. " is beyond this seed's goal: its walls stay up.", 1, true) then said = true end
-        if announced[i]:find("needs Area Pass: " .. hintArea, 1, true) then offered = true end
+        if announced[i]:find("needs Region Pass: " .. hintArea, 1, true) then offered = true end
     end
     expect(said and not offered, "its wall says it is beyond the goal, and offers no hint for a pass that isn't there")
     slotData["options.beyond_goal"] = "2"
@@ -3459,7 +3502,7 @@ end
     end
     local colourOf = function(area) return W.linearOf(W.AREA_COLOURS[area]) end
     local before = between and between.Cube.mat.vectors.Color
-    push("item", "9300", tostring(itemId["Area Pass: " .. tostring(a1)]), "1", "1", "1", "Area Pass: " .. tostring(a1), "Tester")
+    push("item", "9300", tostring(itemId["Region Pass: " .. tostring(a1)]), "1", "1", "1", "Region Pass: " .. tostring(a1), "Tester")
     run(80)
     expect(between and (close(before, colourOf(a1)) or close(before, colourOf(a2))) and close(between.Cube.mat.vectors.Color, colourOf(a2))
            and not between.gone, "a piece between " .. tostring(a1) .. " and " .. tostring(a2) .. " turns to "
@@ -3510,6 +3553,23 @@ end)()
     end
     expect(ended and #DB.active() == 0,
            "and the icon goes when the Slow Trap ends")
+    -- 2026-11-08 crash: Return to title during the goal banner; the update then called the old world's widget. With the
+    -- HUD gone (FindAllOf lists it no more) the banner is forgotten without a call to it.
+    local POP = require("hint_popup")
+    expect(POP.banner("10 Pals registered", 1) and logged("goal banner: shown %(10 Pals registered%)"), "the goal banner is shown on the HUD")
+    local bannerBox
+    for _, k in ipairs(hudKids) do if not k.removed then bannerBox = k end end
+    local touched = false
+    if bannerBox then
+        bannerBox.IsValid = function() touched = true; error("a dead widget called") end
+        bannerBox.RemoveFromParent = function() touched = true; error("a dead widget called") end
+    end
+    local liveFAO = FindAllOf
+    FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return {} end return savedFAO(class) end
+    local okT = pcall(POP.tick, 2)
+    FindAllOf = liveFAO
+    local okT2 = pcall(POP.tick, 3)
+    expect(bannerBox and okT and okT2 and not touched, "the world gone (Return to title), the banner is forgotten without touching it")
     FindAllOf = savedFAO
 end)()
 ;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time
@@ -3715,13 +3775,21 @@ end)()
 ;(function()  -- the rule from the 2026-11-08 crashes: a LoopAsync callback (another thread, the same Lua state) only
     -- reads a flag and hands a function made beforehand to ExecuteInGameThread; no other Lua runs there
     local bad = {}
-    for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates" }) do
+    for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates",
+                         "perf", "soon", "sync", "records", "art", "crate_window", "tech_gifts", "techscan", "tech_icons" }) do
         local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
         local src = fh and fh:read("a") or ""
         if fh then fh:close() end
         local lines, n = {}, 0
         for line in (src .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
         for k, line in ipairs(lines) do
+            -- (2026-11-08 tech-shop crash: ExecuteWithDelay runs its callback off the game thread too; and a key bind's
+            -- callback must hand over a function made beforehand, not make one there.)
+            local code = line:gsub("%-%-.*$", "")
+            if code:find("ExecuteWithDelay%(") then bad[#bad + 1] = f .. ".lua:" .. k .. ": ExecuteWithDelay (off-thread)" end
+            if code:find("RegisterKeyBind%(") and not code:find("function%(%) ExecuteInGameThread%([%w_.]+%) end%)") then
+                bad[#bad + 1] = f .. ".lua:" .. k .. ": a key bind that does more than hand over a function made beforehand"
+            end
             local ind, ms = line:match("^(%s*)LoopAsync%((%d+), function%(%)%s*$")
             if ind and f ~= "test_tools" and tonumber(ms) < 300 then
                 bad[#bad + 1] = f .. ".lua:" .. k .. ": a " .. ms .. " ms loop (dev.45: a 33 ms loop corrupted Lua's state)"
@@ -3739,7 +3807,7 @@ end)()
             end
         end
     end
-    expect(#bad == 0, "every LoopAsync callback only reads a flag and hands over a function made beforehand, none faster than 300 ms outside the test tools: " .. table.concat(bad, " | "))
+    expect(#bad == 0, "no Lua off the game thread: every LoopAsync and key bind callback only hands over a function made beforehand (LoopAsync no faster than 300 ms outside the test tools), and no ExecuteWithDelay: " .. table.concat(bad, " | "))
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")

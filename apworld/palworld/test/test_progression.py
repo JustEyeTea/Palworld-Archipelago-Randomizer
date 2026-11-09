@@ -1,17 +1,17 @@
 from . import PalworldTestBase
 from .. import TOWER_LEVELS
 
-# The areas with Pals at level 28 or below, besides the start: a two-tower seed's map (areas layout).
-TWO_TOWER_PASSES = {"Area Pass: Marsh Island", "Area Pass: Sea Breeze Archipelago", "Area Pass: Isles of Silence",
-                    "Area Pass: Bamboo Groves", "Area Pass: Volcano Foothills", "Area Pass: Crescent Moon Shore"}
+# The regions with Pals at level 28 or below, besides the start: a two-tower seed's map (Lock Size: regions).
+TWO_TOWER_PASSES = {"Region Pass: Marsh Island", "Region Pass: Sea Breeze Archipelago", "Region Pass: Isles of Silence",
+                    "Region Pass: Bamboo Groves", "Region Pass: Volcano Foothills", "Region Pass: Crescent Moon Shore"}
 
 
 def passes(test):
-    return {i.name for i in test.multiworld.itempool if i.name.startswith(("Area Pass: ", "Region Pass: "))}
+    return {i.name for i in test.multiworld.itempool if i.name.startswith(("Region Pass: ", "Area Pass: "))}
 
 
 class TestTwoTowers(PalworldTestBase):
-    """The default goal, two towers: Zoe (10) and Lily (20), so nothing above level 28, and only the areas up to it."""
+    """The default goal, two towers: Zoe (10) and Lily (20), so nothing above level 28, and only the regions up to it."""
 
     def test_cap_from_the_second_boss(self):
         self.assertEqual(self.world.goal_towers, ["Starting Zone Tower", "Forest Tower"])
@@ -24,10 +24,10 @@ class TestTwoTowers(PalworldTestBase):
             if loc.address is not None:
                 self.assertLessEqual(self.world.loc_level(by_name[loc.name]), 28, loc.name)
 
-    def test_only_the_areas_up_to_the_cap_have_passes(self):
+    def test_only_the_regions_up_to_the_cap_have_passes(self):
         self.assertEqual(passes(self), TWO_TOWER_PASSES)
 
-    def test_areas_beyond_are_not_in_the_seed(self):
+    def test_regions_beyond_are_not_in_the_seed(self):
         regions = {r.name for r in self.multiworld.get_regions(self.player)}
         for piece in ("Mount Obsidian", "Desiccated Dunes", "Astral Mountains", "Sky Islands", "World Tree"):
             self.assertNotIn(piece, regions)
@@ -37,14 +37,14 @@ class TestTwoTowers(PalworldTestBase):
         self.assertNotIn("Crescent Moon Shore", beyond)
 
     def test_the_goal_needs_lily(self):
-        """Another tower would do in game, but the logic counts on the first two: Lily's area needs its pass."""
+        """Another tower would do in game, but the logic counts on the first two: Lily's region needs its pass."""
         state = self.multiworld.state
-        self.collect([i for i in self.multiworld.itempool if i.name != "Area Pass: Crescent Moon Shore"])
+        self.collect([i for i in self.multiworld.itempool if i.name != "Region Pass: Crescent Moon Shore"])
         state.sweep_for_advancements()
         self.assertTrue(state.has("Starting Zone Tower Defeated", self.player))
         self.assertFalse(state.has("Forest Tower Defeated", self.player))
         self.assertFalse(self.can_reach_location("Goal Complete"))
-        self.collect_by_name("Area Pass: Crescent Moon Shore")
+        self.collect_by_name("Region Pass: Crescent Moon Shore")
         state.sweep_for_advancements()
         self.assertTrue(self.can_reach_location("Goal Complete"))
 
@@ -55,13 +55,13 @@ class TestOneTower(PalworldTestBase):
     def test_cap_and_goal(self):
         self.assertEqual(self.world.cap, 18)
         self.assertEqual(self.world.goal_towers, ["Starting Zone Tower"])
-        self.assertNotIn("Area Pass: Crescent Moon Shore", passes(self))
+        self.assertNotIn("Region Pass: Crescent Moon Shore", passes(self))
 
 
 class TestBeyondGoalPasses(PalworldTestBase):
     options = {"beyond_goal": "passes"}
 
-    def test_every_area_has_its_pass(self):
+    def test_every_region_has_its_pass(self):
         self.assertEqual(len(passes(self)), 14)
         self.assertEqual(self.world.fill_slot_data()["beyond_goal_areas"], "")
 
@@ -80,20 +80,20 @@ class TestBeyondGoalOpen(PalworldTestBase):
         self.assertTrue(self.can_reach_region("Mount Obsidian"))
 
 
-class TestRegionsTwoTowers(PalworldTestBase):
-    options = {"area_size": "regions"}
+class TestAreasTwoTowers(PalworldTestBase):
+    options = {"lock_size": "areas"}
 
-    def test_fewer_region_passes(self):
+    def test_fewer_area_passes(self):
         got = passes(self)
         self.assertTrue(0 < len(got) < 74, len(got))
-        self.assertTrue(all(p.startswith("Region Pass: ") for p in got))
+        self.assertTrue(all(p.startswith("Area Pass: ") for p in got))
         self.assertEqual(self.world.cap, 28)
 
 
 class TestWorldTreeKeepsEverything(PalworldTestBase):
     options = {"goal": "world_tree"}
 
-    def test_every_area(self):
+    def test_every_region(self):
         self.assertEqual(len(passes(self)), 14)
 
 
@@ -102,7 +102,7 @@ class TestNoGearLogic(PalworldTestBase):
 
     def test_only_passes_and_the_first_sphere_are_progression(self):
         prog = sorted({i.name for i in self.multiworld.itempool if i.advancement})
-        others = [n for n in prog if not n.startswith("Area Pass: ")]
+        others = [n for n in prog if not n.startswith("Region Pass: ")]
         self.assertEqual(others, [], "a two-tower seed reaches everything by land: no saddle needed")
         first = [l for l in self.multiworld.get_locations(self.player) if l.item and l.item.name == "Tech: Pal Sphere"]
         self.assertEqual(len(first), 1)
@@ -154,12 +154,12 @@ class TestPointsBudget(PalworldTestBase):
         kept = [by_name[l.name] for l in slots if l.progress_type != LocationProgressType.EXCLUDED]
         excluded = [l for l in slots if l.progress_type == LocationProgressType.EXCLUDED]
         self.assertTrue(excluded, "a two-tower seed has more slots than levelling pays for")
-        normal = sorted((self.world.lv.tech(t), t[3]) for t in kept if not t[4])
+        normal = sorted((self.world.lv.tech(t), t.cost) for t in kept if not t.ancient)
         spent = 0
         for level, cost in normal:
             spent += cost
             self.assertLessEqual(spent, 6 * (level - 1), f"slots up to level {level}")
-        self.assertLessEqual(sum(t[3] for t in kept if t[4]), 5, "Ancient: Zoe's 5 points (Lily's come with the goal)")
+        self.assertLessEqual(sum(t.cost for t in kept if t.ancient), 5, "Ancient: Zoe's 5 points (Lily's come with the goal)")
 
     def test_excluded_slots_hold_no_important_items(self):
         from BaseClasses import LocationProgressType

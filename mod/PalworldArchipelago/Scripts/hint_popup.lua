@@ -28,7 +28,7 @@ local function linear(hex, a)
 end
 local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECBE6E"), linear("17324D", 0.94)
 
-local shown = nil                        -- { box, untilTick }
+local shown = nil                        -- { box, untilTick, hud = the HUD layout's address when shown }
 
 -- The canvas of the HUD layout the player sees, or nil and why.
 local function hudCanvas()
@@ -113,18 +113,59 @@ function H.show(info, tick)
     pcall(function() slot:SetZOrder(1000) end)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
     pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, untilTick = tick + SHOW_TICKS }
+    shown = { box = box, untilTick = tick + SHOW_TICKS, hud = layout:GetAddress() }
     once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen (" .. (plate and plateName or "plain box")
         .. ", opacity " .. OPACITY .. ")")
     return true
 end
 
--- Every update: takes it down when its time is up (or when its HUD went away with the world).
+-- The goal banner (art/ap-goal-banner.png, 1200x300 drawn at 600x150) in the upper third with what was done in its
+-- pill (where the Ctrl+F4 HUD probe put a sample line, 2026-11-05), for BANNER_TICKS. It takes the pop-up's place.
+local BANNER_TICKS = 50                  -- 15 s (2026-11-08 test: 8 s was short; "could stick around a little longer")
+local BANNER_W, BANNER_H, BANNER_TEXT = 600, 150, { 155, 111 }
+function H.banner(line, tick)
+    H.hide()
+    local canvas, layout, why = hudCanvas()
+    if not canvas then log("goal banner: " .. why .. "; chat only"); return false end      -- (a goal: rare, so each time)
+    local art = ART.box(layout, "ap-goal-banner", BANNER_W, BANNER_H)
+    if not art then log("goal banner: no ap-goal-banner.png; chat only"); return false end
+    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
+    box:SetWidthOverride(BANNER_W)
+    box:SetHeightOverride(BANNER_H)
+    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
+    box:AddChild(over)
+    local bs = over:AddChild(art)
+    pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
+    place(over, text(layout, line or "", 13, linear("CEE7E3")), BANNER_TEXT[1], BANNER_TEXT[2])
+    local slot = canvas:AddChildToCanvas(box)
+    pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0.3 }, Maximum = { X = 0.5, Y = 0.3 } }) end)
+    pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
+    pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
+    pcall(function() slot:SetAutoSize(true) end)
+    pcall(function() slot:SetZOrder(1000) end)
+    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
+    shown = { box = box, untilTick = tick + BANNER_TICKS, hud = layout:GetAddress() }
+    log("goal banner: shown (" .. tostring(line) .. ")")
+    return true
+end
+
+-- Every update: takes it down when its time is up. If its HUD went away with the world (Return to title), it is
+-- forgotten without a call: 2026-11-08, Return to title during the 15 s goal banner crashed the game in UE4SS (a widget
+-- of the world gone, called). Whether the HUD is still there is asked of FindAllOf, which lists only live objects.
+local function hudLive(addr)
+    for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
+        local ok, same = pcall(function() return l:GetAddress() == addr and l:IsValid() end)
+        if ok and same then return true end
+    end
+    return false
+end
 function H.tick(tick)
     if not shown then return end
-    local ok, valid = pcall(function() return shown.box:IsValid() end)
-    if not (ok and valid) or tick >= shown.untilTick then H.hide() end
+    if not hudLive(shown.hud) then shown = nil; return end
+    if tick >= shown.untilTick then H.hide() end
 end
+-- The world went (a new pawn, the title): forget what is shown, without touching it.
+function H.forget() shown = nil end
 
 H.SHOW_TICKS = SHOW_TICKS
 return H

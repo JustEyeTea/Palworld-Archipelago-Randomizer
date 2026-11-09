@@ -12,9 +12,9 @@ with `[PalworldAP]`.
 - The mod package, `PalworldArchipelago-v<version>.zip`, from the project's
   [Releases](https://github.com/JustEyeTee/Palworld-Archipelago-Randomizer/releases) page. It holds
   `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
-- Optional: `PalworldArchipelagoArt.pak` from the same release, the area walls' own material (paws in each area's
-  colour, a glow near you, a dissolve when an area opens). Without it the walls use the game's own wall material in
-  your area colours.
+- Optional: `PalworldArchipelagoArt.pak` from the same release, the walls' own material (paws in each region's
+  colour, a glow near you, a dissolve when a region opens). Without it the walls use the game's own wall material in
+  your region colours.
 
 ## Installing
 
@@ -66,8 +66,9 @@ with `[PalworldAP]`.
   tech points. A tech itself unlocks only when its item arrives. Shop slots can only be bought while connected.
 - Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox). Set `mailbox=0` in
   `config.txt` to have them put straight into your bag instead.
-- With Area Locks on, a locked area is walled off with a red grid and shown grey on the map until its Area Pass
-  arrives. Press `H` at a wall to buy a hint for its pass (the `hint_key` setting).
+- With Area Locks on, a locked region is walled off with a red grid and shown grey on the map until its Region Pass
+  arrives (with Lock Size: areas, each area and its Area Pass). Press `H` at a wall to buy a hint for its pass (the
+  `hint_key` setting).
 - The logic expects a mount that swims or flies to cross the open sea, and a flying one to reach the Sky Islands.
 
 ## Not tested in game yet

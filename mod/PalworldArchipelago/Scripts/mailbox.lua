@@ -922,12 +922,12 @@ function M.install(e)
     env = e
     local key = ((e.cfg.mailbox_key or ""):match("^%s*(%w+)%s*$") or ""):upper()
     if key ~= "" and RegisterKeyBind and Key and Key[key] then
-        RegisterKeyBind(Key[key], function()
-            ExecuteInGameThread(function()
-                local ok, err = pcall(M.open, (player()))
-                if not ok then log("mailbox key error: " .. tostring(err)) end
-            end)
-        end)
+        -- (A key bind runs off the game thread: it only hands over this function, made once.)
+        local function mailboxKey()
+            local ok, err = pcall(M.open, (player()))
+            if not ok then log("mailbox key error: " .. tostring(err)) end
+        end
+        RegisterKeyBind(Key[key], function() ExecuteInGameThread(mailboxKey) end)
         log("mailbox key: " .. key)
     end
 end

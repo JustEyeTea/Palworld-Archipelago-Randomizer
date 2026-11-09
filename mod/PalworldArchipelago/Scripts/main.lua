@@ -2,12 +2,12 @@
 -- registers AP_* functions here when this mod starts (see cppmod/APConnector/src/dllmain.cpp).
 --  * Technology levels 2+ are a shop: each card shows what its slot holds in the multiworld, researching it spends the
 --    points and sends the check, and never unlocks the tech itself. Techs unlock as their items arrive.
---  * Received items: techs, Progressive Spheres, Area Passes, points, bundles (into the mailbox, mailbox.lua), and traps
+--  * Received items: techs, Progressive Spheres, Region and Area Passes, points, bundles (into the mailbox, mailbox.lua), and traps
 --    (traps.lua).
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local VERSION = "0.14.0"
+local VERSION = "0.14.1-dev.7"
 log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
@@ -177,7 +177,8 @@ local function loadSave()
         local w = line:match("^world=(.+)$")
         local d = line:match("^deaths=(%d+)")
         local v = line:match("^visited=(.*)$")
-        if n then ap.given = tonumber(n)
+        if line == "goal=shown" then ap.goalShown = true
+        elseif n then ap.given = tonumber(n)
         elseif w then ap.world = w
         elseif d then ap.forgiven = tonumber(d)
         elseif v then for area in v:gmatch("[^|]+") do ap.visited[area] = true end
@@ -200,7 +201,7 @@ local function writeSave(always)
     for area in pairs(ap.visited) do been[#been + 1] = area end
     table.sort(been)
     local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "")
-        .. "deaths=" .. ap.forgiven .. "\n" .. (#been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "") .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
+        .. "deaths=" .. ap.forgiven .. "\n" .. (ap.goalShown and "goal=shown\n" or "") .. (#been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "") .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
     if not always and lastSave == path .. "\n" .. text then return end
     P.start("save")
     local f = io.open(path .. ".tmp", "w")
@@ -531,18 +532,37 @@ end
 
 -- Everything the game's records say is done: levels, captures, alphas, fast travel, towers. The server ignores
 -- locations this seed doesn't have (options turned off), so the mod doesn't need to know which are in play.
-local function pollRecords(ps)
+-- The goal waits for the player to leave the boss's arena (a stage, as for the Teleport Trap): the user, 2026-11-08,
+-- beat the tower goal and the release flooded chat mid-arena, the goal line lost in it, before the game took them out
+-- of the tower. Sent once a check finds them out of any stage, or GOAL_WAIT_TICKS after (never stuck); with the banner.
+local GOAL_WAIT_TICKS = 400              -- 2 minutes of 300 ms updates
+local goalWait = nil                     -- { done = what, since = tick }
+local function pollRecords(ps, tick)
     local okp, found = pcall(R.progress, ps, D, os.time())
     if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
     sendChecks(found.locations)
     ap.level, ap.beaten = found.level, found.beaten
     if ap.goalSent then return end
     local done = goalReached(found)
-    if done then
-        ap.goalSent = true
-        AP_Goal()
-        notify("Goal complete: " .. done .. "!")
+    if done and not goalWait then
+        goalWait = { done = done, since = tick }
+        log("goal reached (" .. done .. "): sent once the player is out of the arena")
     end
+    if not goalWait then return end
+    local okS, inStage = pcall(function() return ps:IsInStage() end)
+    local out = not (okS and inStage)                  -- (not readable: no waiting, as before)
+    if not (out or tick - goalWait.since >= GOAL_WAIT_TICKS) then return end
+    ap.goalSent, done = true, goalWait.done
+    goalWait = nil
+    AP_Goal()                                          -- (sent again each session: the server takes it once)
+    log("goal sent: " .. done .. (out and "" or " (still in a stage after 2 minutes)"))
+    -- The banner and notice once per seed (kept in the save as goal=shown): 2026-11-08, loading a won world showed the
+    -- banner again.
+    if ap.goalShown then return end
+    ap.goalShown = true
+    notify("Goal complete: " .. done .. "!")
+    local okb, errb = pcall(POPUP.banner, done, tick)
+    if not okb then log("goal banner error: " .. tostring(errb)) end
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -698,13 +718,13 @@ local function relabel(card, key, full)
     local clickable = not sent or mine ~= nil
     local it = own and D.items[r.id]
     local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
-    -- An Area Pass shows its own area's ticket (art/ap-pass-<area>.png, round 2); a Region Pass (area_size regions) its
-    -- area's, else the Region Pass ticket (ap-pass-region.png); else the shared one.
+    -- A Region Pass shows its own region's ticket (art/ap-pass-<region>.png); an Area Pass (Lock Size: areas) its
+    -- region's, else the small-pass ticket (ap-pass-region.png, named before the rename); else the shared one.
     local ART = require("art")
     local tex = mine and techIcon(mine)
         or (it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld"))
         or (kind == "area-pass" and (ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
-                                     or (it.name:find("^Region Pass") and ART.texture("ap-pass-region"))))
+                                     or (it.name:find("^Area Pass") and ART.texture("ap-pass-region"))))
         or icon(kind, card)
     local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
     local sig = name .. "\0" .. category .. "\0" .. tostring(clickable) .. "\0" .. tostring(texAddr)
@@ -767,6 +787,10 @@ end
 
 -- Blueprint hooks can only be registered once their class has loaded (when a menu first opens). UE4SS runs the FIRST
 -- callback AFTER a Blueprint function, so these change what the function produced.
+-- Work for the next updates, on the game thread (soon.lua: ExecuteWithDelay's callbacks ran Lua off-thread).
+local SOON = require("soon")
+local later = SOON.later
+
 local lazyHooks = {
     -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
     { class = CONTENT, fn = CONTENT .. ":IsUnlocked", cb = function(self, out)
@@ -805,20 +829,22 @@ local lazyHooks = {
         hoveredTech = nil
     end },
     -- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
-    -- re-applied a few times over the first half second (only while it still differs).
+    -- applied on the next frame and again on the next two updates (only while it still differs): about the first
+    -- half second, as the five ExecuteWithDelay re-applies did, all on the game thread.
     { class = DIALOG, fn = DIALOG .. ":SetupUI", cb = function(self, dialogType, message)
         local tech = hoveredTech
         once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
         if not shopCard(tech) or bought(tech) then return end
         local dialog, text = self:get(), confirmText(tech)
-        for _, delay in ipairs({ 0, 50, 150, 300, 500 }) do
-            ExecuteWithDelay(delay, function() ExecuteInGameThread(function()
-                if not dialog:IsValid() then return end
-                local popup = dialog.WBP_CommonPopupWindow
-                local msg = safe(function() return popup.BP_PalRichTextBlock_Message:GetText():ToString() end)
-                if msg ~= text then pcall(function() popup:SetMainText(FText(text)) end) end
-            end) end)
+        local function apply()
+            if not dialog:IsValid() then return end
+            local popup = dialog.WBP_CommonPopupWindow
+            local msg = safe(function() return popup.BP_PalRichTextBlock_Message:GetText():ToString() end)
+            if msg ~= text then pcall(function() popup:SetMainText(FText(text)) end) end
         end
+        ExecuteInGameThread(apply)                      -- (from this hook, on the game thread: the next frame)
+        later(1, apply)
+        later(2, apply)
     end },
 }
 local function registerLazyHooks()
@@ -871,10 +897,10 @@ local okh, errh = pcall(RegisterHook, "/Script/Pal.PalNetworkPlayerComponent:Req
         -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
         -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
         if P.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on"); return end
-        ExecuteWithDelay(300, function() ExecuteInGameThread(function()
+        later(1, function()                             -- the next update (within 300 ms), on the game thread
             local ok, err = pcall(buy, tech)
             if not ok then log("buy error: " .. tostring(err)) end
-        end) end)
+        end)
     end)
 log(okh and "hooked research requests" or ("could not hook research requests: " .. tostring(errh)))
 
@@ -924,10 +950,23 @@ local function unlockableCheck(self, ...)
     end
     return r
 end
+-- The core update never runs inside a research hook. 2026-11-08 (dev.4) log: the update's player lookup ran nested
+-- inside IsUnlockRecipeTechnology's hook (its traceback: FindAllOf <- playerContext <- coreTick <- a:get() in techArg
+-- <- the hook); FindAllOf then got a bad argument and UE4SS logged "Ref was not function": UE4SS can run its game-thread
+-- queue from inside a hook. An update that finds itself inside one skips its turn. (The other way round is ordinary:
+-- the update refreshing the tech tree asks these hooks, and they answer as always.)
+local inHook, inTick = false, false
+local function guarded(fn, ...)
+    local was = inHook
+    inHook = true
+    local ok, v = pcall(fn, ...)
+    inHook = was
+    return ok, v
+end
 local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,
     function(self, ...)
         if not ap.shown then return nil end
-        local ok, v = pcall(unlockableCheck, self, ...)
+        local ok, v = guarded(unlockableCheck, self, ...)
         if not ok then once("unlockableErr", "research check error: " .. tostring(v)); return nil end
         return v
     end)
@@ -946,7 +985,7 @@ end
 local okr, errr = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology", function() end,
     function(self, ...)
         if hoveredTech == nil then return nil end      -- answers only for the card under the pointer
-        local ok, v = pcall(researchedCheck, ...)
+        local ok, v = guarded(researchedCheck, ...)
         if not ok then once("researchedErr", "researched check error: " .. tostring(v)); return nil end
         return v
     end)
@@ -1033,6 +1072,8 @@ local function resetSeed()
     CRATES.reset()
     SYNC.reset()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
+    ap.goalShown = false
+    goalWait = nil
     ap.world, seedWorld = nil, nil
     ap.from, ap.forgiven = {}, 0
     ap.visited = {}
@@ -1071,9 +1112,18 @@ local function onEvent(line)
             if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
             local locks = AP_SlotData("options.area_locks")
             areaLocks = locks == "1" or locks == "true"
-            -- The seed's cut of the map (options.area_size: 0 the 15 areas, 1 every region; older seeds have none).
-            local size = AP_SlotData("options.area_size")
-            WALLS.setLayout((size == "1" or size == "regions") and "regions" or "areas")
+            -- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the
+            -- rename send options.area_size, with the same numbers; older seeds send neither. WALLS still names the
+            -- 75-area cut "regions".
+            local size = AP_SlotData("options.lock_size")
+            local useAreas                                  -- true: the 75 areas; false: the 15 regions
+            if size ~= nil and size ~= "" then
+                useAreas = size == "1" or size == "areas"
+            else                                            -- a seed made before the rename
+                local old = AP_SlotData("options.area_size")
+                useAreas = old == "1" or old == "regions"
+            end
+            WALLS.setLayout(useAreas and "regions" or "areas")
             -- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes
             -- are not in this seed. Locked, their walls stay up for good; open, they are open from the start.
             ap.beyond = {}
@@ -1204,7 +1254,7 @@ else
     log("not connected: click the Archipelago banner on the title menu (or set server and slot in config.txt)")
 end
 
--- Hints for Area Passes, bought with the server's hint points (!hint), offered at the walls.
+-- Hints for Region and Area Passes, bought with the server's hint points (!hint), offered at the walls.
 -- Returns the chat line, and what the hint pop-up shows (hint_popup.lua: two short lines and the points bar).
 local function wallNotice(area)
     if ap.beyond and ap.beyond[area] then
@@ -1245,13 +1295,13 @@ local function askHint()
     AP_Say("!hint " .. WALLS.passName(area))
     notify("Asking the Archipelago server where " .. WALLS.passName(area) .. " is...")
 end
+-- Key binds run off the game thread: they only hand over a function made here, once (no new function there).
+local function hintKey()
+    local ok, err = pcall(askHint)
+    if not ok then log("hint error: " .. tostring(err)) end
+end
 if RegisterKeyBind and Key and Key[hints.key] then
-    RegisterKeyBind(Key[hints.key], function()
-        ExecuteInGameThread(function()
-            local ok, err = pcall(askHint)
-            if not ok then log("hint error: " .. tostring(err)) end
-        end)
-    end)
+    RegisterKeyBind(Key[hints.key], function() ExecuteInGameThread(hintKey) end)
 end
 
 -- Death Link (the slot's death_link option): dying sends a death to everyone linked; a death from them faints the
@@ -1409,6 +1459,7 @@ end
 
 local function update(ctx)
     tick = tick + 1
+    SOON.run()
     pcall(POPUP.tick, tick)
     local okdb, errdb = pcall(DEBUFFS.tick, tick)
     if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end
@@ -1468,6 +1519,7 @@ local function update(ctx)
         if world ~= wallsWorld then
             wallsWorld, worldTicks = world, 0
             seedWorld = nil                            -- looked at again (every 7th update) before any wall goes up
+            POPUP.forget()                              -- (the pop-up or goal banner went with the old world's HUD)
             WALLS.reset()
             techsSeen = nil                              -- another world's tech list: compare it in full
         end
@@ -1549,7 +1601,7 @@ local function update(ctx)
         if ps and ap.ready then seedWorld = checkWorld() end
         if ps and ap.ready and seedWorld then
             P.start("rec")
-            pollRecords(ps)
+            pollRecords(ps, tick)
             P.stop("rec")
         end
         P.stop("e7")
@@ -1613,7 +1665,7 @@ end
 -- The core update, on the game thread. LoopAsync's callback runs on another thread over the same Lua state, so it does
 -- nothing there but hand over this function, made once (2026-11-08: two crashes with the 08E98397 stack came from a
 -- 33 ms loop that ran Lua on that thread; building a new closure there every time is the same risk, smaller).
-local function coreTick()
+local function coreTickBody()
     -- Ctrl+8 (perf test tools) pauses the whole update, the controller walk included, so the pause takes away
     -- all of the mod's per-update work. That walk is timed as "ctx" and counted in the update's "lua" time.
     local ran = not P.paused
@@ -1634,6 +1686,14 @@ local function coreTick()
     end
     frame = nil
     P.frameEnd(ran)
+end
+-- Never inside a research hook, nor inside itself (see guarded(), above the research hooks).
+local function coreTick()
+    if inHook or inTick then once("nested", "update skipped: it came inside a research hook or itself (UE4SS ran it nested)"); return end
+    inTick = true
+    local ok, err = pcall(coreTickBody)
+    inTick = false
+    if not ok then onceErr("coreTick", err, "update error: " .. tostring(err)) end
 end
 LoopAsync(300, function()
     ExecuteInGameThread(coreTick)
