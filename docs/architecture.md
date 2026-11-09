@@ -34,7 +34,7 @@ The project has four parts:
 | **APWorld** | `apworld/palworld/` | Python, in Archipelago, when a multiworld is generated | Defines the items, the locations (checks) and the logic of what is reachable when. Its output is the seed. |
 | **APConnector** | `cppmod/APConnector/` | C++ DLL, a UE4SS mod in the player's game | Talks to the Archipelago server on its own thread. Gives the Lua mod `AP_*` functions (`AP_Connect`, `AP_Poll`, `AP_Check`, `AP_Goal`, `AP_GivePal`, image and map helpers). The full list is at the top of `dllmain.cpp`. |
 | **Lua mod** | `mod/PalworldArchipelago/Scripts/` | Lua, a UE4SS mod in the player's game | The game-side brain. Every 300 ms it collects server events (`AP_Poll`), acts on received items, reads the player's records and sends finished checks (`AP_Check`). |
-| **LogicMod paks** | `logicmod/` | Unreal assets, built in the Palworld Modding Kit | Assets Lua cannot make, such as the area walls' material. |
+| **LogicMod paks** | `logicmod/` | Unreal assets, built in the Palworld Modding Kit | Assets Lua cannot make, such as the walls' material. |
 
 Under them is a layer of **generated files**: scripts in `tools/` read Palworld's own tables and map and write the
 data the other parts use (see [Generated files](#generated-files)).
@@ -46,7 +46,7 @@ data the other parts use (see [Generated files](#generated-files)).
 3. **Connect.** The title screen's Archipelago menu (`menu.lua`) takes the server, slot and password and calls
    `AP_Connect`.
 4. **Play.** Each core update in `main.lua` runs these steps:
-   - Received items unlock techs, open area walls (`walls.lua`), wait in the Archipelago Mailbox (`mailbox.lua`) or
+   - Received items unlock techs, take walls down (`walls.lua`), wait in the Archipelago Mailbox (`mailbox.lua`) or
      set off traps (`traps.lua`).
    - The player's records (`records.lua`) become location checks.
 5. **Save.** The mod keeps a small save of its own for each seed, beside the game's. It holds how many items have
@@ -77,7 +77,7 @@ and the names are changed file by file during the code tour.
 | `mod/test/` | The Lua test harness: the mod run against stand-ins for UE4SS, the game and the APConnector |
 | `logicmod/` | Python scripts the Modding Kit's editor runs to build the paks |
 | `tools/` | Generators, test runners and the server-side probe that dumps the game's tables |
-| `data/` | Facts derived from the game: areas, regions, and where each Pal can be obtained |
+| `data/` | Facts derived from the game: the regions and areas (in the older names, `areas-1.0.5.json` is the 15 regions and `regions-1.0.5.json` the 75 areas), and where each Pal can be obtained |
 | `docs/` | This guide, the style guide, and the options page (`docs/options/`) |
 | `art/` | The project's own artwork and the README graphics |
 
@@ -91,7 +91,7 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 |---|---|---|
 | `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py` | the table dumps, `data/areas-1.0.5.json`, `data/pal-sources-1.0.5.json` (and the `-regions` versions) |
 | `mod/.../Scripts/ap_data.lua` | `tools/gen_lua_data.py` | the APWorld's own tables (`data.py`), so the mod and the APWorld agree on every id |
-| `mod/.../Scripts/area_*.lua` | `tools/area_walls.py`, `tools/area_centres.py`, `tools/area_parents.py` | the game's world map and regions |
+| `mod/.../Scripts/area_*.lua` | `tools/area_walls.py`, `tools/area_centres.py`, `tools/area_parents.py` | the game's world map and its named areas |
 | `mod/.../Scripts/tech_icons.lua` | `tools/gen_tech_icons.py` | the table dumps |
 | `mod/.../Scripts/tech_gifts.lua` | `tools/gen_tech_gifts.py` | the table dumps |
 | `docs/options/options.json` | `tools/gen_options_page.py` | the APWorld's options, groups and presets |
@@ -124,7 +124,7 @@ Every item and every location, each with its name and permanent id.
   - `CATCHABLE` holds the Pals that get a capture check: those caught in the wild, as an alpha or in a dungeon
     (`DIRECT`).
   - Pals bred from two such parents also count (`BREEDABLE`).
-- **Areas and filler.**
+- **Passes and filler.**
   - Region Pass and Area Pass names (`region_pass`, `area_pass`).
   - `FILLER`, `TRAPS`, `PROGRESSIVE_SPHERE`, `CRATE` (Palworld Crate, the default filler), `RELIC` (the Relic Hunt
     item).
@@ -185,4 +185,4 @@ Items and locations are separate id spaces in Archipelago, so a tech item and a 
 |---|---|---|
 | A check (a capture, a level, a tower) never reaches the server | The Lua mod: `records.lua` (does it read the record?), `main.lua` (does it send?). Search the log for `[PalworldAP]`. | The APConnector, `AP_Check` in `dllmain.cpp` and `ap_bridge.cpp`: the mod sent it, but the server never got it. |
 | A game update adds Pals, techs or items | Don't edit `game_data.py`. Dump the tables and run `tools/gen_apworld_data.py`, then `tools/gen_lua_data.py`. | `test/test_ids.py` proves no old id moved. |
-| An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
+| An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
