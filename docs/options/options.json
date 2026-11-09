@@ -521,7 +521,7 @@
      "key": "trap_chance",
      "name": "Trap Chance",
      "type": "Range",
-     "help": "The percentage of filler items (bundles and tech points) replaced by traps: received items that do something\nmildly bad. None of them can make you faint. 0 means no traps, and seeds come out exactly as without this option.\nTraps are untested in game so far.",
+     "help": "The percentage of filler items (crates, material bundles and tech points) replaced by traps: received items that\ndo something mildly bad. None of them can make you faint. 0 means no traps, and seeds come out exactly as without\nthis option.",
      "min": 0,
      "max": 100,
      "default": 0

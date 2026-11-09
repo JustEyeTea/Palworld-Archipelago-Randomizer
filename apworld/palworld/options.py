@@ -259,9 +259,9 @@ class DeathLinkAmnesty(Range):
 
 
 class TrapChance(Range):
-    """The percentage of filler items (bundles and tech points) replaced by traps: received items that do something
-    mildly bad. None of them can make you faint. 0 means no traps, and seeds come out exactly as without this option.
-    Traps are untested in game so far."""
+    """The percentage of filler items (crates, material bundles and tech points) replaced by traps: received items that
+    do something mildly bad. None of them can make you faint. 0 means no traps, and seeds come out exactly as without
+    this option."""
     display_name = "Trap Chance"
     range_start = 0
     range_end = 100

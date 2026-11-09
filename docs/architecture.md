@@ -159,7 +159,14 @@ added at the end. `test/test_ids.py` fails if any 1.0.5 id moves.
 
 Items and locations are separate id spaces in Archipelago, so a tech item and a shop slot sharing an offset is fine.
 
-### `options.py`: the player's options *(not written yet)*
+### `options.py`: the player's options
+
+Every YAML setting, one class each. A class's docstring is the text players read (options page, YAML template,
+spoiler); `display_name` is its name; `default` is what a player gets when they leave it out. `Choice` options map
+words to numbers (`option_towers = 0`); the numbers are what the mod receives in slot data, so an existing choice is
+never renumbered. A new option needs its class, a field in `PalworldOptions` (the YAML key), a place in
+`option_groups`, and `tools/gen_options_page.py` run again; so does any change to a docstring, a default or the
+APWorld's version. `options_presets` holds the ready-made sets.
 
 ### `__init__.py`: the logic *(not written yet)*
 
@@ -186,3 +193,4 @@ Items and locations are separate id spaces in Archipelago, so a tech item and a 
 | A check (a capture, a level, a tower) never reaches the server | The Lua mod: `records.lua` (does it read the record?), `main.lua` (does it send?). Search the log for `[PalworldAP]`. | The APConnector, `AP_Check` in `dllmain.cpp` and `ap_bridge.cpp`: the mod sent it, but the server never got it. |
 | A game update adds Pals, techs or items | Don't edit `game_data.py`. Dump the tables and run `tools/gen_apworld_data.py`, then `tools/gen_lua_data.py`. | `test/test_ids.py` proves no old id moved. |
 | An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
+| The options page or YAML template shows old text, or CI's options page check fails | `docs/options/options.json` is out of date: run `tools/gen_options_page.py`, then `tools/test_options_page.py` | The option's class in `options.py` (its docstring and `display_name`) |

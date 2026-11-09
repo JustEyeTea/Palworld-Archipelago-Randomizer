@@ -109,8 +109,8 @@ so loading the world again never multiplies twice. Set them back in World Settin
 
 ## Traps
 
-Off by default. Trap Chance replaces that share of the filler items (bundles and tech points) with traps, picked by
-the trap weights. None of them can make you faint:
+Off by default. Trap Chance replaces that share of the filler items (crates, material bundles and tech points) with
+traps, picked by the trap weights. None of them can make you faint:
 
 - **Slow Trap**: half walking speed for a minute.
 - **Hunger Trap**: your stomach loses half a full meter of satiety, but never drops below a quarter (so it never starts starving damage).
@@ -118,8 +118,8 @@ the trap weights. None of them can make you faint:
 - **Fool Trap**: an alarming notice, then "just kidding" a few seconds later. Nothing happens.
 
 Traps go off as they arrive, and wait while you are fainted, while the world is loading and while the mailbox is
-open. A Slow Trap shows a snail icon with its time left at the top of the screen. A chat line names each trap and who sent it. Traps are untested in game so far: if one can't do its
-job, chat says "<trap> fizzled" and nothing else happens.
+open. A Slow Trap shows a snail icon with its time left at the top of the screen. A chat line names each trap and
+who sent it. If a trap can't do its job, chat says "<trap> fizzled" and nothing else happens.
 
 ## Death Link
 
