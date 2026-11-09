@@ -14,6 +14,8 @@ class TestCheckLevelOne(PalworldTestBase):
 
 
 class TestCheckLevelTwo(PalworldTestBase):
+    """The lowest cap allowed still makes a seed: WorldTestBase's own tests run on it (it fills, and it is beatable
+    with every item)."""
     options = {"check_level": 2}
 
 
@@ -47,6 +49,20 @@ class TestRunStyleNomad(PalworldTestBase):
         opts = self.world.fill_slot_data()["options"]
         self.assertEqual((opts["run_style"], opts["speed_boost"], opts["boost_exp_rate"], opts["boost_work_speed"],
                           opts["boost_gather_rate"]), (1, 1, 5, 3, 2))
+
+
+class TestSlotDataOptions(PalworldTestBase):
+    """Every Palworld option reaches the mod's slot data, so a tracker can rebuild the seed from it alone. A new option
+    must be added to SLOT_DATA_OPTIONS in __init__.py."""
+
+    def test_every_option_is_sent(self):
+        from Options import PerGameCommonOptions
+        from .. import SLOT_DATA_OPTIONS
+        from ..options import PalworldOptions
+        common = set(PerGameCommonOptions.type_hints)
+        ours = [name for name in PalworldOptions.type_hints if name not in common]
+        self.assertEqual(sorted(set(ours) - set(SLOT_DATA_OPTIONS)), [])
+        self.assertEqual(sorted(set(self.world.fill_slot_data()["options"])), sorted(SLOT_DATA_OPTIONS))
 
 
 class TestRunStyleDefault(PalworldTestBase):

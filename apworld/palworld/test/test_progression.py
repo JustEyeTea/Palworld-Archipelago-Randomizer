@@ -1,7 +1,7 @@
 from . import PalworldTestBase
 from .. import TOWER_LEVELS
 
-# The areas with Pals at level 28 or below, besides the start: a two-tower seed's map (areas layout).
+# The regions with Pals at level 28 or below, besides the start: a two-tower seed's map (Lock Size: regions).
 TWO_TOWER_PASSES = {"Region Pass: Marsh Island", "Region Pass: Sea Breeze Archipelago", "Region Pass: Isles of Silence",
                     "Region Pass: Bamboo Groves", "Region Pass: Volcano Foothills", "Region Pass: Crescent Moon Shore"}
 
@@ -11,7 +11,7 @@ def passes(test):
 
 
 class TestTwoTowers(PalworldTestBase):
-    """The default goal, two towers: Zoe (10) and Lily (20), so nothing above level 28, and only the areas up to it."""
+    """The default goal, two towers: Zoe (10) and Lily (20), so nothing above level 28, and only the regions up to it."""
 
     def test_cap_from_the_second_boss(self):
         self.assertEqual(self.world.goal_towers, ["Starting Zone Tower", "Forest Tower"])
@@ -24,10 +24,10 @@ class TestTwoTowers(PalworldTestBase):
             if loc.address is not None:
                 self.assertLessEqual(self.world.loc_level(by_name[loc.name]), 28, loc.name)
 
-    def test_only_the_areas_up_to_the_cap_have_passes(self):
+    def test_only_the_regions_up_to_the_cap_have_passes(self):
         self.assertEqual(passes(self), TWO_TOWER_PASSES)
 
-    def test_areas_beyond_are_not_in_the_seed(self):
+    def test_regions_beyond_are_not_in_the_seed(self):
         regions = {r.name for r in self.multiworld.get_regions(self.player)}
         for piece in ("Mount Obsidian", "Desiccated Dunes", "Astral Mountains", "Sky Islands", "World Tree"):
             self.assertNotIn(piece, regions)
@@ -37,7 +37,7 @@ class TestTwoTowers(PalworldTestBase):
         self.assertNotIn("Crescent Moon Shore", beyond)
 
     def test_the_goal_needs_lily(self):
-        """Another tower would do in game, but the logic counts on the first two: Lily's area needs its pass."""
+        """Another tower would do in game, but the logic counts on the first two: Lily's region needs its pass."""
         state = self.multiworld.state
         self.collect([i for i in self.multiworld.itempool if i.name != "Region Pass: Crescent Moon Shore"])
         state.sweep_for_advancements()
@@ -61,7 +61,7 @@ class TestOneTower(PalworldTestBase):
 class TestBeyondGoalPasses(PalworldTestBase):
     options = {"beyond_goal": "passes"}
 
-    def test_every_area_has_its_pass(self):
+    def test_every_region_has_its_pass(self):
         self.assertEqual(len(passes(self)), 14)
         self.assertEqual(self.world.fill_slot_data()["beyond_goal_areas"], "")
 
@@ -80,10 +80,10 @@ class TestBeyondGoalOpen(PalworldTestBase):
         self.assertTrue(self.can_reach_region("Mount Obsidian"))
 
 
-class TestRegionsTwoTowers(PalworldTestBase):
+class TestAreasTwoTowers(PalworldTestBase):
     options = {"lock_size": "areas"}
 
-    def test_fewer_region_passes(self):
+    def test_fewer_area_passes(self):
         got = passes(self)
         self.assertTrue(0 < len(got) < 74, len(got))
         self.assertTrue(all(p.startswith("Area Pass: ") for p in got))
@@ -93,7 +93,7 @@ class TestRegionsTwoTowers(PalworldTestBase):
 class TestWorldTreeKeepsEverything(PalworldTestBase):
     options = {"goal": "world_tree"}
 
-    def test_every_area(self):
+    def test_every_region(self):
         self.assertEqual(len(passes(self)), 14)
 
 

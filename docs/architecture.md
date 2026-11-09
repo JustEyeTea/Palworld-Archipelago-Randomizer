@@ -22,7 +22,7 @@ same pull request as the code it describes. The rules for writing the code itsel
 6. [The APConnector (C++)](#the-apconnector-c) *(not written yet)*
 7. [The Lua mod](#the-lua-mod) *(not written yet)*
 8. [The LogicMod paks](#the-logicmod-paks) *(not written yet)*
-9. [Tests, tools and releases](#tests-tools-and-releases) *(not written yet)*
+9. [Tests, tools and releases](#tests-tools-and-releases) *(tests and the build written; tools, CI and releases not yet)*
 10. [Where to look when something breaks](#where-to-look-when-something-breaks)
 
 ## Overview
@@ -200,7 +200,21 @@ are the constants at the top of the file.
 
 ## Tests, tools and releases
 
-*(not written yet)*
+### Tests and the build
+
+- `tools/ap_tests.sh` runs Archipelago's own test suites for this world (unique names and ids, filling a multiworld,
+  the docs pages, the website), then the world's own tests in `apworld/palworld/test/`:
+  - `test_ids.py`: ids never move (a fingerprint of every 1.0.5 name and id);
+  - `test_logic.py`: the level climb, mounts for the sea and the sky;
+  - `test_progression.py`: each goal's plan (cap, passes, Regions Beyond the Goal, Gear Logic, the points budget);
+  - `test_areas.py`: Lock Size: areas;
+  - `test_options.py`: refused options, and what reaches the mod's slot data.
+- `tools/test_generate.sh N` builds the `.apworld` as players get it and generates N seeds, checking each is
+  beatable.
+- Every `.apworld` (tests, playtests, releases) is made by `tools/build_apworld.py`. It adds the manifest fields
+  Archipelago needs and checks that the world loads with its own version; a plain zip of the folder loads as 0.0.0
+  and players' YAMLs are refused.
+- Point `AP_DIR` at your Archipelago 0.6.8 folder (with its venv in `.venv`).
 
 ## Where to look when something breaks
 

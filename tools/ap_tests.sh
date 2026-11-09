@@ -3,7 +3,8 @@
 # every world is expected to pass (ids, names and groups, fill, manifest, docs pages...). Then the world's own tests
 # (apworld/palworld/test: logic, options, frozen ids).
 # Needs pytest, pytest-subtests and WebHostLib/requirements.txt in the Archipelago venv.
-#   tools/ap_tests.sh
+#   AP_DIR=<your archipelago-0.6.8 folder> tools/ap_tests.sh
+# Without AP_DIR it looks for archipelago-0.6.8 beside this repository's folder (wrong in a git worktree).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ap=${AP_DIR:-$(cd .. && pwd)/archipelago-0.6.8}
