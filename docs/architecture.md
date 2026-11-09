@@ -168,7 +168,23 @@ never renumbered. A new option needs its class, a field in `PalworldOptions` (th
 `option_groups`, and `tools/gen_options_page.py` run again; so does any change to a docstring, a default or the
 APWorld's version. `options_presets` holds the ready-made sets.
 
-### `__init__.py`: the logic *(not written yet)*
+### `__init__.py`: the logic
+
+`PalworldWorld` is the world Archipelago builds for each Palworld player. Archipelago calls its methods in this order:
+
+1. `generate_early`: the seed's plan (the level cap, which regions or areas are in the seed, whether mounts are
+   needed). Bad options stop here with an `OptionError` that says what to change.
+2. `create_regions`: one Archipelago Region per piece, with an entrance across each border that needs the entered
+   piece's pass; each check goes in its piece.
+3. `create_items`: passes, techs (or Progressive Spheres), relics, then filler and traps. The first sphere is locked
+   onto one of the first checks.
+4. `set_rules`: each check's rule and the goal.
+5. `fill_slot_data`: what the mod receives.
+
+The heart of the logic is `max_level`: everyone reaches `FREE_LEVEL`, and each open region or area whose Pals can be
+caught lifts the player to `LEVEL_SLACK` past its Pals' level. `level_ok`, `can_catch_at` (sphere tier = level ÷
+`SPHERE_STEP`, rounded up), `can_fight_at`, `can_get_pal`, `can_enter` and `shop_ok` build on it. The tuning numbers
+are the constants at the top of the file.
 
 ## The APConnector (C++)
 
@@ -193,4 +209,5 @@ APWorld's version. `options_presets` holds the ready-made sets.
 | A check (a capture, a level, a tower) never reaches the server | The Lua mod: `records.lua` (does it read the record?), `main.lua` (does it send?). Search the log for `[PalworldAP]`. | The APConnector, `AP_Check` in `dllmain.cpp` and `ap_bridge.cpp`: the mod sent it, but the server never got it. |
 | A game update adds Pals, techs or items | Don't edit `game_data.py`. Dump the tables and run `tools/gen_apworld_data.py`, then `tools/gen_lua_data.py`. | `test/test_ids.py` proves no old id moved. |
 | An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
+| A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVEL_SLACK`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
 | The options page or YAML template shows old text, or CI's options page check fails | `docs/options/options.json` is out of date: run `tools/gen_options_page.py`, then `tools/test_options_page.py` | The option's class in `options.py` (its docstring and `display_name`) |
