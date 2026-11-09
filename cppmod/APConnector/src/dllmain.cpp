@@ -20,7 +20,7 @@
 //                                        one step per line, the last "result: ok party|ok palbox|pending|busy|fail ..."
 //                                        (see pal_gift.cpp; game thread only, so call it inside ExecuteInGameThread)
 //   AP_GivePalPoll() -> string           while a gift is pending, a report ending like AP_GivePal's; else ""
-//   (AP_GivePal and AP_GivePalPoll are untested in game.)
+//   (The party route works in game; the Palbox route is untested in game.)
 //   AP_ComposeChart(colour, paper, sea, compass, out, size, gamma) -> string   starts drawing the explorer's-chart
 //                                        picture of the map in the background ("" started, "busy", or an error)
 //   AP_ChartStatus() -> string           "busy", "done" (once), "error: ..." or ""

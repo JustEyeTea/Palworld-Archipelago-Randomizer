@@ -1,3 +1,6 @@
+"""The player's options: every setting a Palworld YAML can have, one class each. A class's docstring is the text
+players read (options page, YAML template, spoiler) and display_name its name. Choice numbers are sent to the mod in
+slot data, so an existing choice is never renumbered. After any change, run tools/gen_options_page.py."""
 from dataclasses import dataclass
 
 from Options import Choice, DeathLink, DefaultOnToggle, OptionGroup, PerGameCommonOptions, Range, Toggle
@@ -352,9 +355,9 @@ option_groups = [
 ]
 
 
-# Ready-made sets for the options page and the Launcher's template generator. Measured check counts (AP 0.6.8,
-# 2026-11-05, 15 areas; 75 regions within a few): Short Sync 182, Sync 239, Long Sync 391, Relic Hunt Sync 357,
-# Paldeck Sync 247, Async 583, Full Game 1,148. A typical Archipelago game has about 180.
+# Ready-made sets for the options page and the Launcher's template generator. Measured check counts (Lock Size:
+# regions; areas comes within a few): Short Sync 182, Sync 239, Long Sync 391, Relic Hunt Sync 357, Paldeck Sync 247,
+# Async 583, Full Game 1,148. A typical Archipelago game has about 180.
 options_presets = {
     "Short Sync": {"goal": "towers", "tower_count": 1, "level_checks": "every_5", "fast_travel_checks": False,
                    "speed_boost": True},

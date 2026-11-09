@@ -154,12 +154,12 @@ class TestPointsBudget(PalworldTestBase):
         kept = [by_name[l.name] for l in slots if l.progress_type != LocationProgressType.EXCLUDED]
         excluded = [l for l in slots if l.progress_type == LocationProgressType.EXCLUDED]
         self.assertTrue(excluded, "a two-tower seed has more slots than levelling pays for")
-        normal = sorted((self.world.lv.tech(t), t[3]) for t in kept if not t[4])
+        normal = sorted((self.world.lv.tech(t), t.cost) for t in kept if not t.ancient)
         spent = 0
         for level, cost in normal:
             spent += cost
             self.assertLessEqual(spent, 6 * (level - 1), f"slots up to level {level}")
-        self.assertLessEqual(sum(t[3] for t in kept if t[4]), 5, "Ancient: Zoe's 5 points (Lily's come with the goal)")
+        self.assertLessEqual(sum(t.cost for t in kept if t.ancient), 5, "Ancient: Zoe's 5 points (Lily's come with the goal)")
 
     def test_excluded_slots_hold_no_important_items(self):
         from BaseClasses import LocationProgressType

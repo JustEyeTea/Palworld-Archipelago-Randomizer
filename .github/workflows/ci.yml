@@ -1,5 +1,7 @@
-# On every push and pull request: the APWorld against the Archipelago version it targets (Archipelago's own test
-# suites and test generations), and the mod's C++ part built on Windows, packaged with the Lua mod as an artifact. The
+# On pull requests, pushes to main or to a build/<name> branch, version tags and manual runs (Actions > CI > Run
+# workflow; a push to any other branch runs nothing): the APWorld against the Archipelago version it targets
+# (Archipelago's own test suites and test generations), and the mod's C++ part built on Windows, packaged with the Lua
+# mod as an artifact. The
 # Windows build (about 25 minutes) runs only when the C++ part or this file changed since the branch's last good one
 # (the changes job); tags, main and manual runs always build.
 # A version tag (v0.14.0, matching the mod's VERSION) also makes a DRAFT release with the mod zip, palworld.apworld and

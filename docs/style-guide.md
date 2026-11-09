@@ -78,7 +78,8 @@ that state. These rules keep the mod's code on the game thread. `mod/test/harnes
   Judge a run by its exit code, not by reading its output.
 - **Ids never move** (see [Ids never move](architecture.md#ids-never-move)). `test/test_ids.py` enforces it.
 - **A change that only makes code clearer** starts its commit message with `readability:` and changes no behaviour.
-  The tests prove it; for the APWorld, the same seed must also give the same spoiler log before and after. (Renaming
+  The tests prove it; for the APWorld, the same seed must also give the same spoiler log before and after, up to its
+  Playthrough section, which can pick a different (equally valid) chain from run to run even with no change. (Renaming
   an item is the exception: Archipelago sorts the item pool by name before shuffling, so new names place items
   differently. Then compare the location list and the item pool, which must match apart from the names, and check
   the seed is still beatable.)
