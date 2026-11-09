@@ -12,25 +12,27 @@
 //   AP_SlotData(path) -> string          a slot_data value by dotted path ("options.tower_count")
 //   AP_Status() -> string                disconnected | connecting | connected | refused
 //   AP_HintPoints() -> string            "points,cost" (hint points held, cost of a hint), "" when not connected
-//   AP_GreyscalePNG(in, out, gamma) -> string   writes a greyscale copy of a PNG ("" on success, else the error)
-//   AP_ComposeMap(colour, labels, "3,7", out, gamma) -> string   starts composing the world map (locked areas grey) in
-//                                        the background: "" started, "busy", or an error
-//   AP_ComposeStatus() -> string         "busy", "done" (once, when finished), "error: ..." or ""
-//   AP_GivePal(species, level, route, options) -> string   gives the player a Pal ("Anubis", "50", "auto", ""); a report,
-//                                        one step per line, the last "result: ok party|ok palbox|pending|busy|fail ..."
+//   AP_GivePal(species, level, route, options) -> string   gives the player a Pal ("Anubis", "50", "auto", "");
+//                                        a report, one step per line, the last
+//                                        "result: ok party|ok palbox|pending|busy|fail ..."
 //                                        (see pal_gift.cpp; game thread only, so call it inside ExecuteInGameThread)
 //   AP_GivePalPoll() -> string           while a gift is pending, a report ending like AP_GivePal's; else ""
 //   (The party route works in game; the Palbox route is untested in game.)
-//   AP_ComposeChart(colour, paper, sea, compass, out, size, gamma) -> string   starts drawing the explorer's-chart
-//                                        picture of the map in the background ("" started, "busy", or an error)
-//   AP_ChartStatus() -> string           "busy", "done" (once), "error: ..." or ""
-//   AP_ComposeFog(chart, mask, default, spec, out, size, stamps) -> string   starts the fog picture (the chart where
-//                                        unexplored, the locked areas' stamps on it; image_tools.hpp)
-//   AP_FogStatus() -> string             as AP_ChartStatus (chart and fog untested in game)
+//   AP_GreyscalePNG(in, out, gamma) -> string   writes a greyscale copy of a PNG ("" on success, else the error)
 //   AP_SamplePNG(path, u, v) -> string   a PNG's colour at (u, v) in 0..1: "r,g,b,a", or "error: ..."
-//   AP_MapScreen(cmd, value) -> string  the world map screen, changed inside the game's own Setup so it never shows the
-//                                        game's version first: "body", path / "fog", "r,g,b,a" / "status" (map_screen.hpp;
-//                                        untested in game)
+//   The map pictures (image_tools.hpp). Each starts in the background and returns "" (started), "busy" or an error;
+//   its status function then returns "busy", "done" (once, when finished), "error: ..." or "":
+//   AP_ComposeMap(colour, labels, "3,7", out, gamma)   the world map with the locked areas grey; AP_ComposeStatus()
+//   AP_ComposeChart(colour, paper, sea, compass, out, size, gamma)   the explorer's-chart picture; AP_ChartStatus()
+//   AP_ComposeFog(chart, mask, default, spec, out, size, stamps, regions)   the chart where unexplored, with the locked
+//                                        areas' stamps; AP_FogStatus()
+//   AP_ComposeTerritories(labels, areas, walls, style, out, fogart, fog, size)   the Territories overlay and its fog
+//                                        picture from the area label map; AP_TerritoriesStatus()
+//   AP_ComposeField(field, areas, walls, style, out, fogart, fog, size, colour, gamma)   the same from a distance field
+//                                        (smooth borders), in the Territories job slot; AP_TerritoriesStatus()
+//   AP_MapScreen(cmd, value) -> string   the world map screen, changed inside the game's own Setup so it never shows
+//                                        the game's version first: "body", path / "fog", "r,g,b,a" / "status"
+//                                        (map_screen.hpp)
 #include <Windows.h>
 
 #include <cstdio>
@@ -109,13 +111,24 @@ namespace
         return *g_bridge;
     }
 
+    // "id,id,..." as numbers. A part that isn't a number is skipped: an exception must never leave a function Lua
+    // called, or it can take the game down.
     auto ids(std::string_view csv) -> std::vector<int64_t>
     {
         std::vector<int64_t> out;
         std::stringstream ss{std::string(csv)};
         for (std::string part; std::getline(ss, part, ',');)
         {
-            if (!part.empty()) out.push_back(std::stoll(part));
+            if (part.empty()) continue;
+            try
+            {
+                std::size_t used = 0;
+                const auto id = std::stoll(part, &used);
+                if (used == part.size()) out.push_back(id);
+            }
+            catch (...)
+            {
+            }
         }
         return out;
     }
@@ -189,7 +202,8 @@ namespace
             return 1;
         });
         lua.register_function("AP_ComposeChart", [](const LuaMadeSimple::Lua& l) -> int {
-            const auto colour = arg(l), paper = arg(l), sea = arg(l), compass = arg(l), out = arg(l), size = arg(l), gamma = arg(l);
+            const auto colour = arg(l), paper = arg(l), sea = arg(l), compass = arg(l), out = arg(l);
+            const auto size = arg(l), gamma = arg(l);
             int s = 2048;
             double g = 1.0;
             try { s = std::stoi(size); } catch (...) {}
@@ -202,11 +216,12 @@ namespace
             return 1;
         });
         lua.register_function("AP_ComposeFog", [](const LuaMadeSimple::Lua& l) -> int {
-            const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l), size = arg(l), stamps = arg(l);
-            const auto regions = arg(l);
+            const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l);
+            const auto size = arg(l), stamps = arg(l), regions = arg(l);
             int s = 2048;
             try { s = std::stoi(size); } catch (...) {}
-            l.set_string(fog_jobs().start([=] { return compose_fog(chart, mask, def, spec, out, s, stamps, regions); }));
+            l.set_string(fog_jobs().start(
+                [=] { return compose_fog(chart, mask, def, spec, out, s, stamps, regions); }));
             return 1;
         });
         lua.register_function("AP_FogStatus", [](const LuaMadeSimple::Lua& l) -> int {
@@ -214,21 +229,23 @@ namespace
             return 1;
         });
         lua.register_function("AP_ComposeTerritories", [](const LuaMadeSimple::Lua& l) -> int {
-            const auto labels = arg(l), areas = arg(l), walls = arg(l), style = arg(l), out = arg(l), fogart = arg(l), fog = arg(l);
-            const auto size = arg(l);
+            const auto labels = arg(l), areas = arg(l), walls = arg(l), style = arg(l);
+            const auto out = arg(l), fogart = arg(l), fog = arg(l), size = arg(l);
             int s = 2048;
             try { s = std::stoi(size); } catch (...) {}
-            l.set_string(territory_jobs().start([=] { return compose_territories(labels, areas, walls, style, out, fogart, fog, s); }));
+            l.set_string(territory_jobs().start(
+                [=] { return compose_territories(labels, areas, walls, style, out, fogart, fog, s); }));
             return 1;
         });
-        lua.register_function("AP_ComposeField", [](const LuaMadeSimple::Lua& l) -> int {   // (the territories' job slot)
-            const auto field = arg(l), areas = arg(l), walls = arg(l), style = arg(l), out = arg(l), fogart = arg(l), fog = arg(l);
-            const auto size = arg(l), colour = arg(l), gamma = arg(l);
+        lua.register_function("AP_ComposeField", [](const LuaMadeSimple::Lua& l) -> int {   // Territories' job slot
+            const auto field = arg(l), areas = arg(l), walls = arg(l), style = arg(l);
+            const auto out = arg(l), fogart = arg(l), fog = arg(l), size = arg(l), colour = arg(l), gamma = arg(l);
             int s = 4096;
             double g = 1.0;
             try { s = std::stoi(size); } catch (...) {}
             try { if (!gamma.empty()) g = std::stod(gamma); } catch (...) {}
-            l.set_string(territory_jobs().start([=] { return compose_field(field, areas, walls, style, out, fogart, fog, s, colour, g); }));
+            l.set_string(territory_jobs().start(
+                [=] { return compose_field(field, areas, walls, style, out, fogart, fog, s, colour, g); }));
             return 1;
         });
         lua.register_function("AP_TerritoriesStatus", [](const LuaMadeSimple::Lua& l) -> int {
@@ -272,7 +289,7 @@ class APConnector : public CppUserModBase
     APConnector()
     {
         ModName = STR("APConnector");
-        ModVersion = STR("0.1.0");
+        ModVersion = STR("0.1.0");    // the connector's own version (UE4SS's mod list); the mod's is main.lua's VERSION
         ModDescription = STR("Archipelago connection for the Palworld Archipelago mod");
         ModAuthors = STR("JustEyeTee");
         Output::send<LogLevel::Verbose>(STR("[APConnector] loaded\n"));
