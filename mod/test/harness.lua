@@ -2654,8 +2654,8 @@ end)()
     expect(goal and goal.width == 600 and goal.child and goal.child.children[1].texture.path == "ap-goal-banner"
            and goal.child.children[2].text == "All 14 areas open | 2,431 checks | 12h 08m" and logged("HUD probe: goal banner added"),
            "and the goal banner, centred, with a sample line in its pill")
-    expect(#angles == 180 and angles[180] == 1080 and removed and logged("HUD probe: spun 180 steps; removed"),
-           "spins it for 6 s, then takes it away: " .. #angles)
+    expect(#angles == 20 and angles[20] == 360 and removed and logged("HUD probe: spun 20 steps; removed"),
+           "spins it once around in 20 core updates (6 s), then takes it away: " .. #angles)
 end)()
 expect(logged("%[test%] test tools on: Ctrl%+F5%-F8"), "test tools bind their keys")
 keyBinds["key:F8"]()
@@ -3124,8 +3124,7 @@ AP_GivePalPoll = function()
 end
 local loopsBefore = #extraLoops
 TT.install()
-local pollLoop = extraLoops[#extraLoops]
-expect(#extraLoops == loopsBefore + 2, "a poll loop for pending gifts (after the HUD probe's)")
+expect(#extraLoops == loopsBefore, "the test tools start no loops of their own: the core update polls pending gifts")
 local allCtrl = true
 for _, k in ipairs({ "F5", "F6", "F7", "F8", "F9" }) do
     local m = keyMods["key:" .. k .. "+shift"]
@@ -3152,7 +3151,7 @@ giveReply = "route=palbox species=Kitsunebi\nimport: calling\nresult: pending"
 pollReplies = { "poll 1 route=palbox\ncheck: palbox slot 7 handle=null\nresult: pending",
                 "poll 2 route=palbox\ncheck: palbox slot 7 handle=PalIndividualCharacterHandle_2\nresult: ok palbox" }
 press("key:F8+shift")
-run(1)
+run(2)
 expect(pollCalls == 2 and logged("give Pal palbox: check: palbox slot 7 handle=PalIndividualCharacterHandle_2")
        and logged("give Pal palbox: result: ok palbox") and logged("give Pal palbox: party now 3"),
        "a pending gift is polled until it arrives: " .. pollCalls .. " poll(s)")
@@ -3164,7 +3163,7 @@ press("key:F8+shift")
 giveReply = "route=auto\nresult: busy"
 press("key:F9+shift")
 pollReplies[#pollReplies + 1] = "poll 2 route=palbox\nresult: fail timeout (palbox slot 7 handle=null)"
-run(1)
+run(2)
 expect(logged("give Pal auto: result: busy") and pollCalls == 4 and logged("give Pal palbox: result: fail timeout"),
        "busy keeps the pending gift, which is polled to its end: " .. pollCalls .. " poll(s)")
 -- The connector forgets the gift (reloaded): the probe stops polling.
@@ -3182,19 +3181,6 @@ expect(pollCalls == 6 and logged("give Pal party_plain: the connector holds a gi
        and logged("give Pal earlier: result: fail timeout"), "busy with nothing pending here polls the connector's gift to its end")
 run(1)
 expect(pollCalls == 6, "and then no more polls")
--- The game thread stalls past 250 ms: two polls are queued, and the second runs after the first ended the gift.
-giveReply = "route=palbox\nresult: pending"
-pollReplies = { "poll 1 route=palbox\nresult: ok palbox" }
-press("key:F8+shift")
-local queued = {}
-local runNow = ExecuteInGameThread
-ExecuteInGameThread = function(fn) queued[#queued + 1] = fn end
-pollLoop(); pollLoop()
-ExecuteInGameThread = runNow
-for _, fn in ipairs(queued) do runNow(fn) end
-expect(#queued == 2 and pollCalls == 7 and logged("give Pal palbox: result: ok palbox") and not logged("poll error"),
-       "a second queued poll after the gift ended does nothing: " .. pollCalls .. " poll(s)")
-giveReply = nil
 -- An error from the connector is logged, and the next key still works.
 giveReply = "throw"
 press("key:F6+shift")
@@ -3791,7 +3777,7 @@ end)()
                 bad[#bad + 1] = f .. ".lua:" .. k .. ": a key bind that does more than hand over a function made beforehand"
             end
             local ind, ms = line:match("^(%s*)LoopAsync%((%d+), function%(%)%s*$")
-            if ind and f ~= "test_tools" and tonumber(ms) < 300 then
+            if ind and tonumber(ms) < 300 then
                 bad[#bad + 1] = f .. ".lua:" .. k .. ": a " .. ms .. " ms loop (dev.45: a 33 ms loop corrupted Lua's state)"
             end
             if ind then
@@ -3807,7 +3793,7 @@ end)()
             end
         end
     end
-    expect(#bad == 0, "no Lua off the game thread: every LoopAsync and key bind callback only hands over a function made beforehand (LoopAsync no faster than 300 ms outside the test tools), and no ExecuteWithDelay: " .. table.concat(bad, " | "))
+    expect(#bad == 0, "no Lua off the game thread: every LoopAsync and key bind callback only hands over a function made beforehand (no LoopAsync faster than 300 ms), and no ExecuteWithDelay: " .. table.concat(bad, " | "))
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")

@@ -67,6 +67,9 @@ local cfg = readConfig()
 local P = require("perf")
 P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
                  mailOpen = function() return MAIL.viewOpen() end })
+-- The test tools (test_tools.lua). update() steps their probes every update; they stay idle unless installed, which
+-- only test_tools=1 in config.txt does (at the end of this file).
+local TEST_TOOLS = require("test_tools")
 local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
     if not f then log("could not write config.txt"); return end
@@ -1460,6 +1463,8 @@ end
 local function update(ctx)
     tick = tick + 1
     SOON.run()
+    local oktt, errtt = pcall(TEST_TOOLS.update)
+    if not oktt then onceErr("testtools", errtt, "test tools error: " .. tostring(errtt)) end
     pcall(POPUP.tick, tick)
     local okdb, errdb = pcall(DEBUFFS.tick, tick)
     if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end
@@ -1702,6 +1707,6 @@ end)
 
 -- Test tools: only with test_tools=1 in config.txt (see test_tools.lua).
 if cfg.test_tools == "1" then
-    local okt, errt = pcall(function() require("test_tools").install() end)
+    local okt, errt = pcall(TEST_TOOLS.install)
     if not okt then log("test tools not loaded: " .. tostring(errt)) end
 end
