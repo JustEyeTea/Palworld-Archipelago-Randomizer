@@ -203,6 +203,30 @@ Lua in UE4SS can't open network connections, so `cppmod/APConnector` does it.
 - Beside the mod: `client_uuid.txt` (one id per installation, so the server recognises the client) and `cacert.pem`
   (trusted certificates for `wss://`).
 
+### The game half: Pal gifts, the map screen, pictures
+
+The rest of the connector calls Palworld's own functions, or does image work too slow for Lua.
+
+- `reflect.hpp` is how C++ calls a game function: `ReflectedCall` looks the function up by path, builds a parameter
+  block of the function's own size, finds each parameter **by name** (checked to lie inside the block) and calls
+  `ProcessEvent`. `resolve()` takes the function from the object's own class first, because a Blueprint event's C++
+  version is an empty stub. Crashes inside game code can't be caught, so every step checks first and throws
+  `Fail{"reason"}`, which becomes the report's `result: fail <reason>`.
+- `pal_gift.cpp` gives a Pal (`AP_GivePal`, `AP_GivePalPoll`): it finds the player fresh on every call, has the game
+  make the Pal's save data, then creates it by one of four routes (two party callbacks, a plain create and add, or
+  the Palbox import) and looks for it in the party or the Palbox. A Pal not there yet is kept as one pending gift
+  and looked for on each poll, for about 6 s. The header says what each route calls and why. Only the test tools
+  use it so far. `pal_gift_logic.*` holds the parts that need no Unreal (arguments, route choice, the report text,
+  poll counting) and is tested on Linux.
+- `map_screen.cpp` makes the world map show the mod's picture instead of the game's: post-callbacks on the Blueprint
+  VM catch `WBP_Map_Body_C:Setup` and set the picture and the fog before the screen draws. Every 60 frames it looks
+  for Setup again, because the map's class is loaded anew after Return to title. Lua drives it with
+  `AP_MapScreen(cmd, value)`.
+- `image_tools.cpp` builds the map pictures from PNGs, on background threads (one `JobSlot` each; Lua polls
+  `busy`, `done` or `error: ...`): the Territories map (`compose_field`, falling back to `compose_territories`) and
+  the chart style (`compose_chart`, `compose_fog`). Lua passes areas, walls and looks as short text formats, each
+  described above its function in `image_tools.hpp`. Tested on Linux (`test/image_test.cpp`).
+
 ## The Lua mod
 
 *(not written yet)*
@@ -238,4 +262,7 @@ Lua in UE4SS can't open network connections, so `cppmod/APConnector` does it.
 | Can't connect, or the connection drops | The UE4SS log's `[PalworldAP] status:` lines (connecting, socket, connected; or refused, with the reason) | `ap_bridge.cpp`, `wire_handlers`; for a secure (`wss://`) server, that `cacert.pem` is beside the mod |
 | An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
 | A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVEL_SLACK`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
+| A Pal gift ends `result: fail ...`, or the game dies during one | UE4SS.log's `[APConnector] [pal]` lines: the last one names the step, and the step names the function in `pal_gift.cpp` | After a game update: "function not found" or "no such parameter" means a path or parameter name in `pal_gift.cpp` changed; a UE4SS header dump of the new version (UE4SS's Dump CXX Headers) shows the new one |
+| The world map shows the game's own picture or its dark fog | UE4SS.log's `[APConnector] [map]` lines: `hooked`, `Setup #n ... FAILED: <reason>`, `Setup gone` / `found Setup again` (`map_screen.cpp`) | `SETUP_PATH` in `map_screen.cpp` after a game update; `map_cpp=0` in config.txt turns it off; Lua's `AP_MapScreen` calls in `walls.lua` |
+| The map picture looks wrong (colours, rims, walls, borders) | `image_tools.cpp`: `compose_field` for the Territories map, `compose_chart` and `compose_fog` for `map_style=chart` | What Lua sends it (`areaSpec`, `wallSpec` in `walls.lua`); reproduce it on Linux with `test/image_test.cpp` |
 | The options page or YAML template shows old text, or CI's options page check fails | `docs/options/options.json` is out of date: run `tools/gen_options_page.py`, then `tools/test_options_page.py` | The option's class in `options.py` (its docstring and `display_name`) |
