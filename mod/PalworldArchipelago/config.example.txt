@@ -1,4 +1,6 @@
 # Copy this file to config.txt and fill it in (config.txt is never shipped, so updates keep it).
+# Connecting from the title menu's Archipelago menu saves config.txt again: your settings are kept, these comments
+# are not.
 server=
 slot=
 password=

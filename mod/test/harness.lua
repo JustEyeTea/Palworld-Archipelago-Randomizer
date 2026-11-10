@@ -1675,6 +1675,22 @@ run(70)
 noPlayer = false
 run(14)
 expect(not playerDead and logged("death link received while no player was in the world"), "a death from before the world loaded is dropped")
+;(function()  -- another client's cause with escaped quotes and a backslash is read whole (it was cut off at \")
+    local noticesAt = #announced
+    local pawnWas = playerController.K2_GetPawn
+    playerController.K2_GetPawn = function() return pawn end
+    push("bounce", "DeathLink", '{"cause":"Misty said \\"hi\\" at C:\\\\Pal.","source":"Misty","time":8}')
+    run(7)
+    local wholeCause = false
+    for i = noticesAt + 1, #announced do
+        wholeCause = wholeCause or announced[i]:find('Misty said "hi" at C:\\Pal.', 1, true) ~= nil
+    end
+    expect(playerDead and wholeCause, "a linked death's cause with quotes and a backslash is read whole")
+    run(7)
+    playerDead = false
+    run(7)
+    playerController.K2_GetPawn = pawnWas
+end)()
 
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
@@ -3794,6 +3810,29 @@ end)()
         end
     end
     expect(#bad == 0, "no Lua off the game thread: every LoopAsync and key bind callback only hands over a function made beforehand (no LoopAsync faster than 300 ms), and no ExecuteWithDelay: " .. table.concat(bad, " | "))
+end)()
+;(function()  -- every config.txt key the mod reads is one the title menu keeps when it rewrites the file (CONFIG_KEYS)
+    local fh = io.open(MOD .. "/Scripts/main.lua")
+    local src = fh and fh:read("a") or ""
+    if fh then fh:close() end
+    local listed = {}
+    for key in (src:match("local CONFIG_KEYS = (%b{})") or ""):gmatch('"([%w_]+)"') do listed[key] = true end
+    local missing, seen = {}, {}
+    local ls = io.popen('ls "' .. MOD .. '/Scripts"')
+    for name in ls:lines() do
+        local h = name:match("%.lua$") and io.open(MOD .. "/Scripts/" .. name)
+        local text = h and h:read("a") or ""
+        if h then h:close() end
+        for key in text:gmatch("cfg%.([%w_]+)") do
+            if not listed[key] and not seen[key] then
+                seen[key] = true
+                missing[#missing + 1] = name .. ": " .. key
+            end
+        end
+    end
+    ls:close()
+    expect(next(listed) ~= nil and #missing == 0,
+           "every config.txt key the mod reads is kept when the title menu rewrites the file: " .. table.concat(missing, ", "))
 end)()
 expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
 expect(not logged("but the bag gained"), "the bag gained what the game said it took")

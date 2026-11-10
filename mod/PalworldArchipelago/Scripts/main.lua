@@ -45,6 +45,64 @@ local function safe(fn, ...)
     return nil
 end
 
+-- The core update runs every UPDATE_MS (the LoopAsync at the end of this file). Waits are counted in updates;
+-- updates() turns seconds into that count.
+local UPDATE_MS = 300
+local function updates(seconds) return math.floor(seconds * 1000 / UPDATE_MS + 0.5) end
+local WAIT = {
+    firstItems = updates(1.5),  -- after connecting, before anything is locked: the first batch of items arrives
+    settle = updates(5),        -- after a world loads, before any wall: spawning into a world still loading can crash
+    goal = updates(120),        -- the goal waits at most this long for the player to leave the boss's arena
+    hintOffer = updates(60),    -- a hint offered at a wall can be taken for this long
+    hintAnswer = updates(15),   -- the server's answer to a hint the player asked for is shown if it comes within this
+    wallNotice = updates(120),  -- the same wall's notice comes again only after this
+    heldNotice = updates(60),   -- notices held through a loading screen show after this even if the player hasn't moved
+    deathLate = updates(6),     -- a linked death older than this (received at the title, or loading) is dropped
+    ownDeath = updates(15),     -- a death this soon after the link fainted the player came from the link
+}
+-- The heavier work runs on one update in CYCLE (2.1 s), spread over these phases so no one frame carries it all.
+-- isPhase() (below, with the update counter) says which phase this update is.
+local CYCLE = 7
+local PHASE = {
+    records = 0,                -- trap timers, the seed's-world check, the game's records (checks and the goal)
+    techScan = 1,               -- other mods' techs, until found
+    items = 2,                  -- techs, items, the run style's sync, held notices, Death Link, traps
+    areas = 3,                  -- visited areas; sent home from inside a locked area
+    wallNotice = 5,             -- the chat notice and hint offer at a locked wall
+}
+local TECH_SCAN_TRIES = 40      -- one try per cycle until the player's tech data is there: about 84 s
+local SENT_HOME_AFTER = 2       -- looks in a row (one per cycle) inside a locked area before the player is sent home
+
+-- Slot data values arrive as text (AP_SlotData): a flag is "1" or "true", a number its digits.
+local function slotFlag(path)
+    local v = AP_SlotData(path)
+    return v == "1" or v == "true"
+end
+local function slotNumber(path, default) return tonumber(AP_SlotData(path)) or default end
+
+-- Death Link's JSON, both ways: a string's contents escaped for sending, and a string field read back with \" and
+-- \\ undone (other clients escape quotes in their causes).
+local function jsonText(text)
+    local clean = text:gsub("%c", "")
+    return (clean:gsub('[\\"]', "\\%0"))
+end
+local function jsonField(data, key)
+    local _, open = data:find('"' .. key .. '"%s*:%s*"')
+    if not open then return nil end
+    local out, i = {}, open + 1
+    while i <= #data do
+        local c = data:sub(i, i)
+        if c == '"' then return table.concat(out) end
+        if c == "\\" then
+            i = i + 1
+            c = data:sub(i, i)
+        end
+        out[#out + 1] = c
+        i = i + 1
+    end
+    return nil
+end
+
 -- config.txt: server=archipelago.gg:12345 / slot=YourName / password=
 local function readConfig()
     local cfg = {}
@@ -70,11 +128,23 @@ P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = 
 -- The test tools (test_tools.lua). update() steps their probes every update; they stay idle unless installed, which
 -- only test_tools=1 in config.txt does (at the end of this file).
 local TEST_TOOLS = require("test_tools")
+-- Every key config.txt can hold. The title menu rewrites the file with these keys only (comments are not kept), so a
+-- new setting must be listed here or it is lost the next time the player connects from the menu. The harness checks
+-- that every cfg.<key> the mod reads is listed.
+local CONFIG_KEYS = {
+    "server", "slot", "password", "servers", "hint_key",
+    "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
+    "test_tools", "perf_log", "perf_no_bp_hooks",
+    "wall_skin", "wall_tiling", "wall_scroll", "wall_radius", "wall_fade",
+    "map_cpp", "map_chart", "map_icons", "map_regions", "map_style",
+}
 local function writeConfig()
     local f = io.open(modDir .. "\\config.txt", "w")
-    if not f then log("could not write config.txt"); return end
-    for _, k in ipairs({ "server", "slot", "password", "hint_key", "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-                         "test_tools", "perf_log", "perf_no_bp_hooks", "wall_skin", "wall_tiling", "wall_scroll", "wall_radius", "wall_fade", "map_cpp", "map_chart", "map_icons", "map_regions", "map_style", "servers" }) do
+    if not f then
+        log("could not write config.txt")
+        return
+    end
+    for _, k in ipairs(CONFIG_KEYS) do
         if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
     end
     f:close()
@@ -143,10 +213,25 @@ local ap = {
     forgiven = 0,         -- own faints forgiven since a death was last sent (Death Link amnesty; in the save file)
     visited = {},         -- area -> true: open areas the player has stood in (the map's open stamps; in the save file)
     goalSent = false,
+    goalShown = false,    -- the goal's banner and notice have been shown (once per seed; in the save file)
     world = nil,          -- the world save this seed is played in (its folder name), kept in the save file
+    slotName = nil,       -- the slot whose progress is in memory, set with the seed on connecting (names the save)
+    beyond = {},          -- area -> true: beyond the seed's goal (slot data beyond_goal_areas)
+    beyondOpen = false,   -- those areas are open from the start (options.beyond_goal: open), else sealed for good
 }
 WALLS.visited = ap.visited                -- (the same table: the map reads it)
 
+-- The save file holds one "kind=value" line each, written in this order (loadSave hands each line to its owner):
+--   given=12                  the last item index whose one-off effect was applied (items are numbered from 0)
+--   world=<folder>            the world save this seed is played in (checkWorld)
+--   deaths=1                  own faints forgiven since a death was last sent (Death Link amnesty)
+--   goal=shown                the goal's banner and notice have been shown
+--   visited=Area|Area         open areas the player has stood in (the map's open stamps)
+--   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
+--   mail=id:n,... and mailview=0|1           mailbox.lua: the mailbox's items; whether a chest view was open
+--   crates=kind,... and cratebag=id:n,...    crates.lua: unopened crates; crate gear the bag refused
+--   syncbase=Field:value,...  sync.lua: the world's own rates from before the run style changed them
+--   end                       the last line: the file was written whole
 -- Named after the slot whose progress is in memory (set with the seed on connecting), not cfg.slot: the title menu
 -- changes that before the server has said yes, and a refused slot must not get this one's progress.
 local function saveFile()
@@ -180,16 +265,24 @@ local function loadSave()
         local w = line:match("^world=(.+)$")
         local d = line:match("^deaths=(%d+)")
         local v = line:match("^visited=(.*)$")
-        if line == "goal=shown" then ap.goalShown = true
-        elseif n then ap.given = tonumber(n)
-        elseif w then ap.world = w
-        elseif d then ap.forgiven = tonumber(d)
-        elseif v then for area in v:gmatch("[^|]+") do ap.visited[area] = true end
-        elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) then MAIL.load(line) end
+        if line == "goal=shown" then
+            ap.goalShown = true
+        elseif n then
+            ap.given = tonumber(n)
+        elseif w then
+            ap.world = w
+        elseif d then
+            ap.forgiven = tonumber(d)
+        elseif v then
+            for area in v:gmatch("[^|]+") do ap.visited[area] = true end
+        elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) then
+            MAIL.load(line)
+        end
     end
     local kinds, items = MAIL.count()
-    log("save " .. path .. ": items applied up to index " .. ap.given .. "; " .. CRATES.count() .. " crate(s); mailbox " .. items .. " item(s) of " .. kinds
-        .. " kind(s); " .. #TRAPS.queue .. " trap(s) waiting; " .. ap.forgiven .. " faint(s) forgiven; world " .. tostring(ap.world))
+    log("save " .. path .. ": items applied up to index " .. ap.given .. "; " .. CRATES.count() .. " crate(s); mailbox "
+        .. items .. " item(s) of " .. kinds .. " kind(s); " .. #TRAPS.queue .. " trap(s) waiting; " .. ap.forgiven
+        .. " faint(s) forgiven; world " .. tostring(ap.world))
 end
 -- Written only when its text changed (it was rewritten every 7th update, 2.1 s, even when nothing had changed: an
 -- estimated 0.2-2 ms each time for creating, writing and closing the file; more with antivirus; unmeasured). The text
@@ -203,8 +296,15 @@ local function writeSave(always)
     local been = {}
     for area in pairs(ap.visited) do been[#been + 1] = area end
     table.sort(been)
-    local text = "given=" .. ap.given .. "\n" .. (ap.world and ("world=" .. ap.world .. "\n") or "")
-        .. "deaths=" .. ap.forgiven .. "\n" .. (ap.goalShown and "goal=shown\n" or "") .. (#been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "") .. TRAPS.serialize() .. MAIL.serialize() .. CRATES.serialize() .. SYNC.serialize() .. "end\n"
+    local text = table.concat({
+        "given=" .. ap.given .. "\n",
+        ap.world and ("world=" .. ap.world .. "\n") or "",
+        "deaths=" .. ap.forgiven .. "\n",
+        ap.goalShown and "goal=shown\n" or "",
+        #been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "",
+        TRAPS.serialize(), MAIL.serialize(), CRATES.serialize(), SYNC.serialize(),
+        "end\n",
+    })
     if not always and lastSave == path .. "\n" .. text then return end
     P.start("save")
     local f = io.open(path .. ".tmp", "w")
@@ -369,7 +469,7 @@ local function giveOneOff(ps, id, index)
     if not it then return true end
     if it.name == "Palworld Crate" then
         local weights = {}
-        for _, k in ipairs(CRATES.KINDS) do weights[k] = tonumber(AP_SlotData("options." .. CRATES.WEIGHT_KEYS[k])) end
+        for _, k in ipairs(CRATES.KINDS) do weights[k] = slotNumber("options." .. CRATES.WEIGHT_KEYS[k]) end
         local kind = CRATES.receive(ap.seed, index, weights)
         notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
         return true
@@ -492,7 +592,7 @@ local function applyItems(ps)
         if it and it.kind == "tech" then giveTechGift(it) end
         if it and it.kind == "trap" then TRAPS.add(it.name, i) end      -- queued: traps.lua paces and fires them
         if it and it.kind == "relic" then
-            local need = tonumber(AP_SlotData("relics_needed"))
+            local need = slotNumber("relics_needed")
             notify("Palpagos Relic " .. relicCount(i) .. (need and ("/" .. need) or "") .. " found!")
         end
         ap.given = i
@@ -506,15 +606,16 @@ local GOALS = { ["0"] = "towers", ["1"] = "relic_hunt", ["2"] = "paldeck", ["3"]
 local function goalReached(found)
     local goal = GOALS[AP_SlotData("options.goal")] or "towers"
     if goal == "relic_hunt" then
-        local have, need = relicCount(), tonumber(AP_SlotData("relics_needed")) or 999
+        local have, need = relicCount(), slotNumber("relics_needed", 999)
         return have >= need and (have .. " Palpagos Relics found") or nil
     elseif goal == "paldeck" then
-        local need = tonumber(AP_SlotData("options.paldeck_count")) or 999
+        local need = slotNumber("options.paldeck_count", 999)
         return found.pals >= need and (found.pals .. " Pals registered") or nil
     elseif goal == "world_tree" then
         return found.beaten.WorldTreeBoss and "the World Tree's boss beaten" or nil
     end
-    return found.towers >= (tonumber(AP_SlotData("options.tower_count")) or 99) and (found.towers .. " tower(s) beaten") or nil
+    local need = slotNumber("options.tower_count", 99)
+    return found.towers >= need and (found.towers .. " tower(s) beaten") or nil
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -537,8 +638,7 @@ end
 -- locations this seed doesn't have (options turned off), so the mod doesn't need to know which are in play.
 -- The goal waits for the player to leave the boss's arena (a stage, as for the Teleport Trap): the user, 2026-11-08,
 -- beat the tower goal and the release flooded chat mid-arena, the goal line lost in it, before the game took them out
--- of the tower. Sent once a check finds them out of any stage, or GOAL_WAIT_TICKS after (never stuck); with the banner.
-local GOAL_WAIT_TICKS = 400              -- 2 minutes of 300 ms updates
+-- of the tower. Sent once a check finds them out of any stage, or WAIT.goal after (never stuck); with the banner.
 local goalWait = nil                     -- { done = what, since = tick }
 local function pollRecords(ps, tick)
     local okp, found = pcall(R.progress, ps, D, os.time())
@@ -554,7 +654,7 @@ local function pollRecords(ps, tick)
     if not goalWait then return end
     local okS, inStage = pcall(function() return ps:IsInStage() end)
     local out = not (okS and inStage)                  -- (not readable: no waiting, as before)
-    if not (out or tick - goalWait.since >= GOAL_WAIT_TICKS) then return end
+    if not (out or tick - goalWait.since >= WAIT.goal) then return end
     ap.goalSent, done = true, goalWait.done
     goalWait = nil
     AP_Goal()                                          -- (sent again each session: the server takes it once)
@@ -996,60 +1096,69 @@ log(okr and "hooked researched checks" or ("could not hook researched checks: " 
 
 ------------------------------------------------------------------------------------------------------------------------
 local tick = 0
+local function isPhase(phase) return tick % CYCLE == phase end
 local preloaded = false
 local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
                 key = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper() }
 local wallsLogged = false
 local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil, pending = nil, route = 1 }
-local DEATH_LATE = 20         -- ticks (6 s): a linked death older than this (received at the title, or while loading) is dropped
 local lockedTicks = 0
 local wallsWorld, worldTicks = nil, 0
-local SETTLE = 17
 -- Notices that would come while the loading screen is still up (Speed Boost's, 2026-11-07 test: sent 2 s after the world
 -- loaded, before the player could see it; they found it later in chat): held until the player's character has moved
--- MOVED_CM from where it first stood in this world, or LATER_TICKS have passed (~1 min), then shown. Dropped if the world
+-- MOVED_CM from where it first stood in this world, or WAIT.heldNotice has passed, then shown. Dropped if the world
 -- changes first.
-local later = { list = {}, world = nil, from = nil }
-local MOVED_CM, LATER_TICKS = 300, 200
+local heldNotices = { list = {}, world = nil, from = nil }
+local MOVED_CM = 300
 local function noticeLater(msg)
-    if later.world ~= wallsWorld then later.list, later.world, later.from = {}, wallsWorld, nil end
-    later.list[#later.list + 1] = msg
+    local held = heldNotices
+    if held.world ~= wallsWorld then held.list, held.world, held.from = {}, wallsWorld, nil end
+    held.list[#held.list + 1] = msg
 end
 local function showLater(pawn)
-    if #later.list == 0 then return end
-    if later.world ~= wallsWorld then later.list, later.from = {}, nil; return end
+    local held = heldNotices
+    if #held.list == 0 then return end
+    if held.world ~= wallsWorld then
+        held.list, held.from = {}, nil
+        return
+    end
     local ok, at = pcall(function() return pawn:K2_GetActorLocation() end)
     local moved = false
     if ok and at and at.X then
-        if not later.from then later.from = { X = at.X, Y = at.Y } end
-        local dx, dy = at.X - later.from.X, at.Y - later.from.Y
+        if not held.from then held.from = { X = at.X, Y = at.Y } end
+        local dx, dy = at.X - held.from.X, at.Y - held.from.Y
         moved = dx * dx + dy * dy >= MOVED_CM * MOVED_CM
     end
-    if moved or worldTicks >= SETTLE + LATER_TICKS then
-        for _, msg in ipairs(later.list) do notify(msg) end
-        log("held notice(s) shown (" .. (moved and "the player moved" or "a minute in the world") .. "): " .. #later.list)
-        later.list, later.from = {}, nil
+    if moved or worldTicks >= WAIT.settle + WAIT.heldNotice then
+        for _, msg in ipairs(held.list) do notify(msg) end
+        local why = moved and "the player moved" or "a minute in the world"
+        log("held notice(s) shown (" .. why .. "): " .. #held.list)
+        held.list, held.from = {}, nil
     end
 end
 -- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
 -- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
 local areaLocks = false
 
--- Archipelago events (see cppmod/APConnector/src/ap_bridge.hpp for the line format).
+-- Server events: one line each from AP_Poll, fields separated by tabs. The kinds and their fields, in order, are
+-- defined in cppmod/APConnector/src/ap_bridge.hpp (take_events); each handler below takes them by name, in that order.
 local function split(line)
     local f = {}
     for part in (line .. "\t"):gmatch("([^\t]*)\t") do f[#f + 1] = part end
     return f
 end
 
-local function receive(f)
-    local index, id, player, flags = tonumber(f[2]), tonumber(f[3]), tonumber(f[5]), tonumber(f[6])
-    local name, from = f[7], f[8]
+-- item <index> <item id> <location id> <player slot> <flags> <item name> <player name>
+local function onItem(indexText, itemText, _locationText, playerText, _flagsText, name, from)
+    local index, id, player = tonumber(indexText), tonumber(itemText), tonumber(playerText)
     if ap.items[index] == id then return end
     ap.items[index] = id
     techsVersion = techsVersion + 1
     local it = D.items[id]
-    if not it then log("unknown item " .. id .. " (" .. tostring(name) .. ")"); return end
+    if not it then
+        log("unknown item " .. id .. " (" .. tostring(name) .. ")")
+        return
+    end
     if it.kind == "tech" then
         ap.techs[it.tech] = true
     elseif it.kind == "progressive" then
@@ -1065,6 +1174,41 @@ local function receive(f)
     end
     if index > ap.given then
         notify("Received " .. name .. (player ~= ap.me and (" from " .. from) or ""))
+    end
+end
+
+-- scout <location id> <item id> <player slot> <flags> <item name> <player name> <game>
+local function onScout(locationText, itemText, playerText, flagsText, itemName, playerName, game)
+    ap.scouted[tonumber(locationText)] = { id = tonumber(itemText), item = itemName, player = playerName, game = game,
+                                           flags = tonumber(flagsText) or 0, own = tonumber(playerText) == ap.me }
+end
+
+-- checked <location id>: checked elsewhere (co-op, !collect)
+local function onChecked(locationText)
+    ap.checked[tonumber(locationText)] = true
+end
+
+-- bounce <tags> <json>: a Death Link from another player faints this one at the next items phase (deathLink).
+local function onBounce(tags, json)
+    if not (death.on and (tags or ""):find("DeathLink", 1, true)) then return end
+    local data = json or ""
+    local source = jsonField(data, "source") or "someone"
+    local cause = jsonField(data, "cause")
+    if source == cfg.slot then return end
+    death.incoming, death.at = cause and cause ~= "" and cause or (source .. " died."), tick
+end
+
+-- message <text> <type>: chat; hints are shown, and a hint for one of our passes is kept for its wall's notice.
+local function onMessage(textField, kindOf)
+    local text = tostring(textField)
+    log("AP: " .. text)
+    if kindOf == "Hint" then
+        notify(text)
+        -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
+        local who, pass = text:match("^%[Hint%]: (.-)'s %a+ Pass: (.-) is at ")       -- Area or Region Pass
+        if pass and who == (ap.slotName or cfg.slot) then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
+    elseif kindOf == "CommandResult" and hints.asked and tick - hints.asked < WAIT.hintAnswer then
+        notify(text)                               -- the server's answer to a hint the player asked for
     end
 end
 
@@ -1089,104 +1233,94 @@ local function resetSeed()
     log("a different seed or slot: progress of the last one forgotten")
 end
 
-local function onEvent(line)
-    local f = split(line)
-    local kind = f[1]
-    if kind == "status" then
-        log("status: " .. table.concat(f, " ", 2))
-        local was = ap.status
-        if f[2] == "connected" then
-            ap.status = "connected"
-            ap.connectedTick = tick
-            ap.me = tonumber(AP_SlotData("slot"))
-            local seed = AP_SlotData("seed")
-            if seed ~= "" and (seed ~= ap.seed or cfg.slot ~= ap.slotName) then
-                if ap.seed then resetSeed() end            -- another seed or slot: nothing of the last one carries over
-                ap.seed, ap.slotName = seed, cfg.slot
-                loadSave()
-            end
-            local research = AP_SlotData("research_techs")
-            setResearch(research)
-            keepResearch(research)
-            local locs = {}
-            for loc in pairs(SLOT_TECH) do locs[#locs + 1] = tostring(loc) end
-            AP_Scout(table.concat(locs, ","))
-            ap.sent = {}
-            if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
-            local locks = AP_SlotData("options.area_locks")
-            areaLocks = locks == "1" or locks == "true"
-            -- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the
-            -- rename send options.area_size, with the same numbers; older seeds send neither. WALLS still names the
-            -- 75-area cut "regions".
-            local size = AP_SlotData("options.lock_size")
-            local useAreas                                  -- true: the 75 areas; false: the 15 regions
-            if size ~= nil and size ~= "" then
-                useAreas = size == "1" or size == "areas"
-            else                                            -- a seed made before the rename
-                local old = AP_SlotData("options.area_size")
-                useAreas = old == "1" or old == "regions"
-            end
-            WALLS.setLayout(useAreas and "regions" or "areas")
-            -- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes
-            -- are not in this seed. Locked, their walls stay up for good; open, they are open from the start.
-            ap.beyond = {}
-            local nBeyond = 0
-            for area in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do ap.beyond[area], nBeyond = true, nBeyond + 1 end
-            local mode = AP_SlotData("options.beyond_goal")
-            ap.beyondOpen = mode == "2" or mode == "open"
-            if ap.beyondOpen then for area in pairs(ap.beyond) do ap.passes[area] = true end end
-            WALLS.setBeyond(ap.beyondOpen and {} or ap.beyond)    -- sealed walls and stamps (open ones come down)
-            if nBeyond > 0 then
-                log("areas beyond the goal: " .. nBeyond .. (ap.beyondOpen and ", open from the start" or ", sealed for good"))
-            end
-            local dl = AP_SlotData("options.death_link")
-            death.on = (dl == "1" or dl == "true") and AP_SetTags ~= nil
-            if death.on then
-                AP_SetTags("AP,DeathLink")
-                log("Death Link on: amnesty " .. (tonumber(AP_SlotData("options.death_link_amnesty")) or 0) .. ", "
-                    .. ap.forgiven .. " faint(s) forgiven so far")
-            end
-            local style = SYNC.style(AP_SlotData)
-            if style ~= 0 then log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)") end
-            if SYNC.boost(AP_SlotData) then log("speed boost: on (this seed changes the world's EXP, work speed and gathering)") end
-            local chance = tonumber(AP_SlotData("options.trap_chance")) or 0
-            if chance > 0 then log("traps: " .. chance .. "% of filler items are traps in this seed") end
-        elseif f[2] == "connecting" then
-            if ap.status ~= "connected" then ap.status = "connecting" end
-        elseif f[2] == "refused" then
-            ap.status = "refused"
-            notify("Archipelago refused the connection: " .. tostring(f[3]))
-        elseif f[2] == "disconnected" then
-            ap.status = "disconnected"
-            ap.ready = false
-        end
-    elseif kind == "item" then
-        receive(f)
-    elseif kind == "scout" then
-        local loc, player = tonumber(f[2]), tonumber(f[4])
-        ap.scouted[loc] = { id = tonumber(f[3]), item = f[6], player = f[7], game = f[8], flags = tonumber(f[5]) or 0,
-                            own = player == ap.me }
-    elseif kind == "checked" then
-        ap.checked[tonumber(f[2])] = true
-    elseif kind == "bounce" then
-        if death.on and (f[2] or ""):find("DeathLink", 1, true) then
-            local data = f[3] or ""
-            local source = data:match('"source"%s*:%s*"(.-)"') or "someone"
-            local cause = data:match('"cause"%s*:%s*"(.-)"')
-            if source ~= cfg.slot then death.incoming, death.at = cause and cause ~= "" and cause or (source .. " died."), tick end
-        end
-    elseif kind == "message" then
-        local text, kindOf = tostring(f[2]), f[3]
-        log("AP: " .. text)
-        if kindOf == "Hint" then
-            notify(text)
-            -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
-            local who, pass = text:match("^%[Hint%]: (.-)'s %a+ Pass: (.-) is at ")       -- Area or Region Pass
-            if pass and who == (ap.slotName or cfg.slot) then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
-        elseif kindOf == "CommandResult" and hints.asked and tick - hints.asked < 50 then
-            notify(text)                               -- the server's answer to a hint the player asked for
-        end
+-- The seed's options that shape this session: area locks and their cut of the map, the areas beyond the goal, and
+-- Death Link; the run style and traps are logged.
+local function applySeedOptions()
+    areaLocks = slotFlag("options.area_locks")
+    -- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the rename
+    -- send options.area_size, with the same numbers; older seeds send neither. WALLS still names the 75-area cut
+    -- "regions".
+    local size = AP_SlotData("options.lock_size")
+    local useAreas                                  -- true: the 75 areas; false: the 15 regions
+    if size ~= nil and size ~= "" then
+        useAreas = size == "1" or size == "areas"
+    else                                            -- a seed made before the rename
+        local old = AP_SlotData("options.area_size")
+        useAreas = old == "1" or old == "regions"
     end
+    WALLS.setLayout(useAreas and "regions" or "areas")
+    -- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes are not
+    -- in this seed. Locked, their walls stay up for good; open, they are open from the start.
+    ap.beyond = {}
+    local nBeyond = 0
+    for area in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do ap.beyond[area], nBeyond = true, nBeyond + 1 end
+    local mode = AP_SlotData("options.beyond_goal")
+    ap.beyondOpen = mode == "2" or mode == "open"
+    if ap.beyondOpen then for area in pairs(ap.beyond) do ap.passes[area] = true end end
+    WALLS.setBeyond(ap.beyondOpen and {} or ap.beyond)    -- sealed walls and stamps (open ones come down)
+    if nBeyond > 0 then
+        log("areas beyond the goal: " .. nBeyond .. (ap.beyondOpen and ", open from the start" or ", sealed for good"))
+    end
+    death.on = slotFlag("options.death_link") and AP_SetTags ~= nil
+    if death.on then
+        AP_SetTags("AP,DeathLink")
+        log("Death Link on: amnesty " .. slotNumber("options.death_link_amnesty", 0) .. ", "
+            .. ap.forgiven .. " faint(s) forgiven so far")
+    end
+    local style = SYNC.style(AP_SlotData)
+    if style ~= 0 then log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)") end
+    if SYNC.boost(AP_SlotData) then
+        log("speed boost: on (this seed changes the world's EXP, work speed and gathering)")
+    end
+    local chance = slotNumber("options.trap_chance", 0)
+    if chance > 0 then log("traps: " .. chance .. "% of filler items are traps in this seed") end
+end
+
+-- Connected (again): the slot, the seed and its save, the techs left as research, what each shop slot holds, and the
+-- seed's options. `was` is the status before.
+local function onConnected(was)
+    ap.status = "connected"
+    ap.connectedTick = tick
+    ap.me = tonumber(AP_SlotData("slot"))
+    local seed = AP_SlotData("seed")
+    if seed ~= "" and (seed ~= ap.seed or cfg.slot ~= ap.slotName) then
+        if ap.seed then resetSeed() end            -- another seed or slot: nothing of the last one carries over
+        ap.seed, ap.slotName = seed, cfg.slot
+        loadSave()
+    end
+    local research = AP_SlotData("research_techs")
+    setResearch(research)
+    keepResearch(research)
+    local locs = {}
+    for loc in pairs(SLOT_TECH) do locs[#locs + 1] = tostring(loc) end
+    AP_Scout(table.concat(locs, ","))
+    ap.sent = {}
+    if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
+    applySeedOptions()
+end
+
+-- status <state> [detail]: connecting, socket, connected, refused, disconnected, or error (only logged)
+local function onStatus(state, detail)
+    log("status: " .. (state or "") .. (detail and (" " .. detail) or ""))
+    if state == "connected" then
+        onConnected(ap.status)
+    elseif state == "connecting" then
+        if ap.status ~= "connected" then ap.status = "connecting" end
+    elseif state == "refused" then
+        ap.status = "refused"
+        notify("Archipelago refused the connection: " .. tostring(detail))
+    elseif state == "disconnected" then
+        ap.status = "disconnected"
+        ap.ready = false
+    end
+end
+
+local EVENT_HANDLERS = { status = onStatus, item = onItem, scout = onScout, checked = onChecked, bounce = onBounce,
+                         message = onMessage }
+local function onEvent(line)
+    local fields = split(line)
+    local handler = EVENT_HANDLERS[fields[1]]
+    if handler then handler(table.unpack(fields, 2)) end
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -1288,7 +1422,7 @@ local function wallNotice(area)
 end
 local function askHint()
     local area = hints.offer
-    if not area or tick - hints.offeredAt > 200 then return end            -- an offer lasts a minute
+    if not area or tick - hints.offeredAt > WAIT.hintOffer then return end
     local points, cost = (AP_HintPoints() or ""):match("^(%d+),(%d+)$")
     if points and tonumber(points) < tonumber(cost) then
         notify("Not enough hint points: you have " .. points .. ", a hint costs " .. cost .. ".")
@@ -1327,7 +1461,7 @@ local function deathPenalty(ps)                       -- the world's EPalOptionW
     return ok and v or nil
 end
 local function faint(route, ps)
-    local pc = FindFirstOf("PalPlayerController")
+    local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")   -- this update's controller (playerContext)
     if route == 1 then
         local pawn = pc:K2_GetPawn()
         pawn.DamageReactionComponent:SlipDamage(999999, true, 5, true)
@@ -1379,7 +1513,7 @@ local function deathLink(ps)
     if death.incoming then
         local cause = death.incoming
         death.incoming = nil
-        if tick - death.at > DEATH_LATE then
+        if tick - death.at > WAIT.deathLate then
             log("death link received while no player was in the world (" .. (tick - death.at) .. " updates ago): not applied: " .. cause)
         elseif not dead then
             death.caused = tick
@@ -1390,12 +1524,12 @@ local function deathLink(ps)
         end
     end
     if dead and not death.wasDead then
-        if death.caused and tick - death.caused < 50 then
+        if death.caused and tick - death.caused < WAIT.ownDeath then
             log("death link: this death came from the link, not sent back")
         else
             -- Amnesty (slot data options.death_link_amnesty): that many of your own faints are forgiven before one is
             -- sent. The count is kept in the seed's save file, so quitting does not reset it.
-            local amnesty = tonumber(AP_SlotData("options.death_link_amnesty")) or 0
+            local amnesty = slotNumber("options.death_link_amnesty", 0)
             if ap.forgiven < amnesty then
                 ap.forgiven = ap.forgiven + 1
                 writeSave()
@@ -1407,8 +1541,8 @@ local function deathLink(ps)
                 ap.forgiven = 0
                 writeSave()
                 local cause = cfg.slot .. " fainted in Palworld."
-                AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), (cfg.slot:gsub('"', "")),
-                    (cause:gsub('"', ""))), "DeathLink")
+                AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), jsonText(cfg.slot),
+                    jsonText(cause)), "DeathLink")
                 notify("Death Link: your death was sent to the multiworld.")
                 log("death link sent")
             end
@@ -1428,7 +1562,7 @@ local function scanTechs(td)
         return
     end
     if not report then
-        if techScan.tries == 40 then log("tech scan: gave up: " .. tostring(why)) end
+        if techScan.tries == TECH_SCAN_TRIES then log("tech scan: gave up: " .. tostring(why)) end
         return
     end
     techScan.report = report
@@ -1460,21 +1594,29 @@ local function sendRemovedSlots()
     end
 end
 
-local function update(ctx)
-    tick = tick + 1
-    SOON.run()
+-- The parts of one update, in the order update() runs them.
+
+-- The modules that keep their own timers: the test tools' probes, the hint pop-up, the debuff icons.
+local function stepSmallModules()
     local oktt, errtt = pcall(TEST_TOOLS.update)
     if not oktt then onceErr("testtools", errtt, "test tools error: " .. tostring(errtt)) end
     pcall(POPUP.tick, tick)
     local okdb, errdb = pcall(DEBUFFS.tick, tick)
     if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end
+end
+
+-- Everything the server sent since the last update, one event line at a time (onEvent).
+local function readEvents()
     P.start("poll")
     for line in AP_Poll():gmatch("[^\n]+") do
         local ok, err = pcall(onEvent, line)
         if not ok then log("event error: " .. tostring(err) .. " in " .. line) end
     end
     P.stop("poll")
-    registerLazyHooks()
+end
+
+-- The title and Esc menus, the mailbox and the crate window.
+local function updateWindows(ctx)
     P.start("menu")
     local okm, errm = pcall(MENU.update, ctx)
     P.stop("menu")
@@ -1485,159 +1627,206 @@ local function update(ctx)
     if not okw then once("cwin" .. tostring(errw), "crate window error: " .. tostring(errw)) end
     P.stop("mail")
     if not okx then onceErr("mail", errx, "mailbox error: " .. tostring(errx)) end
-    -- The first batch of items arrives just after the connection; wait a moment before locking anything.
-    if ap.status == "connected" and not ap.ready and tick - ap.connectedTick >= 5 then
-        ap.ready = true
-        ap.shown = true
-        local n = 0
-        for _ in pairs(ap.items) do n = n + 1 end
-        log("ready: " .. n .. " item(s) received, slot " .. tostring(ap.me))
-    end
-    -- Load the menus' classes up front, so their hooks are in place before the Technology menu first opens (hooked
-    -- mid-draw, a bought card could flip to researched and stick on the game's white unlock flash).
-    if ap.ready and not preloaded then
-        preloaded = true
-        ExecuteInGameThread(function()
-            for _, h in ipairs(lazyHooks) do
-                if not h.done then
-                    local ok, err = pcall(LoadAsset, (h.class:gsub("_C$", "")))
-                    if not ok then once("preload" .. h.class, "could not preload " .. h.class .. ": " .. tostring(err)) end
-                end
+end
+
+-- Ready once the first batch of items is in, a moment after connecting: only then is anything locked.
+local function markReady()
+    if ap.status ~= "connected" or ap.ready or tick - ap.connectedTick < WAIT.firstItems then return end
+    ap.ready = true
+    ap.shown = true
+    local n = 0
+    for _ in pairs(ap.items) do n = n + 1 end
+    log("ready: " .. n .. " item(s) received, slot " .. tostring(ap.me))
+end
+
+-- Load the menus' classes up front, once ready, so their hooks are in place before the Technology menu first opens
+-- (hooked mid-draw, a bought card could flip to researched and stick on the game's white unlock flash).
+local function preloadMenuClasses()
+    if not ap.ready or preloaded then return end
+    preloaded = true
+    ExecuteInGameThread(function()
+        for _, h in ipairs(lazyHooks) do
+            if not h.done then
+                local ok, err = pcall(LoadAsset, (h.class:gsub("_C$", "")))
+                if not ok then once("preload" .. h.class, "could not preload " .. h.class .. ": " .. tostring(err)) end
             end
-        end)
+        end
+    end)
+end
+
+-- Other mods' techs, once per cycle in the tech-scan phase until the player's tech data is there.
+local function scanOtherModsTechs()
+    if techScan.report or techScan.tries >= TECH_SCAN_TRIES or not isPhase(PHASE.techScan) then return end
+    P.start("scan")
+    local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
+    if td and safe(function() return td:IsValid() end) then scanTechs(td) end
+    P.stop("scan")
+end
+
+-- A new world (a new pawn): everything tied to the old one is looked at again.
+local function noteWorldChange(world)
+    wallsWorld, worldTicks = world, 0
+    seedWorld = nil                                -- looked at again (records phase) before any wall goes up
+    POPUP.forget()                                 -- (the pop-up or goal banner went with the old world's HUD)
+    WALLS.reset()
+    techsSeen = nil                                -- another world's tech list: compare it in full
+end
+
+-- Walking up to a wall: chat names the pass it needs and where it is if a hint said so, or offers to buy that hint
+-- with the hint key (once per area every WAIT.wallNotice).
+local function noticeLockedWall(pawn)
+    local okn, area = pcall(function()
+        local loc = pawn:K2_GetActorLocation()
+        return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
+    end)
+    if not (okn and area) or (hints.shown[area] or -1e9) + WAIT.wallNotice > tick then return end
+    hints.shown[area] = tick
+    local line, info = wallNotice(area)
+    notify(line)
+    local okp, errp = pcall(POPUP.show, info, tick)
+    if not okp then log("hint pop-up error: " .. tostring(errp)) end
+end
+
+-- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open stamp).
+local function rememberVisited(pawn)
+    local okv, here = pcall(function()
+        local loc = pawn:K2_GetActorLocation()
+        return WALLS.areaAt(loc.X, loc.Y)
+    end)
+    if not (okv and here) or ap.visited[here] or here == "Open sea" then return end
+    if here == WALLS.start or ap.passes[here] then
+        ap.visited[here] = true
+        log("visited " .. here)
     end
+end
+
+-- A player inside a locked area (loaded there, or past a wall) for SENT_HOME_AFTER looks in a row goes back to the
+-- starting area.
+local function sendHomeIfLocked(pawn)
+    local okl, where = pcall(function()
+        local loc = pawn:K2_GetActorLocation()
+        return WALLS.lockedAround(loc.X, loc.Y, ap.passes)
+    end)
+    lockedTicks = (okl and where) and lockedTicks + 1 or 0
+    if lockedTicks < SENT_HOME_AFTER then return end
+    lockedTicks = 0
+    local h = WALLS.home
+    local okt, errt = pcall(function()
+        pawn:K2_TeleportTo({ X = h[1], Y = h[2], Z = h[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
+    end)
+    log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
+    notify(tostring(where) .. ((ap.beyond and ap.beyond[where]) and " is beyond this seed's goal."
+        or " is locked until its pass arrives.") .. " Back to " .. WALLS.start .. ".")
+end
+
+-- Area locks: walls on the borders of areas whose pass has not arrived (only in a seed with area locks on), and the
+-- map. Nothing happens for WAIT.settle after a world loads: spawning into a world still loading can crash the game.
+local function updateAreaLocks()
+    local pawn = safe(function() local ps = playerState(); return ps and ps:GetPawn() end)
+    -- A new world brings a new pawn, so the pawn's address names the world.
+    local world = pawn and pawn:IsValid() and safe(function() return tostring(pawn:GetAddress()) end)
+    if world ~= wallsWorld then noteWorldChange(world) end
+    worldTicks = worldTicks + 1
+    if not (world and worldTicks >= WAIT.settle and seedWorld) then return end
+    local on = areaLocks
+    -- Ctrl+7 (perf test tools) can hold the walls in a test state: nothing is raised, lowered or checked then.
+    local held = P.walls ~= "full"
+    P.start("walls")
+    if not held then
+        local ok, err = pcall(WALLS.update, on, ap.passes, pawn)
+        if not ok then onceErr("walls", err, "walls error: " .. tostring(err)) end
+    end
+    P.stop("walls")
+    P.start("map")
+    local ok, err = pcall(WALLS.updateMap, on, ap.passes, pawn)
+    P.stop("map")
+    if not ok then onceErr("map", err, "map error: " .. tostring(err)) end
+    local up, all = WALLS.count()
+    if up > 0 and not wallsLogged then
+        wallsLogged = true
+        log("area locks: raising walls (" .. all .. " border pieces)")
+    end
+    if not on then return end
+    if isPhase(PHASE.wallNotice) then noticeLockedWall(pawn) end
+    if isPhase(PHASE.areas) then
+        rememberVisited(pawn)
+        -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
+        if not held then sendHomeIfLocked(pawn) end
+    end
+end
+
+-- The records phase: trap timers, the seed's-world check, the game's records (checks and the goal).
+local function phaseRecords()
+    P.start("e7")
+    local ps = playerState()
+    local pawn = ps and safe(function() return ps:GetPawn() end)
+    -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
+    local okk, errk = pcall(TRAPS.tick, { tick = tick, pawn = pawn })
+    if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
+    if ps and ap.ready then seedWorld = checkWorld() end
+    if ps and ap.ready and seedWorld then
+        P.start("rec")
+        pollRecords(ps, tick)
+        P.stop("rec")
+    end
+    P.stop("e7")
+    if ps and ap.ready then P.records(ps) end
+end
+
+-- The items phase, in the seed's world only: techs and items; once the world has settled, the run style's sync and the
+-- held notices; Death Link; traps.
+local function phaseItems()
+    local ps = playerState()
+    if not ps then return end
+    P.start("e7")
+    P.start("techs")
+    local changed = syncTechs(ps)
+    P.stop("techs")
+    if changed then refreshTree() end
+    applyItems(ps)
+    if wallsWorld and worldTicks >= WAIT.settle then
+        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld, noticeLater)
+        if not oks then
+            onceErr("sync", news, "sync error: " .. tostring(news))
+        elseif news then
+            writeSave()
+        end
+        local okl, errl = pcall(showLater, safe(function() return ps:GetPawn() end))
+        if not okl then onceErr("later", errl, "notice error: " .. tostring(errl)) end
+    end
+    local okdl, errdl = pcall(deathLink, ps)
+    if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
+    -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.
+    local okt, errt = pcall(function()
+        local pawn = safe(function() return ps:GetPawn() end)
+        local okd, dead = pcall(function() return ps:IsPlayerDead() end)
+        TRAPS.update({ tick = tick, ps = ps, pawn = pawn, settled = wallsWorld ~= nil and worldTicks >= WAIT.settle,
+                       dead = not okd or dead, busy = MAIL.busy() })
+    end)
+    if not okt then onceErr("traps", errt, "traps error: " .. tostring(errt)) end
+    P.stop("e7")
+end
+
+-- One core update (coreTick, every UPDATE_MS on the game thread): what runs every time, then this update's phase.
+local function update(ctx)
+    tick = tick + 1
+    SOON.run()
+    stepSmallModules()
+    readEvents()
+    registerLazyHooks()
+    updateWindows(ctx)
+    markReady()
+    preloadMenuClasses()
     P.start("cards")
     refreshCards()
     P.stop("cards")
-    if not techScan.report and techScan.tries < 40 and tick % 7 == 1 then
-        P.start("scan")
-        local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
-        if td and safe(function() return td:IsValid() end) then scanTechs(td) end
-        P.stop("scan")
-    end
+    scanOtherModsTechs()
     if ap.ready and techScan.report and not techScan.sent then sendRemovedSlots() end
-    -- Area locks: walls on the borders of areas whose pass has not arrived (only in a seed with area locks on). After a
-    -- world loads, nothing happens for SETTLE ticks (5 s): spawning into a world still loading can crash the game.
-    if ap.ready then
-        local pawn = safe(function() local ps = playerState(); return ps and ps:GetPawn() end)
-        local world = pawn and pawn:IsValid() and safe(function() return tostring(pawn:GetAddress()) end)   -- new world, new pawn
-        if world ~= wallsWorld then
-            wallsWorld, worldTicks = world, 0
-            seedWorld = nil                            -- looked at again (every 7th update) before any wall goes up
-            POPUP.forget()                              -- (the pop-up or goal banner went with the old world's HUD)
-            WALLS.reset()
-            techsSeen = nil                              -- another world's tech list: compare it in full
-        end
-        worldTicks = worldTicks + 1
-        if world and worldTicks >= SETTLE and seedWorld then
-            local on = areaLocks
-            -- Ctrl+7 (perf test tools) can hold the walls in a test state: nothing is raised, lowered or checked then.
-            local held = P.walls ~= "full"
-            P.start("walls")
-            if not held then
-                local ok, err = pcall(WALLS.update, on, ap.passes, pawn)
-                if not ok then onceErr("walls", err, "walls error: " .. tostring(err)) end
-            end
-            P.stop("walls")
-            P.start("map")
-            local ok, err = pcall(WALLS.updateMap, on, ap.passes, pawn)
-            P.stop("map")
-            if not ok then onceErr("map", err, "map error: " .. tostring(err)) end
-            local up, all = WALLS.count()
-            if up > 0 and not wallsLogged then wallsLogged = true; log("area locks: raising walls (" .. all .. " border pieces)") end
-            -- Walking up to a wall: chat names the pass it needs and where it is if a hint said so, or offers to buy that
-            -- hint with the hint key (once per area every 2 minutes).
-            if on and tick % 7 == 5 then
-                local okn, area = pcall(function()
-                    local loc = pawn:K2_GetActorLocation()
-                    return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
-                end)
-                if okn and area and (hints.shown[area] or -1e9) + 400 <= tick then
-                    hints.shown[area] = tick
-                    local line, info = wallNotice(area)
-                    notify(line)
-                    local okp, errp = pcall(POPUP.show, info, tick)
-                    if not okp then log("hint pop-up error: " .. tostring(errp)) end
-                end
-            end
-            -- A player inside a locked area (loaded there, or past a wall) goes back to the starting area. Not while
-            -- Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
-            -- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open
-            -- stamp there; the user, 2026-11-07).
-            if on and tick % 7 == 3 then
-                local okv, here = pcall(function()
-                    local loc = pawn:K2_GetActorLocation()
-                    return WALLS.areaAt(loc.X, loc.Y)
-                end)
-                if okv and here and not ap.visited[here] and here ~= "Open sea" and (here == WALLS.start or ap.passes[here]) then
-                    ap.visited[here] = true
-                    log("visited " .. here)
-                end
-            end
-            if on and tick % 7 == 3 and not held then
-                local okl, where = pcall(function()
-                    local loc = pawn:K2_GetActorLocation()
-                    return WALLS.lockedAround(loc.X, loc.Y, ap.passes)
-                end)
-                lockedTicks = (okl and where) and lockedTicks + 1 or 0
-                if lockedTicks >= 2 then
-                    lockedTicks = 0
-                    local h = WALLS.home
-                    local okt, errt = pcall(function()
-                        pawn:K2_TeleportTo({ X = h[1], Y = h[2], Z = h[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
-                    end)
-                    log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
-                    notify(tostring(where) .. ((ap.beyond and ap.beyond[where]) and " is beyond this seed's goal."
-                        or " is locked until its pass arrives.") .. " Back to " .. WALLS.start .. ".")
-                end
-            end
-        end
-    end
-    -- The work of every 7th update, in two phases so no one frame carries all of it (6dd356e did it all in one: an
-    -- estimated 2-12 ms, unmeasured). First the traps' clock, the world check and the records; two updates later the
-    -- techs, items, Death Link and traps, in the seed's world only (as that check found it).
-    if tick % 7 == 0 then
-        P.start("e7")
-        local ps = playerState()
-        local pawn = ps and safe(function() return ps:GetPawn() end)
-        -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
-        local okk, errk = pcall(TRAPS.tick, { tick = tick, pawn = pawn })
-        if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
-        if ps and ap.ready then seedWorld = checkWorld() end
-        if ps and ap.ready and seedWorld then
-            P.start("rec")
-            pollRecords(ps, tick)
-            P.stop("rec")
-        end
-        P.stop("e7")
-        if ps and ap.ready then P.records(ps) end
-    elseif tick % 7 == 2 and ap.ready and seedWorld then
-        local ps = playerState()
-        if ps then
-            P.start("e7")
-            P.start("techs")
-            local changed = syncTechs(ps)
-            P.stop("techs")
-            if changed then refreshTree() end
-            applyItems(ps)
-            if wallsWorld and worldTicks >= SETTLE then
-                local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld, noticeLater)
-                if not oks then onceErr("sync", news, "sync error: " .. tostring(news)) elseif news then writeSave() end
-                local okl, errl = pcall(showLater, safe(function() return ps:GetPawn() end))
-                if not okl then onceErr("later", errl, "notice error: " .. tostring(errl)) end
-            end
-            local okdl, errdl = pcall(deathLink, ps)
-            if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
-            -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.
-            local okt, errt = pcall(function()
-                local pawn = safe(function() return ps:GetPawn() end)
-                local okd, dead = pcall(function() return ps:IsPlayerDead() end)
-                TRAPS.update({ tick = tick, ps = ps, pawn = pawn, settled = wallsWorld ~= nil and worldTicks >= SETTLE,
-                               dead = not okd or dead, busy = MAIL.busy() })
-            end)
-            if not okt then onceErr("traps", errt, "traps error: " .. tostring(errt)) end
-            P.stop("e7")
-        end
+    if ap.ready then updateAreaLocks() end
+    if isPhase(PHASE.records) then
+        phaseRecords()
+    elseif isPhase(PHASE.items) and ap.ready and seedWorld then
+        phaseItems()
     end
 end
 
@@ -1648,7 +1837,7 @@ local function oldLoad(ctx)
     P.start("legacy")
     FindFirstOf("PalPlayerController")                   -- the menu's own controller lookup
     if ctx.pawn then FindAllOf("WBP_TitleMenu_C") end    -- the title menu, looked for in a world too
-    if ap.ready and tick % 7 == 0 then FindAllOf("PalPlayerState") end     -- a second player-state walk
+    if ap.ready and isPhase(PHASE.records) then FindAllOf("PalPlayerState") end     -- a second player-state walk
     if MAIL.viewOpen() then                              -- the chest view's own player and window lookups
         FindFirstOf("PalPlayerController")
         FindAllOf("PalPlayerState")
@@ -1663,7 +1852,7 @@ local function oldLoad(ctx)
             pcall(relabel, card, key, true)
         end
     end
-    if ap.ready and tick % 7 == 2 then writeSave(true) end   -- the save written whether or not it changed
+    if ap.ready and isPhase(PHASE.items) then writeSave(true) end   -- the save written whether or not it changed
     P.stop("legacy")
 end
 
@@ -1700,6 +1889,7 @@ local function coreTick()
     inTick = false
     if not ok then onceErr("coreTick", err, "update error: " .. tostring(err)) end
 end
+-- Every UPDATE_MS (the number stays a literal: the harness reads it).
 LoopAsync(300, function()
     ExecuteInGameThread(coreTick)
     return false
