@@ -191,11 +191,17 @@ void ApBridge::bounce(const std::string& json_data, const std::string& tags_csv)
 {
     std::lock_guard lock(m_mutex);
     if (!m_client) return;
+    auto data = nlohmann::json::parse(json_data, nullptr, false);
+    if (data.is_discarded())                 // not JSON: say so instead of sending an empty bounce
+    {
+        push(join({"status", "error", "bounce not sent: its data is not JSON"}));
+        return;
+    }
     std::list<std::string> tags;
     std::stringstream ss(tags_csv);
     for (std::string t; std::getline(ss, t, ',');)
         if (!t.empty()) tags.push_back(t);
-    m_client->Bounce(nlohmann::json::parse(json_data, nullptr, false), {}, {}, tags);
+    m_client->Bounce(data, {}, {}, tags);
 }
 
 auto ApBridge::slot_data(const std::string& path) -> std::string

@@ -101,7 +101,7 @@ class PalworldWeb(WebWorld):
     option_groups = option_groups
     options_presets = options_presets
     tutorials = [Tutorial("Setup Guide", "Installing the Palworld mod and connecting it to Archipelago.", "English",
-                          "setup_en.md", "setup/en", ["JustEyeTee"])]
+                          "setup_en.md", "setup/en", ["JustEyeTea"])]
 
 
 class PalworldWorld(World):

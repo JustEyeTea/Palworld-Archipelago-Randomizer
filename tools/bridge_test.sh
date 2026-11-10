@@ -6,7 +6,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 deps=${DEPS:?set DEPS to a folder holding apclientpp, wswrap and ap-soeclient clones}
 ap=${AP_DIR:-$(cd .. && pwd)/archipelago-0.6.8}
-work=$(mktemp -d); trap 'kill $server 2>/dev/null || true; rm -rf "$work"' EXIT
+work=$(mktemp -d)
+installed="$ap/custom_worlds/palworld.apworld"
+# The test installs this repo's world; whatever was installed before is put back afterwards.
+[ -f "$installed" ] && cp "$installed" "$work/installed.bak"
+trap 'kill $server 2>/dev/null || true; [ -f "$work/installed.bak" ] && cp "$work/installed.bak" "$installed"; rm -rf "$work"' EXIT
 s=$deps/ap-soeclient/subprojects
 g++ -std=c++17 -O1 -DASIO_STANDALONE -DAP_NO_SCHEMA -I"$deps/apclientpp" -I"$deps/wswrap/include" \
   -I"$s/asio/include" -I"$s/websocketpp" -I"$s/json/include" -w \

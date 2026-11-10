@@ -1,6 +1,6 @@
 // The world map screen from C++ (see map_screen.hpp). WBP_Map_Body_C:Setup builds the screen: it makes the fog's
 // material (a dynamic instance of MI_UI_Menu_MapCloud on Image_MapMask, kept in MaskTextureMaterial, its TargetTexture
-// the player's explored mask) and shows the map's picture in Image_MapBody (2026-11-06 research, from the server pak).
+// the player's explored mask) and shows the map's picture in Image_MapBody (read from the server pak).
 // Lua's hooks on Blueprint functions run late (and touching widgets inside them crashed the client), so Lua set the
 // picture on its next update and the game's own showed first. Here a post-callback on the Blueprint VM runs inside the
 // same call, on the game thread, before the screen draws: the picture and the fog colour are set before the first frame.
@@ -11,15 +11,14 @@
 // Blueprint call passes through them, so each compares one pointer and returns. The Setup function exists only once
 // its class has loaded; an engine-tick callback (game thread, as EventViewer.cpp's) looks for it every 60 frames.
 //
-// A PROBE TOO: it logs the screen's functions in the order they run with the frame number, so a build knows the right
-// moment if Setup is not it. dev.16 (2026-11-07, first run in game): the class was found at world load, Setup ran (twice,
-// "script" route) in the frame the map first opened, just after OnInitialized, and nothing crashed; but Lua had not
-// switched this on yet, so it changed nothing. Still open: does Setup run again at a later opening, and does a change
-// made here show from the first frame?
+// A probe too: for the first openings in each world (LOG_BURSTS) it logs the screen's functions in the order they run,
+// with the frame number, so a log shows the order if Setup ever stops being the right moment (after a game update).
+// In game, Setup ran in the frame the map first opened, just after OnInitialized, and the map showed the mod's picture.
 #include "map_screen.hpp"
 #include "reflect.hpp"
 
 #include <atomic>
+#include <exception>
 #include <mutex>
 #include <sstream>
 #include <unordered_set>
@@ -33,8 +32,7 @@ namespace map_screen_unreal
 
     constexpr auto SETUP_PATH = STR("/Game/Pal/Blueprint/UI/UserInterface/Map/WBP_Map_Body.WBP_Map_Body_C:Setup");
     // The probe: the screen's own functions, each name once per burst of calls (an opening), for the first openings.
-    // (dev.16 log, 2026-11-07: a flat 80-call limit was used up by the first opening's 64 icon calls, so it could not
-    // tell whether Setup runs again when the map is opened a second time.)
+    // Counted in bursts, not calls: the first opening alone makes 64 icon calls.
     constexpr int LOG_BURSTS = 8;              // bursts logged per session
     constexpr uint64_t BURST_GAP = 30;         // frames without a call to the screen that end a burst
 
@@ -120,7 +118,7 @@ namespace map_screen_unreal
             const std::string shown_name = shown ? to_string(shown->GetFullName()) : std::string("none");
             did << ", showing " << shown_name;
             // Only the main world's map: the World Tree has a screen of its own (MapName "Tree"), which also shows
-            // T_WorldMap while it is set up (dev.17 log, 2026-11-07: Setup #2, "map Tree", got the mod's picture).
+            // T_WorldMap while it is set up, so the picture's name alone can't tell the two apart.
             const bool main_map = map.find("Main") != std::string::npos;
             if (!body.empty() && image && main_map && shown_name.find("T_WorldMap") != std::string::npos)
             {
@@ -136,7 +134,7 @@ namespace map_screen_unreal
             UObject* mask_image = object_field(screen, STR("Image_MapMask"));
             // The explorer's chart: the fog image shows the mod's fog picture (the chart where unexplored, clear where
             // explored) in place of the game's material, on the main world's map only.
-            if (!fogpic.empty() && mask_image && map.find("Main") != std::string::npos)
+            if (!fogpic.empty() && mask_image && main_map)
             {
                 const StringType path = ensure_str(fogpic);
                 UObject* picture = UObjectGlobals::StaticFindObject<UObject*>(nullptr, nullptr, path.c_str());
@@ -155,6 +153,10 @@ namespace map_screen_unreal
         catch (const Fail& f)
         {
             did << "; FAILED: " << f.reason;
+        }
+        catch (const std::exception& e)
+        {
+            did << "; FAILED: exception " << e.what();
         }
         {
             std::lock_guard<std::mutex> guard(g_lock);
@@ -180,13 +182,29 @@ namespace map_screen_unreal
         if (g_burst_names.insert(name).second) say("frame " + std::to_string(frame) + ": " + name + " (" + route + ")");
     }
 
+    // An exception from a callback the game called (every Blueprint call, every frame) would take the game down, so
+    // the callbacks catch it here and log the first one; the rest are counted in silence.
+    std::atomic<int> g_errors{0};
+    auto caught(const char* where, const std::exception& e) -> void
+    {
+        if (++g_errors == 1) say(std::string("error in ") + where + " (later ones not logged): " + e.what());
+    }
+
     // Every Blueprint call: Setup is acted on; the probe logs the map screen's own functions in the order they run.
     auto seen(UObject* context, UFunction* fn, const char* route) -> void
     {
         if (!fn) return;
-        if (fn == g_setup.load(std::memory_order_relaxed) && g_enabled.load(std::memory_order_relaxed)) on_setup(context, route);
-        UObject* cls = g_class.load(std::memory_order_relaxed);
-        if (cls && fn->GetOuterPrivate() == cls) probe(fn, route);
+        try
+        {
+            const bool setup = fn == g_setup.load(std::memory_order_relaxed);
+            if (setup && g_enabled.load(std::memory_order_relaxed)) on_setup(context, route);
+            UObject* cls = g_class.load(std::memory_order_relaxed);
+            if (cls && fn->GetOuterPrivate() == cls) probe(fn, route);
+        }
+        catch (const std::exception& e)
+        {
+            caught("the Blueprint callback", e);
+        }
     }
 
     auto script_post(Hook::TCallbackIterationData<void>&, UObject* context, FFrame& stack, void*) -> void
@@ -202,10 +220,9 @@ namespace map_screen_unreal
     }
 
     // Game thread, every frame: counts frames, and every 60 looks for Setup: the first time to hook the Blueprint VM, then
-    // to follow it. dev.35 playtest (2026-11-08): after Return to title and a second world load the hook went silent (no
-    // Setup seen, the map showing the game's dark fog): the screen's class goes with the first world and is loaded anew,
-    // so Setup is a new object, and the pointer kept from the first load never matched again. The callbacks are
-    // registered once; only the pointer they compare against changes.
+    // to follow it. The screen's class goes with a world and is loaded anew with the next (Return to title, then a
+    // world load), so Setup becomes a new object and a pointer kept from the first world would never match again. The
+    // callbacks are registered once; only the pointer they compare against changes.
     auto tick() -> void
     {
         const uint64_t frame = ++g_frame;
@@ -283,8 +300,18 @@ namespace map_screen
     auto install() -> void
     {
         using namespace map_screen_unreal;
-        Hook::RegisterEngineTickPreCallback([](auto&, auto*, float, bool) { tick(); },
-                                            {false, true, STR("APConnector"), STR("MapScreenTick")});
+        Hook::RegisterEngineTickPreCallback(
+                [](auto&, auto*, float, bool) {
+                    try
+                    {
+                        tick();
+                    }
+                    catch (const std::exception& e)
+                    {
+                        caught("the frame tick", e);
+                    }
+                },
+                {false, true, STR("APConnector"), STR("MapScreenTick")});
         say("waiting for the map screen's class");
     }
 } // namespace map_screen

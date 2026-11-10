@@ -28,8 +28,9 @@
 // code would leave the game in an unknown state. Safety comes from checking everything before a call. Each report line
 // is mirrored into UE4SS.log as it is made, so if the game dies the last "[APConnector] [pal]" line names the step.
 //
-// UNTESTED IN GAME, and built only by CI (the Unreal headers are private). Each UE4SS API below is used the way UE4SS's
-// own source uses it; the file cited is where.
+// Built only by CI (the Unreal headers are private). A party gift works in game; which of the three party routes did
+// it isn't recorded, so treat party_plain and handle as untested. The Palbox route is UNTESTED IN GAME. Each UE4SS API
+// below is used the way UE4SS's own source uses it; the file cited is where.
 #include "pal_gift.hpp"
 #include "pal_gift_logic.hpp"
 #include "reflect.hpp"
@@ -240,6 +241,41 @@ namespace pal_gift_unreal
         return call;
     }
 
+    // Keeps a gift the game hasn't finished, for poll() to look for. Returns the report's result, "pending".
+    auto keep_pending(PendingGift g, const Player& p) -> std::string
+    {
+        g.count_before = p.count;
+        g.controller = reinterpret_cast<uintptr_t>(p.pc);
+        g_pending = g;
+        return "pending";
+    }
+
+    // The new Pal, made by the game's CreateIndividual from its save data. For the party_* routes, the party's callback
+    // is bound as the finisher (nullptr: no callback). Returns the new Pal's handle.
+    auto create_individual(const Player& p, const Request& q, const CharType* callback, Report& r) -> UObject*
+    {
+        FProperty* out{};
+        auto save = make_save_data(p, q, r, out);   // freed last: CreateIndividual copies it by value (server binary)
+        ReflectedCall c(p.cm, find_function(STR("/Script/Pal.PalCharacterManager:CreateIndividual")));
+        FProperty* init = c.param(STR("InitParameter"));
+        copy_struct(init, c.ptr(init), out, save->ptr(out));
+        if (callback)
+        {
+            // The delegate FIndividualIDCallback(FPalInstanceID ID) bound by name to the holder's UFunction of the
+            // same shape, as XMulticastDelegateProperty's Add binds one (LuaXDelegateProperty.cpp). Without a
+            // callback it stays as InitializeStruct left it: unbound.
+            FProperty* cb = c.param(STR("spawnCallback"));
+            if (!CastField<FDelegateProperty>(cb)) throw Fail{"spawnCallback: not a delegate"};
+            c.at<FScriptDelegate>(cb)->BindUFunction(p.holder, FName(callback, FNAME_Add));
+        }
+        r.line("create: calling, parms=" + hex_size(c.size()) + " callback=" +
+               (callback ? to_string(callback) : "none (unbound)"));
+        c.run();
+        UObject* handle = *c.at<UObject*>(c.param(STR("ReturnValue")));
+        if (!handle) throw Fail{"CreateIndividual returned null (not authority? dedicated-server client?)"};
+        return handle;
+    }
+
     auto give_to_party(const Player& p, const Request& q, Route route, Report& r) -> std::string
     {
         if (p.count >= p.max) throw Fail{"party full (" + std::to_string(p.count) + "/" + std::to_string(p.max) + ")"};
@@ -251,29 +287,7 @@ namespace pal_gift_unreal
             throw Fail{"callback " + to_string(callback) + " missing on " + class_of(p.holder)};
         }
 
-        FProperty* out{};
-        auto save = make_save_data(p, q, r, out);
-        UObject* handle{};
-        {
-            ReflectedCall c(p.cm, find_function(STR("/Script/Pal.PalCharacterManager:CreateIndividual")));
-            FProperty* init = c.param(STR("InitParameter"));
-            copy_struct(init, c.ptr(init), out, save->ptr(out));
-            if (callback)
-            {
-                // The delegate FIndividualIDCallback(FPalInstanceID ID) bound by name to the holder's UFunction of the
-                // same shape, as XMulticastDelegateProperty's Add binds one (LuaXDelegateProperty.cpp). Without a
-                // callback it stays as InitializeStruct left it: unbound.
-                FProperty* cb = c.param(STR("spawnCallback"));
-                if (!CastField<FDelegateProperty>(cb)) throw Fail{"spawnCallback: not a delegate"};
-                c.at<FScriptDelegate>(cb)->BindUFunction(p.holder, FName(callback, FNAME_Add));
-            }
-            r.line("create: calling, parms=" + hex_size(c.size()) + " callback=" + (callback ? to_string(callback) : "none (unbound)"));
-            c.run();
-            handle = *c.at<UObject*>(c.param(STR("ReturnValue")));
-        }
-        save.reset();   // CreateIndividual took its own copy (server binary: execCreateIndividual copies it by value)
-        if (!handle) throw Fail{"CreateIndividual returned null (not authority? dedicated-server client?)"};
-
+        UObject* handle = create_individual(p, q, callback, r);
         const NewId id = read_id(handle);
         r.line("create: handle=" + name_of(handle) + " id=" + pal_gift::format_guid(id.player) + "/" +
                pal_gift::format_guid(id.instance));
@@ -310,10 +324,7 @@ namespace pal_gift_unreal
         g.has_id = id.ready;
         std::memcpy(g.id_player, id.player, 16);
         std::memcpy(g.id_instance, id.instance, 16);
-        g.count_before = p.count;
-        g.controller = reinterpret_cast<uintptr_t>(p.pc);
-        g_pending = g;
-        return "pending";
+        return keep_pending(g, p);
     }
 
     auto give_to_palbox(const Player& p, const Request& q, Report& r) -> std::string
@@ -351,10 +362,7 @@ namespace pal_gift_unreal
         PendingGift g;
         g.route = Route::Palbox;
         g.slot_index = index;
-        g.count_before = p.count;
-        g.controller = reinterpret_cast<uintptr_t>(p.pc);
-        g_pending = g;
-        return "pending";
+        return keep_pending(g, p);
     }
 
     auto give(const std::string& species, const std::string& level, const std::string& route, const std::string& options)
@@ -387,6 +395,67 @@ namespace pal_gift_unreal
         }
     }
 
+    // The player now, if the pending gift can still arrive; nullopt, with the report's fail reason in `why`, when there
+    // is no player or the world changed. The controller is compared, not the pawn: a player who dies gets a new pawn in
+    // the same world, where the game can still finish the gift; a world load makes a new controller.
+    auto player_for_poll(Report& r, const PendingGift& g, std::string& why) -> std::optional<Player>
+    {
+        Player p;
+        try
+        {
+            p = find_player(r, false);
+        }
+        catch (const Fail& f)
+        {
+            why = "player not found, gift dropped (" + f.reason + ")";
+            return std::nullopt;
+        }
+        if (reinterpret_cast<uintptr_t>(p.pc) != g.controller)
+        {
+            why = "world changed (another player controller), gift dropped";
+            return std::nullopt;
+        }
+        return p;
+    }
+
+    // What one poll found: whether the gift's Pal is there yet, and what was looked at, for the report.
+    struct Sighting
+    {
+        bool seen{};
+        std::string what;
+    };
+
+    // Is the pending Palbox gift in its slot yet?
+    auto look_in_palbox(const Player& p, const PendingGift& g) -> Sighting
+    {
+        UObject* storage = call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPalStorageData"),
+                                       STR("WorldContextObject"), p.pc);
+        UObject* handle = storage ? palbox_slot_handle(storage, g.slot_index) : nullptr;
+        return {handle != nullptr, "palbox slot " + std::to_string(g.slot_index) + " handle=" + name_of(handle)};
+    }
+
+    // Is the pending party gift in the party yet? By its id when the create gave one, else by the party having grown.
+    auto look_in_party(const Player& p, const PendingGift& g) -> Sighting
+    {
+        int slot = -1;
+        if (g.has_id)
+        {
+            UObject* handle = handle_by_id(p, g);
+            slot = handle ? party_slot(p, handle) : -1;
+        }
+        Sighting s;
+        s.seen = slot >= 0;
+        s.what = "party " + std::to_string(p.count) + "/" + std::to_string(p.max) +
+                 (g.has_id ? ", FindByHandle=" + (slot >= 0 ? "slot " + std::to_string(slot) : std::string("none"))
+                           : std::string(", no id"));
+        if (!s.seen && p.count > g.count_before)
+        {
+            s.seen = true;
+            s.what += ", the party grew (matched by count only)";
+        }
+        return s;
+    }
+
     auto poll() -> std::string
     {
         if (!g_pending) return "";
@@ -401,61 +470,25 @@ namespace pal_gift_unreal
             }
             PendingGift& g = *g_pending;
             r.line("poll " + std::to_string(g.polls + 1) + " route=" + pal_gift::route_name(g.route));
-            Player p;
-            try
-            {
-                p = find_player(r, false);
-            }
-            catch (const Fail& f)
+            std::string why;
+            const std::optional<Player> p = player_for_poll(r, g, why);
+            if (!p)
             {
                 g_pending.reset();
-                return r.finish("fail player not found, gift dropped (" + f.reason + ")");
-            }
-            // The controller, not the pawn: a player who dies gets a new pawn in the same world, where the game can
-            // still finish the gift; a world load makes a new controller.
-            if (reinterpret_cast<uintptr_t>(p.pc) != g.controller)
-            {
-                g_pending.reset();
-                return r.finish("fail world changed (another player controller), gift dropped");
+                return r.finish("fail " + why);
             }
 
-            bool seen = false;
-            std::string what;
-            if (g.route == Route::Palbox)
-            {
-                UObject* storage = call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPalStorageData"), STR("WorldContextObject"), p.pc);
-                UObject* handle = storage ? palbox_slot_handle(storage, g.slot_index) : nullptr;
-                seen = handle != nullptr;
-                what = "palbox slot " + std::to_string(g.slot_index) + " handle=" + name_of(handle);
-            }
-            else
-            {
-                int slot = -1;
-                if (g.has_id)
-                {
-                    UObject* handle = handle_by_id(p, g);
-                    slot = handle ? party_slot(p, handle) : -1;
-                    seen = slot >= 0;
-                }
-                what = "party " + std::to_string(p.count) + "/" + std::to_string(p.max) +
-                       (g.has_id ? ", FindByHandle=" + (slot >= 0 ? "slot " + std::to_string(slot) : std::string("none"))
-                                 : std::string(", no id"));
-                if (!seen && p.count > g.count_before)
-                {
-                    seen = true;
-                    what += ", the party grew (matched by count only)";
-                }
-            }
-            r.line("check: " + what);
+            const Sighting found = g.route == Route::Palbox ? look_in_palbox(*p, g) : look_in_party(*p, g);
+            r.line("check: " + found.what);
             const Route route = g.route;
-            switch (pal_gift::next_poll(g, seen))
+            switch (pal_gift::next_poll(g, found.seen))
             {
             case pal_gift::PollVerdict::Ok:
                 g_pending.reset();
                 return r.finish(route == Route::Palbox ? "ok palbox" : "ok party");
             case pal_gift::PollVerdict::Timeout:
                 g_pending.reset();
-                return r.finish("fail timeout (" + what + ")");
+                return r.finish("fail timeout (" + found.what + ")");
             case pal_gift::PollVerdict::Wait:
                 break;
             }

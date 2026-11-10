@@ -5,7 +5,7 @@ drop. Nothing had been measured. This probe measures it, and its hotkeys switch 
 old and new can be compared. It changes nothing in the game: it times, counts and logs. Every millisecond figure in the
 code comments is an estimate from the UE4SS source and the game's files until this probe measures it in game.
 
-Written by Claude (an AI model made by Anthropic) at JustEyeTee's direction, like most of this project.
+Written by Claude (an AI model made by Anthropic) at JustEyeTea's direction, like most of this project.
 
 ## Turning it on
 

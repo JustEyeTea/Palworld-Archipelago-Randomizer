@@ -224,7 +224,7 @@ for name in GROUPS:
 labels = spread(labels, ocean, RING)                   # the coastal water ring; the rest stays open sea (0)
 
 # Open sea only where it is wide and joined to the ocean: narrow channels and enclosed pockets between areas are split
-# between the areas around them (decided with JustEyeTee, 2 Nov 2026).
+# between the areas around them.
 def grow(mask, k):
     for _ in range(k):
         mask = mask | np.roll(mask, 1, 0) | np.roll(mask, -1, 0) | np.roll(mask, 1, 1) | np.roll(mask, -1, 1)

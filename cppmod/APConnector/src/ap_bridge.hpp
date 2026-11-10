@@ -25,7 +25,8 @@ class ApBridge
     void disconnect();
 
     // Everything that happened since the last call, one event per line, fields separated by tabs:
-    //   status   <state> [detail]                          disconnected | connecting | connected | refused | error
+    //   status   <state> [detail]                          connecting, socket (connected, slot not joined yet),
+    //                                                      connected, refused, disconnected, or error (only logged)
     //   item     <index> <item id> <location id> <player slot> <flags> <item name> <player name>
     //   scout    <location id> <item id> <player slot> <flags> <item name> <player name> <game>
     //   checked  <location id>                             checked elsewhere (co-op, !collect)

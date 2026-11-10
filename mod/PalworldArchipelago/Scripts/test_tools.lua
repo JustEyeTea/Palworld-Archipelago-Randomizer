@@ -15,9 +15,9 @@
 --   Ctrl+Shift+F8  palbox       Kitsunebi Lv 14   the Global Palbox import into an empty Palbox slot
 --   Ctrl+Shift+F9  auto         Anubis Lv 50      party_debug while the party has room, else palbox
 -- Each logs the connector's report line by line and the party count before and after. A gift the game hasn't finished
--- ("result: pending") is polled with AP_GivePalPoll every 250 ms until "result: ok ..." or "result: fail ...". While one
--- is pending the connector answers "result: busy"; if this side wasn't polling it (a Lua mod restart), it starts. With an
--- older connector (no AP_GivePal) nothing is bound and the log says so.
+-- ("result: pending") is polled with AP_GivePalPoll on every core update until "result: ok ..." or "result: fail ...".
+-- While one is pending the connector answers "result: busy"; if this side wasn't polling it (a Lua mod restart), it
+-- starts. With an older connector (no AP_GivePal) nothing is bound and the log says so.
 -- What the earlier ones answered, for giving Pals from Lua (all failed; it needs the C++ connector or a LogicMod):
 --  * RequestSpawnMonsterForPlayer: a stubbed cheat, spawns nothing (v0.10.x).
 --  * A1 drop and pick up, A5 CreateIndividual (Ctrl+F9, Ctrl+F8): crashed the game, UE4SS overruns its stack passing a
@@ -205,8 +205,6 @@ local function give(g)
 end
 
 local function poll()
-    -- A poll queued twice (the game thread stalled past 250 ms) may run after the first one ended the gift.
-    if not pending then return end
     local route = pending
     local ok, report = pcall(AP_GivePalPoll)
     if not ok then
@@ -225,9 +223,11 @@ end
 -- Ctrl+F4, the HUD probe (round-2 art, 2026-11-04): can the mod draw on the in-game HUD, and animate what it draws?
 -- The hint icon and the goal banner need both. It finds the HUD layout (WBP_PalHUDLayout_C), logs its root and the
 -- root's children, and if the root is a canvas puts the hint icon (art/ap-hint-icon-128.png) at the top right,
--- spins it for 6 s (SetRenderTransformAngle every 33 ms) and takes it away, with the goal banner
--- (art/ap-goal-banner.png, 600x150, a sample line in its pill) centred in the upper third for the same 6 s, for a
--- screenshot to fit it by. Every step is logged.
+-- spins it once around in 6 s (one SetRenderTransformAngle per core update, so in visible jumps) and takes it away,
+-- with the goal banner (art/ap-goal-banner.png, 600x150, a sample line in its pill) centred in the upper third for the
+-- same 6 s, for a screenshot to fit it by. Every step is logged.
+local SPIN_STEPS = 20                  -- one step per core update (300 ms, main.lua), so 6 s on screen
+local SPIN_DEGREES_PER_STEP = 18       -- 20 steps of 18 degrees: one full turn
 local hudProbe = nil   -- { box, img, steps, goal }
 local function nameAndClass(w)
     local okn, n = pcall(function() return w:GetFName():ToString() end)
@@ -299,14 +299,41 @@ end
 local function hudProbeStep()
     local p = hudProbe
     p.steps = p.steps + 1
-    local ok = pcall(function() p.img:SetRenderTransformAngle(p.steps * 6) end)
-    if not ok then log("HUD probe: SetRenderTransformAngle failed"); p.steps = 180 end
-    if p.steps >= 180 then
+    local ok = pcall(function() p.img:SetRenderTransformAngle(p.steps * SPIN_DEGREES_PER_STEP) end)
+    if not ok then
+        log("HUD probe: SetRenderTransformAngle failed")
+        p.steps = SPIN_STEPS
+    end
+    if p.steps >= SPIN_STEPS then
         hudProbe = nil
         if p.goal then pcall(function() p.goal:RemoveFromParent() end) end
         local okr = pcall(function() p.box:RemoveFromParent() end)
         log("HUD probe: spun " .. p.steps .. " steps; " .. (okr and "removed" or "could not remove it"))
     end
+end
+
+-- One HUD probe step or one gift poll, each caught so a failure ends that probe and is logged.
+local function probeStep()
+    local ok, err = pcall(hudProbeStep)
+    if not ok then
+        log("HUD probe: step error " .. tostring(err))
+        hudProbe = nil
+    end
+end
+local function pollStep()
+    local ok, err = pcall(poll)
+    if not ok then
+        log("give Pal: poll error " .. tostring(err))
+        pending = nil
+    end
+end
+
+-- Called by the core update (main.lua) every 300 ms, on the game thread: steps the HUD probe and polls a pending gift.
+-- Idle until install() binds the keys that start them. The test tools start no timer loop of their own, since a loop
+-- faster than the core's can corrupt the Lua state.
+function T.update()
+    if hudProbe then probeStep() end
+    if pending then pollStep() end
 end
 
 function T.install()
@@ -364,16 +391,6 @@ function T.install()
         if not ok then log("HUD probe: error " .. tostring(err)); hudProbe = nil end
     end
     RegisterKeyBind(Key.F4, { ModifierKey.CONTROL }, function() ExecuteInGameThread(probeKey) end)
-    -- Loops: made here, at module load; off the game thread they only read a flag and hand over a function made once
-    -- (walls.lua, loopStep: running Lua there crashed the game).
-    local function probeStep()
-        local ok, err = pcall(hudProbeStep)
-        if not ok then log("HUD probe: step error " .. tostring(err)); hudProbe = nil end
-    end
-    LoopAsync(33, function()
-        if hudProbe then ExecuteInGameThread(probeStep) end
-        return false
-    end)
     log("test tools on: Ctrl+F4 HUD probe")
     if type(AP_GivePal) ~= "function" or type(AP_GivePalPoll) ~= "function" then
         log("test tools on: give Pal: AP_GivePal missing (APConnector older than this build); no Pal hotkeys")
@@ -387,15 +404,6 @@ function T.install()
         end
         RegisterKeyBind(Key[g.key], { ModifierKey.CONTROL, ModifierKey.SHIFT }, function() ExecuteInGameThread(giftKey) end)
     end
-    -- Made here, at module load (a loop made inside ExecuteInGameThread fails); 250 ms, not the core loop's 300.
-    local function pollStep()
-        local ok, err = pcall(poll)
-        if not ok then log("give Pal: poll error " .. tostring(err)); pending = nil end
-    end
-    LoopAsync(250, function()
-        if pending then ExecuteInGameThread(pollStep) end
-        return false
-    end)
     log("test tools on: give Pal by Ctrl+Shift+F5 party_debug, F6 party_plain, F7 handle, F8 palbox, F9 auto")
 end
 

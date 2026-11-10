@@ -276,7 +276,7 @@ jobs:
           - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago 0.6.8 or newer).
           - Setup: [setup guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/apworld/palworld/docs/setup_en.md).
 
-          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction.
+          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction.
           Unofficial fan project; not affiliated with Pocketpair or the Archipelago project.
           EOF
       - name: Draft release
