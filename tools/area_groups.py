@@ -1,6 +1,6 @@
 """Areas (one Area Pass each; the first is where a game starts) as groups of the game's own named map regions
-(DT_WorldMapAreaData rows, placed in the world as BP_PalRegionTrigger volumes). Decided with JustEyeTee, 2 Nov 2026,
-from a draft drawn over the game's world map. Caves, dungeons and towers inside a region belong to it and are not
+(DT_WorldMapAreaData rows, placed in the world as BP_PalRegionTrigger volumes). The groups were drawn
+by hand over the game's world map. Caves, dungeons and towers inside a region belong to it and are not
 listed; regions with no Pals (oil rigs, the King Whale islet) still place their land in an area.
 Words: this file still uses the older names. Its "areas" are the 15 regions players see (Region Passes) and its
 "regions" the game's 75 named areas (Area Passes); they are renamed during the code tour.

@@ -47,5 +47,5 @@ as a chart; image_tools.cpp compose_chart / compose_fog, not drawn in play yet).
                               (not used yet).
   ap-chart-hatch.png          256x256, seamless single diagonal engraved lines in ink #3B2A1A, drawn at 0.45 over locked
                               areas on the chart, under the borders (the user's pick, 2026-11-07).
-Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
+Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).

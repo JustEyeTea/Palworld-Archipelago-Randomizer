@@ -291,7 +291,7 @@ class APConnector : public CppUserModBase
         ModName = STR("APConnector");
         ModVersion = STR("0.1.0");    // the connector's own version (UE4SS's mod list); the mod's is main.lua's VERSION
         ModDescription = STR("Archipelago connection for the Palworld Archipelago mod");
-        ModAuthors = STR("JustEyeTee");
+        ModAuthors = STR("JustEyeTea");
         Output::send<LogLevel::Verbose>(STR("[APConnector] loaded\n"));
     }
 

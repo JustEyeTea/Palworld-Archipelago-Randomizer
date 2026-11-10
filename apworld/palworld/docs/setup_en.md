@@ -10,7 +10,7 @@ with `[PalworldAP]`.
 - Palworld 1.0.5 on Steam (Windows).
 - UE4SS for Palworld: the Palworld build from Okaetsu/RE-UE4SS. The mod is built against its release `2281fa31`.
 - The mod package, `PalworldArchipelago-v<version>.zip`, from the project's
-  [Releases](https://github.com/JustEyeTee/Palworld-Archipelago-Randomizer/releases) page. It holds
+  [Releases](https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases) page. It holds
   `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
 - Optional: `PalworldArchipelagoArt.pak` from the same release, the walls' own material (paws in each region's
   colour, a glow near you, a dissolve when a region opens). Without it the walls use the game's own wall material in
@@ -78,4 +78,4 @@ with `[PalworldAP]`.
   nothing (the log says `alpha record key not mapped`), turn Alpha Checks off for your next game.
 
 Most of this world's code, tools and documentation were written by Claude, an AI model made by Anthropic, at
-JustEyeTee's direction.
+JustEyeTea's direction.

@@ -1,7 +1,7 @@
 PALWORLD ARCHIPELAGO — Technology card & repo art pack
 ======================================================
 
-Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction.
+Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction.
 
 Base style: the "paw of islands" mark (four world islands linked to a hub island)
 with the Lilita One wordmark. All artwork is flat 2D. Every file is original: no

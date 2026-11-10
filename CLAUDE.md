@@ -1,6 +1,6 @@
 # Notes for Claude
 
-Most of this repository is written by Claude, an AI model made by Anthropic, at JustEyeTee's direction. Its maintainer
+Most of this repository is written by Claude, an AI model made by Anthropic, at JustEyeTea's direction. Its maintainer
 must be able to open any file alone and fix it by hand, so code here is written to be read by a person first.
 
 Before writing code:

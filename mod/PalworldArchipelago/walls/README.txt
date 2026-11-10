@@ -22,5 +22,5 @@ pass ticket colour; a region takes its area's), and for areas beyond the seed's 
   ap-wall-pattern-sealed.png the lattice dimmed, crossed by caution tape, in slate grey (2026-11-05)
   ap-wall-pattern-pawholes.png the default walls: a 0.74 wall with two 1.1 m logo-paw holes a tile (about 10%
                              see-through), a bright rim round each (the user's pick B, 2026-11-05)
-Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
+Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).

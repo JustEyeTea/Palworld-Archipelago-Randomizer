@@ -5,7 +5,7 @@ on [Archipelago's style guide](https://github.com/ArchipelagoMW/Archipelago/blob
 everywhere it has a rule (120-character lines, Python PEP 8 with double quotes, Markdown, HTML, CSS, JS). Where this
 guide says more, it wins. How the parts fit together is in [the architecture guide](architecture.md).
 
-Most of this code is written by Claude, an AI model made by Anthropic, at JustEyeTee's direction. These rules exist so
+Most of this code is written by Claude, an AI model made by Anthropic, at JustEyeTea's direction. These rules exist so
 that its maintainer, and anyone else, can follow every file without having written it.
 
 Some files break these rules today. Each is fixed when the code tour reaches it; until then, new code follows the

@@ -129,4 +129,4 @@ sent. Chat says when a faint is forgiven and how many are left. The count is kep
 doesn't reset it. Deaths other players send you never count. Amnesty is untested in game so far.
 
 Most of this world's code, tools and documentation were written by Claude, an AI model made by Anthropic, at
-JustEyeTee's direction.
+JustEyeTea's direction.

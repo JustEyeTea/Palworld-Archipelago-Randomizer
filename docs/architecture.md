@@ -4,8 +4,8 @@ How Palworld Archipelago is put together: what each part does, which file owns w
 breaks. It is for anyone who maintains or changes the code. Players need only the
 [setup guide](../apworld/palworld/docs/setup_en.md).
 
-Most of this code was written by Claude, an AI model made by Anthropic, at JustEyeTee's direction. This guide is
-being written section by section during a guided tour of the code with JustEyeTee, so that the project's maintainer
+Most of this code was written by Claude, an AI model made by Anthropic, at JustEyeTea's direction. This guide is
+being written section by section during a guided tour of the code with JustEyeTea, so that the project's maintainer
 knows every file well enough to fix it by hand. Sections not toured yet are marked *(not written yet)*.
 
 This guide names files, functions and tables, not line numbers, so it stays true as the code moves. Change it in the

@@ -33,7 +33,7 @@ for r in rd('DT_PalSpawnerPlacement.tsv'):
     pts.append((x, y, sum(L) / len(L))); pt_spawner.append(r['SpawnerName'])
 
 # Areas come from tools/area_walls.py: a grid of the main map with every cell in one piece of one area (areas are groups
-# of the game's named regions, tools/area_groups.py; decided with JustEyeTee, 2 Nov 2026). A piece is a connected part of
+# of the game's named regions, tools/area_groups.py). A piece is a connected part of
 # an area: the largest carries the area's name, the others "<area> (2)" and on. Pals beyond the main map are on the World
 # Tree's own map.
 import numpy as np
