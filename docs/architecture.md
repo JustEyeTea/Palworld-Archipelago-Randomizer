@@ -59,6 +59,7 @@ data the other parts use (see [Generated files](#generated-files)).
 | **Area Locks** | The feature as a whole: the map is walled off in parts, and each part opens when its pass arrives. |
 | **Region** | One of the 15 large locked parts (Lock Size: regions, the default), opened by a **Region Pass**. Each is a group of areas. |
 | **Area** | One of the game's 75 named places (the game's `DT_WorldMapAreaData`), locked one by one with Lock Size: areas and opened by an **Area Pass**. |
+| **Area, in the logic** | In `__init__.py`'s logic (`PASS_AREAS`, the rules and the routes), "area" means whichever locked part the seed uses: a region or an area, by Lock Size. Code that means one kind only says "region" or "area" with Lock Size in view. |
 | **Piece** | The logic's smallest part of the map: an Archipelago `Region` in `__init__.py`. Each piece belongs to one region or area. |
 | **Archipelago Region** | Archipelago's own class for a node in the logic's map (`BaseClasses.Region`). This code makes one per piece. |
 
