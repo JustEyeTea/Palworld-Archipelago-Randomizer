@@ -17,7 +17,7 @@
 //                                        "result: ok party|ok palbox|pending|busy|fail ..."
 //                                        (see pal_gift.cpp; game thread only, so call it inside ExecuteInGameThread)
 //   AP_GivePalPoll() -> string           while a gift is pending, a report ending like AP_GivePal's; else ""
-//   (The party route works in game; the Palbox route is untested in game.)
+//   (A party gift works in game; the Palbox route is untested in game. See pal_gift.cpp.)
 //   AP_GreyscalePNG(in, out, gamma) -> string   writes a greyscale copy of a PNG ("" on success, else the error)
 //   AP_SamplePNG(path, u, v) -> string   a PNG's colour at (u, v) in 0..1: "r,g,b,a", or "error: ..."
 //   The map pictures (image_tools.hpp). Each starts in the background and returns "" (started), "busy" or an error;
@@ -138,7 +138,32 @@ namespace
         return lua.is_string() ? std::string(lua.get_string()) : std::string();
     }
 
-    void register_api(LuaMadeSimple::Lua& lua)
+    // A number Lua sent as text, or `fallback` when it doesn't start with one (never throws: see ids()).
+    auto int_or(const std::string& text, int fallback) -> int
+    {
+        try
+        {
+            return std::stoi(text);
+        }
+        catch (...)
+        {
+            return fallback;
+        }
+    }
+    auto double_or(const std::string& text, double fallback) -> double
+    {
+        try
+        {
+            return std::stod(text);
+        }
+        catch (...)
+        {
+            return fallback;
+        }
+    }
+
+    // The Archipelago connection (ap_bridge.hpp): connect, poll events, send checks, scouts, chat, the goal, bounces.
+    void register_connection(LuaMadeSimple::Lua& lua)
     {
         lua.register_function("AP_Connect", [](const LuaMadeSimple::Lua& l) -> int {
             const auto server = arg(l), slot = arg(l), password = arg(l);
@@ -190,11 +215,14 @@ namespace
             l.set_string(bridge().status());
             return 1;
         });
+    }
+
+    // The map pictures (image_tools.hpp): each Compose* starts a background job; its status function says how it went.
+    void register_map_pictures(LuaMadeSimple::Lua& lua)
+    {
         lua.register_function("AP_ComposeMap", [](const LuaMadeSimple::Lua& l) -> int {
             const auto colour = arg(l), labels = arg(l), locked = arg(l), out = arg(l), gamma = arg(l);
-            double g = 1.0;
-            try { g = std::stod(gamma); } catch (...) {}
-            l.set_string(compose_map_start(colour, labels, locked, out, g));
+            l.set_string(compose_map_start(colour, labels, locked, out, double_or(gamma, 1.0)));
             return 1;
         });
         lua.register_function("AP_ComposeStatus", [](const LuaMadeSimple::Lua& l) -> int {
@@ -203,11 +231,8 @@ namespace
         });
         lua.register_function("AP_ComposeChart", [](const LuaMadeSimple::Lua& l) -> int {
             const auto colour = arg(l), paper = arg(l), sea = arg(l), compass = arg(l), out = arg(l);
-            const auto size = arg(l), gamma = arg(l);
-            int s = 2048;
-            double g = 1.0;
-            try { s = std::stoi(size); } catch (...) {}
-            try { g = std::stod(gamma); } catch (...) {}
+            const int s = int_or(arg(l), 2048);
+            const double g = double_or(arg(l), 1.0);
             l.set_string(chart_jobs().start([=] { return compose_chart(colour, paper, sea, compass, out, s, g); }));
             return 1;
         });
@@ -217,9 +242,8 @@ namespace
         });
         lua.register_function("AP_ComposeFog", [](const LuaMadeSimple::Lua& l) -> int {
             const auto chart = arg(l), mask = arg(l), def = arg(l), spec = arg(l), out = arg(l);
-            const auto size = arg(l), stamps = arg(l), regions = arg(l);
-            int s = 2048;
-            try { s = std::stoi(size); } catch (...) {}
+            const int s = int_or(arg(l), 2048);
+            const auto stamps = arg(l), regions = arg(l);
             l.set_string(fog_jobs().start(
                 [=] { return compose_fog(chart, mask, def, spec, out, s, stamps, regions); }));
             return 1;
@@ -230,20 +254,18 @@ namespace
         });
         lua.register_function("AP_ComposeTerritories", [](const LuaMadeSimple::Lua& l) -> int {
             const auto labels = arg(l), areas = arg(l), walls = arg(l), style = arg(l);
-            const auto out = arg(l), fogart = arg(l), fog = arg(l), size = arg(l);
-            int s = 2048;
-            try { s = std::stoi(size); } catch (...) {}
+            const auto out = arg(l), fogart = arg(l), fog = arg(l);
+            const int s = int_or(arg(l), 2048);
             l.set_string(territory_jobs().start(
                 [=] { return compose_territories(labels, areas, walls, style, out, fogart, fog, s); }));
             return 1;
         });
         lua.register_function("AP_ComposeField", [](const LuaMadeSimple::Lua& l) -> int {   // Territories' job slot
             const auto field = arg(l), areas = arg(l), walls = arg(l), style = arg(l);
-            const auto out = arg(l), fogart = arg(l), fog = arg(l), size = arg(l), colour = arg(l), gamma = arg(l);
-            int s = 4096;
-            double g = 1.0;
-            try { s = std::stoi(size); } catch (...) {}
-            try { if (!gamma.empty()) g = std::stod(gamma); } catch (...) {}
+            const auto out = arg(l), fogart = arg(l), fog = arg(l);
+            const int s = int_or(arg(l), 4096);
+            const auto colour = arg(l);
+            const double g = double_or(arg(l), 1.0);
             l.set_string(territory_jobs().start(
                 [=] { return compose_field(field, areas, walls, style, out, fogart, fog, s, colour, g); }));
             return 1;
@@ -254,18 +276,29 @@ namespace
         });
         lua.register_function("AP_SamplePNG", [](const LuaMadeSimple::Lua& l) -> int {
             const auto path = arg(l), u = arg(l), v = arg(l);
-            double fu = 0, fv = 0;
-            try { fu = std::stod(u); fv = std::stod(v); } catch (...) {}
-            l.set_string(sample_png(path, fu, fv));
+            l.set_string(sample_png(path, double_or(u, 0), double_or(v, 0)));
             return 1;
         });
         lua.register_function("AP_GreyscalePNG", [](const LuaMadeSimple::Lua& l) -> int {
             const auto in = arg(l), out = arg(l), gamma = arg(l);
-            double g = 1.0;
-            try { g = std::stod(gamma); } catch (...) {}
-            l.set_string(greyscale_png(in, out, g));
+            l.set_string(greyscale_png(in, out, double_or(gamma, 1.0)));
             return 1;
         });
+    }
+
+    // The world map screen (map_screen.hpp): what it shows, set inside the game's own Setup.
+    void register_map_screen(LuaMadeSimple::Lua& lua)
+    {
+        lua.register_function("AP_MapScreen", [](const LuaMadeSimple::Lua& l) -> int {
+            const auto cmd = arg(l), value = arg(l);
+            l.set_string(map_screen::command(cmd, value));
+            return 1;
+        });
+    }
+
+    // Giving the player a Pal (pal_gift.hpp); game thread only.
+    void register_pal_gifts(LuaMadeSimple::Lua& lua)
+    {
         lua.register_function("AP_GivePal", [](const LuaMadeSimple::Lua& l) -> int {
             const auto species = arg(l), level = arg(l), route = arg(l), options = arg(l);
             l.set_string(give_pal(species, level, route, options));
@@ -275,11 +308,15 @@ namespace
             l.set_string(give_pal_poll());
             return 1;
         });
-        lua.register_function("AP_MapScreen", [](const LuaMadeSimple::Lua& l) -> int {
-            const auto cmd = arg(l), value = arg(l);
-            l.set_string(map_screen::command(cmd, value));
-            return 1;
-        });
+    }
+
+    // Every AP_* function the header lists, into one of the Lua mod's Lua states.
+    void register_api(LuaMadeSimple::Lua& lua)
+    {
+        register_connection(lua);
+        register_map_pictures(lua);
+        register_map_screen(lua);
+        register_pal_gifts(lua);
     }
 } // namespace
 

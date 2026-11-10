@@ -1,7 +1,7 @@
 // Giving the player a Pal, for the Lua mod (AP_GivePal, AP_GivePalPoll). UE4SS's Lua can't make the call itself: it
 // passes parameters in a fixed 0x200-byte stack buffer, and a Pal's save data (0x370 bytes) overran it and crashed the
-// game (2026-11-03). Here each game function gets a heap parameter block of its own size. See pal_gift.cpp.
-// UNTESTED IN GAME: built only by CI; nothing here has run in Palworld yet.
+// game. Here each game function gets a heap parameter block of its own size. See pal_gift.cpp, which also says which
+// routes have worked in game.
 #pragma once
 
 #include <string>

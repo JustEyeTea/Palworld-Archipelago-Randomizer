@@ -81,7 +81,7 @@ namespace pal_gift
         int polls{};
     };
 
-    // About 6 s at the 250-300 ms the Lua side polls at.
+    // About 6 s: the Lua side polls once per core update, every 300 ms.
     constexpr int MAX_POLLS = 20;
 
     enum class PollVerdict
