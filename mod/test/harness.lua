@@ -4945,6 +4945,24 @@ end)()
            "config.txt and research.txt that can't be written are logged with their path and the reason")
 end)()
 ;(function()
+    print("one way to give to the bag")
+    local CR, MB, BAGM, ITEMS = require("crates"), require("mailbox"), require("bag"), require("items")
+    local told, mailOn, give, mailAdd = #announced, MB.on, BAGM.give, MB.add
+    MB.on, MB.add = function() return true end, function() end
+    CR.list = { "sphere" }
+    ITEMS.openCrate()
+    MB.on, MB.add = mailOn, mailAdd
+    expect(table.concat(announced, "|", told + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
+           "a crate's stack says it went to the mailbox, as a Nomad gift's does")
+    MB.on = function() return false end
+    BAGM.give = function() error("the bag broke") end
+    CR.list = { "sphere" }
+    ITEMS.openCrate()
+    MB.on, BAGM.give = mailOn, give
+    expect(logged("could not give PalSphere: .*the bag broke"), "a give that errors is logged with the item, for crates too")
+    CR.list, CR.pending = {}, {}
+end)()
+;(function()
     print("Lua runs only on the game thread")
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
     -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread

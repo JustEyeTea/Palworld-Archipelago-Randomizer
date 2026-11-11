@@ -20,6 +20,29 @@ local ap, slotNumber = STATE.ap, STATE.slotNumber
 local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
 
+-- Puts up to n of item `id` in the bag and returns how many went in (what a full bag answers is untested in game).
+-- An error is logged once, with the item's id, and counts as none in.
+local function giveToBag(id, n)
+    local okg, got = pcall(BAG.give, id, n)
+    if okg then return got end
+    onceErr("give", got, "could not give " .. id .. ": " .. tostring(got))
+    return 0
+end
+
+-- Hands n of item `id` over: into the bag when `toBag` (what does not fit waits for room, CRATES.holdForBag), else into
+-- the mailbox. Returns its part of the chat line, such as "2 x Wood (in your bag)".
+local function handOver(id, n, toBag)
+    local name = BAG.nameOf(id)
+    if not toBag then
+        MAIL.add(id, n)
+        return n .. " x " .. name .. " (in the mailbox)"
+    end
+    local got = giveToBag(id, n)
+    if got < n then CRATES.holdForBag(id, n - got) end
+    local count = n > 1 and (n .. " x ") or ""
+    return count .. name .. (got < n and " (waits for room in your bag)" or " (in your bag)")
+end
+
 -- A Palworld Crate received: its kind is rolled from the seed's crate weights and the item's index (crates.lua).
 local function receiveCrate(index)
     local weights = {}
@@ -36,11 +59,7 @@ local function giveBundle(_, it)
             MAIL.add(bundle.id, bundle.n)
         else
             -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
-            local okg, got = pcall(BAG.give, bundle.id, bundle.n)
-            if not okg then
-                onceErr("give", got, "could not give " .. bundle.id .. ": " .. tostring(got))
-                return false
-            end
+            local got = giveToBag(bundle.id, bundle.n)
             if got == 0 then return false end
             if got < bundle.n then log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in") end
         end
@@ -108,8 +127,7 @@ local waiting = nil           -- the index of a bundle the bag had no room for (
 -- bag refused is tried again here, every applying update.
 local function givePending()
     CRATES.retryBag(function(id, n)
-        local okg, got = pcall(BAG.give, id, n)
-        got = okg and got or 0
+        local got = giveToBag(id, n)
         if got > 0 then
             notify("Your bag had room: " .. BAG.nameOf(id) .. " from a crate is in it now.")
         end
@@ -128,16 +146,7 @@ function ITEMS.openCrate(kind)
     if not kind then return end
     local parts = {}
     for _, row in ipairs(out) do
-        local name = BAG.nameOf(row.id)
-        if row.bag or not MAIL.on() then
-            local okg, got = pcall(BAG.give, row.id, row.n)
-            got = okg and got or 0
-            if got < row.n then CRATES.holdForBag(row.id, row.n - got) end
-            parts[#parts + 1] = (row.n > 1 and (row.n .. " x ") or "") .. name .. (got < row.n and " (waits for room in your bag)" or " (in your bag)")
-        else
-            MAIL.add(row.id, row.n)
-            parts[#parts + 1] = row.n .. " x " .. name
-        end
+        parts[#parts + 1] = handOver(row.id, row.n, row.bag or not MAIL.on())
     end
     log("crate: opened a " .. CRATES.NAMES[kind] .. " at level " .. lv .. ": " .. table.concat(parts, ", ")
         .. "; " .. CRATES.count() .. " left")
@@ -153,17 +162,8 @@ local function giveTechGift(it)
     local gifts = SYNC.gifts(AP_SlotData, it.tech)
     if not gifts then return end
     local parts = {}
-    for _, g in ipairs(gifts) do
-        local id, n, name = g.id, g.n, BAG.nameOf(g.id)
-        if g.bag or not MAIL.on() then
-            local okg, got = pcall(BAG.give, id, n)
-            got = okg and got or 0
-            if got < n then CRATES.holdForBag(id, n - got) end
-            parts[#parts + 1] = (n > 1 and (n .. " x ") or "") .. name .. (got < n and " (waits for room in your bag)" or " (in your bag)")
-        else
-            MAIL.add(id, n)
-            parts[#parts + 1] = n .. " x " .. name .. " (in the mailbox)"
-        end
+    for _, gift in ipairs(gifts) do
+        parts[#parts + 1] = handOver(gift.id, gift.n, gift.bag or not MAIL.on())
     end
     log("nomad: " .. it.name .. " brought " .. table.concat(parts, ", "))
     notify(it.name .. " brought " .. table.concat(parts, ", ") .. ".")
