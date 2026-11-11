@@ -157,29 +157,8 @@ end
 local SOON = require("soon")
 local later = SOON.later
 
--- The core update never runs inside a hook. UE4SS can run its game-thread queue from inside a hook (a log showed the
--- update's player lookup nested inside IsUnlockRecipeTechnology's hook, under a:get(); FindAllOf then got a bad
--- argument and UE4SS logged "Ref was not function"), and an update inside a Blueprint hook would do widget work there,
--- which crashes the game. So every hook callback runs through guarded(), and an update that finds itself inside one
--- skips its turn. (The other way round is ordinary: the update refreshing the tech tree asks these hooks.)
--- State: each is true only while a hook callback or an update runs.
-local inHook, inTick = false, false
-local function guarded(fn, ...)
-    local was = inHook
-    inHook = true
-    local ok, v = pcall(fn, ...)
-    inHook = was
-    return ok, v
-end
--- A hook callback run through guarded(). An error is logged once under the hook's name, and the game's own result
--- stands. Handed to menu.lua and mailbox.lua for their hooks too.
-local function guardedHook(name, cb)
-    return function(...)
-        local ok, v = guarded(cb, ...)
-        if ok then return v end
-        once("hookerr" .. name, "hook " .. name .. " error: " .. tostring(v))
-    end
-end
+local guardedHook = UTIL.guardedHook
+local inTick = false          -- state: true only while an update runs
 
 -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
 local function cardLooksResearched(self, out)
@@ -1223,10 +1202,10 @@ local function engineFrame()
     return ok and tonumber(n) or nil
 end
 local lastFrame = nil         -- the engine frame the last update ran in
--- Never inside a research hook, nor inside itself (see guarded(), above the research hooks), and at most once a frame:
+-- Never inside a research hook, nor inside itself (see UTIL.guarded), and at most once a frame:
 -- waits are counted in updates, and updates run back to back would use them up with no time passing.
 local function coreTick()
-    if inHook or inTick then
+    if UTIL.insideHook() or inTick then
         once("nested", "update skipped: it came inside a hook or itself (UE4SS ran it nested)")
         return
     end

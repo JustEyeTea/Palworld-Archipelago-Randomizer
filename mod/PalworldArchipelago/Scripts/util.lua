@@ -1,5 +1,6 @@
--- Helpers every module shares: the log, log-once, guarded calls, a game object's identity, the mod's clock and hook
--- registration that waits for a class to load. A module takes what it needs with `local UTIL = require("util")`.
+-- Helpers every module shares: the log, log-once, guarded calls, a game object's identity, objects kept alive, the
+-- mod's clock, the guard that keeps the core update out of hook callbacks, and hook registration that waits for a
+-- class to load. A module takes what it needs with `local UTIL = require("util")`.
 -- Tests: mod/test/harness.lua, group "util" (run by tools/lua_harness.sh, in CI).
 local UTIL = {}
 
@@ -221,6 +222,37 @@ end
 -- each period that is (0 when left out), so two schedules need not fall on the same update.
 function UTIL.isDue(count, period, first)
     return count % period == (first or 0)
+end
+
+------------------------------------------------------------------------------------------------------------------------
+-- Hook callbacks and the core update.
+-- The core update never runs inside a hook. UE4SS can run its game-thread queue from inside a hook (a log showed the
+-- update's player lookup nested inside IsUnlockRecipeTechnology's hook, under a:get(); FindAllOf then got a bad
+-- argument and UE4SS logged "Ref was not function"), and an update inside a Blueprint hook would do widget work there,
+-- which crashes the game. So every hook callback runs through UTIL.guarded(), and an update that finds itself inside
+-- one skips its turn. (The other way round is ordinary: the update refreshing the tech tree asks these hooks.)
+-- State: true only while a hook callback runs.
+local inHook = false
+function UTIL.guarded(fn, ...)
+    local was = inHook
+    inHook = true
+    local ok, v = pcall(fn, ...)
+    inHook = was
+    return ok, v
+end
+-- A hook callback run through UTIL.guarded(). An error is logged once under the hook's name, and the game's own
+-- result stands. main.lua hands it to menu.lua and mailbox.lua for their hooks too.
+function UTIL.guardedHook(name, cb)
+    return function(...)
+        local ok, v = UTIL.guarded(cb, ...)
+        if ok then return v end
+        UTIL.once("hookerr" .. name, "hook " .. name .. " error: " .. tostring(v))
+    end
+end
+
+-- Whether a hook callback is running now (main.lua's update then skips its turn).
+function UTIL.insideHook()
+    return inHook
 end
 
 ------------------------------------------------------------------------------------------------------------------------

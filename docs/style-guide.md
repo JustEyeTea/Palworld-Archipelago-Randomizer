@@ -66,6 +66,8 @@ or a new file, look here and use the block. Never write a second copy. A block i
   that keeps anything from one world registers the function that forgets it with `WORLD.onChange(forget)`, in
   `main.lua`'s start-up list. New code keeps no world key of its own (`mailbox.lua` and `menu.lua` still notice a
   world change themselves).
+- **A hook callback:** wrapped by `guardedHook(name, cb)` from `util.lua`, so no core update runs inside it and an
+  error is logged once under the hook's name.
 - **A hook on a Blueprint class:** `hookWhenLoaded(path, fn, tag)` in `util.lua`, called every update until it
   registers.
 
