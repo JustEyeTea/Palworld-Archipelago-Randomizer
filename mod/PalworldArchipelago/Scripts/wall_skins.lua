@@ -252,21 +252,19 @@ function WALL_SKINS.dropCaches()
     if skin.now ~= "red" then skin.now = "red" end           -- so skinTick dresses the new world's pieces again
     gone, goneStart, glowAt, apWall, pawLayer = {}, {}, nil, nil, nil
 end
-local function skinMaterial(name)
-    local mid = skin.mids[name]
-    if mid and mid:IsValid() then return mid end
-    if skin.failed[name] then return nil end
-    skin.failed[name] = true                                   -- one try per skin per session; cleared on success
+-- The game instance and the rendering and material libraries a skin's material is made with, once the walls' own
+-- material is known; nil while any of them is missing.
+local function skinLibraries()
     local gi = owner()
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
     if not (gi and skin.base and skin.base:IsValid() and krl and krl:IsValid() and kml and kml:IsValid()) then
-        log("wall skin " .. name .. ": no game instance, wall material or material library yet")
-        skin.failed[name] = nil
         return nil
     end
-    if name:find("^colour%-") then return colourMaterial(name, gi, krl, kml) end
-    if name:find("^paws:") then return pawsMaterial(name, gi, krl, kml) end
+    return gi, krl, kml
+end
+-- A pattern skin's tint, pattern file and tiling: the teal lattice and its variants, an area's colour, or sealed grey.
+local function patternFor(name)
     local tint, file = TEAL, name:match("^(.-)%-dense$")
     local tiling = file and DENSE or W.tiling
     local hex = name:match("^area:(%x%x%x%x%x%x)$")
@@ -278,12 +276,18 @@ local function skinMaterial(name)
         sealedFile = sealedFile or patternOr("sealed")
         tint, file = SEALED, sealedFile
     end
-    local path = W.dir .. "\\walls\\ap-wall-pattern-" .. (file or name) .. ".png"
+    return tint, file or name, tiling
+end
+-- A pattern skin's material: a dynamic copy of the walls' own material with the pattern and tint set; nil (logged)
+-- when the pattern or the material cannot be made.
+local function makePatternMaterial(name, gi, krl, kml)
+    local tint, file, tiling = patternFor(name)
+    local path = W.dir .. "\\walls\\ap-wall-pattern-" .. file .. ".png"
     local tex = krl:ImportFileAsTexture2D(gi, path)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
     local srgb = pcall(function() tex.SRGB = false; tex:UpdateResource() end)   -- the game's pattern is linear
     W.keep(tex)
-    mid = kml:CreateDynamicMaterialInstance(gi, skin.base, FName("None"), 0)
+    local mid = kml:CreateDynamicMaterialInstance(gi, skin.base, FName("None"), 0)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("MainTexture01"), tex)
@@ -304,6 +308,22 @@ local function skinMaterial(name)
         .. (srgb and ", linear" or ", sRGB: could not change") .. ", tiling "
         .. (tiling and (tiling[1] .. "x" .. tiling[2]) or "the material's") .. ")")
     return mid
+end
+-- A skin's material, made on first use; nil when it cannot be made (tried once a world: W.dropCaches empties failed).
+local function skinMaterial(name)
+    local mid = skin.mids[name]
+    if mid and mid:IsValid() then return mid end
+    if skin.failed[name] then return nil end
+    skin.failed[name] = true                                   -- one try per skin per session; cleared on success
+    local gi, krl, kml = skinLibraries()
+    if not gi then
+        log("wall skin " .. name .. ": no game instance, wall material or material library yet")
+        skin.failed[name] = nil
+        return nil
+    end
+    if name:find("^colour%-") then return colourMaterial(name, gi, krl, kml) end
+    if name:find("^paws:") then return pawsMaterial(name, gi, krl, kml) end
+    return makePatternMaterial(name, gi, krl, kml)
 end
 -- Puts the current skin on one piece (a new piece, or every raised one when the skin changes).
 local function dress(a, mid)
@@ -385,13 +405,14 @@ end
 -- The next skin, skipping any refused this session (no pak, no file): it would be refused again and the cycle would
 -- stop there.
 function WALL_SKINS.cycleSkin()
-    for k, s in ipairs(SKINS) do
-        if s == skin.want then
-            for j = 1, #SKINS do
-                local nxt = SKINS[(k + j - 1) % #SKINS + 1]
-                if not skin.failed[nxt] then skin.want = nxt; return nxt end
-            end
-        end
+    local at = nil
+    for k, name in ipairs(SKINS) do
+        if name == skin.want then at = k end
+    end
+    if not at then return nil end
+    for j = 1, #SKINS do
+        local nxt = SKINS[(at + j - 1) % #SKINS + 1]
+        if not skin.failed[nxt] then skin.want = nxt; return nxt end
     end
 end
 -- Dresses one raised piece in the skin wanted (mid: its material, for a skin that is not by area). True when it is
@@ -405,32 +426,31 @@ local function dressOne(a, i, mid)
     dressedAs[i] = nil
     return ok and done, not ok and done or nil
 end
--- On the game thread (from W.update): the skin wanted, once the wall material is known (from the first piece raised).
-function WALL_SKINS.skinTick()
-    if skin.want == skin.now then return end
-    if not skin.base then
-        local _, a = next(pieces.raised())
-        if not a then return end
-        local m = meshOf(a)
-        skin.base = m and m:GetMaterial(0)
-        if not skin.base then return end
-        W.keep(skin.base)
+-- The walls' own red material, learnt from the first piece raised (the original, before any change). False until then.
+local function learnBaseMaterial()
+    if skin.base then return true end
+    local _, a = next(pieces.raised())
+    if not a then return false end
+    local m = meshOf(a)
+    skin.base = m and m:GetMaterial(0)
+    if not skin.base then return false end
+    W.keep(skin.base)
+    return true
+end
+-- paws without the pak: area instead, and Ctrl+F3 skips paws from then on. False when that leaves nothing to change.
+local function pawsOrArea()
+    if skin.want ~= "paws" then return true end
+    if apWallMaterial() then
+        skin.failed.paws = nil
+        return true
     end
-    -- paws without the pak: area instead, and Ctrl+F3 skips paws from then on.
-    if skin.want == "paws" then
-        if apWallMaterial() then
-            skin.failed.paws = nil
-        else
-            log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found); the area colours instead")
-            skin.failed.paws, skin.want = true, "area"
-            if skin.want == skin.now then return end
-        end
-    end
-    local mid = nil
-    if skin.want ~= "red" and not byArea(skin.want) then
-        mid = skinMaterial(skin.want)
-        if not mid then skin.want = skin.now; return end
-    end
+    log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found); the area colours instead")
+    skin.failed.paws, skin.want = true, "area"
+    return skin.want ~= skin.now
+end
+-- Dresses every raised piece in the skin wanted (mid: its material, for a skin not by area). Returns how many were
+-- dressed, how many not, and the first error.
+local function dressAll(mid)
     local n, bad, firstErr = 0, 0, nil
     for i, a in pairs(pieces.raised()) do
         if a:IsValid() then
@@ -442,7 +462,10 @@ function WALL_SKINS.skinTick()
             end
         end
     end
-    skin.now = skin.want
+    return n, bad, firstErr
+end
+-- The log of a skin change: the colours worn (a skin by area), and how many pieces were dressed and why not.
+local function logSkin(n, bad, firstErr)
     if byArea(skin.now) then
         local kinds = {}
         for _, name in pairs(dressedAs) do kinds[name] = true end
@@ -453,6 +476,20 @@ function WALL_SKINS.skinTick()
     end
     local why = firstErr and (" (the first error: " .. tostring(firstErr) .. ")") or " (no mesh or no material)"
     log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " not dressed" .. why) or ""))
+end
+-- On the game thread (from W.update): the skin wanted, once the wall material is known (from the first piece raised).
+function WALL_SKINS.skinTick()
+    if skin.want == skin.now then return end
+    if not learnBaseMaterial() then return end
+    if not pawsOrArea() then return end
+    local mid = nil
+    if skin.want ~= "red" and not byArea(skin.want) then
+        mid = skinMaterial(skin.want)
+        if not mid then skin.want = skin.now; return end
+    end
+    local n, bad, firstErr = dressAll(mid)
+    skin.now = skin.want
+    logSkin(n, bad, firstErr)
 end
 
 
