@@ -1,7 +1,7 @@
 -- Helpers every module shares: the log, log-once, guarded calls, a game object's identity, objects kept alive, the
 -- mod's clock, the guard that keeps the core update out of hook callbacks, and hook registration that waits for a
 -- class to load. A module takes what it needs with `local UTIL = require("util")`.
--- Tests: mod/test/harness.lua, group "util" (run by tools/lua_harness.sh, in CI).
+-- Tests: mod/test/tests/util.lua, group "util" (run by tools/lua_harness.sh, in CI).
 local UTIL = {}
 
 ------------------------------------------------------------------------------------------------------------------------

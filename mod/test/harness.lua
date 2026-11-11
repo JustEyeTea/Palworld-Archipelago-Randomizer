@@ -28,6 +28,7 @@
 --   tests/areas_hud.lua      Lock Size: areas, areas beyond the goal, the walls' colours, the HUD pieces
 --   tests/crates_run_style.lua  Palworld Crates and their window, Nomad and Speed Boost
 --   tests/core_logs.lua      small failures and fallbacks of the core files, said once in the log
+--   tests/util.lua           util.lua's helpers: the clock, log-once, addresses, the hook retry
 --   tests/rules.lua          rules read from the mod's source, and checks over the whole run
 --
 -- Adding a test:
@@ -73,7 +74,7 @@ end
 -- The test files, in the order they run.
 local TEST_FILES = { "core.lua", "shop.lua", "walls.lua", "map.lua", "walls_fresh.lua", "world.lua", "core_loop.lua",
                      "mailbox.lua", "inventory_page.lua", "traps.lua", "test_tools.lua", "title_menu.lua", "goals.lua",
-                     "tools_probe.lua", "areas_hud.lua", "crates_run_style.lua", "core_logs.lua", "rules.lua" }
+                     "tools_probe.lua", "areas_hud.lua", "crates_run_style.lua", "core_logs.lua", "util.lua", "rules.lua" }
 
 local failures = 0
 local groupTitle = "(before the first group)"    -- the group that is running, named in every FAIL line
