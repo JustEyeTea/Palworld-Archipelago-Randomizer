@@ -83,6 +83,13 @@ namespace
     // DLL's own path (its file name, then dlls/).
     constexpr int STEPS_UP_TO_DATA_FOLDER = 2;
 
+    // new_client_id()'s generator: its length, Knuth's MMIX constants, and which bits give each hex digit.
+    constexpr int CLIENT_ID_HEX_DIGITS = 32;                         // as long as a UUID without its dashes
+    constexpr unsigned long long MMIX_MULTIPLIER = 6364136223846793005ULL;
+    constexpr unsigned long long MMIX_INCREMENT = 1442695040888963407ULL;
+    constexpr int HEX_DIGIT_SHIFT = 59;                               // a hex digit from the generator's high bits
+    constexpr unsigned long long HEX_DIGIT_MASK = 15;
+
     // When Lua sends "" for a picture's size or gamma. Sizes are in pixels a side.
     constexpr int DEFAULT_PICTURE_SIZE = 2048;   // the chart, the fog and Territories: the area label map's size
     constexpr int DEFAULT_FIELD_SIZE = 4096;     // ComposeField: the distance field's (area_field*.png) own size
@@ -116,36 +123,63 @@ namespace
         return folder;
     }
 
-    // One UUID per installation, kept next to the mod, so the server recognises this client between sessions.
+    // The client id an earlier session saved in `file`, or "" when there is none.
+    auto read_saved_client_id(const std::string& file) -> std::string
+    {
+        FILE* saved = std::fopen(file.c_str(), "r");
+        if (!saved) return "";
+        char line[64]{};
+        std::fgets(line, sizeof line, saved);
+        std::fclose(saved);
+        std::string id(line);
+        while (!id.empty() && (id.back() == '\n' || id.back() == '\r'))
+        {
+            id.pop_back();
+        }
+        return id;
+    }
+
+    // A new client id of CLIENT_ID_HEX_DIGITS hex digits. A 64-bit linear congruential generator (Knuth's MMIX
+    // constants) seeded from the clock and the process id gives one hex digit from its high bits per step. The id
+    // only has to differ between installations, not be secret.
+    auto new_client_id() -> std::string
+    {
+        const char* hex = "0123456789abcdef";
+        LARGE_INTEGER clock{};
+        QueryPerformanceCounter(&clock);
+        unsigned long long state = clock.QuadPart ^ GetCurrentProcessId();
+        std::string id;
+        for (int digit = 0; digit < CLIENT_ID_HEX_DIGITS; ++digit)
+        {
+            state = state * MMIX_MULTIPLIER + MMIX_INCREMENT;
+            id += hex[(state >> HEX_DIGIT_SHIFT) & HEX_DIGIT_MASK];
+        }
+        return id;
+    }
+
+    // Writes the id to `file`; whether it could.
+    auto save_client_id(const std::string& file, const std::string& id) -> bool
+    {
+        FILE* saved = std::fopen(file.c_str(), "w");
+        if (!saved) return false;
+        const bool written = std::fputs(id.c_str(), saved) >= 0;
+        return std::fclose(saved) == 0 && written;
+    }
+
+    // One id per installation, kept in the data folder, so the server recognises this client between sessions.
     auto client_uuid(const std::string& folder) -> std::string
     {
         const auto file = folder + "\\" + CLIENT_ID_FILE;
-        if (FILE* f = std::fopen(file.c_str(), "r"))
+        const auto saved = read_saved_client_id(file);
+        if (!saved.empty()) return saved;
+        const auto id = new_client_id();
+        if (save_client_id(file, id))
         {
-            char buf[64]{};
-            std::fgets(buf, sizeof buf, f);
-            std::fclose(f);
-            std::string id(buf);
-            while (!id.empty() && (id.back() == '\n' || id.back() == '\r'))
-            {
-                id.pop_back();
-            }
-            if (!id.empty()) return id;
+            log_line("made a new client id, saved in " + file);
         }
-        std::string id;
-        const char* hex = "0123456789abcdef";
-        LARGE_INTEGER t{};
-        QueryPerformanceCounter(&t);
-        unsigned long long seed = t.QuadPart ^ GetCurrentProcessId();
-        for (int i = 0; i < 32; ++i)
+        else
         {
-            seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
-            id += hex[(seed >> 59) & 15];
-        }
-        if (FILE* f = std::fopen(file.c_str(), "w"))
-        {
-            std::fputs(id.c_str(), f);
-            std::fclose(f);
+            log_line("made a new client id but could not save it in " + file + ": the next session makes another");
         }
         return id;
     }
