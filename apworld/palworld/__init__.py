@@ -10,12 +10,12 @@ from BaseClasses import CollectionState, Item, ItemClassification, Location, Loc
 from Options import OptionError
 from worlds.AutoWorld import WebWorld, World
 
-from .data import (BREEDING_TECH, CATCHABLE, CRATE, DECOR_TECHS, DIRECT, FILLER, FLYING_MOUNTS, ITEM_GROUPS,
-                   ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS,
-                   MAX_LEVEL, PREREQ_TECHS, PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS,
-                   SPHERE_NEEDS, SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, Layout, Tech,
-                   shop_location, tech_item)
-from .game_data import GAME_VERSION, TOWERS
+from .data import (BREEDING_TECH, BUNDLES, CATCHABLE, CAUGHT_KINDS, CRATE, DECOR_TECHS, DIRECT, FLYING_MOUNTS,
+                   ITEM_GROUPS, ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID,
+                   LOCATIONS, MAX_LEVEL, PREREQ_TECHS, PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS,
+                   SHOP_TECHS, SPHERE_NEEDS, SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TECH_POINT_ITEMS, TOWER_EVENTS,
+                   TOWERS, TRAP_WEIGHT_OPTION, TRAPS, Layout, PalSource, Tech, shop_location, tech_item)
+from .game_data import GAME_VERSION
 from .options import PalworldOptions, option_groups, options_presets
 
 # Tuning, in player levels unless said. The options' player text (options.py, docs/en_Palworld.md) repeats
@@ -42,7 +42,8 @@ LOCATION_LEVEL = {loc.name: TECH_BY_ID[loc.key].level for loc in LOCATIONS if lo
 
 
 def piece_level(layout: Layout, piece: str) -> int:
-    """A piece's typical Pal level; a piece with no Pals of its own takes its area's."""
+    """A piece's typical Pal level. A piece with no Pals of its own takes the level of the piece named after its area
+    or region (the area's main piece), and 0 when that has none either."""
     return int(layout.levels.get(piece) or layout.levels.get(layout.pieces.get(piece, piece)) or 0)
 
 
@@ -66,14 +67,14 @@ class Levels:
         """The lowest level at which a Pal can be had: where it is caught, or for a bred-only Pal (with `breed`), its
         parents' level and the Breeding Farm's. With `live`, only sources in those pieces count."""
         sources = self.layout.sources
-        caught = lambda s: s[0] in ("wild", "alpha", "dungeon") and (live is None or s[1] in live)
+        caught = lambda source: source.kind in CAUGHT_KINDS and (live is None or source.piece in live)
         best = NO_LEVEL
         for source in sources[entry]:
             if caught(source):
-                best = min(best, int(source[2]))
-            elif breed and source[0] == "breed" and all(p in DIRECT for p in source[1]):
-                parents = max(min((int(s[2]) for s in sources[p] if caught(s)), default=NO_LEVEL)
-                              for p in source[1])
+                best = min(best, int(source.level))
+            elif breed and source.kind == "breed" and all(p in DIRECT for p in source.parents):
+                parents = max(min((int(s.level) for s in sources[p] if caught(s)), default=NO_LEVEL)
+                              for p in source.parents)
                 best = min(best, max(parents, self.tech(TECH_BY_ID[BREEDING_TECH])))
         return best
 
@@ -293,10 +294,10 @@ class PalworldWorld(World):
         """The highest level the pieces in this seed let a player reach, as max_level climbs with everything in hand."""
         top = FREE_LEVEL
         levels = self.layout.levels
-        for a in sorted((a for a in levels if a in self.live), key=levels.get):
-            if levels[a] - LEVELS_BELOW_PIECE > top:
+        for piece in sorted((piece for piece in levels if piece in self.live), key=levels.get):
+            if levels[piece] - LEVELS_BELOW_PIECE > top:
                 break
-            top = max(top, int(levels[a]) + LEVELS_PAST_PIECE)
+            top = max(top, int(levels[piece]) + LEVELS_PAST_PIECE)
         return min(MAX_LEVEL, top)
 
     def reach_by_land(self) -> FrozenSet[str]:
@@ -385,7 +386,7 @@ class PalworldWorld(World):
         """One of these mounts: its saddle tech and its Pal."""
         return any(self.has_tech(state, tech) and self.can_get_pal(state, entry) for tech, entry in mounts.items())
 
-    def area_open(self, state: CollectionState, piece: str) -> bool:
+    def piece_open(self, state: CollectionState, piece: str) -> bool:
         """A piece is open when the player can get there: through the borders from the start."""
         return piece in self.live and state.can_reach_region(piece, self.player)
 
@@ -395,11 +396,11 @@ class PalworldWorld(World):
         zone."""
         top = FREE_LEVEL
         levels = self.layout.levels
-        for a in sorted((a for a in levels if a in self.live), key=levels.get):
-            if levels[a] - LEVELS_BELOW_PIECE > top:
+        for piece in sorted((piece for piece in levels if piece in self.live), key=levels.get):
+            if levels[piece] - LEVELS_BELOW_PIECE > top:
                 break
-            if self.area_open(state, a) and self.can_catch_at(state, levels[a], top):
-                top = max(top, int(levels[a]) + LEVELS_PAST_PIECE)
+            if self.piece_open(state, piece) and self.can_catch_at(state, levels[piece], top):
+                top = max(top, int(levels[piece]) + LEVELS_PAST_PIECE)
         return top
 
     def level_ok(self, state: CollectionState, level: int) -> bool:
@@ -436,16 +437,21 @@ class PalworldWorld(World):
         return state.has(tech_item(tech_id), self.player)
 
     def can_get_pal(self, state: CollectionState, entry: str, breed: bool = True) -> bool:
+        """Whether a Pal can be had: caught where the player can go and level, or bred from two Pals that can each be
+        caught (breed=False stops a parent being bred in turn)."""
         for source in self.layout.sources[entry]:
-            kind = source[0]
-            if kind in ("wild", "alpha", "dungeon"):
-                _, area, level = source
-                if self.area_open(state, area) and self.level_ok(state, level) and self.can_catch_at(state, level):
+            if source.kind in CAUGHT_KINDS:
+                if self.can_catch_source(state, source):
                     return True
-            elif kind == "breed" and breed and self.gear and self.has_tech(state, BREEDING_TECH):
-                if all(p in DIRECT and self.can_get_pal(state, p, breed=False) for p in source[1]):
+            elif source.kind == "breed" and breed and self.gear and self.has_tech(state, BREEDING_TECH):
+                if all(p in DIRECT and self.can_get_pal(state, p, breed=False) for p in source.parents):
                     return True
         return False
+
+    def can_catch_source(self, state: CollectionState, source: PalSource) -> bool:
+        """A catch in a piece: the piece is open, and the player can level to the Pal and has the spheres for it."""
+        return (self.piece_open(state, source.piece) and self.level_ok(state, source.level)
+                and self.can_catch_at(state, source.level))
 
     def pals_in_logic(self, state: CollectionState, entries) -> int:
         return sum(1 for e in entries if self.can_get_pal(state, e))
@@ -476,7 +482,7 @@ class PalworldWorld(World):
         if loc.kind == "capture":
             return self.pal_level[loc.key]
         if loc.kind == "alpha":
-            return loc.key[1]
+            return loc.level
         if loc.kind == "fast_travel":
             return piece_level(self.layout, self.layout.location_piece[loc.name])
         if loc.kind == "level":
@@ -541,12 +547,13 @@ class PalworldWorld(World):
             if loc.name in self.unaffordable:       # filler and traps only (points_budget)
                 location.progress_type = LocationProgressType.EXCLUDED
             region.locations.append(location)
-        for name, _ in TOWERS:
-            if layout.towers[name] not in regions:
+        for tower in TOWERS:
+            if layout.towers[tower.name] not in regions:
                 continue
-            region = regions[layout.towers[name]]
-            event = PalworldLocation(self.player, TOWER_EVENTS[name], None, region)
-            event.place_locked_item(PalworldItem(TOWER_EVENTS[name], ItemClassification.progression, None, self.player))
+            region = regions[layout.towers[tower.name]]
+            event = PalworldLocation(self.player, TOWER_EVENTS[tower.name], None, region)
+            event.place_locked_item(PalworldItem(TOWER_EVENTS[tower.name], ItemClassification.progression, None,
+                                                 self.player))
             region.locations.append(event)
         if self.options.goal == self.options.goal.option_world_tree:
             region = regions[layout.world_tree]
@@ -613,14 +620,11 @@ class PalworldWorld(World):
         """Palworld Crates, plus material bundles with Material Bundles on and the tech-point items with Tech Point
         Items on."""
         o = self.options
-        return [CRATE] + [n for n in FILLER if (o.material_bundles and n.endswith(" Bundle"))
-                          or (o.tech_point_items and "Tech Points" in n)]
+        return [CRATE] + (TECH_POINT_ITEMS if o.tech_point_items else []) + (BUNDLES if o.material_bundles else [])
 
     def trap_weights(self) -> list:
-        """The trap weights, in the order of TRAPS."""
-        o = self.options
-        return [o.slow_trap_weight.value, o.hunger_trap_weight.value, o.teleport_trap_weight.value,
-                o.fool_trap_weight.value]
+        """Each trap's weight option, in the order of TRAPS."""
+        return [getattr(self.options, TRAP_WEIGHT_OPTION[trap]).value for trap in TRAPS]
 
     def filler_or_trap(self) -> str:
         """A filler item, or with Trap Chance a trap in its place. With Trap Chance 0 no extra random number is drawn,
@@ -643,16 +647,16 @@ class PalworldWorld(World):
             elif loc.kind == "capture":
                 location.access_rule = lambda state, e=loc.key: self.can_get_pal(state, e)
             elif loc.kind == "alpha":
-                entry, level = loc.key
-                location.access_rule = lambda state, lv=level: self.can_fight_at(state, lv)
+                location.access_rule = lambda state, lv=loc.level: self.can_fight_at(state, lv)
             elif loc.kind == "level":
                 location.access_rule = lambda state, n=loc.key: self.level_ok(state, n)
             elif loc.kind == "tower":
                 location.access_rule = lambda state, lv=self.lv.tower[loc.key]: self.can_fight_at(state, lv)
-        for name, _ in TOWERS:
-            if self.layout.towers[name] not in self.live:
+        for tower in TOWERS:
+            if self.layout.towers[tower.name] not in self.live:
                 continue
-            get(TOWER_EVENTS[name]).access_rule = lambda state, lv=self.lv.tower[name]: self.can_fight_at(state, lv)
+            get(TOWER_EVENTS[tower.name]).access_rule = lambda state, lv=self.lv.tower[tower.name]: \
+                self.can_fight_at(state, lv)
         o = self.options
         if o.goal == o.goal.option_relic_hunt:
             get("Goal Complete").access_rule = lambda state: state.count(RELIC, self.player) >= self.relics_needed
