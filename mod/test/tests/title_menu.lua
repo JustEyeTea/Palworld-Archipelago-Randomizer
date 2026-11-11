@@ -505,4 +505,23 @@ group("the title menu's Archipelago menu", function()
         expect(saved:find("myhost.example", 1, true) and not saved:find("wss", 1, true),
                "and the server is remembered by its host: " .. saved)
     end
+    do   -- the Server box emptied: the last row says a server is missing, not "Connect to  as Other"
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        typeInto(R.server, "")
+        run(1)
+        local goText = btn(R.go) and btn(R.go).Test_Content.text
+        click(btn(R.back))
+        run(1)
+        game.titleOpen = false
+        run(1)
+        expect(goText == "Connect (type a server first)", "an empty Server box: " .. tostring(goText))
+    end
 end)

@@ -154,6 +154,7 @@ local function goLabel()
     local d = draftNow()
     if isCurrent(d) then return "Disconnect (connected as " .. api.slot() .. ")" end
     if api.status() == "connecting" then return "Connecting to " .. api.server() .. "..." end
+    if d.host == "" then return "Connect (type a server first)" end
     if d.slot == "" then return "Connect (set your slot name first)" end
     return "Connect to " .. target(d) .. " as " .. d.slot
 end
