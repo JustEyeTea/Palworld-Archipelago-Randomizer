@@ -59,6 +59,35 @@ local function readSave(path)
     f:close()
     return lines, complete
 end
+-- Takes one line of the save file at `path`: the core's own lines here, the others by the module that wrote them.
+local function loadLine(path, line)
+    local n = line:match("^given=(%-?%d+)")
+    local w = line:match("^world=(.+)$")
+    local d = line:match("^deaths=(%d+)")
+    local v = line:match("^visited=(.*)$")
+    local b = line:match("^bought=(.*)$")
+    if line == "goal=shown" then
+        ap.goalShown = true
+    elseif n then
+        ap.given = tonumber(n)
+    elseif w then
+        ap.world = w
+    elseif d then
+        ap.forgiven = tonumber(d)
+    elseif v then
+        for area in v:gmatch("[^|]+") do
+            ap.visited[area] = true
+        end
+    elseif b then
+        for loc in b:gmatch("%d+") do
+            ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true
+        end
+    elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) and not MAIL.load(line) then
+        local kind = line:match("^[^=]*") or line
+        once("saveline " .. kind, "save " .. path .. ": a line no part of the mod reads, left out: " .. kind .. "=")
+    end
+end
+
 -- Reads the seed's save file (or its complete .tmp copy when the file was cut short) and hands each line to its owner.
 function SAVE.load()
     local path = SAVE.path()
@@ -71,31 +100,7 @@ function SAVE.load()
     end
     if not lines then return end
     for _, line in ipairs(lines) do
-        local n = line:match("^given=(%-?%d+)")
-        local w = line:match("^world=(.+)$")
-        local d = line:match("^deaths=(%d+)")
-        local v = line:match("^visited=(.*)$")
-        local b = line:match("^bought=(.*)$")
-        if line == "goal=shown" then
-            ap.goalShown = true
-        elseif n then
-            ap.given = tonumber(n)
-        elseif w then
-            ap.world = w
-        elseif d then
-            ap.forgiven = tonumber(d)
-        elseif v then
-            for area in v:gmatch("[^|]+") do
-                ap.visited[area] = true
-            end
-        elseif b then
-            for loc in b:gmatch("%d+") do
-                ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true
-            end
-        elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) and not MAIL.load(line) then
-            local kind = line:match("^[^=]*") or line
-            once("saveline " .. kind, "save " .. path .. ": a line no part of the mod reads, left out: " .. kind .. "=")
-        end
+        loadLine(path, line)
     end
     local kinds, items = MAIL.count()
     log("save " .. path .. ": items applied up to index " .. ap.given .. "; " .. CRATES.count() .. " crate(s); mailbox "

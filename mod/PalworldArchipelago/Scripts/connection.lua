@@ -73,13 +73,9 @@ local function resetSeed(seed, slot)
         .. tostring(seed) .. ", slot " .. tostring(slot) .. "): progress of the last one forgotten")
 end
 
--- The seed's options that shape this session: area locks and their cut of the map, the areas beyond the goal, and
--- Death Link; the run style and traps are logged.
-local function applySeedOptions()
-    AREA_LOCKS.setOn(slotFlag("options.area_locks"))
-    -- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the rename
-    -- send options.area_size, with the same numbers; older seeds send neither. WALLS still names the 75-area cut
-    -- "regions".
+-- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the rename send
+-- options.area_size, with the same numbers; older seeds send neither. WALLS still names the 75-area cut "regions".
+local function applyLockSize()
     local size = AP_SlotData("options.lock_size")
     local useAreas                                  -- true: the 75 areas; false: the 15 regions
     if size ~= nil and size ~= "" then
@@ -89,8 +85,11 @@ local function applySeedOptions()
         useAreas = old == "1" or old == "regions"
     end
     WALLS.setLayout(useAreas and "regions" or "areas")
-    -- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes are not
-    -- in this seed. Locked, their walls stay up for good; open, they are open from the start.
+end
+
+-- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes are not in
+-- this seed. Locked, their walls stay up for good; open, they are open from the start.
+local function applyBeyondGoal()
     ap.beyond = {}
     local nBeyond = 0
     for area in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do
@@ -107,8 +106,10 @@ local function applySeedOptions()
     if nBeyond > 0 then
         log("areas beyond the goal: " .. nBeyond .. (ap.beyondOpen and ", open from the start" or ", sealed for good"))
     end
-    DEATH_LINK.applyOption()
-    CHECKS.logSeedGoal()
+end
+
+-- The options that are only logged: the run style, Speed Boost and traps.
+local function logRunOptions()
     local style = SYNC.style(AP_SlotData)
     if style ~= 0 then
         log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)")
@@ -120,6 +121,17 @@ local function applySeedOptions()
     if chance > 0 then
         log("traps: " .. chance .. "% of filler items are traps in this seed")
     end
+end
+
+-- The seed's options that shape this session: area locks and their cut of the map, the areas beyond the goal, and
+-- Death Link; the run style and traps are logged.
+local function applySeedOptions()
+    AREA_LOCKS.setOn(slotFlag("options.area_locks"))
+    applyLockSize()
+    applyBeyondGoal()
+    DEATH_LINK.applyOption()
+    CHECKS.logSeedGoal()
+    logRunOptions()
 end
 
 -- Connected (again): the slot, the seed and its save, the techs left as research, what each shop slot holds, and the

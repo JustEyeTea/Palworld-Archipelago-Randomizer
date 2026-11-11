@@ -121,6 +121,32 @@ local function phaseRecords()
     end
 end
 
+-- The run style's sync (Speed Boost's world settings) and the notices held through the loading screen, once the
+-- world has settled.
+local function syncRunStyle(ps)
+    local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.holdNotice)
+    if not oks then
+        onceErr("sync", news, "sync error: " .. tostring(news))
+    elseif news then
+        writeSave()
+    end
+    local okl, errl = pcall(HELD.showHeldNotices, PLAYER.playerPawn())
+    if not okl then
+        onceErr("heldNotices", errl, "notice error: " .. tostring(errl))
+    end
+end
+
+-- Hands traps.lua this update's player. Traps fire only once the world has settled (the walls' count), never while
+-- fainted or in the mailbox.
+local function updateTraps(ps)
+    local pawn = PLAYER.playerPawn()
+    local okd, dead = pcall(function() return ps:IsPlayerDead() end)
+    -- (Not WORLD.settled(): a pawn that is there but not valid makes the key false, which counts as settled here.)
+    local settled = WORLD.key() ~= nil and WORLD.age() >= WAIT.settle
+    TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = settled, dead = not okd or dead,
+                   busy = MAIL.busy() })
+end
+
 -- The items phase, in the seed's world only: techs and items; once the world has settled, the run style's sync and the
 -- held notices; Death Link; traps.
 local function phaseItems()
@@ -139,30 +165,13 @@ local function phaseItems()
         applyItems(ps)
     end
     if WORLD.settled() then
-        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.holdNotice)
-        if not oks then
-            onceErr("sync", news, "sync error: " .. tostring(news))
-        elseif news then
-            writeSave()
-        end
-        local okl, errl = pcall(HELD.showHeldNotices, PLAYER.playerPawn())
-        if not okl then
-            onceErr("heldNotices", errl, "notice error: " .. tostring(errl))
-        end
+        syncRunStyle(ps)
     end
     local okdl, errdl = pcall(DEATH_LINK.step, ps)
     if not okdl then
         onceErr("death", errdl, "death link error: " .. tostring(errdl))
     end
-    -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.
-    local okt, errt = pcall(function()
-        local pawn = PLAYER.playerPawn()
-        local okd, dead = pcall(function() return ps:IsPlayerDead() end)
-        -- (Not WORLD.settled(): a pawn that is there but not valid makes the key false, which counts as settled here.)
-        local settled = WORLD.key() ~= nil and WORLD.age() >= WAIT.settle
-        TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = settled, dead = not okd or dead,
-                       busy = MAIL.busy() })
-    end)
+    local okt, errt = pcall(updateTraps, ps)
     if not okt then
         onceErr("traps", errt, "traps error: " .. tostring(errt))
     end
