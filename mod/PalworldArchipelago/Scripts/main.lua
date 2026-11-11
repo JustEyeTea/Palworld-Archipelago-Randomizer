@@ -111,6 +111,9 @@ end
 
 local STATE = require("ap_state")
 local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
+local PLAYER = require("player")
+local playerContext, findPlayerState, playerState, notify =
+    PLAYER.context, PLAYER.findPlayerState, PLAYER.playerState, PLAYER.notify
 WALLS.visited = ap.visited                -- (the same table: the map reads it)
 
 -- The save file holds one "kind=value" line each, written in this order (loadSave hands each line to its owner):
@@ -186,7 +189,6 @@ end
 -- (the perf probe's Ctrl+0 replay of the old load).
 local lastSave = nil          -- path and text of the last write: the same again is not written
 local saveWarned = false      -- the player was told the save file can't be written (once a session)
-local notify                  -- a notice in the game's chat (defined with the game side, below)
 local function writeSave(always)
     local path = saveFile()
     if not path then return end
@@ -229,50 +231,6 @@ local function writeSave(always)
     if not okr then once("saverename", "could not put the save in place: " .. tostring(err)); return end
     lastSave = path .. "\n" .. text
     P.count("save")
-end
-
-------------------------------------------------------------------------------------------------------------------------
--- The game side.
-local function findPlayerState()
-    local all = FindAllOf("PalPlayerState")
-    if not all then return nil end
-    for _, ps in ipairs(all) do if ps:IsValid() then return ps end end
-end
--- The player for this update. Each FindAllOf walks the whole object array (UE4SS has no class index; an estimated
--- 2-15 ms per walk, unmeasured), and 6dd356e made one to four for the same player in one update (menu, mailbox, walls,
--- every 7th update). Now: one controller walk per update, and one player-state walk the first time something asks.
--- The choice is the one each lookup made before: the first live, non-default controller (FindFirstOf skips the class
--- default object; FindAllOf does not, hence the name test, as mailbox.lua's world key did), the first valid state.
--- It lives for one update only (frame is cleared after it), so nothing kept goes stale across a world change.
-local frame = nil
-local function liveKey(pc)
-    if not pc:IsValid() then return nil end
-    local okn, n = pcall(function() return pc:GetFullName() end)
-    if okn and tostring(n):find("Default__", 1, true) then return nil end
-    return tostring(pc:GetAddress())
-end
-local function playerContext()
-    local ctx = {}
-    for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
-        local ok, key = pcall(liveKey, pc)
-        if ok and key then ctx.pc, ctx.worldKey = pc, key; break end
-    end
-    if ctx.pc then
-        local ok, pawn = pcall(function() return ctx.pc:K2_GetPawn() end)
-        ctx.hasPawn = ok and pawn ~= nil              -- menu.lua's old in-world test (UE4SS hands back an object, valid or not)
-        local okv, valid = pcall(function() return pawn:IsValid() end)
-        ctx.pawn = ok and okv and valid and pawn or nil
-    end
-    local looked, ps = false, nil
-    ctx.playerState = function()
-        if not looked then looked, ps = true, findPlayerState() end
-        return ps
-    end
-    return ctx
-end
-local function playerState()
-    if frame then return frame.playerState() end
-    return findPlayerState()
 end
 
 -- Which world save is loaded: the game instance's selected world folder (PalGameInstance, a pure UFunction returning
@@ -347,10 +305,6 @@ local function syncTechs(ps)
     return changed
 end
 
-function notify(text)                          -- (the local declared above writeSave)
-    log(text)
-    R.notify("[Archipelago] " .. text, playerState())
-end
 
 -- A seed belongs to one world: the first one the mod sees it played in (kept in the save file as world=). config.txt
 -- connects at every start, whatever world is loaded next; in any other world nothing is locked, sent, given or
@@ -1492,6 +1446,7 @@ local function deathPenalty(ps)                       -- the world's EPalOptionW
     return ok and v or nil
 end
 local function faint(route, ps)
+    local frame = PLAYER.frame()
     local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")   -- this update's controller (playerContext)
     if route == 1 then
         local pawn = pc:K2_GetPawn()
@@ -1920,7 +1875,7 @@ local function coreTickBody()
         if okc then ctx = c else onceErr("context", c, "player lookup error: " .. tostring(c)) end
     end
     ctx = ctx or { playerState = findPlayerState }
-    frame = ctx
+    PLAYER.setFrame(ctx)
     P.frameBegin(ctx, ran and P.stop("ctx") or nil)
     if ran then
         local ok, err = pcall(update, ctx)
@@ -1928,7 +1883,7 @@ local function coreTickBody()
         if P.legacy then pcall(oldLoad, ctx) end
         P.world(ctx)
     end
-    frame = nil
+    PLAYER.setFrame(nil)
     P.frameEnd(ran)
 end
 -- The engine's frame number, or nil when it can't be read. The timer hands one update to the game thread every
