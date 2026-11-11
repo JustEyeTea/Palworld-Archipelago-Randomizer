@@ -182,16 +182,25 @@ local function cardLabel(tech, card)
     return { name = name, category = category, clickable = clickable, texture = tex }
 end
 
+-- One write to a card's widgets. The first write that fails in the session is logged, naming the widget; the card is
+-- labelled again on a later pass, as its read-back no longer matches.
+local function writeCard(widget, write)
+    local ok, err = pcall(write)
+    if not ok then once("cardwrite", "cards: could not set the " .. widget .. " (" .. tostring(err) .. ")") end
+end
+
 -- Sets a card's click state, name texts, category and icon to `label`.
 local function applyLabel(card, label)
     -- A bought card does nothing when clicked (the game is told it cannot be researched). One showing your own tech
     -- stays interactive so its tooltip still works; the others are switched off outright.
-    safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(label.clickable) end)
+    writeCard("click state", function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(label.clickable) end)
     local text = FText(label.name)
-    safe(function() card.RichText_TechnologyName_Lock:SetText(text) end)
-    safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
-    safe(function() card.BP_PalTextBlock_Category:SetText(FText(label.category)) end)
-    if label.texture then safe(function() card.Image_Icon:SetBrushFromTexture(label.texture, false) end) end
+    writeCard("name text", function() card.RichText_TechnologyName_Lock:SetText(text) end)
+    writeCard("unlocked name text", function() card.RichText_TechnologyName_Unlock:SetText(text) end)
+    writeCard("category", function() card.BP_PalTextBlock_Category:SetText(FText(label.category)) end)
+    if label.texture then
+        writeCard("icon", function() card.Image_Icon:SetBrushFromTexture(label.texture, false) end)
+    end
 end
 
 -- Labels one tech card as its shop slot (key: the card's address), unless it still shows that label; `full` labels it

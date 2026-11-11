@@ -736,6 +736,16 @@ cards[#cards + 1] = passCard
 run(1)
 expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own area's ticket: " .. tostring(passCard.shown.icon))
 
+do   -- a card whose name text cannot be set says so, once
+    local card = cards[3]
+    local setText = card.RichText_TechnologyName_Lock.SetText
+    card.RichText_TechnologyName_Lock.SetText = function() error("no text block here") end
+    require("shop_cards").refreshCards(true)
+    require("shop_cards").refreshCards(true)
+    card.RichText_TechnologyName_Lock.SetText = setText
+    expect(logged("cards: could not set the name text %(.*no text block here%)"),
+           "a card's widget write that fails is logged, naming the widget")
+end
 do   -- (its own block: the harness main chunk is near Lua's 200-local limit)
 print("cards are labelled again only when needed")
 local sets = cardSets
@@ -4853,6 +4863,21 @@ end)()
     run(28)
     MB.on, BAGM.give = mailOn, give
     expect(linesWith("give boom at") == 1, "a bundle the bag keeps failing on, a new address each time: one line")
+end)()
+;(function()
+    print("small failures of the core files say so in the log")
+    local TS2 = dofile(MOD .. "/Scripts/techscan.lua")        -- (a fresh copy: the session's scan ran long ago)
+    TS2.install({ version = "test", dir = MOD .. "/no-such-folder" })
+    TS2.phase()
+    expect(logged("tech scan: could not write .*mod_techs%.txt"), "a mod_techs.txt that can't be written is logged")
+    local f = io.open(MOD .. "/save-70032-Other.txt", "w")
+    f:write("given=-1\nfrobnicate=1\nend\n")
+    f:close()
+    slotData.seed = "70032"
+    push("status", "connected", "Other")
+    run(14)
+    expect(logged("save .*: a line no part of the mod reads, left out: frobnicate="),
+           "a save line nothing reads is logged")
 end)()
 ;(function()
     print("Lua runs only on the game thread")

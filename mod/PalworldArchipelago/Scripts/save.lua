@@ -84,8 +84,9 @@ function SAVE.load()
             for area in v:gmatch("[^|]+") do ap.visited[area] = true end
         elseif b then
             for loc in b:gmatch("%d+") do ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true end
-        elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) then
-            MAIL.load(line)
+        elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) and not MAIL.load(line) then
+            local kind = line:match("^[^=]*") or line
+            once("saveline " .. kind, "save " .. path .. ": a line no part of the mod reads, left out: " .. kind .. "=")
         end
     end
     local kinds, items = MAIL.count()

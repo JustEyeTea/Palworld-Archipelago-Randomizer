@@ -169,11 +169,14 @@ local function tryTechScan(td)
     techScan.report = report
     local lines = S.lines(report)
     for _, l in ipairs(lines) do log(l) end
-    local f = io.open(env.dir .. "\\mod_techs.txt", "w")
+    local path = env.dir .. "\\mod_techs.txt"
+    local f, errOpen = io.open(path, "w")
     if f then
         f:write("# PalworldArchipelago " .. env.version .. ": techs other mods added, changed or removed (vanilla is 1.0.5)\n",
                 table.concat(lines, "\n"), "\n")
         f:close()
+    else
+        log("tech scan: could not write " .. path .. ": " .. tostring(errOpen))
     end
     if #report.added > 0 then notify(#report.added .. " tech(s) from other mods: they stay normal research.") end
     if #report.warn > 0 then
