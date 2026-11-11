@@ -11,7 +11,8 @@
 -- mailbox chest can't hold, go straight to the bag, and what the bag refuses waits in `pending` and is tried again.
 -- Item ids from the 1.0.5 item table. Untested in game (2026-11-05).
 local C = { list = {}, pending = {} }
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.log
 
 C.KINDS = { "sphere", "food", "common", "rare", "jackpot" }
 C.NAMES = { sphere = "Sphere Crate", food = "Food Crate", common = "Common Supply Crate", rare = "Rare Supply Crate",

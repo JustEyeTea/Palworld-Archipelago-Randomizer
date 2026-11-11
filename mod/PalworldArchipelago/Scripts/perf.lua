@@ -41,7 +41,8 @@ P.frameBegin, P.frameEnd = noop, noop
 P.records, P.world = noop, noop
 
 local BUILD = "perf-1"
-local function log(msg) print("[PalworldAP] [perf] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.logger("perf")
 -- os.clock is read at call time (the harness fakes it). On Windows (MSVC) it is wall time with 1 ms steps: one update
 -- reads 0 or 1 ms for a small part, but the average over a 30 s window is still meaningful, and the worst is exact to
 -- about 1 ms. The os.time column in the 30s line checks that it is wall time.

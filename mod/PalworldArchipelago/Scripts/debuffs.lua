@@ -8,9 +8,8 @@ local D = {}
 local ART = require("art")
 local ICON, GAP, TOP = 44, 10, 112
 local TICK_SECONDS = 0.3                 -- main.lua's update period
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+local UTIL = require("util")
+local log, once = UTIL.log, UTIL.onceIn("debuffs")
 
 local function linear(hex, a)
     local c = { A = a or 1 }

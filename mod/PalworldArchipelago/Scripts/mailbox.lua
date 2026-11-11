@@ -12,9 +12,8 @@
 -- config.txt: mailbox=0 gives items straight to the bag as before; mailbox_view=chest skips the LogicMod's window.
 local M = {}
 local P = require("perf")
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+local UTIL = require("util")
+local log, once = UTIL.log, UTIL.onceIn("mailbox")
 
 local MOD = "/Game/Mods/PalworldArchipelagoUI/"
 local WINDOW = MOD .. "WBP_APMailbox.WBP_APMailbox_C"

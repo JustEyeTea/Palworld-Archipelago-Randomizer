@@ -25,7 +25,8 @@
 --  * A2 captured cage (Ctrl+F7): SpawnPal makes a Pal handle but never a Pal in the world, so nothing can be captured;
 --    CapturePal_ServerInternal removes the handle and gives nothing (v0.11.3, v0.11.4).
 local T = {}
-local function log(msg) print("[PalworldAP] [test] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.logger("test")
 local function try(what, fn)
     local ok, a = pcall(fn)
     log(what .. ": " .. (ok and ("ok " .. tostring(a)) or ("FAILED " .. tostring(a))))

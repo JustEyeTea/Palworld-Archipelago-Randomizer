@@ -5,7 +5,8 @@
 --   NormalBossDefeatFlag                  alpha spawner id or character id (not yet seen in a save: unknown keys logged)
 --   FastTravelPointUnlockFlag             the point actor's LevelObjectInstanceId as 32 hex digits, mapped to its
 --                                         FastTravelPointID by scanning the loaded fast-travel actors
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.log
 
 local R = {}
 

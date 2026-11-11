@@ -10,9 +10,8 @@
 local CW = {}
 local ART = require("art")
 local CRATES = require("crates")
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+local UTIL = require("util")
+local log, once = UTIL.log, UTIL.onceIn("crate_window")
 
 local env = nil               -- { chestWidget(), openCrate(kind) -> kind, out, claim(button, action), nameOf(id) }
 local W, H = 800, 500
@@ -41,7 +40,7 @@ CW.dismissed = false          -- the player closed the crate window (until the m
 CW.selected = nil             -- the kind in the details pane
 CW.last = nil                 -- { kind, out } the last crate opened
 
-local function addr(o) local ok, a = pcall(function() return tostring(o:GetAddress()) end); return ok and a or nil end
+local addr = UTIL.addr
 local function valid(o) local ok, v = pcall(function() return o:IsValid() end); return ok and v end
 
 -- The first CanvasPanel at or under a widget's root (as the HUD layout's: a SafeZone may hold it).

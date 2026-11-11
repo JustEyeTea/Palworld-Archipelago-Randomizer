@@ -13,9 +13,8 @@
 -- Inventory page's own Edit Name button) at the right end of that page's name bar, so they look and work like the
 -- game's. The Inventory button is untested in game: it is placed from the dedicated server's pak (kdump, 2026-11-04).
 local M = {}
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+local UTIL = require("util")
+local log, once = UTIL.log, UTIL.onceIn("menu")
 
 local UI = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
 local MENU = UI .. "WBP_TitleMenu.WBP_TitleMenu_C"
@@ -58,7 +57,6 @@ local closing = nil            -- a mailbox button was pressed: { from = "esc" |
                                -- handled on the next update
 local mainMenuLook = nil       -- updates until the mod looks whether the main menu closed (a diagnostic)
 local lookFrom = nil           -- the button that look follows: "esc" | "inventory"
-local hooked = {}
 local asking = nil             -- the text window: { steps, step, values, done = function(values), param, id, hud }
 
 local function find(path)
@@ -456,23 +454,11 @@ local function okPressed()
     asking.reopen = true                       -- the next window opens on the next update, once this one has closed
 end
 
--- Hooks a function once its class is loaded. A failed attempt is retried every 10 calls (v0.10.3 playtest: the text
--- window's OK hook failed with "UFunction::Func: 0x0" while its class was still loading, and was never retried, so
--- every Confirm read as a cancel).
-local hookTries = {}
+-- Hooks a function once its class is loaded (UTIL.hookWhenLoaded retries while the class loads: a text window's OK
+-- hook that failed once and was never tried again made every Confirm read as a cancel).
 local function hookOnce(path, fn)
-    if hooked[path] then return end
-    local cls = StaticFindObject((path:gsub(":.*$", "")))
-    if not cls or not cls:IsValid() then return end
-    hookTries[path] = (hookTries[path] or 0) + 1
-    if hookTries[path] > 1 and hookTries[path] % 10 ~= 1 then return end
-    local ok, err = pcall(RegisterHook, path, api.guardedHook and api.guardedHook(path, fn) or fn)
-    if ok then
-        hooked[path] = true
-        log("menu: hooked " .. path:match("[^:]+$") .. (hookTries[path] > 1 and (" (try " .. hookTries[path] .. ")") or ""))
-    elseif hookTries[path] == 1 then
-        log("menu: could not hook " .. path:match("[^:]+$") .. " yet (will retry): " .. tostring(err):match("^[^\n]*"))
-    end
+    if UTIL.isHooked(path) then return end
+    UTIL.hookWhenLoaded(path, api.guardedHook and api.guardedHook(path, fn) or fn, "menu")
 end
 
 -- Every widget in a menu's own tree, from WidgetTree.RootWidget down through panels (GetChildrenCount/GetChildAt).
@@ -626,6 +612,7 @@ local function notDefault(o)
     return o:IsValid() and not (okd and tostring(full):find("Default__", 1, true))
 end
 local pageLogged = false
+local invNoBarSaid = false     -- the inventory page with no name bar was logged (once a session)
 local function inventoryPages(mains)
     local out = {}
     for _, mm in ipairs(mains) do
@@ -780,8 +767,9 @@ local function updateInventory(found)
                     invFailed[key] = true                      -- not again for this page: each try makes a widget
                     once("invadd", "menu: could not add the inventory mailbox button: " .. tostring(okc and err or b))
                 end
-            elseif not reported["invnobar"] then
-                once("invnobar", "menu: the inventory page has no name bar (" .. tostring(why) .. "); no mailbox button there (the Esc menu has one)")
+            elseif not invNoBarSaid then
+                invNoBarSaid = true                            -- (once a session, with the page's widgets)
+                log("menu: the inventory page has no name bar (" .. tostring(why) .. "); no mailbox button there (the Esc menu has one)")
                 local parts = {}
                 pcall(eachWidget, e.page, function(o, depth)
                     if #parts < 120 then parts[#parts + 1] = depth .. ":" .. nameOf(o) .. ":" .. className(o) end
@@ -1360,7 +1348,7 @@ function M.update(ctx)
                     return h:GetText():ToString() .. " (row " .. h.BindTextDatatableHandle.RowName:ToString() .. ")"
                 end)
                 log("menu: window heading reads '" .. tostring(okt and t or ("? " .. tostring(t))) .. "'"
-                    .. (hooked[WINDOW_OK] and "" or " (OK not hooked yet)"))
+                    .. (UTIL.isHooked(WINDOW_OK) and "" or " (OK not hooked yet)"))
             end
         end
         if asking.reopen and not open then
