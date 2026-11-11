@@ -137,7 +137,7 @@ function CHECKS.pollRecords(ps, tick)
         return
     end
     CHECKS.sendChecks(found.locations)
-    ap.level, ap.beaten = found.level, found.beaten
+    ap.level, ap.beaten = found.level or ap.level, found.beaten   -- (a level not read keeps the last one)
     sendGoalOnceOutOfArena(ps, found, tick)
 end
 

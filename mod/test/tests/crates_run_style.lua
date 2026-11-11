@@ -34,6 +34,19 @@ group("Palworld Crates", function()
         end
     end
     expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
+    -- The level can't be read for a moment (the pawn missing): the last level read stands, for the crate and the shop.
+    local STATE = require("ap_state")
+    runCycles(2)
+    local known = STATE.ap.level
+    game.playerLevel = nil
+    runCycles(2)
+    local keptLevel = STATE.ap.level
+    CR.list = { "sphere" }
+    local openedAt = logMark()
+    require("items").openCrate()
+    game.playerLevel = known
+    expect(known == 4 and keptLevel == known and loggedSince(openedAt, "opened a Sphere Crate at level 4:"),
+           "an unreadable level keeps the last one read, and a crate rolls at it: " .. tostring(keptLevel))
 end)
 
 group("the crate window", function()

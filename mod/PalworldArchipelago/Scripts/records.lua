@@ -56,11 +56,12 @@ local function warnOnce(key, msg)
     log(msg)
 end
 
+-- The player's level, or nil when it can't be read (the pawn missing for a moment): callers keep the last one read.
 function R.level(ps)
     local ok, lv = pcall(function() return ps:GetPawn():GetCharacterParameterComponent():GetLevel() end)
     if ok and type(lv) == "number" then return lv end
     warnOnce("level", "could not read the player's level: " .. tostring(lv))
-    return 0
+    return nil
 end
 
 -- Fast-travel record keys -> FastTravelPointID, from whatever fast-travel actors are loaded.
@@ -90,7 +91,8 @@ local function scanFastTravel(now, unlockedNow)
 end
 
 -- Everything done so far: { locations = {ids}, towers = number of goal towers beaten, beaten = {boss type = true},
--- pals = number of different Pals registered (caught or hatched) }.
+-- level = the player's level (nil when it can't be read), pals = number of different Pals registered (caught or
+-- hatched) }.
 function R.progress(ps, D, now)
     local out, towers, beaten, registered, pals = {}, 0, {}, {}, 0
     local function register(k)
@@ -109,7 +111,7 @@ function R.progress(ps, D, now)
     end
 
     local lv = R.level(ps)
-    for n = 2, lv do
+    for n = 2, lv or 0 do
         add(D.levels[n])
     end
 
