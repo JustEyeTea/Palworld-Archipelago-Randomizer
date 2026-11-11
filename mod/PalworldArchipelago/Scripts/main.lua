@@ -774,6 +774,7 @@ WALLS.chartOff = cfg.map_chart == "0"
 WALLS.iconsOff = cfg.map_icons == "0"
 WALLS.regionsOff = cfg.map_regions == "0"
 WALLS.mapStyle = cfg.map_style == "chart" and "chart" or "territories"
+WALLS.testFogColour = cfg.test_tools == "1"
 do local ART = require("art"); ART.keep, ART.dir = keep, modDir end
 do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|b3d-dense, wall_tiling=U,V and wall_scroll=U,V in config.txt
     local function pair(s)

@@ -1211,9 +1211,9 @@ do
     for _ = 1, 4 do W5.updateMap(true, {}, pawn) end
     local said = table.concat(calls, " | ")
     expect(said:find("enable=1", 1, true), "C++ is switched on (config.txt has no map_cpp=0)")
-    expect(said:find("fog=0.815,0.693,0.434,0.6", 1, true)
+    expect(said:find("fog= |", 1, true)
            and said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
-           "C++ is told the fog colour and the picture's path (without its class): " .. said)
+           "C++ is told the fog colour (none: the game's own) and the picture's path (without its class): " .. said)
     expect(logged("map screen %(C%+%+%): hooked; Setup ran 1x") and logged("map fog: fog material .*MaterialInstanceDynamic_1; mask .*1024x1024.*exported to fog%-mask%.png")
            and logged("default mask 512x512 exported to fog%-default%-mask%.png")
            and exports == before + 2, "the map's opening logs C++'s status, and the fog is probed and both masks exported once")
@@ -2048,6 +2048,21 @@ do  -- The game's template of the map screen (no map image, no player) is not ta
     for _ = 1, 3 do W.updateMap(true, {}, pawn) end
     FindAllOf, mapOpen = realFAO, false
     expect(asked == 0, "the map screen's template is not asked for its player: asked " .. asked .. "x")
+end
+do  -- The chart look's parchment fog colour is sent only with the test tools, and never with map_chart=0
+    local function fogSent(testTools, chartOff)
+        local calls = {}
+        AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+        local W = freshWalls()
+        W.mapStyle, W.testFogColour, W.chartOff = "chart", testTools, chartOff
+        W.updateMap(true, {}, pawn)
+        AP_MapScreen = nil
+        for _, c in ipairs(calls) do if c:find("^fog=") then return c end end
+    end
+    local plain, tools, toolsNoChart = fogSent(false, false), fogSent(true, false), fogSent(true, true)
+    expect(plain == "fog=" and tools == "fog=0.815,0.693,0.434,0.6" and toolsNoChart == "fog=",
+           "the parchment fog colour only with test_tools=1 and the chart fog on: " .. tostring(plain) .. ", "
+           .. tostring(tools) .. ", " .. tostring(toolsNoChart))
 end
 end
 end)()

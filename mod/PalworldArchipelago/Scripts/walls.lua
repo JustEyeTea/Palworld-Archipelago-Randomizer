@@ -1389,12 +1389,21 @@ end
 local FOG_TEST = "0.815,0.693,0.434,0.6"
 local cpp = { body = nil, fog = false, opened = 0, fixes = 0, maskDone = false }
 W.cppOff = false                     -- config.txt map_cpp=0 (main.lua): C++ leaves the screen alone; Lua alone, as before
+W.testFogColour = false              -- config.txt test_tools=1 (main.lua): the chart look sends FOG_TEST as the fog colour
+-- The fog colour C++ gives the screen until there is a fog picture: "" keeps the game's own dark fog. FOG_TEST only
+-- with the test tools, in the chart look with its fog on; config.txt says map_chart=0 keeps the game's fog.
+local function fogColour()
+    if W.testFogColour and not territories() and not W.chartOff then
+        return FOG_TEST
+    end
+    return ""
+end
 local function tellCpp()
     if not AP_MapScreen then return end
     if not cpp.fog then
         cpp.fog = true
         AP_MapScreen("enable", W.cppOff and "0" or "1")
-        AP_MapScreen("fog", territories() and "" or FOG_TEST)   -- (Territories: the game's own fog until its picture)
+        AP_MapScreen("fog", fogColour())
     end
     if mapRT and mapRT:IsValid() then
         local full = mapRT:GetFullName()
