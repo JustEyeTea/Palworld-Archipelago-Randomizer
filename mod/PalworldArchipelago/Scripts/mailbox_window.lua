@@ -38,7 +38,8 @@ local WINDOW_GAME = {
 -- State. Forgotten: when the HUD no longer has the window, on a new world, on a new seed (WINDOW.forget()).
 -- Its buttons are claimed in clicks.lua as the owner WINDOW_OWNER, each with what it does: { kind = "take", id = item
 -- id }, { kind = "takeAll" } or { kind = "close" } (WINDOW_ACTIONS); released whenever the window is filled again.
-local window = nil            -- the window: { id = its HUD id, hud = the HUD service }
+local window = nil            -- the window: { id = its HUD id, hud = the HUD service, listed = what listedNow() said
+                              --   when it was last filled }
 -- State. Forgotten: never.
 local iconsFailed = false     -- an icon could not be shown: the game's item data has none, so none are tried again
 
@@ -106,10 +107,17 @@ local function setTexts(widget)
     setLabel(widget.Close, "Close")
 end
 
+-- What the list holds, as one text that changes whenever a kind or a count does (to see when to fill it again).
+local function listedNow()
+    local kinds, items = LIST.count()
+    return kinds .. "/" .. items
+end
+
 -- Fills the window from the list again: rows, texts and the buttons' actions.
 local function refreshWindow()
     local widget = window and window.hud:GetWidget(window.id)
     if not widget or not widget:IsValid() then return end
+    window.listed = listedNow()
     checkParts(widget)
     widget.List:ClearChildren()
     CLICKS.releaseAll(WINDOW_OWNER)
@@ -187,7 +195,8 @@ function WINDOW.isOpen()
     return window ~= nil
 end
 
--- Forgets the window once the HUD no longer has it (the player closed it).
+-- Forgets the window once the HUD no longer has it (the player closed it), and fills it again when items arrived (or
+-- went) since it was filled.
 function WINDOW.follow()
     if not window then return end
     local open = false
@@ -197,6 +206,10 @@ function WINDOW.follow()
     end)
     if not open then
         WINDOW.forget()
+        return
+    end
+    if window.listed ~= listedNow() then
+        refreshWindow()
     end
 end
 

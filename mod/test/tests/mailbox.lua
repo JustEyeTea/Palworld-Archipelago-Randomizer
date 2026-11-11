@@ -388,4 +388,32 @@ group("the mailbox", function()
                "the failed LogicMod window is closed before the chest opens in its place: still up: "
                .. tostring(not broken.gone))
     end
+    do   -- an item that arrives while the LogicMod window is open gets its row at once
+        game.logicMod = true
+        window.gone = false
+        hud.Push = function(self, cls, param)
+            if tostring(cls.path):find("WBP_APMailbox", 1, true) then
+                hudWindows["mail"] = window
+                return "mail"
+            end
+            return pushPlain(self, cls, param)
+        end
+        wbl.Create = function(_, _, cls)
+            if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end
+            return wblCreate()
+        end
+        MB.open()
+        run(4)
+        local rowsBefore = #winRows
+        MB.add("Paldium_Probe", 3)                          -- (a kind of its own, so it gets a row)
+        run(1)
+        local last = winRows[#winRows]
+        local newRow = last and last.Label.text
+        hooks[ROW_CLICK]({ get = function() return window.Close end })
+        run(1)
+        hud.Push, wbl.Create, game.logicMod = pushPlain, wblCreate, false
+        MB.removeCount(MB.queue, "Paldium_Probe", 3)
+        expect(#winRows == rowsBefore + 1 and newRow and newRow:find("x3$"),
+               "an item received while the window is open is listed: " .. tostring(newRow))
+    end
 end)
