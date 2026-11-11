@@ -63,6 +63,7 @@ local syncTechs = TECH_LOCK.sync
 
 local WORLD = require("world")
 local DEATH_LINK = require("death_link")
+local HELD = require("held_notices")
 
 local ITEMS = require("items")
 local applyItems, openCrate = ITEMS.applyItems, ITEMS.openCrate
@@ -123,43 +124,6 @@ local function resetHints()
 end
 local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
 local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
--- Notices that would come while the loading screen is still up (Speed Boost's, 2026-11-07 test: sent 2 s after the world
--- loaded, before the player could see it; they found it later in chat): held until the player's character has moved
--- MOVED_CM from where it first stood in this world, or WAIT.heldNotice has passed, then shown. Dropped if the world
--- changes first.
--- State: forgotten when the world changes (the held notices are dropped, not shown).
-local heldNotices = {
-    list = {},                -- the notices held, in order
-    world = nil,              -- the world they were held in
-    from = nil,               -- { X, Y }: where the player's character first stood in that world
-}
-local MOVED_CM = 300
-local function noticeLater(msg)
-    local held = heldNotices
-    if held.world ~= WORLD.key() then held.list, held.world, held.from = {}, WORLD.key(), nil end
-    held.list[#held.list + 1] = msg
-end
-local function showLater(pawn)
-    local held = heldNotices
-    if #held.list == 0 then return end
-    if held.world ~= WORLD.key() then
-        held.list, held.from = {}, nil
-        return
-    end
-    local ok, at = pcall(function() return pawn:K2_GetActorLocation() end)
-    local moved = false
-    if ok and at and at.X then
-        if not held.from then held.from = { X = at.X, Y = at.Y } end
-        local dx, dy = at.X - held.from.X, at.Y - held.from.Y
-        moved = dx * dx + dy * dy >= MOVED_CM * MOVED_CM
-    end
-    if moved or WORLD.age() >= WAIT.settle + WAIT.heldNotice then
-        for _, msg in ipairs(held.list) do notify(msg) end
-        local why = moved and "the player moved" or "a minute in the world"
-        log("held notice(s) shown (" .. why .. "): " .. #held.list)
-        held.list, held.from = {}, nil
-    end
-end
 -- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
 -- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
 local areaLocks = false       -- state: set each connection (applySeedOptions)
@@ -648,13 +612,13 @@ local function phaseItems()
     local td = safe(function() return ps:GetTechnologyData() end)
     if td and td:IsValid() then applyItems(ps) end    -- (items wait while the tech data is still loading)
     if WORLD.settled() then
-        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), noticeLater)
+        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.noticeLater)
         if not oks then
             onceErr("sync", news, "sync error: " .. tostring(news))
         elseif news then
             writeSave()
         end
-        local okl, errl = pcall(showLater, safe(function() return ps:GetPawn() end))
+        local okl, errl = pcall(HELD.showLater, safe(function() return ps:GetPawn() end))
         if not okl then onceErr("later", errl, "notice error: " .. tostring(errl)) end
     end
     local okdl, errdl = pcall(DEATH_LINK.step, ps)
