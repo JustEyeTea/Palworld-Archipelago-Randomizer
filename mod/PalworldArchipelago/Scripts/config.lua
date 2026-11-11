@@ -85,8 +85,25 @@ end
 -- (host names only, since an archipelago.gg room's port changes with every room). Kept in config.txt as
 -- servers=host,host.
 local DEFAULT_SERVER = "archipelago.gg"
--- A server's host name in lower case, without its port.
-local function hostOf(server) return ((server or ""):match("^%s*([^:%s]+)") or ""):lower() end
+
+-- A server address as config.txt and the title menu write it, [scheme]host[:port] ("wss://myhost:38281",
+-- "archipelago.gg:38281", "localhost"), cut into its scheme ("ws://", "wss://" or ""; the connector takes all three),
+-- its host and its port ("" when not given). Spaces around it are dropped.
+function CONFIG.splitServer(server)
+    local text = (server or ""):match("^%s*(.-)%s*$")
+    local scheme, rest = text:match("^(wss?://)(.*)$")
+    if not scheme then
+        scheme, rest = "", text
+    end
+    local host, port = rest:match("^([^:%s]*):?(%d*)$")
+    return scheme, host or "", port or ""
+end
+
+-- A server's host name in lower case, without its scheme or port.
+local function hostOf(server)
+    local _, host = CONFIG.splitServer(server)
+    return host:lower()
+end
 -- The servers the title menu offers: archipelago.gg first, then the saved ones and the one config.txt names.
 function CONFIG.servers()
     local list, seen = { DEFAULT_SERVER }, { [DEFAULT_SERVER] = true }

@@ -476,4 +476,33 @@ group("the title menu's Archipelago menu", function()
                and logged("util: WBP_APMailbox_C: not there, even after loading its package"),
                "the button list, a label, a text box's text and a class each say where they came from")
     end
+    do   -- a server written with its scheme (wss://, as the connector takes it) keeps it in the menu
+        local CONFIG = require("config")
+        local serverWas, slotWas = CONFIG.cfg.server, CONFIG.cfg.slot
+        CONFIG.cfg.server, CONFIG.cfg.slot = "wss://myhost.example:38281", "Other"
+        push("status", "connected", "Other")
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        local goText = btn(R.go) and btn(R.go).Test_Content.text
+        local serverText = typed(R.server)
+        click(btn(R.back))
+        run(1)
+        game.titleOpen = false
+        run(1)
+        CONFIG.rememberServer("wss://myhost.example:38281")
+        local saved = CONFIG.cfg.servers or ""
+        CONFIG.cfg.server, CONFIG.cfg.slot = serverWas, slotWas
+        expect(serverText == "wss://myhost.example" and goText == "Disconnect (connected as Other)",
+               "the menu shows the scheme and knows the connection is that server: " .. tostring(serverText)
+               .. " / " .. tostring(goText))
+        expect(saved:find("myhost.example", 1, true) and not saved:find("wss", 1, true),
+               "and the server is remembered by its host: " .. saved)
+    end
 end)

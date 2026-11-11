@@ -4,6 +4,7 @@
 -- Used by menu_title.lua, which hands it main.lua's functions (CONNECT.install), and menu_title_rows.lua.
 -- Tests: mod/test/tests/title_menu.lua; group "the title menu's Archipelago menu" (tools/lua_harness.sh, in CI).
 local CONNECT = {}
+local CONFIG = require("config")
 local UTIL = require("util")
 local WIDGETS = require("widgets")
 local TEXT = require("text_window")
@@ -23,29 +24,33 @@ function CONNECT.install(functions)
 end
 
 -- State: what the menu will connect with. Forgotten: each time the menu opens (setShowing).
-local draft = nil             -- { host, port, slot, password }
+local draft = nil             -- { scheme ("wss://", "ws://" or ""), host, port, slot, password }
 -- State. Forgotten: never.
 local remembered = nil        -- the server last handed to api.rememberServer
 -- State: the pointer on the saved servers. Forgotten: when the pointer leaves, or a saved server is picked.
 local pickHovered = nil       -- a saved server row's address while the pointer is on it
 
-local function splitServer(server)
-    local host, port = (server or ""):match("^%s*([^:%s]*):?(%d*)%s*$")
-    return host or "", port or ""
-end
+local splitServer = CONFIG.splitServer
 
 -- What the menu will connect with, from config.txt's server, slot and password when the menu opened.
 local function draftNow()
     if not draft then
-        local host, port = splitServer(api.server())
-        draft = { host = host ~= "" and host or "archipelago.gg", port = port, slot = api.slot(),
-                  password = api.password() }
+        local scheme, host, port = splitServer(api.server())
+        if host == "" then
+            scheme, host = "", "archipelago.gg"
+        end
+        draft = { scheme = scheme, host = host, port = port, slot = api.slot(), password = api.password() }
     end
     return draft
 end
 
+-- The draft's server as the Server box shows it: the scheme, if one was given, and the host.
+local function serverText(d)
+    return d.scheme .. d.host
+end
+
 local function target(d)
-    return d.host .. (d.port ~= "" and (":" .. d.port) or "")
+    return serverText(d) .. (d.port ~= "" and (":" .. d.port) or "")
 end
 
 -- Connected, and the menu still shows that same server and slot: its last row disconnects. Otherwise it connects (and
@@ -97,7 +102,7 @@ end
 -- Puts the draft into the boxes as the menu opens.
 local function fillEdits(m)
     local d = draftNow()
-    writeEdit(m, "server", d.host)
+    writeEdit(m, "server", serverText(d))
     writeEdit(m, "port", d.port)
     writeEdit(m, "slot", d.slot)
     writeEdit(m, "password", d.password)
@@ -127,7 +132,7 @@ end
 
 local function serverLabel()
     local saved = #(api.servers and api.servers() or {})
-    return "Server: " .. draftNow().host .. (saved > 1 and ("   (click: next of " .. saved .. ")") or "")
+    return "Server: " .. serverText(draftNow()) .. (saved > 1 and ("   (click: next of " .. saved .. ")") or "")
 end
 
 local function portLabel()
@@ -157,7 +162,8 @@ end
 local function pickServer(m, row)
     local host = m.pickHosts[row.index]
     if not host then return end
-    draftNow().host = host
+    local d = draftNow()
+    d.scheme, d.host = "", host                 -- (a saved server is its host alone)
     writeEdit(m, "server", host)
     pickHovered = nil
 end
@@ -171,15 +177,15 @@ local function nextServer()
             at = index
         end
     end
-    d.host = saved[at % #saved + 1]
+    d.scheme, d.host = "", saved[at % #saved + 1]
 end
 
 local function askAddress(_, _, button)
     local d = draftNow()
     TEXT.ask(button, TEXT.FIELDS.addr, target(d), function(answer)
-        local host, port = splitServer(answer)
+        local scheme, host, port = splitServer(answer)
         if host ~= "" then
-            d.host = host
+            d.scheme, d.host = scheme, host
         end
         if port ~= "" then
             d.port = port
@@ -279,17 +285,23 @@ local function readEdit(edit)
     return nil
 end
 
+-- Whether a Server box's text names a port (host:port), which moves to the Port box.
+local function namesPort(text)
+    local _, _, port = splitServer(text)
+    return port ~= ""
+end
+
 -- What each typed box does with its text, every update while the menu shows. A Server typed as host:port moves the
 -- port to its own box once the Server box is left (not while typing in it).
 local function typedServer(m, d, text, edit)
-    local host, port = splitServer(text)
-    d.host = host
+    local scheme, host, port = splitServer(text)
+    d.scheme, d.host = scheme, host
     if port ~= "" then
         d.port = port
     end
     local okFocus, focus = pcall(function() return edit:HasKeyboardFocus() end)
-    if not text:find(":", 1, true) or (okFocus and focus) then return end
-    writeEdit(m, "server", host)
+    if port == "" or (okFocus and focus) then return end
+    writeEdit(m, "server", serverText(d))
     writeEdit(m, "port", d.port)
 end
 
@@ -307,7 +319,7 @@ local function readEdits(m)
         local text = readEdit(edit)
         if text == nil then
             once("editread", "menu: a text box can't be read back from Lua")
-        elseif text ~= m.typed[kind] or (kind == "server" and text:find(":", 1, true)) then
+        elseif text ~= m.typed[kind] or (kind == "server" and namesPort(text)) then
             m.typed[kind] = text
             TYPED_INTO[kind](m, d, text:match("^%s*(.-)%s*$"), edit)
         end
