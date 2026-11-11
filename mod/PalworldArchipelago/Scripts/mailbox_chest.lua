@@ -1,7 +1,8 @@
 -- The mailbox's hidden chest: without the LogicMod, the mailbox is the game's own chest window on a chest of its own,
--- made once per world far outside the map and deep underground (mailbox_slots, default 300 slots), kept from decaying,
--- filled from the list as its window opens and emptied back into the list as it closes. It only gives: what the
--- player puts in goes back to the bag, and items received while it is open appear in it. Wired by mailbox.lua.
+-- made once per world far outside the map and deep underground (mailbox_slots, default 300 slots) and kept from
+-- decaying; its window opened on it and followed until the player closes it. Its parts, each in its own file: the
+-- slots filled and emptied (mailbox_chest_slots.lua), the sweep while the window is open (mailbox_chest_sweep.lua) and
+-- the window's heading (mailbox_chest_heading.lua). Wired by mailbox.lua.
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local CHEST = {}
 local UTIL = require("util")
@@ -13,16 +14,16 @@ local SLOTS = require("mailbox_chest_slots")
 local SWEEP = require("mailbox_chest_sweep")
 local HEADING = require("mailbox_chest_heading")
 
--- What mailbox.lua hands over (CHEST.install).
+-- What mailbox.lua hands over (CHEST.install), here and to the parts.
 --   list                  the mailbox module: its queue, addCount, removeCount, tellStays and TITLE
---   once(key, msg)        the mailbox's log-once for this world
+--   once(key, msg)        the mailbox's log-once for this world (the parts use it)
 --   notify(text)          shows a line to the player
 --   save()                writes the mod's save file
 --   cfg                   config.txt's values (mailbox_slots)
-local env, LIST, once
+local env, LIST
 
 function CHEST.install(handedOver)
-    env, LIST, once = handedOver, handedOver.list, handedOver.once
+    env, LIST = handedOver, handedOver.list
     SLOTS.install(handedOver)
     SWEEP.install(handedOver)
     HEADING.install(handedOver)

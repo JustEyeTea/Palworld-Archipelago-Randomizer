@@ -1,5 +1,6 @@
 -- The mailbox: the Esc menu's button, the hidden chest and its window, the LogicMod window.
--- Tests mailbox.lua, mailbox_chest.lua, mailbox_window.lua, bag.lua.
+-- Tests mailbox.lua, mailbox_chest.lua, mailbox_chest_slots.lua, mailbox_chest_sweep.lua, mailbox_chest_heading.lua,
+-- mailbox_window.lua, bag.lua.
 
 group("the mailbox", function()
     local MB = require("mailbox")
