@@ -232,7 +232,9 @@ The rest of the connector calls Palworld's own functions, or does image work too
 ## The Lua mod
 
 `mod/PalworldArchipelago/Scripts/`. `main.lua` runs everything; the other files are modules it calls (their sections
-follow as the tour reaches them).
+follow as the tour reaches them). `util.lua` holds what every module shares: the log and log-once (`once`,
+`onceIn`, `onceErr`), guarded calls (`safe`), an object's address (`addr`), the clock (`UPDATE_MS`, `updates`,
+`isDue`) and hooks that wait for their class to load (`hookWhenLoaded`).
 
 ### `main.lua`: the update loop
 
