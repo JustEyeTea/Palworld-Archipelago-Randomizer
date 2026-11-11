@@ -37,6 +37,10 @@ local log, once = UTIL.log, UTIL.onceIn("menu")
 local className, nameOf, setLabel = WIDGETS.className, WIDGETS.nameOf, WIDGETS.setLabel
 local COLLAPSED = WIDGETS.VISIBILITY.collapsed
 local HALIGN, VALIGN = WIDGETS.HALIGN, WIDGETS.VALIGN
+-- The menu's parts, each called by its own name: the banner, the rows' building, and what the rows say and do.
+local BANNER = {}
+local ROWS = {}
+local CONNECT = {}
 
 -- What main.lua hands over, through menu.lua (TITLE.install): see menu.lua.
 local api
@@ -49,7 +53,7 @@ end
 -- own buttons for ours, in the same list: Server, Port, Slot and Password typed in the game's own text box, styled as
 -- the world-name window's; while the Server box has the keyboard, the saved servers show under it to pick from; then
 -- Connect or Disconnect, and Back. The banner brightens while the pointer (or the keyboard's focus) is on it.
---
+
 -- Two layouts of one menu. The typed layout is built first. If any of its rows can't be made, everything is taken out
 -- and the window layout is built instead: each field is a row that opens the game's text window alone, and Server
 -- steps through the saved servers. A menu record's `edits` is nil in the window layout.
@@ -71,7 +75,7 @@ local DOT_AT = { x = 149, y = 114 }                           -- the dot's top-l
 local TEXT_AT = { x = 167, y = 111, right = 24 }              -- the status text's place on the banner
 local BANNER_TEXT_SIZE = 13
 local DOT = { connected = UTIL.linear("#4DD07A"), connecting = UTIL.linear("#ECBE6E"), other = UTIL.linear("#EF6A5B") }
-local TEXT_COLOUR = UTIL.linear("#E8F4F2")
+BANNER.TEXT_COLOUR = UTIL.linear("#E8F4F2")      -- the banner's status text, and the typed rows' labels
 -- The banner waits a little dim, and is full (and a little bigger: a pop about its centre) while the pointer or the
 -- keyboard is on it, with the hover picture (art/ap-title-banner-hover.png) when there is one: so it shows it can be
 -- clicked.
@@ -108,20 +112,26 @@ local EDIT_BG = { R = 0.0, G = 0.006, B = 0.01, A = 0.97 }    -- the box: near b
 local menus = {}              -- a title menu's address -> its record (newTitleMenu)
 local fails = {}              -- a title menu's address -> builds that failed in a row (FAILS_BEFORE_BACKOFF);
                               --   forgotten when the menu is no longer found (a new one may get its address)
--- State: what the menu will connect with. Forgotten: each time the menu opens (setShowing).
-local draft = nil             -- { host, port, slot, password }
 -- State. Forgotten: never.
-local remembered = nil        -- the server last handed to api.rememberServer
 local buildFailures = 0       -- builds that failed in a row, on any menu (the first LOGGED_FAILURES are logged)
 local lookUpdates = 0         -- updates since the start (the title menu's lookups count them)
 local titleInWorld = false    -- a title menu was found in a world: from then it is looked for every update
 local rowsEverMade = false    -- our rows were made on a title menu (then no survey is needed)
+
+-- State: what the menu will connect with. Forgotten: each time the menu opens (setShowing).
+local draft = nil             -- { host, port, slot, password }
+-- State. Forgotten: never.
+local remembered = nil        -- the server last handed to api.rememberServer
+-- State: the pointer on the saved servers. Forgotten: when the pointer leaves, or a saved server is picked.
+local pickHovered = nil       -- a saved server row's address while the pointer is on it
+
+-- State. Forgotten: never.
 local coloured = false        -- a text box was coloured (for the log)
--- State: the pointer and the banner. Forgotten: bannerPressed at the end of every update; the others when the
--- pointer leaves.
+
+-- State: the pointer and the banner. Forgotten: bannerPressed at the end of every update (BANNER.endPress);
+-- bannerHovered when the pointer leaves.
 local bannerPressed = false   -- the banner was just clicked: its pressed picture until the end of the update
 local bannerHovered = nil     -- the banner button's address while the pointer (or focus) is on it
-local pickHovered = nil       -- a saved server row's address while the pointer is on it
 
 -- A title menu's record, with every field it has.
 local function newTitleMenu(list)
@@ -205,7 +215,7 @@ end
 
 -- The top-centre point of the button list on its canvas, with the list's anchors. Raises an error when the list's slot
 -- can't tell (no canvas slot, or anchors stretched across the canvas).
-local function listTop(list)
+function BANNER.listTop(list)
     local listSlot = list.Slot
     local anchors, alignment, position = listSlot:GetAnchors(), listSlot:GetAlignment(), listSlot:GetPosition()
     if anchors.Minimum.X ~= anchors.Maximum.X or anchors.Minimum.Y ~= anchors.Maximum.Y then
@@ -219,7 +229,7 @@ end
 
 -- Where the banner's bottom-centre goes: BANNER_GAP above the list's top.
 local function bannerSpot(list)
-    local anchors, top = listTop(list)
+    local anchors, top = BANNER.listTop(list)
     return anchors, { X = top.X, Y = top.Y - BANNER_GAP }
 end
 
@@ -257,7 +267,7 @@ local function addStatusText(banner, menu)
     local text = WIDGETS.construct(WIDGETS.UMG.textBlock, menu)
     local sized = WIDGETS.setFontSize(text, BANNER_TEXT_SIZE, { X = 0, Y = 0.5 })
     pcall(function()
-        text:SetColorAndOpacity({ SpecifiedColor = TEXT_COLOUR, ColorUseRule = WIDGETS.COLOUR_RULE.specified })
+        text:SetColorAndOpacity({ SpecifiedColor = BANNER.TEXT_COLOUR, ColorUseRule = WIDGETS.COLOUR_RULE.specified })
     end)
     local slot = banner.over:AddChild(text)
     pcall(function()
@@ -295,7 +305,7 @@ local function putBannerInList(banner, list)
 end
 
 -- The banner over the list, with its status dot and text; its record, or nil without the art.
-local function addBanner(menu, list)
+function BANNER.add(menu, list)
     local banner = makeBanner(menu, list)
     if not banner then return nil end
     addStatusDot(banner, menu)
@@ -310,7 +320,7 @@ local function addBanner(menu, list)
 end
 
 -- The banner's text and dot as the connection stands, and its place as the list's height changes.
-local function bannerStatus(banner)
+function BANNER.showConnection(banner)
     local status, server = api.status(), api.server()
     local text = status == "connected" and ("Connected | " .. server .. " | Slot: " .. api.slot())
         or status == "connecting" and ("Connecting to " .. server .. "...")
@@ -332,7 +342,7 @@ end
 -- The banner's tint follows its button's own hover and unhover events (hooked, never polled: a menu the game has
 -- dropped is never touched). The picture: pressed for a moment after a click, the hover picture while lit, the banner
 -- itself otherwise; without those files, the banner itself with the tint and the pop alone.
-local function bannerHover(m)
+function BANNER.refreshLook(m)
     local banner = m.banner
     if not (banner and banner.picture and m.bannerKey) then return end
     local lit = bannerHovered == m.bannerKey and not m.showing
@@ -347,6 +357,25 @@ local function bannerHover(m)
     local texture = ART.texture(wanted) or ART.texture("ap-title-banner")
     if texture then
         pcall(function() banner.picture:SetBrushFromTexture(texture, false) end)
+    end
+end
+
+-- The banner was just clicked: its pressed picture shows until the end of the update.
+function BANNER.press()
+    bannerPressed = true
+end
+
+-- The update is over: the banner's pressed picture goes at its next refresh.
+function BANNER.endPress()
+    bannerPressed = false
+end
+
+-- The pointer (or focus) on or off the banner's button.
+function BANNER.pointerOn(address, on)
+    if on then
+        bannerHovered = address
+    elseif bannerHovered == address then
+        bannerHovered = nil
     end
 end
 
@@ -406,7 +435,7 @@ end
 
 -- A title button in a box in `list`, `width` wide, backed with `edge` (no backing when nil). The button and its size
 -- box (the button's parent is its Border when backed), or nil when the game's button can't be made.
-local function addTitleButton(menu, list, width, edge)
+function ROWS.addTitleButton(menu, list, width, edge)
     local button = WIDGETS.create(menu, GAME.titleButton)
     if not button then return nil end
     local content, isBacked = button, false
@@ -481,7 +510,7 @@ local function giveGameButtonsBack(m)
 end
 
 -- The game's own title buttons fold away while the menu shows, and get their own visibility back after.
-local function showGame(m, show)
+function CONNECT.showGame(m, show)
     if show then
         giveGameButtonsBack(m)
         return
@@ -530,7 +559,7 @@ local function setShowing(m, showing)
             fillEdits(m)
         end
     end
-    showGame(m, not showing)
+    CONNECT.showGame(m, not showing)
     log("menu: Archipelago menu " .. (showing and "opened" or "closed"))
 end
 
@@ -658,7 +687,7 @@ local ROW_KINDS = {
 }
 
 -- Does what a click on a row stands for. A kind ROW_KINDS does not name, or one with no action, is an error.
-local function act(m, row, button)
+function CONNECT.act(m, row, button)
     draftNow()
     local kind = ROW_KINDS[row.kind]
     if not kind or not kind.act then
@@ -741,7 +770,7 @@ local function makeRowLabel(menu, kind)
         label:SetFont(font)
     end)
     pcall(function()
-        label:SetColorAndOpacity({ SpecifiedColor = TEXT_COLOUR, ColorUseRule = WIDGETS.COLOUR_RULE.specified })
+        label:SetColorAndOpacity({ SpecifiedColor = BANNER.TEXT_COLOUR, ColorUseRule = WIDGETS.COLOUR_RULE.specified })
     end)
     return label
 end
@@ -772,7 +801,7 @@ end
 local function makePickPanel(menu, list)
     local canvas = list:GetParent()
     if not (canvas and canvas:IsValid() and className(canvas) == "CanvasPanel") then return nil end
-    listTop(list)
+    BANNER.listTop(list)
     local over = WIDGETS.construct(WIDGETS.UMG.overlay, menu)
     local backing = WIDGETS.construct(WIDGETS.UMG.image, menu)
     pcall(function() backing:SetColorAndOpacity(PICK_PANEL_BG) end)
@@ -791,7 +820,7 @@ end
 
 -- Just under the Server box: the list's top (the Server row is its first while the menu shows) plus one row.
 local function placePickPanel(m)
-    local anchors, top = listTop(m.list)
+    local anchors, top = BANNER.listTop(m.list)
     local y = top.Y + m.padTop + ROW_STEP
     local panel = m.pickPanel
     if panel.at and panel.at.X == top.X and panel.at.Y == y then return end
@@ -875,7 +904,7 @@ local function refreshPickPanel(m, picking)
 end
 
 -- The rows as the menu stands: which show, their labels, the typed fields read back, the saved servers, the banner.
-local function refreshRows(m)
+function CONNECT.refreshRows(m)
     if m.showing and m.edits then
         local ok, err = pcall(readEdits, m)
         if not ok then
@@ -898,24 +927,24 @@ local function refreshRows(m)
     if m.pickPanel then
         refreshPickPanel(m, picking)
     end
-    pcall(bannerHover, m)
+    pcall(BANNER.refreshLook, m)
 end
 
 -- A click on one of a menu's buttons, run at the next game tick (claimSoon), so the menu opens at once rather than
 -- at the next update; never inside the click's hook. While the text window is up, a click only refreshes the rows.
-local function onTitleClick(m, row)
+function CONNECT.onTitleClick(m, row)
     return function(button)
         if row.kind == "bannerButton" then
-            bannerPressed = true
+            BANNER.press()
         end
         if not m.live then return end
         if not TEXT.asking() then
-            local ok, err = pcall(act, m, row, button)
+            local ok, err = pcall(CONNECT.act, m, row, button)
             if not ok then
                 log("menu: " .. row.kind .. " error: " .. tostring(err))
             end
         end
-        refreshRows(m)
+        CONNECT.refreshRows(m)
     end
 end
 
@@ -925,11 +954,11 @@ local function ownButton(m, button, row)
     if address then
         m.owns[address] = row
     end
-    CLICKS.claimSoon(button, TITLE_OWNER, onTitleClick(m, row))
+    CLICKS.claimSoon(button, TITLE_OWNER, CONNECT.onTitleClick(m, row))
 end
 
 -- A row of a menu: its record, collapsed until the menu opens; its button (if any) claimed.
-local function addRow(m, key, kind, index, box, button)
+function ROWS.addRow(m, key, kind, index, box, button)
     local row = { kind = kind, index = index, box = box, button = button, shown = nil }
     m.rows[key] = row
     if button then
@@ -941,11 +970,11 @@ end
 
 -- A button row; raises an error when its button can't be made.
 local function addButtonRow(m, menu, list, kind, index, width, edge)
-    local button, box = addTitleButton(menu, list, width, edge)
+    local button, box = ROWS.addTitleButton(menu, list, width, edge)
     if not button then
         error("no button for " .. kind .. (index or ""))
     end
-    addRow(m, kind .. (index or ""), kind, index, box, button)
+    ROWS.addRow(m, kind .. (index or ""), kind, index, box, button)
 end
 
 -- One of the panel's soft ends; whether it was made.
@@ -955,12 +984,12 @@ local function addPadRow(m, menu, list, key, edge, height)
         once("pad", "menu: the panel's " .. edge .. " pad not made (" .. tostring(box) .. ")")
         return false
     end
-    addRow(m, key, key, nil, box, nil)
+    ROWS.addRow(m, key, key, nil, box, nil)
     return true
 end
 
--- The typed layout (see the top of this part). Raises an error when a row can't be made.
-local function buildTypedRows(m, menu, list)
+-- The typed layout (see the two layouts above TYPED_LAYOUT). Raises an error when a row can't be made.
+function ROWS.buildTyped(m, menu, list)
     local padded = ART.texture("ap-menu-panel-top") ~= nil and ART.texture("ap-menu-panel-bottom") ~= nil
     if padded then
         padded = addPadRow(m, menu, list, "padTop", "top", PAD_TOP)
@@ -970,7 +999,7 @@ local function buildTypedRows(m, menu, list)
     for _, kind in ipairs(TYPED_LAYOUT) do
         if TYPED_LABELS[kind] then
             local box, edit, what = addTextRow(menu, list, kind, edgeOf(kind, padded))
-            addRow(m, kind, kind, nil, box, nil)
+            ROWS.addRow(m, kind, kind, nil, box, nil)
             m.edits[kind], m.editClass = edit, what
         else
             addButtonRow(m, menu, list, kind, nil, MENU_WIDTH, BACKED[kind] and edgeOf(kind, padded) or nil)
@@ -988,7 +1017,7 @@ end
 
 -- Takes every row of a failed typed build back out of the list (and the saved servers' panel off the canvas), and
 -- releases its buttons.
-local function undoTypedRows(m, list)
+function ROWS.undoTyped(m, list)
     if m.pickPanel then
         pcall(function() m.pickPanel.box:RemoveFromParent() end)
     end
@@ -1001,7 +1030,7 @@ local function undoTypedRows(m, list)
 end
 
 -- Takes the rows of a failed window build away, and releases their buttons.
-local function undoWindowRows(m)
+function ROWS.undoWindow(m)
     for _, row in pairs(m.rows) do
         pcall(function() row.box:RemoveFromParent() end)
         pcall(CLICKS.release, row.button)
@@ -1009,19 +1038,19 @@ local function undoWindowRows(m)
 end
 
 -- The window layout; nil, or why it could not be made.
-local function buildWindowRows(m, menu, list)
+function ROWS.buildWindow(m, menu, list)
     for _, kind in ipairs(WINDOW_LAYOUT) do
         local edge = BACKED[kind] and edgeOf(kind, false) or nil
-        local ok, button, box = pcall(addTitleButton, menu, list, MENU_WIDTH, edge)
+        local ok, button, box = pcall(ROWS.addTitleButton, menu, list, MENU_WIDTH, edge)
         if not (ok and button) then return button or "no button" end
-        addRow(m, kind, kind, nil, box, button)
+        ROWS.addRow(m, kind, kind, nil, box, button)
     end
     return nil
 end
 
 -- The banner's own button: an all-but-invisible title button over the whole banner, so a click on the banner opens
 -- the menu (and a controller can reach it as it reaches the other title buttons). Raises an error without a banner.
-local function addBannerButton(menu, m)
+function ROWS.addBannerButton(menu, m)
     local banner = m.banner
     if not (banner and banner.over) then
         error("no banner")
@@ -1039,17 +1068,17 @@ end
 -- After the rows: the banner and its button (else a row of its own opens the menu), Quit Game last, and the logs.
 -- After, not before: a menu whose rows failed would otherwise get a new banner on every try.
 local function finishTitleMenu(m, menu, list)
-    local okBanner, banner = pcall(addBanner, menu, list)
+    local okBanner, banner = pcall(BANNER.add, menu, list)
     if okBanner then
         m.banner = banner
     else
         log("menu: title banner error: " .. tostring(banner))
     end
-    local okButton, why = pcall(addBannerButton, menu, m)
+    local okButton, why = pcall(ROWS.addBannerButton, menu, m)
     if not okButton then
-        local okRow, button, box = pcall(addTitleButton, menu, list, MENU_WIDTH, nil)
+        local okRow, button, box = pcall(ROWS.addTitleButton, menu, list, MENU_WIDTH, nil)
         if okRow and button then
-            addRow(m, "bannerButton", "bannerButton", nil, box, button)
+            ROWS.addRow(m, "bannerButton", "bannerButton", nil, box, button)
         end
         log("menu: no button on the banner (" .. tostring(why) .. "): an \"Archipelago...\" row instead")
     end
@@ -1073,15 +1102,15 @@ end
 -- Our rows on a title menu: the typed layout, else the window layout. Its record, or nil when neither could be made.
 local function buildTitleMenu(menu, list, key)
     local m = newTitleMenu(list)
-    local okTyped, whyTyped = pcall(buildTypedRows, m, menu, list)
+    local okTyped, whyTyped = pcall(ROWS.buildTyped, m, menu, list)
     if not okTyped then
-        undoTypedRows(m, list)
+        ROWS.undoTyped(m, list)
         m = newTitleMenu(list)
         local why = tostring(whyTyped):gsub("^.-:%d+: ", "")           -- (the message, not where)
         logBuildFailure("menu: typed fields not made (" .. why .. "); the text window instead")
-        local err = buildWindowRows(m, menu, list)
+        local err = ROWS.buildWindow(m, menu, list)
         if err then
-            undoWindowRows(m)
+            ROWS.undoWindow(m)
             fails[key] = fails[key] + 1
             logBuildFailure("menu: could not add the Archipelago menu's rows: " .. tostring(err))
             return nil
@@ -1182,7 +1211,7 @@ function TITLE.forgetGone(looked, found)
                 .. ((okList and listThere) and "valid" or "gone") .. "; the menu was "
                 .. (m.showing and "open" or "closed") .. "): making them again")
             if m.showing and okList and listThere then
-                pcall(showGame, m, true)
+                pcall(CONNECT.showGame, m, true)
             end
             dropTitleMenu(key, m, true)
         end
@@ -1190,7 +1219,7 @@ function TITLE.forgetGone(looked, found)
 end
 
 -- The connection as it stands: after Connect, the menu folds once connected; a server connected to is remembered.
-local function followConnection(m)
+function CONNECT.followConnection(m)
     local status = api.status()
     if status == "connected" then
         if m.closeOnConnect then
@@ -1224,11 +1253,11 @@ local function updateTitleMenu(menu, list)
     end
     if not m then return end
     m.live = true                                        -- (checked this update: its clicks may act on it)
-    followConnection(m)
+    CONNECT.followConnection(m)
     if m.banner then
-        pcall(bannerStatus, m.banner)
+        pcall(BANNER.showConnection, m.banner)
     end
-    refreshRows(m)
+    CONNECT.refreshRows(m)
 end
 
 -- Every update: the clicks not yet run, then each title menu found up.
@@ -1240,11 +1269,11 @@ function TITLE.update(found)
             updateTitleMenu(menu, list)
         end
     end
-    bannerPressed = false                               -- (the pressed picture shows from the click until now)
+    BANNER.endPress()                                   -- (the pressed picture shows from the click until now)
 end
 
 -- The pointer (or focus) on or off a saved server's row: the panel stays open while it is on one.
-local function hoverPick(address, on)
+function CONNECT.hoverPick(address, on)
     if on then
         pickHovered = address
     elseif pickHovered == address then
@@ -1254,15 +1283,11 @@ end
 
 -- The pointer (or focus) on or off the banner's button: the banner lights at the next game tick.
 local function hoverBanner(m, address, on)
-    if on then
-        bannerHovered = address
-    elseif bannerHovered == address then
-        bannerHovered = nil
-    end
+    BANNER.pointerOn(address, on)
     if not ExecuteInGameThread then return end
     ExecuteInGameThread(function()
         if m.live then
-            pcall(refreshRows, m)
+            pcall(CONNECT.refreshRows, m)
         end
     end)
 end
@@ -1274,7 +1299,7 @@ local function hovered(button, on)
     for _, m in pairs(menus) do
         local row = m.owns[address]
         if row and row.kind == "pick" then
-            hoverPick(address, on)
+            CONNECT.hoverPick(address, on)
             return
         end
         if row and row.kind == "bannerButton" then
@@ -1297,11 +1322,11 @@ end
 function TITLE.escape()
     for _, m in pairs(menus) do
         if m.live and m.showing then
-            local ok, err = pcall(act, m, { kind = "back" })
+            local ok, err = pcall(CONNECT.act, m, { kind = "back" })
             if not ok then
                 log("menu: Esc error: " .. tostring(err))
             end
-            refreshRows(m)
+            CONNECT.refreshRows(m)
             once("esc", "menu: Esc closes the Archipelago menu (as Back)")
         end
     end
