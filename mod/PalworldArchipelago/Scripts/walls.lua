@@ -1164,6 +1164,34 @@ local function wallSpec(passes)
     return table.concat(out, ";")
 end
 W.areaSpec, W.wallSpec = areaSpec, wallSpec
+-- Draws the finished Territories picture into the map picture; true when it is the look for `key`, "failed" when a
+-- file could not be loaded.
+local function drawTerritories(krl, gi, k, key)
+    pcall(LoadAsset, MAP_TEXTURE)
+    local map = StaticFindObject(MAP_TEXTURE)
+    local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
+    if terr.whole then map = over end                                    -- (the whole picture: the map in it)
+    if not (map and map:IsValid() and over and over:IsValid()) then
+        log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
+    end
+    if not mapRT or not mapRT:IsValid() then
+        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
+        W.keep(mapRT)
+    end
+    local canvasOut, contextOut, extra = {}, {}, {}
+    krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
+    canvasOut.Canvas:K2_DrawTexture(map, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+    if not terr.whole then
+        canvasOut.Canvas:K2_DrawTexture(over, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+            { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+    end
+    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    terr.done = k
+    once("terrdrawn" .. tostring(terr.whole), terr.whole and "map territories: drawn (the player's map, locked areas greyscale)"
+        or "map territories: drawn over the game's map")
+    return k == key
+end
 -- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
 local function composeTerritories(ctx, passes, key)
     if not terr.composing then
@@ -1179,30 +1207,14 @@ local function composeTerritories(ctx, passes, key)
         local k = terr.composing
         terr.composing = nil
         if st ~= "done" then log("map territories: composing failed: " .. tostring(st)); terr.failed = k; return "failed" end
-        pcall(LoadAsset, MAP_TEXTURE)
-        local map = StaticFindObject(MAP_TEXTURE)
-        local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
-        if terr.whole then map = over end                                    -- (the whole picture: the map in it)
-        if not (map and map:IsValid() and over and over:IsValid()) then
-            log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
+        -- A picture that cannot be drawn is not composed again: it would fail the same way on every update.
+        local okD, drawn = pcall(drawTerritories, krl, gi, k, key)
+        if okD then
+            return drawn
         end
-        if not mapRT or not mapRT:IsValid() then
-            mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
-            W.keep(mapRT)
-        end
-        local canvasOut, contextOut, extra = {}, {}, {}
-        krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
-        canvasOut.Canvas:K2_DrawTexture(map, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-            { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-        if not terr.whole then
-            canvasOut.Canvas:K2_DrawTexture(over, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-                { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
-        end
-        krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
-        terr.done = k
-        once("terrdrawn" .. tostring(terr.whole), terr.whole and "map territories: drawn (the player's map, locked areas greyscale)"
-            or "map territories: drawn over the game's map")
-        return k == key
+        log("map territories: could not draw the picture (" .. tostring(drawn) .. "); not composed again")
+        terr.failed = k
+        return "failed"
     end
     -- From the Art lane's distance field when the DLL has it (dev.34: smooth at 4096, where the 2048 label map gave stairs
     -- and octagons; area_field*.png, made from the label maps by tools/map_fields.py), else from the label map at 2048.
@@ -1255,6 +1267,25 @@ local function colourMapRenewed()
     colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
     return colourSaved
 end
+-- Draws the finished composition into the map picture, the stamps on it; false (with failedKey set) when it could not
+-- be loaded. A picture that errors while drawn is not composed again either (composeMap): it would fail the same way.
+local function drawComposed(krl, gi, done)
+    local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\map-composed.png")
+    if not tex or not tex:IsValid() then log("map: could not load the composed map; drawing it without the compositor"); failedKey = done; return false end
+    if not mapRT or not mapRT:IsValid() then
+        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
+        W.keep(mapRT)
+    end
+    local canvasOut, contextOut, extra = {}, {}, {}
+    krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
+    canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
+        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+    local okS, errS = pcall(drawStamps, canvasOut.Canvas, krl, gi, composingList)
+    if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
+    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    composedKey = done
+    return true
+end
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
 -- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
 -- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
@@ -1290,21 +1321,13 @@ local function composeMap(ctx, passes, key, open)
         -- A failure is not a picture: the render target still holds the last one. That set is not composed again (no
         -- retry loop); the map is drawn without the compositor instead.
         if st ~= "done" then log("map: composing failed: " .. tostring(st) .. "; drawing it without the compositor"); failedKey = done; return false end
-        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\map-composed.png")
-        if not tex or not tex:IsValid() then log("map: could not load the composed map; drawing it without the compositor"); failedKey = done; return false end
-        if not mapRT or not mapRT:IsValid() then
-            mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
-            W.keep(mapRT)
+        local okD, drawn = pcall(drawComposed, krl, gi, done)
+        if not okD then
+            log("map: could not draw the composed map (" .. tostring(drawn) .. "); drawing it without the compositor")
+            failedKey = done
+            return false
         end
-        local canvasOut, contextOut, extra = {}, {}, {}
-        krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
-        canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-            { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-        local okS, errS = pcall(drawStamps, canvasOut.Canvas, krl, gi, composingList)
-        if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
-        krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
-        composedKey = done
-        return done == key
+        return drawn and done == key
     end
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local saved = io.open(colour, "rb")

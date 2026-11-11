@@ -1589,7 +1589,7 @@ mapBody.MaskTextureMaterial = nil
 os.remove(MOD .. "/map-fog.png"); os.remove(MOD .. "/map-fog-territories.png")
 end)()
 
-print("walls and the map across a world change")
+print("walls and the map, on fresh copies of walls.lua")
 ;(function()   -- (a function of its own: the main chunk is at Lua's 200 locals)
 -- A walls module of its own, driven directly (no core update runs here). mine() lists the walls it raised: those
 -- standing now that were not standing when it was made.
@@ -1893,6 +1893,29 @@ do  -- Walls that cannot be made are reported: a spawn that gives no actor (logg
     StaticFindObject = realFind
     expect(#mine() == 0 and logged("area locks: no walls: the wall class .*BP_PalBlockingVolume_C was not found"),
            "a wall class that cannot be found is logged")
+end
+do  -- A finished picture that errors while it is drawn (here the engine gives no canvas) is not composed again on
+    -- every update: the key is marked failed, for both looks
+    local realBegin = renderLib.BeginDrawCanvasToRenderTarget
+    renderLib.BeginDrawCanvasToRenderTarget = function(_, _, _, _, contextOut) contextOut.RenderTarget = true end
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    local made = fieldJobs or 0
+    local W = freshWalls()
+    for _ = 1, 12 do W.updateMap(true, {}, pawn) end
+    local territoriesMade = (fieldJobs or 0) - made
+    takeAway()
+    putBack()
+    local jobs = #composeJobs
+    local W2 = freshWalls()
+    W2.mapStyle = "chart"
+    for _ = 1, 12 do W2.updateMap(true, {}, pawn) end
+    local chartMade = #composeJobs - jobs
+    renderLib.BeginDrawCanvasToRenderTarget = realBegin
+    expect(territoriesMade == 1 and chartMade == 1 and logged("map territories: could not draw the picture")
+           and logged("map: could not draw the composed map"),
+           "a picture that cannot be drawn is composed once, not again each update: Territories "
+           .. territoriesMade .. "x, chart " .. chartMade .. "x in 12 updates")
 end
 end
 end)()
