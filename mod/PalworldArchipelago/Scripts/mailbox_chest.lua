@@ -9,6 +9,11 @@ local UTIL = require("util")
 local WIDGETS = require("widgets")
 local BAG = require("bag")
 local log = UTIL.log
+-- The chest's parts, each called by its own name: its slots filled and emptied, the sweep while its window is open,
+-- and the window's heading.
+local SLOTS = {}
+local SWEEP = {}
+local HEADING = {}
 
 -- What mailbox.lua hands over (CHEST.install).
 --   list                  the mailbox module: its queue, addCount, removeCount, tellStays and TITLE
@@ -30,21 +35,13 @@ local CHEST_GAME = {
     chestModelClass = "PalMapObjectItemChestModel",       -- every chest in the world
     chestParameterClass = "PalMapObjectItemChestParameterComponent",   -- what sets a chest's size (SlotNum)
     mapObjectParameter = "/Script/Pal.PalHUDDispatchParameter_MapObject",
-    guidLibrary = "/Script/Engine.Default__KismetGuidLibrary",   -- a new id for each move to the bag
     chestWindowClass = "WBP_ItemChest_C",                 -- the chest window itself (followed when the HUD id can't)
-    chestMenuClass = "WBP_IngameMenu_Chest_C",            -- the part of it that holds the heading
-    chestMenu = "WBP_IngameMenu_Chest",                   -- that part, as a field of the HUD's widget
-    heading = "Text_TargetContainerName",                 -- the chest window's heading
-    emblemArt = "ap-mailbox-emblem-64",                   -- art/ap-mailbox-emblem-64.png beside the heading
 }
 -- Game functions called: GetMapObjectManager, RequestSpawnMapObjectByPlayer_Server, FindModel, GetModelInstanceId,
--- RequestLockPrivate_ServerInternal, GetLocalPlayerID, GetActor, GetItemContainerModule, GetContainer,
--- GetLastNotEmptyIndex, OnRep_Permission, OnRep_ItemId, OnRep_StackCount, CreateDispatchParameterForK2Node,
--- ShowCommonUI, GetNetworkTransmitter, RequestMoveToContainer_ToServer, NewGuid.
+-- RequestLockPrivate_ServerInternal, GetLocalPlayerID, GetActor, CreateDispatchParameterForK2Node, ShowCommonUI.
 local CHEST_WAIT = {
     chestAppears = UTIL.updates(6),     -- a new chest is given this long to appear before giving up
     followView = UTIL.updates(2),       -- how long to find out how to tell the chest window has closed
-    gameMove = UTIL.updates(0.9),       -- a deposit is given this long to go back by the game's move
 }
 local HIDDEN_SPOT = { X = -1050000, Y = 700000, Z = -40000 }   -- cm: beyond the map's far corner, 400 m underground
 local NO_ROTATION = { Pitch = 0, Yaw = 0, Roll = 0 }
@@ -54,14 +51,10 @@ local SLOTS_DEFAULT = 300            -- without mailbox_slots in config.txt
 local SLOTS_MAX = 2000               -- a sane top for mailbox_slots (each slot is swept while the window is open)
 local ITEM_CHEST_WINDOW = 7          -- EPalWidgetBlueprintType ItemChest
 local DAMAGE_NONE = 2                -- EPalMapObjectDamagableType NoDamage
-local NO_DEPOSITS = "AP_MailboxGivesOnly"   -- the one item id the chest accepts: no item has it
-local RANDOM_MAX = 0x7FFFFFFF        -- the largest part of a made-up guid (a positive 32-bit number)
-local EMBLEM_SIZE = 32               -- the emblem's side beside the heading, in the window's units
-local EMBLEM_GAP = 8                 -- between the heading and the emblem
-local HEADING_ROW_LEVELS = 3         -- how far above the heading the row it sits in is looked for
 
--- State: the chest view (the chest window the mailbox opened). Forgotten: when it closes (closeView()), on a new
--- world (CHEST.forget()), on a new seed (CHEST.forget()). Its fields are listed in newView().
+-- State: the chest view (the chest window the mailbox opened). Forgotten: when it closes (CHEST.close()), on a new
+-- world (CHEST.forget()), on a new seed (CHEST.forget()). Its fields are listed in newView(). The other parts are
+-- handed it (SLOTS.absorb, SWEEP.run, HEADING.dress).
 local view = nil
 -- State: the hidden chest being made. Forgotten: when it appears or the wait is over, on a new world or a new seed
 -- (stopSpawning()).
@@ -84,10 +77,6 @@ local function newView(id, hud, chest, held, inChest)
         updatesOpen = 0,        -- updates since it opened
         how = nil,              -- how its closing is seen: "id" (the HUD's id), "widget", or "unknown" (it can't be)
     }
-end
-
-local function containerOf(chest)
-    return chest:GetItemContainerModule():GetContainer()
 end
 
 -- The hidden chest, if the world has it: the chest at the hidden spot.
@@ -193,7 +182,7 @@ function CHEST.followMaking()
         log("mailbox: no chest appeared at the hidden spot")
         return "failed"
     end
-    local okCount, slots = pcall(function() return containerOf(chest):Num() end)
+    local okCount, slots = pcall(function() return SLOTS.containerOf(chest):Num() end)
     log("mailbox: hidden chest made: " .. tostring(okCount and slots or "?") .. " slots")
     return "made"
 end
@@ -215,25 +204,32 @@ local function harden(chest, pawn)
     end)
 end
 
+-- Game functions called on the chest's slots: GetItemContainerModule, GetContainer, OnRep_ItemId, OnRep_StackCount.
+
+-- A chest's item container: its slots.
+function SLOTS.containerOf(chest)
+    return chest:GetItemContainerModule():GetContainer()
+end
+
 -- Whether an item id has no per-item data (gear, eggs and the like have it).
-local function plainId(itemId)
+function SLOTS.plainId(itemId)
     local perItem = itemId.DynamicId.LocalIdInCreatedWorld
     return perItem.A == 0 and perItem.B == 0 and perItem.C == 0 and perItem.D == 0
 end
 
-local function getItemId(slot)
+function SLOTS.getItemId(slot)
     return slot:GetItemId()
 end
 
 local function isPlain(slot)
-    local ok, itemId = pcall(getItemId, slot)
+    local ok, itemId = pcall(SLOTS.getItemId, slot)
     if not ok then return false end
-    local okPlain, plain = pcall(plainId, itemId)
+    local okPlain, plain = pcall(SLOTS.plainId, itemId)
     return okPlain and plain
 end
 
 -- Puts `count` of an item in a slot. When its item id can't be changed in place, the whole id is replaced.
-local function put(slot, id, count)
+function SLOTS.put(slot, id, count)
     if not pcall(function() slot.ItemId.StaticId = FName(id) end) then
         UTIL.took("mailbox: a slot's item id", "set whole (its StaticId could not be set alone)")
         slot.ItemId = { StaticId = FName(id), DynamicId = slot.ItemId.DynamicId }
@@ -244,17 +240,17 @@ local function put(slot, id, count)
 end
 
 -- Empties a slot; whether it is empty now.
-local function clear(slot)
-    pcall(function() put(slot, "None", 0) end)
+function SLOTS.clear(slot)
+    pcall(function() SLOTS.put(slot, "None", 0) end)
     local ok, empty = pcall(function() return slot:IsEmpty() end)
     return ok and empty
 end
 
 -- Puts the first entry still waiting into an empty slot, as much as one stack holds, and counts it as in the chest.
-local function putFirstWaiting(slot, waiting, inChest)
+function SLOTS.putFirstWaiting(slot, waiting, inChest)
     local entry = waiting[1]
     local count = math.min(entry.n, BAG.maxStack(entry.id))
-    put(slot, entry.id, count)
+    SLOTS.put(slot, entry.id, count)
     inChest[entry.id] = (inChest[entry.id] or 0) + count
     entry.n = entry.n - count
     if entry.n <= 0 then
@@ -265,8 +261,8 @@ end
 -- Empties the chest of plain items, then fills it from the list. Plain items in this chest are only ever copies of the
 -- list (a view that never closed, or a world save older than the mod's save after a crash): the list is the truth.
 -- Returns the list entries that did not fit, the chest's slot count, the slots filled, and item id -> count put in.
-local function emptyThenFillChest(chest)
-    local container = containerOf(chest)
+function SLOTS.emptyThenFillChest(chest)
+    local container = SLOTS.containerOf(chest)
     local waiting, inChest = {}, {}
     for _, entry in ipairs(LIST.queue) do
         waiting[#waiting + 1] = { id = entry.id, n = entry.n }
@@ -276,10 +272,10 @@ local function emptyThenFillChest(chest)
         local slot = container:Get(index)
         if slot and slot:IsValid() then
             if not slot:IsEmpty() and isPlain(slot) then
-                clear(slot)
+                SLOTS.clear(slot)
             end
             if #waiting > 0 and slot:IsEmpty() then
-                putFirstWaiting(slot, waiting, inChest)
+                SLOTS.putFirstWaiting(slot, waiting, inChest)
                 placed = placed + 1
             end
         end
@@ -305,7 +301,7 @@ end
 
 -- The list once the chest closes: what is in the chest, up to what the mailbox put in, then what never fitted. More of
 -- an item than the mailbox put in is a deposit the sweep had not returned yet: it is returned as `extra`.
-local function listAfterClosing(stacks)
+local function listAfterClosing(view, stacks)
     local list, extra = {}, {}
     for _, entry in ipairs(stacks) do
         local keep = math.min(entry.n, view.inChest[entry.id] or 0)
@@ -332,15 +328,15 @@ local function returnLastMomentDeposit(entry)
         .. " fitted)")
 end
 
--- The chest's plain items back into the list, and the chest emptied. The list is set before any slot is cleared: a
--- slot left uncleared is a copy, which the next emptyThenFillChest removes.
-local function absorb()
+-- The view's chest's plain items back into the list, and the chest emptied. The list is set before any slot is
+-- cleared: a slot left uncleared is a copy, which the next SLOTS.emptyThenFillChest removes.
+function SLOTS.absorb(view)
     assert(view.chest:IsValid(), "the chest is gone")
-    local stacks, plainSlots = plainStacksIn(containerOf(view.chest))
-    local list, extra = listAfterClosing(stacks)
+    local stacks, plainSlots = plainStacksIn(SLOTS.containerOf(view.chest))
+    local list, extra = listAfterClosing(view, stacks)
     LIST.queue = list
     for _, slot in ipairs(plainSlots) do
-        clear(slot)
+        SLOTS.clear(slot)
     end
     for _, entry in ipairs(extra) do
         returnLastMomentDeposit(entry)
@@ -348,22 +344,29 @@ local function absorb()
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- While the chest window is open (every update): deposits go back to the bag, items received meanwhile go in, and the
--- heading names the mailbox.
+-- While the chest window is open (every update): deposits go back to the bag, and items received meanwhile go in.
 -- Deposits are refused first by the game's own rule for what a container accepts (FPalItemPermission: a list of item
 -- types and ids; ours names one id no item has). Untested in game: whether a deposit still gets through (the log says
 -- so when one does). Whatever does is found by comparing the chest with what the mailbox put in (view.inChest), and
 -- goes back by the game's own move to the bag (keeps gear's data and food's freshness); if that does nothing within
--- CHEST_WAIT.gameMove, plain items are taken out and given to the bag directly, and gear is left with a note.
+-- GAME_MOVE_WAIT, plain items are taken out and given to the bag directly, and gear is left with a note.
 --
 -- The rule the sweep keeps, for every item id while the view is open: the list's count (M.queue) = view.inChest (put
 -- in the chest by the mailbox, not taken) + view.held (did not fit yet). Each place that changes a side changes the
--- other with it: M.add adds to the list and to held (CHEST.received); emptyThenFillChest and fillSlotFromWaiting move
--- from held to inChest; dropTakenFromList takes from inChest and the list; returnByHand adds to both when the bag is
--- full; absorb rebuilds the list from the chest and held as the view closes. For example: 50 Wood shown, the player
--- takes 20; the sweep sees 30 in the chest, so inChest is 30 and the list 30.
+-- other with it: M.add adds to the list and to held (CHEST.received); SLOTS.emptyThenFillChest and fillSlotFromWaiting
+-- move from held to inChest; dropTakenFromList takes from inChest and the list; returnByHand adds to both when the bag
+-- is full; SLOTS.absorb rebuilds the list from the chest and held as the view closes. For example: 50 Wood shown, the
+-- player takes 20; the sweep sees 30 in the chest, so inChest is 30 and the list 30.
 
-local function lockPermission(container)
+local GUID_LIBRARY = "/Script/Engine.Default__KismetGuidLibrary"   -- a new id for each move to the bag
+-- Game functions called: GetLastNotEmptyIndex, OnRep_Permission, GetNetworkTransmitter,
+-- RequestMoveToContainer_ToServer, NewGuid.
+local GAME_MOVE_WAIT = UTIL.updates(0.9)   -- a deposit is given this long to go back by the game's move
+local NO_DEPOSITS = "AP_MailboxGivesOnly"   -- the one item id the chest accepts: no item has it
+local RANDOM_MAX = 0x7FFFFFFF        -- the largest part of a made-up guid (a positive 32-bit number)
+
+-- The container and each of its slots accept only NO_DEPOSITS, an id no item has: the game refuses deposits.
+function SWEEP.lockPermission(container)
     local function lock(permission)
         permission.PermissionTypeA:Empty()
         permission.PermissionTypeB:Empty()
@@ -391,7 +394,7 @@ end
 
 -- A new guid from the game, or a made-up one when the game's NewGuid fails.
 local function newGuid()
-    local ok, guid = pcall(function() return guidOf(StaticFindObject(CHEST_GAME.guidLibrary):NewGuid()) end)
+    local ok, guid = pcall(function() return guidOf(StaticFindObject(GUID_LIBRARY):NewGuid()) end)
     if ok and guid and guid.A then return guid end
     once("newguid", "mailbox: a move's guid is made up: the game's NewGuid failed (" .. tostring(guid) .. ")")
     return { A = math.random(1, RANDOM_MAX), B = math.random(1, RANDOM_MAX), C = math.random(1, RANDOM_MAX),
@@ -416,7 +419,7 @@ local function moveToBag(pawn, slot, count)
     item:RequestMoveToContainer_ToServer(newGuid(), { ID = bag }, { from })
 end
 
-local function tellDepositReturnedOnce(what)
+local function tellDepositReturnedOnce(view, what)
     if view.told then return end
     view.told = true
     env.notify("The mailbox only hands items out: " .. what .. " went back to your bag.")
@@ -428,10 +431,10 @@ local function readSlot(chest, slot, index)
         chest.maybeEmpty[#chest.maybeEmpty + 1] = index
         return
     end
-    local okId, itemId = pcall(getItemId, slot)
+    local okId, itemId = pcall(SLOTS.getItemId, slot)
     local okPlain, plain = false, false
     if okId then
-        okPlain, plain = pcall(plainId, itemId)
+        okPlain, plain = pcall(SLOTS.plainId, itemId)
     end
     if okPlain and plain then
         local id = itemId.StaticId:ToString()
@@ -476,7 +479,7 @@ end
 
 -- Taken out: off the list at once, so the list always matches the chest. A view dropped without closing (a world
 -- change, a quit) then leaves nothing taken on the list for the next fill to give again. Whether the list changed.
-local function dropTakenFromList(chest)
+local function dropTakenFromList(view, chest)
     local changed = false
     for id, shown in pairs(view.inChest) do
         local now = chest.plainCount[id] or 0
@@ -506,7 +509,7 @@ end
 
 -- The game's move did nothing: the deposit is taken out of its slots and given to the bag directly. What the bag
 -- refuses stays as mailbox items. Whether the list changed.
-local function returnByHand(id, extra, slots)
+local function returnByHand(view, id, extra, slots)
     once("byhand", "mailbox: the move to the bag did nothing; deposits are returned by hand")
     local back, why = BAG.give(id, extra)
     local left = back
@@ -515,9 +518,9 @@ local function returnByHand(id, extra, slots)
         local have = slots[k]:GetStackCount()
         local count = math.min(left, have)
         if count == have then
-            clear(slots[k])
+            SLOTS.clear(slots[k])
         else
-            put(slots[k], id, have - count)
+            SLOTS.put(slots[k], id, have - count)
         end
         left = left - count
     end
@@ -528,31 +531,31 @@ local function returnByHand(id, extra, slots)
     return true
 end
 
--- One item's deposit: first the game's move, then by hand once that has waited CHEST_WAIT.gameMove. Whether the list
+-- One item's deposit: first the game's move, then by hand once that has waited GAME_MOVE_WAIT. Whether the list
 -- changed.
-local function returnDeposit(pawn, chest, id, extra)
+local function returnDeposit(view, pawn, chest, id, extra)
     local waited = view.depositUpdates[id] or 0
     once("deposit", "mailbox: a deposit got into the chest (" .. extra .. " " .. id .. "): returning it")
     if waited == 0 then
         askGameToMove(pawn, chest.plainSlots[id], extra)
-        tellDepositReturnedOnce(BAG.nameOf(id))
+        tellDepositReturnedOnce(view, BAG.nameOf(id))
     end
     view.depositUpdates[id] = waited + 1
-    if waited + 1 <= CHEST_WAIT.gameMove then return false end
-    local changed = returnByHand(id, extra, chest.plainSlots[id])
+    if waited + 1 <= GAME_MOVE_WAIT then return false end
+    local changed = returnByHand(view, id, extra, chest.plainSlots[id])
     view.depositUpdates[id] = nil
     return changed
 end
 
 -- Plain items the player put in (more than the mailbox put in) go back to the bag. Whether the list changed, and the
 -- set of item ids whose slots were acted on.
-local function returnDeposits(pawn, chest)
+local function returnDeposits(view, pawn, chest)
     local changed, handled = false, {}
     for id, count in pairs(chest.plainCount) do
         local extra = count - (view.inChest[id] or 0)
         if extra > 0 then
             handled[id] = true
-            changed = returnDeposit(pawn, chest, id, extra) or changed
+            changed = returnDeposit(view, pawn, chest, id, extra) or changed
         else
             if (view.depositUpdates[id] or 0) > 0 then
                 once("moved", "mailbox: a deposit went back to the bag by the game's move")
@@ -567,9 +570,9 @@ local function gearName(piece)
     return BAG.nameOf(piece.slot:GetItemId().StaticId:ToString())
 end
 
--- Gear can only go back by the game's move: asked once; if it is still there after CHEST_WAIT.gameMove, the player is
+-- Gear can only go back by the game's move: asked once; if it is still there after GAME_MOVE_WAIT, the player is
 -- asked to take it out.
-local function returnGear(pawn, gear)
+local function returnGear(view, pawn, gear)
     local gearUpdates = {}                    -- only the pieces in the chest now
     for _, piece in ipairs(gear) do
         gearUpdates[piece.key] = view.gearUpdates[piece.key]
@@ -583,8 +586,8 @@ local function returnGear(pawn, gear)
             if not ok then
                 once("moveerr", "mailbox: the move to the bag failed: " .. tostring(err))
             end
-            tellDepositReturnedOnce("your " .. gearName(piece))
-        elseif waited == CHEST_WAIT.gameMove then
+            tellDepositReturnedOnce(view, "your " .. gearName(piece))
+        elseif waited == GAME_MOVE_WAIT then
             env.notify("Take your " .. gearName(piece) .. " back out of the mailbox: it can't return it.")
         end
         view.gearUpdates[piece.key] = waited + 1
@@ -610,13 +613,13 @@ local function slotsThatMayBeEmpty(container, chest, handled)
     return maybe
 end
 
-local function fillSlotFromWaiting(slot)
+local function fillSlotFromWaiting(view, slot)
     if not (slot and slot:IsValid() and slot:IsEmpty()) then return end
-    putFirstWaiting(slot, view.held, view.inChest)
+    SLOTS.putFirstWaiting(slot, view.held, view.inChest)
 end
 
 -- Items received while the chest is open go into its empty slots.
-local function refillFromWaiting(container, chest, handled)
+local function refillFromWaiting(view, container, chest, handled)
     if #view.held == 0 then return end
     local seen = {}
     for _, index in ipairs(slotsThatMayBeEmpty(container, chest, handled)) do
@@ -624,28 +627,38 @@ local function refillFromWaiting(container, chest, handled)
         if not seen[index] then
             seen[index] = true
             P.count("refill")
-            fillSlotFromWaiting(container:Get(index))
+            fillSlotFromWaiting(view, container:Get(index))
         end
     end
 end
 
--- Keeps the chest and the list in step while the view is open (see the rule above).
-local function sweep(pawn)
-    local container = containerOf(view.chest)
+-- Keeps the view's chest and the list in step while it is open (see the rule above).
+function SWEEP.run(view, pawn)
+    local container = SLOTS.containerOf(view.chest)
     local chest = readChest(container)
-    local taken = dropTakenFromList(chest)
-    local returned, handled = returnDeposits(pawn, chest)
-    returnGear(pawn, chest.gear)
-    refillFromWaiting(container, chest, handled)
+    local taken = dropTakenFromList(view, chest)
+    local returned, handled = returnDeposits(view, pawn, chest)
+    returnGear(view, pawn, chest.gear)
+    refillFromWaiting(view, container, chest, handled)
     if taken or returned then
         env.save()
     end
 end
 
+local HEADING_GAME = {
+    chestMenuClass = "WBP_IngameMenu_Chest_C",            -- the part of the chest window that holds the heading
+    chestMenu = "WBP_IngameMenu_Chest",                   -- that part, as a field of the HUD's widget
+    heading = "Text_TargetContainerName",                 -- the chest window's heading
+    emblemArt = "ap-mailbox-emblem-64",                   -- art/ap-mailbox-emblem-64.png beside the heading
+}
+local EMBLEM_SIZE = 32               -- the emblem's side beside the heading, in the window's units
+local EMBLEM_GAP = 8                 -- between the heading and the emblem
+local HEADING_ROW_LEVELS = 3         -- how far above the heading the row it sits in is looked for
+
 -- The mailbox emblem (art/ap-mailbox-emblem-64.png) beside the heading, once a view, only where the heading sits in a
 -- horizontal box within HEADING_ROW_LEVELS above it (it sits in a SizeBox; the row is further up); the chain of
 -- parents is logged either way. Untested in game: whether the emblem shows beside the heading.
-local function addEmblemOnce(heading)
+local function addEmblemOnce(view, heading)
     if view.emblem then return end
     view.emblem = true
     local row, widget, chain = nil, heading, {}
@@ -666,7 +679,7 @@ local function addEmblemOnce(heading)
         log("mailbox: no row above the heading (" .. table.concat(chain, " < ") .. "); no emblem")
         return
     end
-    local box = require("art").box(row, CHEST_GAME.emblemArt, EMBLEM_SIZE, EMBLEM_SIZE)
+    local box = require("art").box(row, HEADING_GAME.emblemArt, EMBLEM_SIZE, EMBLEM_SIZE)
     if not box then return end
     local slot = row:AddChild(box)
     pcall(function() slot:SetVerticalAlignment(WIDGETS.VALIGN.center) end)
@@ -682,19 +695,19 @@ end
 
 -- The chest window's heading, and whether it was found through the mailbox's own HUD widget (chests share the window
 -- class, so only that one is surely ours); else any chest window's heading that shows.
-local function findHeading()
+local function findHeading(view)
     local heading = nil
-    pcall(function() heading = view.hud:GetWidget(view.id)[CHEST_GAME.chestMenu][CHEST_GAME.heading] end)
+    pcall(function() heading = view.hud:GetWidget(view.id)[HEADING_GAME.chestMenu][HEADING_GAME.heading] end)
     if answersValid(heading) then
         UTIL.took("mailbox: the chest window's heading", "found by the HUD's id")
         return heading, true
     end
-    for _, widget in ipairs(FindAllOf(CHEST_GAME.chestMenuClass) or {}) do
+    for _, widget in ipairs(FindAllOf(HEADING_GAME.chestMenuClass) or {}) do
         local ok, found = pcall(function()
-            return widget:IsValid() and widget:IsVisible() and widget[CHEST_GAME.heading]
+            return widget:IsValid() and widget:IsVisible() and widget[HEADING_GAME.heading]
         end)
         if ok and found then
-            UTIL.took("mailbox: the chest window's heading", "found by its class " .. CHEST_GAME.chestMenuClass)
+            UTIL.took("mailbox: the chest window's heading", "found by its class " .. HEADING_GAME.chestMenuClass)
             return found, false
         end
     end
@@ -710,11 +723,11 @@ local function nameTheChestWindow(heading)
     once("heading", "mailbox: chest window heading was '" .. tostring(okRead and now or "?") .. "'; set to ours")
 end
 
--- The heading named, and the emblem beside it where the window is surely the mailbox's.
-local function dressChestWindow()
-    local heading, ours = findHeading()
+-- The view's chest window's heading named, and the emblem beside it where the window is surely the mailbox's.
+function HEADING.dress(view)
+    local heading, ours = findHeading(view)
     if ours then
-        local ok, err = pcall(addEmblemOnce, heading)
+        local ok, err = pcall(addEmblemOnce, view, heading)
         if not ok then
             once("emblem", "mailbox: emblem error: " .. tostring(err))
         end
@@ -729,8 +742,8 @@ end
 -- Opens the game's chest window on the hidden chest, emptied of copies and filled from the list.
 function CHEST.open(chest, pawn)
     harden(chest, pawn)
-    pcall(lockPermission, containerOf(chest))
-    local held, slots, placed, inChest = emptyThenFillChest(chest)
+    pcall(SWEEP.lockPermission, SLOTS.containerOf(chest))
+    local held, slots, placed, inChest = SLOTS.emptyThenFillChest(chest)
     local hud = BAG.palUtility():GetHUDService(pawn)
     local parameter = hud:CreateDispatchParameterForK2Node(pawn, StaticFindObject(CHEST_GAME.mapObjectParameter))
     parameter.MapObjectConcreteModel = chest
@@ -765,9 +778,9 @@ local function chestWindowShown()
 end
 
 -- Empties the chest back into the list and forgets the view. When the chest can't be read, the view is forgotten all
--- the same, and the next open's emptyThenFillChest removes the copies left in it.
+-- the same, and the next open's SLOTS.emptyThenFillChest removes the copies left in it.
 function CHEST.close()
-    local ok, err = pcall(absorb)
+    local ok, err = pcall(SLOTS.absorb, view)
     if not ok then
         log("mailbox: could not empty the chest (" .. tostring(err) .. "); it is emptied on the next open")
         view = nil
@@ -799,7 +812,7 @@ function CHEST.followView()
     if not view then return end
     view.updatesOpen = view.updatesOpen + 1
     if view.chest:IsValid() then
-        local ok, err = pcall(sweep, (BAG.player()))
+        local ok, err = pcall(SWEEP.run, view, (BAG.player()))
         if not ok then
             UTIL.onceErr("mailbox sweep", err, "mailbox: sweep error: " .. tostring(err))
         end
@@ -813,7 +826,7 @@ function CHEST.followView()
     end
     -- (not while it closes: there is no heading then)
     if byId or byWidget then
-        pcall(dressChestWindow)
+        pcall(HEADING.dress, view)
     end
     if not view.how then
         settleHowFollowed(byId, byWidget)
