@@ -4826,6 +4826,35 @@ end)()
     expect(checks[999001], "a check earned while connecting is sent once connected, not marked as sent and dropped")
 end)()
 ;(function()
+    print("errors that repeat every update are logged once each")
+    local function linesWith(text)
+        local n = 0
+        for _, l in ipairs(printed) do if l:find(text, 1, true) then n = n + 1 end end
+        return n
+    end
+    local DB, CW, tries = require("debuffs"), require("crate_window"), 0
+    local dbTick, cwUpdate = DB.tick, CW.update
+    DB.tick = function() tries = tries + 1; error(string.format("debuff boom at 0x%x", 8192 + tries)) end
+    CW.update = function() error(string.format("crate window boom at 0x%x", 8192 + tries)) end
+    run(5)
+    DB.tick, CW.update = dbTick, cwUpdate
+    expect(tries == 5 and linesWith("debuff boom at") == 1 and linesWith("crate window boom at") == 1,
+           "the debuff icons' and the crate window's errors, each naming a new address: one line each")
+    local MB, BAGM = require("mailbox"), require("bag")
+    local mailOn, give = MB.on, BAGM.give
+    MB.on = function() return false end
+    BAGM.give = function(id) tries = tries + 1; error(string.format("give boom at 0x%x", 8192 + tries)) end
+    slotData.seed = "70031"                                    -- a new seed, played in this world (as newSeed does)
+    push("status", "connected", "Other")
+    run(14)
+    keyBinds[Key.H]()
+    run(14)
+    push("item", "0", tostring(itemId["Stone Bundle"]), "3", "2", "0", "Stone Bundle", "Friend")
+    run(28)
+    MB.on, BAGM.give = mailOn, give
+    expect(linesWith("give boom at") == 1, "a bundle the bag keeps failing on, a new address each time: one line")
+end)()
+;(function()
     print("Lua runs only on the game thread")
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
     -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread

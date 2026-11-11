@@ -63,7 +63,7 @@ local function stepTimers()
     local okp, errp = pcall(POPUP.tick, CLOCK.now())
     if not okp then onceErr("popup", errp, "hint pop-up error: " .. tostring(errp)) end
     local okdb, errdb = pcall(DEBUFFS.tick, CLOCK.now())
-    if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end
+    if not okdb then onceErr("debuffs", errdb, "debuffs error: " .. tostring(errdb)) end
 end
 
 
@@ -78,7 +78,7 @@ local function updateWindows(frame)
     PERF.start("mail")
     local okx, errx = pcall(MAIL.update, frame)
     local okw, errw = pcall(CWIN.update)
-    if not okw then once("cwin" .. tostring(errw), "crate window error: " .. tostring(errw)) end
+    if not okw then onceErr("cwin", errw, "crate window error: " .. tostring(errw)) end
     PERF.stop("mail")
     if not okx then onceErr("mail", errx, "mailbox error: " .. tostring(errx)) end
 end

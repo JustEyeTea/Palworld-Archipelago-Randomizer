@@ -17,7 +17,7 @@ local TECH_LOCK = require("tech_lock")
 local TRAPS = require("traps")
 local UTIL = require("util")
 local ap, slotNumber = STATE.ap, STATE.slotNumber
-local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
+local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
 
 -- A Palworld Crate received: its kind is rolled from the seed's crate weights and the item's index (crates.lua).
@@ -37,7 +37,10 @@ local function giveBundle(it)
         else
             -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
             local okg, got = pcall(BAG.give, bundle.id, bundle.n)
-            if not okg then once("give" .. tostring(got), "could not give " .. bundle.id .. ": " .. tostring(got)); return false end
+            if not okg then
+                onceErr("give", got, "could not give " .. bundle.id .. ": " .. tostring(got))
+                return false
+            end
             if got == 0 then return false end
             if got < bundle.n then log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in") end
         end
