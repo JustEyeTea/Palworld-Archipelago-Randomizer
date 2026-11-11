@@ -30,9 +30,11 @@ group("the title menu's Archipelago menu", function()
     local pic = bannerBox and bannerBox.child.children[1]
     expect(pic and pic.slot.h == 0 and pic.slot.v == 0, "its picture fills it (v0.13.5 playtest: it kept the brush's 32x32)")
     local bs = bannerBox and bannerBox.canvasSlot
-    expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.alignment.X == 0.5 and bs.alignment.Y == 1
-           and bs.position.X == 0 and bs.position.Y == -588 and bs.size.X == 600 and bs.auto == false and buttonBox.prepassed,
-           "its bottom 8 above the list's top, centred over it, with the list's anchors")
+    expect(bs and bs.position.X == 0 and bs.position.Y == -588 and buttonBox.prepassed,
+           "its bottom 8 above the list's top (the list measured first): " .. tostring(bs and bs.position.Y))
+    expect(bs and bs.anchors.Minimum.X == 0.5 and bs.anchors.Maximum.Y == 1 and bs.alignment.X == 0.5 and bs.alignment.Y == 1,
+           "centred over the list, with the list's anchors")
+    expect(bs and bs.size.X == 600 and bs.auto == false, "600 wide, at the size set (not sized to its content)")
     expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
     -- The list: Start Game (the game's), Server, six picks, Port, Slot, Password, Connect, Back, then Quit Game.
     -- (dev.36: the panel's soft ends in pads of their own, above Server and below Back)
@@ -63,20 +65,28 @@ group("the title menu's Archipelago menu", function()
                 and b.padding and b.padding.Bottom == 0) then allBacked = false end
     end
     expect(allBacked, "the menu's rows on a dark backing, 41 high with no gap, so they read as one panel (dev.33: hard to read)")
-    local function piece(i) local b = rowBox(i).child; return b.texture and b.texture.path, b.Background end
-    local tp, tb = piece(R.padtop)
-    local sp, sb = piece(R.server)
-    local mp2, mb = piece(R.port)
-    local gp, gb = piece(R.go)
-    local kp, kb = piece(R.back)
-    local bp, bb = piece(R.padbottom)
-    expect(tp == "ap-menu-panel-top" and tb.DrawAs == 1 and tb.Margin.Top == 0.25 and tb.Margin.Bottom == 0 and tb.Margin.Left == 28 / 64
-           and rowBox(R.padtop).height == 24 and rowBox(R.padbottom).height == 16
-           and sp == "ap-menu-panel-mid" and sb.Margin.Top == 0 and mp2 == "ap-menu-panel-mid" and gp == "ap-menu-panel-mid"
-           and kp == "ap-menu-panel-mid" and kb.Margin.Bottom == 0
-           and bp == "ap-menu-panel-bottom" and bb.Margin.Bottom == 0.25 and bb.ImageSize.X == 64 and rowBox(R.server).child.pad.Left == 22,
-           "the panel's edges soft (dev.34): feathered pieces drawn as boxes; its soft ends in pads above Server and below Back, "
-           .. "every text row on its solid part (dev.35: \"move the whole text area further down\")")
+    -- A row's backing: its picture's name, and its brush.
+    local function piece(i)
+        local b = rowBox(i).child
+        return b.texture and b.texture.path, b.Background
+    end
+    local topPicture, topBrush = piece(R.padtop)
+    local serverPicture, serverBrush = piece(R.server)
+    local portPicture = piece(R.port)
+    local goPicture = piece(R.go)
+    local backPicture, backBrush = piece(R.back)
+    local bottomPicture, bottomBrush = piece(R.padbottom)
+    expect(topPicture == "ap-menu-panel-top" and topBrush.DrawAs == 1 and topBrush.Margin.Top == 0.25
+           and topBrush.Margin.Bottom == 0 and topBrush.Margin.Left == 28 / 64 and rowBox(R.padtop).height == 24,
+           "the panel's top edge (dev.34): a feathered piece drawn as a box, its soft end in a 24-high pad above Server")
+    expect(serverPicture == "ap-menu-panel-mid" and serverBrush.Margin.Top == 0 and portPicture == "ap-menu-panel-mid"
+           and goPicture == "ap-menu-panel-mid" and backPicture == "ap-menu-panel-mid" and backBrush.Margin.Bottom == 0
+           and rowBox(R.server).child.pad.Left == 22,
+           "the panel's middle: every text row from Server to Back on its solid part (dev.35: \"move the whole text area "
+           .. "further down\")")
+    expect(bottomPicture == "ap-menu-panel-bottom" and bottomBrush.Margin.Bottom == 0.25 and bottomBrush.ImageSize.X == 64
+           and rowBox(R.padbottom).height == 16,
+           "the panel's bottom edge: a feathered piece drawn as a box, its soft end in a 16-high pad below Back")
     expect(logged("not a live title menu %(a template%), left alone: .*/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title"),
            "the title screen asset's template (dev.25 log: rows tried on it every update) is left alone")
     expect(not styleAssigned, "no text box's WidgetStyle is assigned from Lua (dev.21: the game crashed at the title), not even in a pcall")
@@ -141,10 +151,13 @@ group("the title menu's Archipelago menu", function()
            "a server connected to is remembered (archipelago.gg is always offered)")
     edit(R.server).focus = true
     run(1)
-    expect(drop.vis == 0 and pickBox(1).vis == 0 and pickBox(2).vis == 0 and pickBox(3).vis == 1 and pickBox(1).width == 420
-           and pick(1).Test_Content.text:find("archipelago.gg", 1, true) and pick(2).Test_Content.text:find("localhost   (chosen)", 1, true)
-           and drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 24 + 41 and drop.canvasSlot.alignment.Y == 0,
-           "while the Server box has the keyboard, the saved servers show in their panel just under it")
+    expect(drop.vis == 0 and pickBox(1).vis == 0 and pickBox(2).vis == 0 and pickBox(3).vis == 1,
+           "while the Server box has the keyboard, the saved servers show: two rows, the third folded away")
+    expect(pickBox(1).width == 420 and pick(1).Test_Content.text:find("archipelago.gg", 1, true)
+           and pick(2).Test_Content.text:find("localhost   (chosen)", 1, true),
+           "the saved servers are archipelago.gg and localhost (chosen), 420 wide: " .. pick(2).Test_Content.text)
+    expect(drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 24 + 41 and drop.canvasSlot.alignment.Y == 0,
+           "their panel sits just under the Server box")
     -- dev.27 test ("why does it still stick around at all?"): they stay while the pointer is on one of them (pressing it
     -- takes the keyboard from the box before the click lands), and go at the next update otherwise.
     edit(R.server).focus = false

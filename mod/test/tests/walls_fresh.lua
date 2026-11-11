@@ -60,8 +60,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         local beside = {}                                         -- two areas next to the start
         for _, w in ipairs(WD.walls) do
-            local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-            local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
+            local other = h.otherSideOfStart(h.wallRow(w))
             if other and other ~= "Open sea" and other ~= beside[1] then beside[#beside + 1] = other end
             if #beside == 2 then break end
         end
@@ -328,12 +327,13 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- One piece whose spawn raises an error holds up no other piece, and the rest of the update still runs
         local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
         local first, firstAt                                      -- the first piece that stands with no pass held
+        local function open(area) return area == "Open sea" or area == WD.start end
         for k, w in ipairs(WD.walls) do
-            local function open(a) local nm = WD.areas[a + 1]; return nm == "Open sea" or nm == WD.start end
-            if not first and not (open(w[5]) and open(w[6])) then first, firstAt = w, k end
+            local row = h.wallRow(w)
+            if not first and not (open(row.areaA) and open(row.areaB)) then first, firstAt = row, k end
         end
         gameplay.BeginDeferredActorSpawnFromClass = function(self, ctx, cls, t, ...)
-            if t.Translation.X == first[1] and t.Translation.Y == first[2] then error("spawn failed for this piece") end
+            if t.Translation.X == first.x and t.Translation.Y == first.y then error("spawn failed for this piece") end
             return realSpawn(self, ctx, cls, t, ...)
         end
         local W, mine = h.freshWalls()

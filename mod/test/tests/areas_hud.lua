@@ -71,16 +71,10 @@ group("area-coloured walls and the hint pop-up", function()
     local layout, canvas, hudKids = fakeHud("CanvasPanel_179")
     local savedFAO = FindAllOf
     FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
-    local function actorOf(w)
-        for a in pairs(wallsUp) do if a.t.Translation.X == w[1] and a.t.Translation.Y == w[2] then return a end end
-    end
-    local function pieceBetween(x, y)
-        for _, w in ipairs(WD.walls) do
-            local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-            if (a1 == x and a2 == y) or (a1 == y and a2 == x) then
-                local a = actorOf(w)
-                if a then return a end
-            end
+    -- The wall actor standing for a row (h.wallRow), if one stands.
+    local function actorOf(row)
+        for a in pairs(wallsUp) do
+            if a.t.Translation.X == row.x and a.t.Translation.Y == row.y then return a end
         end
     end
     local function popupAfter(n)
@@ -93,20 +87,11 @@ group("area-coloured walls and the hint pop-up", function()
     liveWalls.setSkin(nil); run(3)
     -- An area beside the start still locked (the open-beyond test above opened the hint test's area), and a spot on
     -- the start's side of one of its walls.
-    local area, at, piece
-    for _, w in ipairs(WD.walls) do
-        local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-        local other = (x == WD.start and y) or (y == WD.start and x)
-        if other and liveWalls.AREA_COLOURS[other] and w[3] > 5000 and actorOf(w) then
-            local yaw = math.rad(w[4])
-            for _, side in ipairs({ 1, -1 }) do
-                local px, py = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
-                if liveWalls.areaAt(px, py) == WD.start then area, at, piece = other, { X = px, Y = py, Z = 0 }, actorOf(w) end
-            end
-            if area then break end
-        end
-    end
-    local popupArea, popupAt = area, at   -- (another wall: the one above was opened)
+    -- (another wall than the hint test's: that one was opened)
+    local popupAt, popupArea, popupWall = h.spotBesideStart(function(other, row)
+        return liveWalls.AREA_COLOURS[other] and actorOf(row)
+    end)
+    local piece = popupWall and actorOf(h.wallRow(popupWall))
     local want = popupArea and liveWalls.linearOf(liveWalls.AREA_COLOURS[popupArea])
     expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes" and h.sameColour(piece.Cube.mat.vectors.Color, want)
            and loggedSince(skinAt, "wall skin area: colours "), "by default a wall wears the paw holes in the colour of the area it keeps you out of")
@@ -114,10 +99,11 @@ group("area-coloured walls and the hint pop-up", function()
     pawnAt = popupAt
     local box = popupAfter(#hudKids)
     local over = box and box.child
-    expect(box and box.width == 380 and box.height == 84 and box.opacity == 0.8 and box.vis == 4
-           and box.canvasSlot.anchors.Minimum.X == 0.5 and box.canvasSlot.anchors.Minimum.Y == 0.5
+    expect(box and box.width == 380 and box.height == 84 and box.opacity == 0.8 and box.vis == 4,
+           "walking up to a wall shows the hint pop-up, 380x84 at 0.8 opacity, never taking a click")
+    expect(box and box.canvasSlot.anchors.Minimum.X == 0.5 and box.canvasSlot.anchors.Minimum.Y == 0.5
            and box.canvasSlot.alignment.X == 0.5 and box.canvasSlot.position.Y == 0,
-           "walking up to a wall shows the hint pop-up in the middle of the screen at 0.8 opacity")
+           "in the middle of the screen")
     expect(over and over.children[1].child.texture.path == "ap-hint-plate-short" and over.children[2].text == popupArea .. " is sealed"
            and over.children[3].text == "Not enough points for a hint: 3 of 121" and over.children[4] and over.children[4].width == 9,
            "on the not-enough-points plate, with its two lines and the bar: "
@@ -143,10 +129,11 @@ group("area-coloured walls and the hint pop-up", function()
     -- A pass that opens one side of a piece still up turns it to the other side's colour.
     local a1, a2, between
     for _, w in ipairs(WD.walls) do
-        local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-        if liveWalls.AREA_COLOURS[x] and liveWalls.AREA_COLOURS[y] and not shared.open[x] and not shared.open[y] and x ~= openedBeyond
-           and y ~= openedBeyond and actorOf(w) then
-            a1, a2, between = x, y, actorOf(w)
+        local row = h.wallRow(w)
+        local x, y = row.areaA, row.areaB
+        if liveWalls.AREA_COLOURS[x] and liveWalls.AREA_COLOURS[y] and not shared.open[x] and not shared.open[y]
+           and x ~= openedBeyond and y ~= openedBeyond and actorOf(row) then
+            a1, a2, between = x, y, actorOf(row)
             break
         end
     end

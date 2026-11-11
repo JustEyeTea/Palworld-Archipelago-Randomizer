@@ -150,3 +150,38 @@ function h.sameColour(c, d)
     return c and d and math.abs(c.R - d.R) < COLOUR_PRECISION and math.abs(c.G - d.G) < COLOUR_PRECISION
         and math.abs(c.B - d.B) < COLOUR_PRECISION
 end
+
+-- A row of a generated walls file (area_walls.lua, area_walls_regions.lua), by name: its middle (x, y, game units),
+-- its length, its yaw (degrees, along the wall), and the names of the areas on its two sides. `data` is the file's
+-- table (shared.WD if none is given).
+function h.wallRow(w, data)
+    data = data or shared.WD
+    return { x = w[1], y = w[2], length = w[3], yaw = w[4], areaA = data.areas[w[5] + 1], areaB = data.areas[w[6] + 1] }
+end
+
+-- The area on the other side of a wall from the start, or nil if the wall does not touch the start.
+function h.otherSideOfStart(row)
+    local start = shared.WD.start
+    return (row.areaA == start and row.areaB) or (row.areaB == start and row.areaA) or nil
+end
+
+local SPOT_FROM_WALL = 1500                              -- game units: close enough for the wall's notice
+local LONG_WALL = 5000                                   -- game units: a spot beside its middle is beside it alone
+-- A spot on the start's side of a long wall between the start and an area `wanted(area, row)` accepts (the first
+-- such wall in the file). Returns the spot (a location), the area, and the wall's row as the file has it.
+function h.spotBesideStart(wanted)
+    local start, liveWalls = shared.WD.start, require("walls")
+    for _, w in ipairs(shared.WD.walls) do
+        local row = h.wallRow(w)
+        local other = h.otherSideOfStart(row)
+        if other and row.length > LONG_WALL and wanted(other, row) then
+            local yaw, spot = math.rad(row.yaw), nil
+            for _, side in ipairs({ 1, -1 }) do
+                local x = row.x - side * math.sin(yaw) * SPOT_FROM_WALL
+                local y = row.y + side * math.cos(yaw) * SPOT_FROM_WALL
+                if liveWalls.areaAt(x, y) == start then spot = { X = x, Y = y, Z = 0 } end
+            end
+            if spot then return spot, other, w end
+        end
+    end
+end

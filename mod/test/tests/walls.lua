@@ -8,8 +8,8 @@ group("area locks", function()
     local function expected(open)
         local n = 0
         for _, w in ipairs(WD.walls) do
-            local a, b = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-            if not (open[a] and open[b]) then n = n + 1 end
+            local row = h.wallRow(w, WD)
+            if not (open[row.areaA] and open[row.areaB]) then n = n + 1 end
         end
         return n
     end
@@ -24,12 +24,15 @@ group("area locks", function()
         local a = next(wallsUp)
         liveWalls.setSkin("a"); run(1)
         local mid = a.Cube.mat
-        expect(logged("wall skin a: on %d+ pieces") and mid and mid ~= wallRed and mid.parent == wallRed
-               and mid.textures.MainTexture01 and mid.textures.MainTexture01.path == "ap-wall-pattern-a"
-               and mid.textures.MainTexture01.SRGB == false and mid.textures.MainTexture02 == nil
-               and mid.vectors.DayColor.G > 0.7
-               and math.abs(mid.vectors.NightColor.G - liveWalls.linearOf("24E0CC").G * 0.421875) < 1e-6,
-               "wall skin a: a teal material with pattern a (linear) on the AP walls; the dither noise left alone")
+        expect(logged("wall skin a: on %d+ pieces") and mid and mid ~= wallRed and mid.parent == wallRed,
+               "wall skin a: a copy of the walls' red material on the AP walls, logged")
+        expect(mid and mid.textures.MainTexture01 and mid.textures.MainTexture01.path == "ap-wall-pattern-a"
+               and mid.textures.MainTexture01.SRGB == false and mid.textures.MainTexture02 == nil,
+               "with pattern a, linear, as its first texture; the dither noise (the second) left alone")
+        local NIGHT_SHADE = 0.421875                         -- walls.lua's night colour: the day's at this brightness
+        expect(mid and mid.vectors.DayColor.G > 0.7
+               and math.abs(mid.vectors.NightColor.G - liveWalls.linearOf("24E0CC").G * NIGHT_SHADE) < 1e-6,
+               "in teal by day and by night: " .. tostring(mid and mid.vectors.DayColor.G))
         next(wallsUp):K2_DestroyActor(); run(3)
         local fresh = 0
         for w in pairs(wallsUp) do if w.Cube.mat == mid then fresh = fresh + 1 end end
@@ -80,9 +83,11 @@ group("area locks", function()
         local nBacks = 0
         for _ in pairs(backs) do nBacks = nBacks + 1 end
         expect(pm ~= cm and pm.parent == cm.parent and pm.textures.Pattern.path:find("T_APWallPaws", 1, true)
-               and known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
-               and logged("wall skin paws: the paw layer from the pak, with mips") and logged("wall skin paws: colours paws:"),
-               "the paws skin: the cooked paw layer on M_APWall over each piece's area colour (" .. nBacks .. " colours)")
+               and logged("wall skin paws: the paw layer from the pak, with mips"),
+               "the paws skin: the cooked paw layer (with its mips) on M_APWall: " .. tostring(pm.textures.Pattern.path))
+        expect(known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
+               and logged("wall skin paws: colours paws:"),
+               "over each piece's area colour at 0.34, brightness 1.1 (" .. nBacks .. " colours)")
         local notes, badLoadsBefore = {}, #badLoads
         local fresh = liveWalls.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
         expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry" and #badLoads == badLoadsBefore,
@@ -121,19 +126,7 @@ group("area locks", function()
     runCycles(3)
     expect(teleported == nil, "with its pass, nobody is sent away")
     -- Walking up to a wall between the start and a locked area: chat names the pass.
-    local hintAt, hintArea
-    for _, w in ipairs(WD.walls) do
-        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-        local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
-        if other and other ~= "Open sea" and other ~= "Bamboo Groves" and w[3] > 5000 then
-            local yaw = math.rad(w[4])
-            for _, side in ipairs({ 1, -1 }) do
-                local x, y = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
-                if liveWalls.areaAt(x, y) == WD.start then hintAt, hintArea = { X = x, Y = y, Z = 0 }, other end
-            end
-            if hintAt then break end
-        end
-    end
+    local hintAt, hintArea = h.spotBesideStart(function(area) return area ~= "Open sea" and area ~= "Bamboo Groves" end)
     shared.hintAt, shared.hintArea = hintAt, hintArea   -- a spot at a locked wall beside the start, and its area
     local noticesBefore = #announced
     pawnAt = hintAt
@@ -171,20 +164,9 @@ group("area locks", function()
     game.hintPoints = "3,121"
     do
         -- At a wall to another locked area (no hint known for it yet).
-        local at, area
-        for _, w in ipairs(WD.walls) do
-            local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-            local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
-            if other and other ~= "Open sea" and other ~= "Bamboo Groves" and other ~= hintArea and w[3] > 5000
-               then
-                local yaw = math.rad(w[4])
-                for _, side in ipairs({ 1, -1 }) do
-                    local x, y = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
-                    if liveWalls.areaAt(x, y) == WD.start then at, area = { X = x, Y = y, Z = 0 }, other end
-                end
-                if at then break end
-            end
-        end
+        local at, area = h.spotBesideStart(function(other)
+            return other ~= "Open sea" and other ~= "Bamboo Groves" and other ~= hintArea
+        end)
         local n = #announced
         pawnAt = at; runCycles(2)
         local short = false
@@ -211,9 +193,11 @@ group("area locks", function()
         liveWalls.setSkin("paws"); run(2)
         local target
         for _, w in ipairs(WD.walls) do
-            local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-            local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
-            if other and other ~= "Open sea" and not open[other] then target = other; break end
+            local other = h.otherSideOfStart(h.wallRow(w, WD))
+            if other and other ~= "Open sea" and not open[other] then
+                target = other
+                break
+            end
         end
         local standingBefore = {}
         for wa in pairs(wallsUp) do standingBefore[wa] = true end
@@ -281,19 +265,30 @@ group("area locks", function()
     do  -- dev.43: every piece is raised at load (as standingBefore); only those within 75 m are shown, past 100 m hidden
         liveWalls.radius = 7500
         local spot
+        local function openHere(area) return open[area] or area == "Open sea" or area == WD.start end
         for k, w in ipairs(WD.walls) do
-            local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-            if not (open[a1] or a1 == "Open sea" or a1 == WD.start) or not (open[a2] or a2 == "Open sea" or a2 == WD.start) then spot = k; break end
+            local row = h.wallRow(w, WD)
+            if not openHere(row.areaA) or not openHere(row.areaB) then
+                spot = k
+                break
+            end
         end
         local home = { X = pawnAt.X, Y = pawnAt.Y, Z = pawnAt.Z }
         local spawnedBefore = spawned
-        pawnAt = { X = WD.walls[spot][1], Y = WD.walls[spot][2], Z = -1700 }   -- standing at a locked wall
+        local standAt = h.wallRow(WD.walls[spot], WD)
+        pawnAt = { X = standAt.x, Y = standAt.y, Z = -1700 }               -- standing at a locked wall
         run(40)
         local function tally()
             local shown, hiddenN, wrong = 0, 0, 0
             for wa in pairs(wallsUp) do
                 local i
-                for k, w in ipairs(WD.walls) do if w[1] == wa.t.Translation.X and w[2] == wa.t.Translation.Y then i = k; break end end
+                for k, w in ipairs(WD.walls) do
+                    local row = h.wallRow(w, WD)
+                    if row.x == wa.t.Translation.X and row.y == wa.t.Translation.Y then
+                        i = k
+                        break
+                    end
+                end
                 local d = i and liveWalls.segDist(i, pawnAt.X, pawnAt.Y) or 1e9
                 if wa.hidden then hiddenN = hiddenN + 1; if d <= 7500 then wrong = wrong + 1 end
                 else shown = shown + 1; if d > 10000 then wrong = wrong + 1 end end

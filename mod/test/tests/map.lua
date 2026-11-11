@@ -148,12 +148,20 @@ group("the world map", function()
         for _, j in ipairs(jobs) do if j.kind == "fog" then fog = fog or j end end
         expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png") and logged("explored reads a%-"),
                "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
-        local rf = {}
-        for part in ((fog and fog.regions or "") .. "|"):gmatch("([^|]*)|") do rf[#rf + 1] = part end
-        expect(#rf == 10 and rf[1]:find("area_labels%.png$") and rf[10] == "0.4545" and select(2, rf[2]:gsub(",", "")) >= 9 and rf[4] == "59,42,26,210"
-               and tonumber(rf[5]) == 3 and tonumber(rf[6]) == 14 and tonumber(rf[7]) == 8 and tonumber(rf[8]) == 0.28,
-               "the fog is made with the areas' borders and the locked areas' hatch (labels, locked indexes, ink, width, hatch): "
+        -- The fog's regions argument, by name: image_tools.hpp, compose_fog.
+        local REGION_FIELDS = { "labels", "locked", "hatch", "ink", "width", "dash", "gap", "hatchOpacity", "colour",
+                                "gamma" }
+        local parts, regions = {}, {}
+        for part in ((fog and fog.regions or "") .. "|"):gmatch("([^|]*)|") do parts[#parts + 1] = part end
+        for i, name in ipairs(REGION_FIELDS) do regions[name] = parts[i] or "" end
+        expect(#parts == #REGION_FIELDS and regions.labels:find("area_labels%.png$")
+               and select(2, regions.locked:gsub(",", "")) >= 9,
+               "the fog is made with the areas' borders, from the area labels, the locked areas listed: "
                .. tostring(fog and fog.regions))
+        expect(regions.ink == "59,42,26,210" and tonumber(regions.width) == 3 and tonumber(regions.dash) == 14
+               and tonumber(regions.gap) == 8, "the borders in the ink 59,42,26 at 210, 3 px wide, dashes 14 and gaps 8")
+        expect(tonumber(regions.hatchOpacity) == 0.28 and regions.gamma == "0.4545",
+               "the locked areas' hatch at 0.28, kept to land by the colour map read at gamma 0.4545")
         local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
         expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked areas' stamps go on the fog: " .. stamps)
         local fogpic
@@ -347,13 +355,17 @@ group("the world map: the Territories look", function()
     for item in (job and job.areas or ""):gmatch("[^,]+") do local i, s, c = item:match("^(%d+):(%a):(%x+)$"); st[tonumber(i)] = { s = s, c = c } end
     expect(job and job.labels:find("area_labels%.png$") and job.size == "2048" and job.fog == "0E1A24" and job.style == "FFE9B0,0.35,FFF4DC,0.6,10,3,5",
            "the overlay is composed from the area labels at 2048, with the dark fog colour and the Art lane's walls, see-through")
-    expect(st[1] and st[1].s == "v" and st[1].c == "24E0CC" and st[3] and st[3].s == "u" and st[2] and st[2].s == "l"
-           and st[15] and st[15].s == "s" and st[15].c == "5A6472" and st[0] == nil,
-           "states: the start visited (teal), an area with its pass unvisited, the rest locked, beyond the goal sealed (slate); no sea")
+    expect(st[1] and st[1].s == "v" and st[1].c == "24E0CC",
+           "states: the start visited, teal: " .. tostring(st[1] and st[1].s) .. " " .. tostring(st[1] and st[1].c))
+    expect(st[3] and st[3].s == "u" and st[2] and st[2].s == "l",
+           "an area with its pass unlocked and not yet visited; the rest locked")
+    expect(st[15] and st[15].s == "s" and st[15].c == "5A6472" and st[0] == nil,
+           "an area beyond the goal sealed, slate; the sea not listed")
     local standing = 0
+    local function open(area) return area == "Open sea" or area == AW.start or passes[area] end
     for _, w in ipairs(AW.walls) do
-        local function open(a) local nm = AW.areas[a + 1]; return nm == "Open sea" or nm == AW.start or passes[nm] end
-        if not (open(w[5]) and open(w[6])) then standing = standing + 1 end
+        local row = h.wallRow(w, AW)
+        if not (open(row.areaA) and open(row.areaB)) then standing = standing + 1 end
     end
     local segs, inside = 0, true
     for s in (job and job.walls or ""):gmatch("[^;]+") do
@@ -418,10 +430,12 @@ group("the world map: the Territories look", function()
     local fj = fjobs[#fjobs]
     local shipped = io.open(MOD .. "/area_field.png", "rb")
     if shipped then shipped:close() end
-    expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096" and fj.style == job.style
-           and fj.areas == job.areas and fj.walls == job.walls and #jobs == n and fogSize == "4096"
+    expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096" and #jobs == n
            and logged("map territories: composing from the distance field at 4096"),
-           "with AP_ComposeField: the shipped distance field at 4096 (same areas, walls and look), not the label map; the fog at 4096")
+           "with AP_ComposeField: the shipped distance field at 4096, not the label map: " .. tostring(fj and fj.field))
+    expect(fj and fj.style == job.style and fj.areas == job.areas and fj.walls == job.walls,
+           "the same areas, walls and look as from the label map")
+    expect(fogSize == "4096", "and the fog at 4096: " .. tostring(fogSize))
     -- No colour map (and no game map to save one from): the overlay, drawn over the game's map as before.
     os.remove(colourFile)
     local G2 = h.freshWalls()
