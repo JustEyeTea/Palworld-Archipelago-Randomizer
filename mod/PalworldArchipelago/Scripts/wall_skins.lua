@@ -199,14 +199,15 @@ end
 -- An opening piece's material: its paws, dissolving from now over DISSOLVE_S by the game's clock (M_APWall's
 -- DissolveStart and DissolveTime against its Time node; an edge glows as it goes). One per look per second, so the
 -- pieces an update opens share it; nil for any other skin (those shrink).
-local gone, goneStart = {}, {}
+local dissolveMaterials, dissolveStarts = {}, {}
 local glowAt = nil             -- where the player was last told to the M_APWall materials (W.glowTick, below)
-function WALL_SKINS.dissolving(name, context)
+function WALL_SKINS.dissolving(name, pawn)
     if not (name and name:find("^paws:")) then return nil end
-    local ok, now = pcall(function() return pieces.statics():GetTimeSeconds(context) end)
+    local ok, now = pcall(function() return pieces.statics():GetTimeSeconds(pawn) end)
     if not (ok and type(now) == "number") then return nil end
     local key = name .. "@" .. math.floor(now)
-    if gone[key] and gone[key]:IsValid() then return gone[key], goneStart[key] end
+    local made = dissolveMaterials[key]
+    if made and made:IsValid() then return made, dissolveStarts[key] end
     local gi = owner()
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
@@ -216,14 +217,14 @@ function WALL_SKINS.dissolving(name, context)
     mid:SetScalarParameterValue(FName("DissolveStart"), now)
     mid:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
     if glowAt then mid:SetVectorParameterValue(FName("PlayerPos"), glowAt) end
-    gone[key], goneStart[key] = mid, now
+    dissolveMaterials[key], dissolveStarts[key] = mid, now
     once("dissolve", "wall skin paws: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now) .. " s)")
     return mid, now
 end
 -- The glow near the player (M_APWall's PlayerPos; dev.41 playtest: keyed to the camera it sat off to the side of the
 -- character): the player's position on the M_APWall materials of pieces shown, each core update (300 ms; a faster
--- loop of our own corrupted Lua's state, see sinking above), only when the player has moved. The pawn is the core's,
--- handed to W.update; checked each time.
+-- loop of our own corrupted Lua's state, see walls.lua's opening pieces), only when the player has moved. The pawn is
+-- the core's, handed to W.update; checked each time.
 function WALL_SKINS.glowing()
     if pieces.count() == 0 or not apWall then return false end
     return skin.now == "paws" or skin.now:find("^colour%-") ~= nil
@@ -258,7 +259,7 @@ end
 function WALL_SKINS.dropCaches()
     skin.mids, skin.failed = {}, {}                             -- (skin.base: the game's own red, an asset, kept)
     if skin.now ~= "red" then skin.now = "red" end           -- so skinTick dresses the new world's pieces again
-    gone, goneStart, glowAt, apWall, pawLayer = {}, {}, nil, nil, nil
+    dissolveMaterials, dissolveStarts, glowAt, apWall, pawLayer = {}, {}, nil, nil, nil
 end
 -- The game instance and the rendering and material libraries a skin's material is made with, once the walls' own
 -- material is known; nil while any of them is missing.

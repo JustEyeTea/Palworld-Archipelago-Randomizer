@@ -93,7 +93,8 @@ local function forget(i)
     WALL_SKINS.forget(i)
     hiddenAt[i] = nil
 end
-local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), addr = its address, dissolving }
+local opening = {}            -- the pieces opening: { actor, scale X, scale Y, started (game s), addr = its address,
+                              -- dissolving, mid = its dissolving material, collisionOff, steps }
 -- The addresses of the walls the game still has. FindAllOf lists live objects only, so a wall of a world that is gone
 -- is told apart without calling it (IsValid included: its memory may be freed).
 local function liveWallAddresses()
@@ -121,12 +122,12 @@ function W.reset()
         end
     end
     local still = {}
-    for _, s in ipairs(sinking) do
+    for _, s in ipairs(opening) do
         if live[s.addr] then
             still[#still + 1] = s
         end
     end
-    sinking = still
+    opening = still
 end
 
 -- How far a spot is from piece i (a segment: its middle, its direction, its length), in the plane.
@@ -140,13 +141,13 @@ local function segDist(i, x, y)
 end
 W.segDist = segDist
 
-local function raise(i, context)
+local function raise(i, pawn)
     local w = layout.walls[i]
     local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = x, Y = y, Z = MID_Z_CM },
                 Scale3D = { X = length / CUBE_CM, Y = THICK_CM / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
-    local a = gs:BeginDeferredActorSpawnFromClass(context, cls, t, SPAWN_ALWAYS, nil)
+    local a = gs:BeginDeferredActorSpawnFromClass(pawn, cls, t, SPAWN_ALWAYS, nil)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
     WALL_SKINS.skinNew(a, i)
@@ -175,7 +176,7 @@ local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 2.4
 local function stepOne(s, now)
     local a = s[1]
     local span = s.dissolving and DISSOLVE_S or SHRINK_S
-    local half = not s.open and now >= s[4] + span / 2
+    local half = not s.collisionOff and now >= s[4] + span / 2
     local done = now >= s[4] + span + (s.dissolving and DISSOLVE_TAIL or 0)
     if not s.dissolving then                     -- shrinking: top and bottom towards the middle
         local t = math.min(1, (now - s[4]) / SHRINK_S)
@@ -183,7 +184,7 @@ local function stepOne(s, now)
         local height = math.max(MIN_SCALE, HEIGHT_CM / CUBE_CM * (1 - eased))
         pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = height }) end)
     end
-    if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
+    if half then s.collisionOff = true; pcall(function() a:SetActorEnableCollision(false) end) end
     if not done then
         return true
     end
@@ -195,9 +196,9 @@ local function stepOne(s, now)
     return false
 end
 -- Each update: every opening piece one step on, by the game's clock (or the updates counted, when it can't be read).
-local function sinkStep()
+local function stepOpeningPieces()
     local still = {}
-    for _, s in ipairs(sinking) do
+    for _, s in ipairs(opening) do
         local a = s[1]
         if a:IsValid() then
             s.steps = (s.steps or 0) + 1
@@ -208,44 +209,45 @@ local function sinkStep()
             end
         end
     end
-    sinking = still
+    opening = still
 end
 -- Takes every opening piece down at once (a change of cut, or an error in the opening step): a piece left in no list
 -- would stand, still blocking, for good.
 local function destroyOpening()
-    for _, s in ipairs(sinking) do
+    for _, s in ipairs(opening) do
         pcall(function()
             if s[1]:IsValid() then
                 s[1]:K2_DestroyActor()
             end
         end)
     end
-    sinking = {}
+    opening = {}
 end
 -- Each core update (game thread): the opening pieces stepped, then the glow told where the player is.
-local function stepOpening()
-    if #sinking > 0 then
-        local ok, err = pcall(sinkStep)
+local function stepOpeningAndGlow()
+    if #opening > 0 then
+        local ok, err = pcall(stepOpeningPieces)
         if not ok then
-            log("sinking error: " .. tostring(err))
+            log("opening error: " .. tostring(err))
             destroyOpening()
         end
     end
     local ok, err = pcall(WALL_SKINS.glowTick)
     if not ok then once("glow", "wall glow error: " .. tostring(err)) end
 end
--- Opening: with the paws skin the piece dissolves (wall_skins.lua's dissolving: its material eats it away over 2 s by
--- the game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway and then goes.
-local function lower(i, context)
+-- Starts opening piece i: with the paws skin it dissolves (wall_skins.lua's dissolving: its material eats it away
+-- over DISSOLVE_S by the game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway
+-- and then goes.
+local function startOpening(i, pawn)
     local a, wore, addr = raised[i], WALL_SKINS.wornBy(i), raisedAt[i]
     forget(i)
     if not (a and a:IsValid()) then return end
-    local ok, mid, start = pcall(WALL_SKINS.dissolving, wore, context)
+    local ok, mid, start = pcall(WALL_SKINS.dissolving, wore, pawn)
     local m = ok and mid and WALL_SKINS.meshOf(a)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
     now = (m and start) or (okT and type(now) == "number" and now) or 0
-    sinking[#sinking + 1] = { a, layout.walls[i][3] / CUBE_CM, THICK_CM / CUBE_CM, now, addr = addr,
+    opening[#opening + 1] = { a, layout.walls[i][3] / CUBE_CM, THICK_CM / CUBE_CM, now, addr = addr,
                               dissolving = m and true or nil, mid = m and mid or nil }
 end
 
@@ -269,10 +271,10 @@ end
 
 -- Shows the raised pieces near the player and hides the rest (W.radius; a few at a time; a dissolving piece has left
 -- raised already). Without the player's position, or with W.radius 0, every piece is shown.
-function W.showNear(context)
+function W.showNear(pawn)
     local px, py = nil, nil
     if W.radius > 0 then
-        local okL, loc = pcall(function() return context:K2_GetActorLocation() end)
+        local okL, loc = pcall(function() return pawn:K2_GetActorLocation() end)
         if okL and loc and loc.X then px, py = loc.X, loc.Y end
     end
     local budget = VIS_PER_TICK
@@ -294,9 +296,9 @@ end
 -- Brings the walls in line with the passes held: raises missing pieces of locked borders, takes down pieces whose
 -- areas are both open (a few per call).
 local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
-function W.update(enabled, passes, context)
+function W.update(enabled, passes, pawn)
     checkSome()
-    W.lastPasses, W.lastContext = passes, context
+    W.lastPasses, W.lastContext = passes, pawn
     if not ready() then
         once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
         return
@@ -307,7 +309,7 @@ function W.update(enabled, passes, context)
         if budget <= 0 then break end
         local up = enabled and AREAS.standing(w, passes)
         if up and not raised[i] and spawning then
-            local ok, made = pcall(raise, i, context)
+            local ok, made = pcall(raise, i, pawn)
             -- One piece that fails does not hold up the others: the loop goes on (the try counts against the budget).
             if not ok then
                 local err = tostring(made)
@@ -319,14 +321,14 @@ function W.update(enabled, passes, context)
             end
             budget = budget - 1
         elseif not up and raised[i] then
-            lower(i, context)
+            startOpening(i, pawn)
             budget = budget - 1
         end
     end
-    W.showNear(context)
+    W.showNear(pawn)
     WALL_SKINS.skinTick()
     WALL_SKINS.recolour(passes)
-    stepOpening()
+    stepOpeningAndGlow()
     if catchingUp and budget == PER_TICK then
         catchingUp = false
         P.wallsCaughtUp(nRaised)
@@ -334,7 +336,7 @@ function W.update(enabled, passes, context)
 end
 
 -- The perf probe's Ctrl+7 test states (test_tools=1 only): hidden (collision kept), nocoll (shown, no collision),
--- none (every raised piece removed at once, no sinking), full (as normal; the update raises what is missing).
+-- none (every raised piece removed at once, none opening), full (as normal; the update raises what is missing).
 -- While the state is not full, main.lua neither raises nor lowers pieces nor sends anyone home.
 function W.perfMode(mode)
     if mode == "none" then
@@ -411,7 +413,7 @@ end
 local pieces = {
     raised = function() return raised end,
     isHidden = function(i) return hiddenAt[i] end,
-    opening = function() return sinking end,
+    opening = function() return opening end,
     count = function() return nRaised end,
     statics = function() return gs end,
 }

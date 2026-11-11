@@ -184,8 +184,8 @@ local exists = UTIL.exists
 local artFile = ART.file
 -- "explored" in the mask: the channel that differs most between the player (explored) and a corner beyond the world's
 -- edge (never), and which way. nil (and why) when no channel tells them apart.
-local function maskSpec(ctx)
-    local okp, at = pcall(function() return ctx:K2_GetActorLocation() end)
+local function maskSpec(pawn)
+    local okp, at = pcall(function() return pawn:K2_GetActorLocation() end)
     if not (okp and at) then return nil, "no player position" end
     local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
     local u, v = (at.Y - y0) / (y1 - y0), (x1 - at.X) / (x1 - x0)
@@ -213,10 +213,10 @@ end
 -- and a second opening the game made without Setup kept it, so the new look showed about a minute in): the player's own
 -- world map data holds it (UPalWorldMapUIData:GetRenderTargetByMapName "MainMap", the render target the screen's fog
 -- shows), so it is read once the fog art is ready, before the map ever opens. nil while there is none.
-local function worldMask(ctx)
+local function worldMask(pawn)
     local ok, rt = pcall(function()
         local util = StaticFindObject("/Script/Pal.Default__PalUtility")
-        local wmd = util and util:IsValid() and util:GetLocalWorldMapData(ctx)
+        local wmd = util and util:IsValid() and util:GetLocalWorldMapData(pawn)
         if not (wmd and wmd:IsValid()) then return nil end
         local r = wmd:GetRenderTargetByMapName(FName("MainMap"))
         if r and r:IsValid() then return r end
@@ -322,12 +322,12 @@ local function finishFog()
     return false
 end
 -- Before the map opens: the explored mask read from the world's map data (worldMask) and the fog picture made.
-local function readMaskEarly(ctx, krl, gi, stamps, regions, tag)
+local function readMaskEarly(pawn, krl, gi, stamps, regions, tag)
     chart.early = (chart.early or 0) + 1
-    local rt = worldMask(ctx)
+    local rt = worldMask(pawn)
     local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, MASK_FILE) end)
     local spec, info = chart.spec, nil
-    if okE and not spec then spec, info = maskSpec(ctx) end
+    if okE and not spec then spec, info = maskSpec(pawn) end
     if okE and spec then
         chart.spec, chart.exportedAt = spec, chart.ticks
         log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
@@ -339,7 +339,7 @@ local function readMaskEarly(ctx, krl, gi, stamps, regions, tag)
 end
 -- At a map opening: the explored mask exported from the screen, read once to learn which channel means explored, and
 -- the fog picture made.
-local function readMaskOnOpening(ctx, screen, krl, gi, stamps, regions, tag)
+local function readMaskOnOpening(pawn, screen, krl, gi, stamps, regions, tag)
     chart.exportedAt, chart.want = chart.ticks, false
     local ok, res = pcall(exportMask, screen, krl, gi)
     if not ok or res ~= true then
@@ -347,7 +347,7 @@ local function readMaskOnOpening(ctx, screen, krl, gi, stamps, regions, tag)
         return
     end
     if not chart.spec then
-        local spec, info = maskSpec(ctx)
+        local spec, info = maskSpec(pawn)
         -- One reading that tells nothing apart (the player at the world's edge, no position yet) does not end the
         -- fog picture: the next export, EXPORT_GAP later, reads again.
         log("map chart: the explored mask " .. info .. (spec and (": explored reads " .. spec)
@@ -361,16 +361,16 @@ local function readMaskOnOpening(ctx, screen, krl, gi, stamps, regions, tag)
 end
 -- A new fog picture when the mask is to be read (before the map opens, or at an opening) or when the stamps, the area
 -- borders or the look changed (a pass: the same mask).
-local function remakeFog(ctx, screens, passes, key, krl, gi)
+local function remakeFog(pawn, screens, passes, key, krl, gi)
     local tagged = territories()
     local stamps, regions = fogStampsAndRegions(key, passes)
     local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
     if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
        and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
-        readMaskEarly(ctx, krl, gi, stamps, regions, tag)
+        readMaskEarly(pawn, krl, gi, stamps, regions, tag)
     elseif chart.want and screens[#screens]
            and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
-        readMaskOnOpening(ctx, screens[#screens], krl, gi, stamps, regions, tag)
+        readMaskOnOpening(pawn, screens[#screens], krl, gi, stamps, regions, tag)
     elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions .. tag ~= chart.stampKey then
         startFog(stamps, regions, tag)
     end
@@ -386,7 +386,7 @@ local function loadFogPicture(krl, gi)
     log("map chart: the fog picture is ready (" .. whose .. ")")
 end
 -- Each map update: the fog art, then the fog picture (finished, made again, loaded) step by step.
-local function chartTick(ctx, screens, opening, passes, key)
+local function chartTick(pawn, screens, opening, passes, key)
     if W.chartOff or not (AP_ComposeChart and AP_ComposeFog and AP_SamplePNG and AP_MapScreen) then return end
     chart.ticks = chart.ticks + 1
     if opening then chart.want = true end                                    -- read the mask on this opening
@@ -398,7 +398,7 @@ local function chartTick(ctx, screens, opening, passes, key)
     local load = finishFog()
     if load == nil then return end
     if chart.fog == "idle" and not load then
-        remakeFog(ctx, screens, passes, key, krl, gi)
+        remakeFog(pawn, screens, passes, key, krl, gi)
     end
     if load then
         loadFogPicture(krl, gi)
@@ -413,9 +413,9 @@ end
 
 -- Each map update: the chart and the fog picture stepped, C++ told the picture and switched on, and at an opening
 -- C++'s status logged and the fog probed (once).
-function MAP_FOG.step(ctx, screens, opening, passes, key)
+function MAP_FOG.step(pawn, screens, opening, passes, key)
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
-    local okt, errt = pcall(chartTick, ctx, screens, opening, passes, key)
+    local okt, errt = pcall(chartTick, pawn, screens, opening, passes, key)
     if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
     -- C++ is switched on from the start, not once the picture is ready (dev.16 playtest, 2026-11-07: the map opened
     -- 3 s before the picture was, and C++ logged "OFF; Setup ran 0x" though its hook saw Setup run).
