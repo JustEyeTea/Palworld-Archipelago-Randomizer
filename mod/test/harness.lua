@@ -1574,6 +1574,64 @@ mapBody.MaskTextureMaterial = nil
 os.remove(MOD .. "/map-fog.png"); os.remove(MOD .. "/map-fog-territories.png")
 end)()
 
+print("walls and the map across a world change")
+;(function()   -- (a function of its own: the main chunk is at Lua's 200 locals)
+-- A walls module of its own, driven directly (no core update runs here). mine() lists the walls it raised: those
+-- standing now that were not standing when it was made.
+local function freshWalls()
+    local W = dofile(MOD .. "/Scripts/walls.lua")
+    W.dir, W.keep = MOD, function() end
+    local before = {}
+    for a in pairs(wallsUp) do before[a] = true end
+    local function mine()
+        local out = {}
+        for a in pairs(wallsUp) do if not before[a] then out[#out + 1] = a end end
+        return out
+    end
+    return W, mine
+end
+-- The world went: these walls went with it (the game destroyed them; nothing destroyed them through the mod).
+local function worldGoes(walls) for _, a in ipairs(walls) do a.gone = true; wallsUp[a] = nil end end
+local function hiddenOf(walls)
+    local n = 0
+    for _, a in ipairs(walls) do if a.hidden then n = n + 1 end end
+    return n
+end
+-- A player 20 km off the map: every piece is past the hiding radius.
+local offMap = { IsValid = function() return true end,
+                 K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
+local SETTLE_UPDATES = 60          -- enough updates to raise every piece of a cut (30 an update) and hide it (120)
+
+do  -- Return to title and a new world: the new world's far pieces are hidden again (no hidden flag kept from before)
+    local W, mine = freshWalls()
+    W.radius = 7500
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local first = mine()
+    local hidden1 = hiddenOf(first)
+    worldGoes(first)
+    W.reset()
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local second = mine()
+    local hidden2 = hiddenOf(second)
+    expect(#first > 100 and hidden1 == #first and #second == #first and hidden2 == #second,
+           "a new world hides its far pieces again: " .. hidden1 .. " of " .. #first .. " hidden in the first world, "
+           .. hidden2 .. " of " .. #second .. " in the second")
+    W.perfMode("none")                                          -- Ctrl+7 "none" removes every piece, then "full"
+    W.perfMode("full")
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local third = mine()
+    expect(#third == #first and hiddenOf(third) == #third,
+           "after the test state that removes every piece, the pieces raised again are hidden again: "
+           .. hiddenOf(third) .. " of " .. #third)
+    W.setLayout("regions")                                     -- the other cut: every piece taken down, others raised
+    for _ = 1, 2 * SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local regions = mine()
+    expect(#regions > #first and hiddenOf(regions) == #regions,
+           "after a change of cut the new cut's far pieces are hidden: " .. hiddenOf(regions) .. " of " .. #regions)
+    worldGoes(regions)
+end
+end)()
+
 print("a new world")
 -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
 run(10)                                                       -- (walls opened above finish shrinking: 2 s of updates)

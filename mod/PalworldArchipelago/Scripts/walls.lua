@@ -72,6 +72,13 @@ local function ready()
     return cls ~= nil and cls:IsValid() and gs ~= nil and gs:IsValid()
 end
 
+local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
+-- Forgets piece i was raised, with its look: a new actor raised for it starts shown and undressed.
+local function forget(i)
+    if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
+    dressedAs[i] = nil
+    hiddenAt[i] = nil
+end
 -- A new world (another save, back from the title): its walls are gone with the old one; start over. Only walls that
 -- are really gone are forgotten: the core's world key is the pawn, which also changes (or reads nil for a moment) in
 -- the same world, and a wall forgotten while still standing could never be taken down.
@@ -80,7 +87,7 @@ function W.reset()
     W.dropCaches()
     for i, a in pairs(raised) do
         local ok, valid = pcall(function() return a:IsValid() end)
-        if not (ok and valid) then raised[i], nRaised = nil, nRaised - 1 end
+        if not (ok and valid) then forget(i) end
     end
 end
 
@@ -163,12 +170,6 @@ local function stepOpening()
     end
     local ok, err = pcall(W.glowTick)
     if not ok then once("glow", "wall glow error: " .. tostring(err)) end
-end
-local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
-local function forget(i)
-    if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
-    dressedAs[i] = nil
-    hiddenAt[i] = nil
 end
 -- Opening: with the paws skin the piece dissolves (W.dissolving, below: its material eats it away over 2 s by the
 -- game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway and then goes.
@@ -270,7 +271,7 @@ function W.perfMode(mode)
         for _, a in pairs(raised) do
             if a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
         end
-        raised, nRaised = {}, 0
+        raised, nRaised, hiddenAt = {}, 0, {}
         return
     end
     for _, a in pairs(raised) do
@@ -1723,7 +1724,7 @@ function W.setLayout(name)
     name = name == "regions" and "regions" or "areas"
     if name == W.layout then return false end
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
-    raised, nRaised, sinking, dressedAs = {}, 0, {}, {}
+    raised, nRaised, sinking, dressedAs, hiddenAt = {}, 0, {}, {}, {}
     SUFFIX = name == "regions" and "_regions" or ""
     DATA, MAP, SHAPES = require("area_walls" .. SUFFIX), require("area_map" .. SUFFIX), nil
     CENTRES = require("area_centres" .. SUFFIX)
