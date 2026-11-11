@@ -174,7 +174,7 @@ local function sinkStep()
         if a:IsValid() then
             s.steps = (s.steps or 0) + 1
             local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
-            if not (ok and type(now) == "number") then now = s[4] + s.steps * 0.3 end
+            if not (ok and type(now) == "number") then now = s[4] + s.steps * UTIL.UPDATE_MS / 1000 end
             local span = s.dissolving and DISSOLVE_S or SHRINK_S
             local half = not s.open and now >= s[4] + span / 2
             local done = now >= s[4] + span + (s.dissolving and DISSOLVE_TAIL or 0)
@@ -1427,7 +1427,11 @@ local CHART_FILE, FOG_FILE = "map-chart.png", "map-fog.png"
 -- Each look keeps its own fog picture (dev.32 playtest, 2026-11-08: the first opening showed dev.31's chart, the last
 -- session's map-fog.png, until the territories' one was made).
 local function fogFile() return territories() and "map-fog-territories.png" or FOG_FILE end
-local EXPORT_GAP = 200                     -- updates (about a minute) between exports of the explored mask
+local EXPORT_GAP = UTIL.updates(60)        -- a minute between exports of the explored mask
+-- Before the map first opens, the explored mask is read from the world's map data every EARLY_MASK_EVERY, at most
+-- EARLY_MASK_TRIES times (the map data may not be there yet just after a world loads).
+local EARLY_MASK_EVERY = UTIL.updates(6)
+local EARLY_MASK_TRIES = 10
 W.chartOff = false
 local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
                 old = false, keptAt = nil }            -- keptAt: the fog picture's place in the kept objects
@@ -1562,7 +1566,8 @@ local function chartTick(ctx, screens, opening, passes)
         local stamps = tagged and "" or stampList(lockedList(passes))
         local regions = tagged and "" or regionSpec(passes)
         local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
-        if not chart.exportedAt and not chart.want and (chart.early or 0) < 10 and chart.ticks % 20 == 0 then
+        if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
+           and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
             chart.early = (chart.early or 0) + 1                              -- (before the map opens: see worldMask)
             local rt = worldMask(ctx)
             local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png") end)
@@ -1572,7 +1577,7 @@ local function chartTick(ctx, screens, opening, passes)
                 chart.spec, chart.exportedAt = spec, chart.ticks
                 log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
                 startFog(stamps, regions, tag)
-            elseif chart.early == 10 then
+            elseif chart.early == EARLY_MASK_TRIES then
                 log("map chart: the explored mask could not be read before the map opened (" .. (rt and tostring(info) or "no world map data")
                     .. "); from the first opening instead")
             end
