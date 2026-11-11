@@ -56,6 +56,9 @@ or a new file, look here and use the block. Never write a second copy. A block i
   `onceErr`. Which branch of a fallback ran: `took`.
 - **A wait:** `updates(seconds)` from `util.lua`, as a named entry in the file's `WAIT` table. Never a bare count
   of updates, and never a typed 300 or 0.3. A schedule ("every 3 seconds") is tested with `isDue`.
+- **A function the Lua mod calls in the connector:** `register_text` in `dllmain.cpp`. Code that turns text into
+  numbers lives in `lua_text.*`, which is tested on Linux. An event line the bridge sends Lua is built and taken
+  apart in `event_lines.*`.
 - **A hook on a Blueprint class:** `hookWhenLoaded(path, fn, tag)` in `util.lua`, called every update until it
   registers.
 
@@ -102,10 +105,11 @@ that state. These rules keep the mod's code on the game thread. `mod/test/harnes
 
 ## C++
 
-- **Keep the parts that need no Unreal in their own files** (`ap_bridge.*`, `pal_gift_logic.*`, `image_tools.*`), so
-  they are tested on Linux (`cppmod/APConnector/test/`).
+- **Keep the parts that need no Unreal in their own files** (`ap_bridge.*`, `event_lines.*`, `lua_text.*`,
+  `pal_gift_logic.*`, `image_tools.*`), so they are tested on Linux (`cppmod/APConnector/test/`).
 - **Functions the Lua mod calls take and return text,** and are listed with their arguments at the top of
-  `dllmain.cpp`.
+  `dllmain.cpp`. Each is registered through `register_text` there; code that turns text into numbers lives in
+  `lua_text.*`.
 
 ## Tests and commits
 
