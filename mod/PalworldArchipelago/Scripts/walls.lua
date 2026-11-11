@@ -1167,10 +1167,12 @@ W.areaSpec, W.wallSpec = areaSpec, wallSpec
 -- Draws the finished Territories picture into the map picture; true when it is the look for `key`, "failed" when a
 -- file could not be loaded.
 local function drawTerritories(krl, gi, k, key)
-    pcall(LoadAsset, MAP_TEXTURE)
-    local map = StaticFindObject(MAP_TEXTURE)
     local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
-    if terr.whole then map = over end                                    -- (the whole picture: the map in it)
+    local map = over                          -- the whole picture has the map in it; an overlay goes over the game's
+    if not terr.whole then
+        pcall(LoadAsset, MAP_TEXTURE)
+        map = StaticFindObject(MAP_TEXTURE)
+    end
     if not (map and map:IsValid() and over and over:IsValid()) then
         log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
     end

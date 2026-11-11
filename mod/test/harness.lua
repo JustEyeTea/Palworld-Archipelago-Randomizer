@@ -1917,6 +1917,21 @@ do  -- A finished picture that errors while it is drawn (here the engine gives n
            "a picture that cannot be drawn is composed once, not again each update: Territories "
            .. territoriesMade .. "x, chart " .. chartMade .. "x in 12 updates")
 end
+do  -- Territories with the saved colour map, the map never opened: the game's 8192 px map is never loaded
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    local wasLoaded = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
+    loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
+    local made = fieldJobs or 0
+    local W = freshWalls()
+    mapOpen = false
+    for _ = 1, 6 do W.updateMap(true, {}, pawn) end
+    expect((fieldJobs or 0) > made and not loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"],
+           "Territories from the saved colour map: the picture is made without loading the game's map")
+    loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = wasLoaded
+    takeAway()
+    putBack()
+end
 end
 end)()
 
