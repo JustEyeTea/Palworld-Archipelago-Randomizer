@@ -319,9 +319,10 @@ local function records(ps)
 end
 
 -- NotifyOnNewObject (test_tools only): does it fire for the menus the mod looks for every update? If it does, a later
--- build can keep a set of them instead of walking the object array (untested in this game). The callback only notes
--- the address: it runs while the object is being made, where touching it is the same crash class as widget work
--- inside a Blueprint hook.
+-- build can keep a set of them instead of walking the object array (untested in this game). The set keeps addresses
+-- only, never the objects: the callback runs while the object is being made, where touching it is the same crash
+-- class as widget work inside a Blueprint hook, and a kept object of a world that has gone must not be called
+-- (IsValid included). Which addresses are still live is asked of FindAllOf, which lists only live objects.
 local WATCH = {
     "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC.WBP_MenuESC_C",
     "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content.WBP_MainMenu_Technology_Content_C",
@@ -329,7 +330,7 @@ local WATCH = {
     "/Game/Pal/Blueprint/UI/UserInterface/Map/WBP_Map_Body.WBP_Map_Body_C",
     "/Game/Pal/Blueprint/UI/UserInterface/Title/WBP_TitleMenu.WBP_TitleMenu_C",
 }
-local watched = {}            -- short class -> { set = { address -> object }, fired = n, seeded = n | nil }
+local watched = {}            -- short class -> { set = { address -> true }, fired = n, seeded = n | nil }
 local order = {}              -- the short class names, in WATCH order
 local function watch()
     if not NotifyOnNewObject then log("notify: NotifyOnNewObject is not there"); return end
@@ -340,20 +341,27 @@ local function watch()
         order[#order + 1] = short
         local ok, err = pcall(NotifyOnNewObject, path, function(o)
             w.fired = w.fired + 1
-            local oka, a = pcall(function() return o:GetAddress() end)
-            if oka then w.set[a] = o end
+            local address = UTIL.addr(o)
+            if address then w.set[address] = true end
         end)
         if not ok then log("notify: could not watch " .. short .. ": " .. tostring(err)) end
     end
 end
-local function live(list)
-    local n = 0
-    for _, o in pairs(list) do
+-- The addresses of the live objects in a FindAllOf answer (valid, and not the class's default object), as a set.
+local function liveAddresses(found)
+    local addresses = {}
+    for _, o in ipairs(found) do
         local ok, yes = pcall(function()
             return o:IsValid() and not tostring(o:GetFullName()):find("Default__", 1, true)
         end)
-        if ok and yes then n = n + 1 end
+        local address = ok and yes and UTIL.addr(o)
+        if address then addresses[address] = true end
     end
+    return addresses
+end
+local function countOf(set)
+    local n = 0
+    for _ in pairs(set) do n = n + 1 end
     return n
 end
 -- The probe's own walks: the saved FindAllOf, so they are not counted in FAO or top (they are not the mod's update),
@@ -378,9 +386,9 @@ local function notifyCheck()
     for _, short in ipairs(order) do
         local w = watched[short]
         if not w.seeded then
-            local found = walk(short)
-            w.seeded, w.firstFired = live(found), w.fired
-            for _, o in ipairs(found) do pcall(function() w.set[o:GetAddress()] = o end) end
+            local found = liveAddresses(walk(short))
+            w.seeded, w.firstFired = countOf(found), w.fired
+            for address in pairs(found) do w.set[address] = true end
             return true
         end
     end
@@ -391,11 +399,11 @@ local function notifyCheck()
     round.i = round.i + 1
     local short = order[round.i]
     local w = watched[short]
-    for a, o in pairs(w.set) do
-        local ok, valid = pcall(function() return o:IsValid() end)
-        if not (ok and valid) then w.set[a] = nil end
+    local liveNow = liveAddresses(walk(short))
+    for address in pairs(w.set) do
+        if not liveNow[address] then w.set[address] = nil end   -- gone (or a class default): dropped without a call
     end
-    local mine, found = live(w.set), live(walk(short))
+    local mine, found = countOf(w.set), countOf(liveNow)
     if mine ~= found then round.bad = true end
     round.out[#round.out + 1] = short .. "=" .. mine .. "/" .. found .. "/" .. w.fired
     if round.i >= #order then
