@@ -731,14 +731,22 @@ class PalworldWorld(World):
             region.locations.append(location)
 
     def place_events(self, regions: Dict[str, Region], menu: Region) -> None:
-        """The events: each tower in play beaten, the World Tree boss beaten (its goal only), and the goal itself."""
-        for tower in TOWERS:
-            if self.layout.towers[tower.name] in regions:
-                self.add_event(regions[self.layout.towers[tower.name]], TOWER_EVENTS[tower.name],
-                               TOWER_EVENTS[tower.name])
+        """The events: each tower boss in reach beaten, the World Tree boss beaten (its goal only), and the goal
+        itself."""
+        for tower in self.towers_in_reach():
+            self.add_event(regions[self.layout.towers[tower]], TOWER_EVENTS[tower], TOWER_EVENTS[tower])
         if self.goal_rules().world_tree:
             self.add_event(regions[self.layout.world_tree], WORLD_TREE_EVENT, WORLD_TREE_EVENT)
         self.add_event(menu, "Goal Complete", "Victory")
+
+    def towers_in_reach(self) -> List[str]:
+        """The towers whose boss the logic can have beaten, in the game's order: the tower's piece is in play, and the
+        pieces in play let a player climb to the boss's level (climb_top). Archipelago asks that every location,
+        events too, can be reached, so a boss above that climb gets no event; the techs behind it need nothing, as
+        they are above the cap (Levels.tech puts them at the boss's level) and stay normal research."""
+        top = self.climb_top(self.live)
+        return [tower.name for tower in TOWERS
+                if self.layout.towers[tower.name] in self.live and self.levels.tower[tower.name] <= top]
 
     def add_event(self, region: Region, location_name: str, item_name: str) -> None:
         """An event: a location with no id in this region, holding a progression item with no id."""
@@ -822,10 +830,8 @@ class PalworldWorld(World):
             rule = self.check_rule(loc)
             if rule:
                 get(loc.name).access_rule = rule
-        for tower in TOWERS:
-            if self.layout.towers[tower.name] not in self.live:
-                continue
-            get(TOWER_EVENTS[tower.name]).access_rule = self.fight_rule(self.levels.tower[tower.name])
+        for tower in self.towers_in_reach():
+            get(TOWER_EVENTS[tower]).access_rule = self.fight_rule(self.levels.tower[tower])
         if self.goal_rules().world_tree:
             get(WORLD_TREE_EVENT).access_rule = self.world_tree_rule()
         get("Goal Complete").access_rule = self.goal_rules().win_rule(self)
