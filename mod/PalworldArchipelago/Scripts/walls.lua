@@ -65,6 +65,8 @@ end
 -- left alone, the game frees them on the way back to the title, and reloading them while a world loads in was the
 -- likely cause of a crash on re-entering a world.
 W.keep = function() end
+-- The core's keepInPlace(place, obj): keeps obj in place of what was kept at that place; returns the place.
+W.keepInPlace = function(place) return place end
 local function ready()
     if cls and cls:IsValid() and gs and gs:IsValid() then return true end
     pcall(LoadAsset, (WALL:gsub("_C$", "")))
@@ -1167,7 +1169,6 @@ local function composeTerritories(ctx, passes, key)
         if not (map and map:IsValid() and over and over:IsValid()) then
             log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
         end
-        W.keep(over)
         if not mapRT or not mapRT:IsValid() then
             mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
             W.keep(mapRT)
@@ -1371,7 +1372,7 @@ local function fogFile() return territories() and "map-fog-territories.png" or F
 local EXPORT_GAP = 200                     -- updates (about a minute) between exports of the explored mask
 W.chartOff = false
 local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
-                old = false }
+                old = false, keptAt = nil }            -- keptAt: the fog picture's place in the kept objects
 local function exists(path) local f = io.open(path, "rb"); if f then f:close(); return true end return false end
 local function artFile(name)
     local path = ART.dir .. "\\art\\" .. name .. ".png"
@@ -1535,7 +1536,7 @@ local function chartTick(ctx, screens, opening, passes)
     if load then                                                             -- 3. shown from the next opening
         local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. fogFile())
         if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
-        W.keep(tex)
+        chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
         chart.tex = tex
         local full = tex:GetFullName()
         AP_MapScreen("fogpic", full:match("^%S+%s+(.+)$") or full)

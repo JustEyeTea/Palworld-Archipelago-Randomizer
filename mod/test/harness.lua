@@ -1608,6 +1608,52 @@ end
 local offMap = { IsValid = function() return true end,
                  K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
 local SETTLE_UPDATES = 60          -- enough updates to raise every piece of a cut (30 an update) and hide it (120)
+-- The C++ part's map functions for the Territories look, as the Territories tests above give them, with the fog's
+-- explored mask on the map screen. calls lists what Lua told AP_MapScreen. Returns a function that takes them away.
+local function territoriesStandIns(calls)
+    local function write(f) local h = io.open(f, "w"); h:write("png"); h:close() end
+    AP_ComposeTerritories = function() error("with AP_ComposeField the label map is not used") end
+    AP_TerritoriesStatus = function() return "done" end
+    AP_ComposeField = function(_, _, _, _, out, fogart)
+        write(out); write(fogart)
+        fieldJobs = (fieldJobs or 0) + 1                      -- (global) map pictures composed from the distance field
+        return ""
+    end
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    AP_ComposeFog = function(_, _, _, _, out) write(out); return "" end
+    AP_FogStatus = function() return "done" end
+    AP_ComposeChart = function() error("Territories draws no chart") end
+    AP_ChartStatus = function() return "done" end
+    AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
+    mapBody.MaskTextureMaterial = { IsValid = function() return true end,
+        GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_4" end,
+        K2_GetTextureParameterValue = function(_, name)
+            if name:ToString() ~= "TargetTexture" then return nil end
+            return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
+                     GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
+        end }
+    return function()
+        AP_ComposeTerritories, AP_TerritoriesStatus, AP_ComposeField, AP_MapScreen = nil, nil, nil, nil
+        AP_ComposeFog, AP_FogStatus, AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil, nil, nil
+        mapBody.MaskTextureMaterial = nil
+        os.remove(MOD .. "/map-fog-territories.png")
+    end
+end
+-- A colour map saved by an earlier session, with its fingerprint of the game's map art `art`. Returns a function that
+-- puts back what was there before.
+local colourFile = MOD .. "\\map-colour-1.png"                  -- (the mod's Windows path, as a file name here)
+local function savedColourMap(art)
+    local had = io.open(colourFile, "rb")
+    if had then had:close() end
+    local f = io.open(colourFile, "w"); f:write("png"); f:close()
+    local print16 = {}
+    for _ = 1, 16 do print16[#print16 + 1] = art .. ",90,60" end
+    f = io.open(colourFile .. ".txt", "w"); f:write(table.concat(print16, ";")); f:close()
+    return function()
+        os.remove(colourFile .. ".txt")
+        if not had then os.remove(colourFile) end
+    end
+end
 
 do  -- Return to title and a new world: the new world's far pieces are hidden again (no hidden flag kept from before)
     local W, mine = freshWalls()
@@ -1704,6 +1750,38 @@ do  -- The locked-area icons on the map: a moment without a pawn (same world, sa
            "a new world: its map screen gets the icons and the last world's are never called: " .. deadCalls
            .. " calls on " .. #old .. " old icons, " .. #mapBody.icons .. " new")
     mapBody.GetAddress, mapBody.icons, mapOpen = screenAddress, {}, false
+end
+do  -- Ten passes in one session: no map overlay is kept (it is drawn into the map picture and done with), and the fog
+    -- pictures keep one place among the kept objects, not one more each
+    local calls = {}
+    local takeAway = territoriesStandIns(calls)
+    local putBack = savedColourMap(mapArt)
+    local W = freshWalls()
+    local core = require("walls")                             -- (the core gave its keep and keepInPlace to this one)
+    W.keep, W.keepInPlace = core.keep, core.keepInPlace
+    local function keptOf(path)
+        local n = 0
+        for _, obj in pairs(kept) do if type(obj) == "table" and obj.path == path then n = n + 1 end end
+        return n
+    end
+    local overlays0, fogs0 = keptOf("map-territories"), keptOf("map-fog-territories")
+    mapOpen = true
+    local passes = {}
+    for _ = 1, 45 do W.updateMap(true, passes, pawn) end
+    local fogsFirst = keptOf("map-fog-territories") - fogs0
+    local made = fieldJobs or 0
+    for n = 3, 12 do                                           -- ten passes, one at a time
+        passes[WD.areas[n]] = true
+        for _ = 1, 8 do W.updateMap(true, passes, pawn) end
+    end
+    local overlays, fogs = keptOf("map-territories") - overlays0, keptOf("map-fog-territories") - fogs0
+    expect(fogsFirst == 1 and (fieldJobs or 0) - made >= 10 and overlays == 0 and fogs == 1,
+           "ten passes make the map ten times, and keep no overlay and one fog picture: " .. overlays
+           .. " overlay(s) and " .. fogs .. " fog picture(s) kept after " .. ((fieldJobs or 0) - made)
+           .. " pictures made")
+    mapOpen = false
+    takeAway()
+    putBack()
 end
 end
 end)()
