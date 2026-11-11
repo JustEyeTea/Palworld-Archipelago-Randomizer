@@ -26,7 +26,6 @@ local MENU = require("menu")
 local PERF = require("perf")
 local PLAYER = require("player")
 local POPUP = require("hint_popup")
-local RECORDS = require("records")
 local SAVE = require("save")
 local SHOP = require("shop")
 local SHOP_CARDS = require("shop_cards")
@@ -338,7 +337,7 @@ end
 -- A trap's announcement: logged and shown in chat without the [Archipelago] prefix (the trap speaks for itself).
 local function announceTrap(text)
     log(text)
-    RECORDS.notify(text, playerState())
+    PLAYER.announce(text)
 end
 
 -- The menus, the mailbox, the crate window and the traps get what main.lua hands them.

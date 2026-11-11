@@ -131,7 +131,7 @@ end
 
 -- The records phase's work: sends what the game's records say is done, and the goal once it is reached.
 function CHECKS.pollRecords(ps, tick)
-    local okp, found = pcall(RECORDS.progress, ps, DATA, os.time())
+    local okp, found = pcall(RECORDS.progress, ps, DATA, tick)
     if not okp then
         once("records", "records not readable yet (loading?): " .. tostring(found))
         return

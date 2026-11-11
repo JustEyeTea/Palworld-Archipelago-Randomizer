@@ -57,9 +57,19 @@ local function receiveCrate(index)
     notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
 end
 
+-- Each filler bundle's items: { { id = item id (a DT_ItemDataTable row), n = count } }, by the item's name.
+local BUNDLES = {
+    ["Wood Bundle"] = { { id = "Wood", n = 50 } },
+    ["Stone Bundle"] = { { id = "Stone", n = 50 } },
+    ["Paldium Bundle"] = { { id = "Pal_crystal_S", n = 20 } },
+    ["Ingot Bundle"] = { { id = "CopperIngot", n = 10 } },
+    ["Sphere Bundle"] = { { id = "PalSphere", n = 5 } },
+    ["Food Bundle"] = { { id = "Baked_Berries", n = 10 } },
+}
+
 -- A bundle's items, into the mailbox.
 local function giveBundle(_, it)
-    for _, bundle in ipairs(RECORDS.BUNDLES[it.name]) do
+    for _, bundle in ipairs(BUNDLES[it.name]) do
         MAIL.add(bundle.id, bundle.n)
     end
 end
@@ -74,12 +84,12 @@ end
 -- One ancient tech point (the "Ancient Tech Points +1" item).
 local function addAncientPoint(ps)
     local td = ps:GetTechnologyData()
-    td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
-    safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
+    td[TECH_LOCK.ANCIENT_POINTS] = td[TECH_LOCK.ANCIENT_POINTS] + 1
+    safe(function() td[TECH_LOCK.ANCIENT_ONREP](td) end)
 end
 
 -- Each filler item's once-per-seed effect, by the item's name as apworld/palworld/data.py gives it (the generated
--- ap_data.lua carries it); a bundle's effect is giveBundle, for every name in RECORDS.BUNDLES. Each takes
+-- ap_data.lua carries it); a bundle's effect is giveBundle, for every name in BUNDLES. Each takes
 -- (ps, it, index).
 local FILLER_EFFECTS = {
     ["Palworld Crate"] = function(_, _, index)
@@ -94,7 +104,7 @@ local FILLER_EFFECTS = {
 local function giveFiller(ps, id, index)
     local it = DATA.items[id]
     if not it then return end
-    local effect = FILLER_EFFECTS[it.name] or (RECORDS.BUNDLES[it.name] and giveBundle)
+    local effect = FILLER_EFFECTS[it.name] or (BUNDLES[it.name] and giveBundle)
     if not effect then
         once("filler " .. it.name, "item " .. it.name .. ": no effect known to this version of the mod, nothing given")
         return

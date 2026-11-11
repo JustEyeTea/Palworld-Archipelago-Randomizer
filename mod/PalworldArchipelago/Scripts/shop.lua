@@ -8,7 +8,6 @@ local CHECKS = require("checks")
 local DATA = require("ap_data")
 local PERF = require("perf")
 local PLAYER = require("player")
-local RECORDS = require("records")
 local SHOP_CARDS = require("shop_cards")
 local STATE = require("ap_state")
 local TECH_LOCK = require("tech_lock")
@@ -136,14 +135,14 @@ local function buy(tech)
     end
     if bought(tech) then return end
     local td = ps:GetTechnologyData()
-    local field = s.ancient and RECORDS.ANCIENT_POINTS or "TechnologyPoint"
+    local field = s.ancient and TECH_LOCK.ANCIENT_POINTS or "TechnologyPoint"
     local before = td[field]
     if before < s.cost then
         log("buy " .. tech .. ": not enough points (" .. before .. " < " .. s.cost .. ")")
         return
     end
     td[field] = before - s.cost
-    safe(function() td[s.ancient and RECORDS.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
+    safe(function() td[s.ancient and TECH_LOCK.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
     log(string.format("BOUGHT %s for %d %s: %d -> %d, sends %s", tech, s.cost, field, before, td[field],
         rewardText(tech)))
     ap.bought[s.loc] = true
@@ -180,7 +179,7 @@ local function slotUnlockable(td, tech)
     if bought(tech) then return false end
     if not ap.techs[tech] then return nil end
     if ap.level < s.level then return false end
-    if (td[s.ancient and RECORDS.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
+    if (td[s.ancient and TECH_LOCK.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
     local p = s.prereq
     -- A prerequisite the seed leaves as normal research is met once the player has researched it in the game.
     local prerequisiteMet = p and (ap.techs[p] or DATA.starters[p] or (DATA.research[p] and TECH_LOCK.researchedNow(p)))

@@ -2,9 +2,9 @@
 -- record), and the chat notice shown to the player. main.lua's update sets the frame at its start and clears it after.
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local PLAYER = {}
-local RECORDS = require("records")
 local UTIL = require("util")
 local log = UTIL.log
+local once = UTIL.onceIn("player")
 
 -- The first valid player state, found by a walk of every object (FindAllOf).
 function PLAYER.findPlayerState()
@@ -94,10 +94,23 @@ function PLAYER.emptyFrame()
     return { pc = nil, controllerKey = nil, hasPawn = false, pawn = nil, playerState = PLAYER.findPlayerState }
 end
 
+-- Shows a line in the chat log as a system message (single player: only the player sees it), without a prefix.
+-- Nothing is shown with no player state; a failure is logged once.
+function PLAYER.announce(text)
+    local ps = PLAYER.playerState()
+    if not ps then return end
+    local util = StaticFindObject("/Script/Pal.Default__PalUtility")
+    if not util or not util:IsValid() then return end
+    local ok, err = pcall(function() util:SendSystemAnnounce(ps, text) end)
+    if not ok then
+        once("announce", "could not show messages in game: " .. tostring(err))
+    end
+end
+
 -- Logs a line and shows it to the player in chat, with the [Archipelago] prefix.
 function PLAYER.notify(text)
     log(text)
-    RECORDS.notify("[Archipelago] " .. text, PLAYER.playerState())
+    PLAYER.announce("[Archipelago] " .. text)
 end
 
 return PLAYER
