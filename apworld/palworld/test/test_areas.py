@@ -1,4 +1,4 @@
-"""Pins Lock Size: areas (data.py's "regions" layout): one Area Pass per area, a one-area start, and the sky's mount
+"""Pins Lock Size: areas (data.py's "areas" layout): one Area Pass per area, a one-area start, and the sky's mount
 (can_enter in __init__.py)."""
 from . import PalworldTestBase
 

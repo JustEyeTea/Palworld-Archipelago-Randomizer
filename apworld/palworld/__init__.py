@@ -60,8 +60,8 @@ class GoalRules(NamedTuple):
 
 
 def piece_level(layout: Layout, piece: str) -> int:
-    """A piece's typical Pal level. A piece with no Pals of its own takes the level of the piece named after its area
-    or region (the area's main piece), and 0 when that has none either."""
+    """A piece's typical Pal level. A piece with no Pals of its own takes the level of the piece named after its lock
+    (the lock's main piece), and 0 when that has none either."""
     return int(layout.piece_levels.get(piece) or layout.piece_levels.get(layout.pieces.get(piece, piece)) or 0)
 
 
@@ -151,7 +151,7 @@ class PalworldWorld(World):
     #                   relics_needed   how many of them win (lowered with relics)
     #   plan_cap        asked_cap       the Check Level Cap the options ask for: the player's, or the goal's auto cap
     #   plan_map        goal_towers     the towers the goal needs, in the game's order
-    #                   scope           the regions or areas with passes and checks
+    #                   scope           the locks with passes and checks
     #                   live            the pieces in play (scope's, or every piece when the map beyond stays open)
     #                   sea_needed      whether a mount for the open sea counts; sky_needed the same for the sky
     #                   prog_techs      the techs the logic counts on (progression items)
@@ -164,11 +164,10 @@ class PalworldWorld(World):
     # tests: test_progression.py (each goal's cap and passes, TestNoGearLogic, TestPointsBudget), test_options.py
     # (refused options), test_logic.py (TestSharedAlpha, TestLevelChecksEvery5: wanted)
     def generate_early(self) -> None:
-        """The seed's plan, before anything is built: which cut of the map, the level cap, which regions or areas are in
-        the seed, and whether the options leave enough checks. Bad options stop here with an OptionError."""
+        """The seed's plan, before anything is built: which cut of the map, the level cap, which locks are in the seed,
+        and whether the options leave enough checks. Bad options stop here with an OptionError."""
         o = self.options
-        # The layouts still have the older names: "regions" is Lock Size: areas (75), "areas" the 15 regions.
-        cut = "regions" if o.lock_size == o.lock_size.option_areas else "areas"
+        cut = "areas" if o.lock_size == o.lock_size.option_areas else "regions"
         self.layout = LAYOUTS[cut]
         self.levels = LEVELS_BY_LAYOUT[cut]
         # Gear Logic off: only passes and levels (and the first sphere) gate anything; bred-only Pals aren't checks.
@@ -236,21 +235,21 @@ class PalworldWorld(World):
         raise ValueError(towers)
 
     def plan_map(self) -> None:
-        """The goal's towers, the regions or areas in this seed, the pieces in play (live), whether the sea and sky
+        """The goal's towers, the locks in this seed, the pieces in play (live), whether the sea and sky
         mounts are needed, the techs the logic counts on, and each Pal's level; then the cap is held to what the map
         lets a player reach."""
         o = self.options
         self.goal_towers = self.goal_towers_in_order()
-        self.scope = self.areas_in_scope()
-        if self.goal_rules().pals and self.scope != self.every_area():
+        self.scope = self.locks_in_scope()
+        if self.goal_rules().pals and self.scope != self.every_lock():
             # Counts every piece of the scope and bred Pals, before live and Gear Logic narrow them, so it can pass
             # where check_counts' count (capture_levels) still refuses the seed.
             in_scope = sum(1 for e in CATCHABLE
                            if self.levels.pal_level(e, self.pieces_of(self.scope)) <= self.asked_cap)
-            if in_scope < o.paldeck_count.value:      # the goal's Pals come first: keep every area instead
+            if in_scope < o.paldeck_count.value:      # the goal's Pals come first: keep every lock instead
                 logging.warning(f"Palworld ({self.player_name}): Regions Beyond the Goal would leave {in_scope} "
                                 f"Pals to register; every region is kept")
-                self.scope = self.every_area()
+                self.scope = self.every_lock()
         self.live = (self.pieces_of(self.scope) if o.area_locks and o.beyond_goal == o.beyond_goal.option_locked
                      else frozenset(self.layout.pieces))
         # Mounts count only where the map needs them: the open sea always with Gear Logic; without it only when the
@@ -260,9 +259,9 @@ class PalworldWorld(World):
         self.sea_needed = self.gear or any(p not in land for p in self.goal_pieces())
         if not self.sea_needed:
             self.live = frozenset(p for p in self.live if p in land)
-        self.sky_needed = any(a in self.layout.sky for p, a in self.layout.pieces.items() if p in self.live)
+        self.sky_needed = any(lock in self.layout.sky for p, lock in self.layout.pieces.items() if p in self.live)
         self.prog_techs = self.progression_techs()
-        # A Pal is a capture check only where this seed has checks: not in areas beyond the goal, open or not.
+        # A Pal is a capture check only where this seed has checks: not in locks beyond the goal, open or not.
         checked = self.live & self.pieces_of(self.scope)
         self.capture_levels = ({e: self.levels.pal_level(e, checked, breed=self.gear) for e in CATCHABLE}
                                if checked != frozenset(self.layout.pieces) or not self.gear
@@ -325,7 +324,7 @@ class PalworldWorld(World):
         raise ValueError(loc.kind)
 
     def wanted(self, loc) -> bool:
-        """Whether this location is a check in this seed: in a region or area of the seed, under the cap, and of a
+        """Whether this location is a check in this seed: in a lock of the seed, under the cap, and of a
         kind the options turn on."""
         o = self.options
         piece = self.layout.location_piece[loc.name]
@@ -395,10 +394,10 @@ class PalworldWorld(World):
         return frozenset(shop_location(t) for t in slots if t.id not in keep)
 
     def passes_in_pool(self) -> List[str]:
-        """The pass of each region or area in this seed (none without Area Locks)."""
+        """The pass of each lock in this seed (none without Area Locks)."""
         if not self.options.area_locks:
             return []
-        return [p for a, p in self.layout.passes.items() if a in self.scope]
+        return [p for lock, p in self.layout.passes.items() if lock in self.scope]
 
     def pool_names(self) -> List[str]:
         """The items every seed's pool holds before relics and filler, in pool order: the passes, then each tech that
@@ -413,24 +412,24 @@ class PalworldWorld(World):
                 names.append(tech_item(tech.id))
         return names
 
-    def beyond_goal_areas(self) -> List[str]:
-        """The areas with a pass in the game but not in this seed: walls that stay up (locked) or are down (open)."""
-        return sorted(a for a in self.layout.passes if a not in self.scope)
+    def beyond_goal_locks(self) -> List[str]:
+        """The locks with a pass in the game but not in this seed: walls that stay up (locked) or are down (open)."""
+        return sorted(lock for lock in self.layout.passes if lock not in self.scope)
 
     # --- the map this seed uses (Regions Beyond the Goal) ------------------------------------------------------------
     # tests: test_progression.py (TestTwoTowers, TestBeyondGoalPasses, TestBeyondGoalOpen), test_areas.py; corridor
     # and reach_by_land: none of their own
-    def every_area(self) -> FrozenSet[str]:
-        """Every area or region of this layout, the open sea and the start too."""
+    def every_lock(self) -> FrozenSet[str]:
+        """Every lock of this layout, the open sea and the start too."""
         return frozenset(self.layout.pieces.values())
 
-    def pieces_of(self, areas) -> FrozenSet[str]:
-        """The pieces that make up these areas or regions."""
-        return frozenset(p for p, a in self.layout.pieces.items() if a in areas)
+    def pieces_of(self, locks) -> FrozenSet[str]:
+        """The pieces that make up these locks."""
+        return frozenset(p for p, lock in self.layout.pieces.items() if lock in locks)
 
     def start_pieces(self) -> List[str]:
-        """The pieces of the area or region a game starts in, sorted."""
-        return sorted(p for p, a in self.layout.pieces.items() if a == self.layout.start)
+        """The pieces of the lock a game starts in, sorted."""
+        return sorted(p for p, lock in self.layout.pieces.items() if lock == self.layout.start)
 
     def goal_pieces(self) -> List[str]:
         """The pieces the goal needs the player to reach: its towers', and the World Tree's for that goal."""
@@ -439,25 +438,25 @@ class PalworldWorld(World):
             pieces.append(self.layout.world_tree)
         return pieces
 
-    def areas_in_scope(self) -> FrozenSet[str]:
-        """The areas this seed has passes and checks in: the start, the open sea, every area with Pals at or below the
-        Check Level Cap (or the goal's towers' level, if higher), and the areas on the cheapest way to the goal's
-        towers (and the World Tree). Areas the start can't reach through these are left out too. Without Area Locks,
+    def locks_in_scope(self) -> FrozenSet[str]:
+        """The locks this seed has passes and checks in: the start, the open sea, every lock with Pals at or below the
+        Check Level Cap (or the goal's towers' level, if higher), and the locks on the cheapest way to the goal's
+        towers (and the World Tree). Locks the start can't reach through these are left out too. Without Area Locks,
         or with Regions Beyond the Goal on passes, all."""
         o, layout = self.options, self.layout
         if not o.area_locks or o.beyond_goal == o.beyond_goal.option_passes:
-            return self.every_area()
+            return self.every_lock()
         low: Dict[str, int] = {}
-        for piece, area in layout.pieces.items():
-            low[area] = min(low.get(area, NO_LEVEL), piece_level(layout, piece))
+        for piece, lock in layout.pieces.items():
+            low[lock] = min(low.get(lock, NO_LEVEL), piece_level(layout, piece))
         # Up to the cap, but never short of what the goal's towers need to level for (a low cap set by hand only
-        # takes checks away, not the areas a player levels in).
+        # takes checks away, not the locks a player levels in).
         need = max([self.asked_cap] + [self.levels.tower[t] + TOWER_MARGIN for t in self.goal_towers])
-        scope = {area for area, level in low.items() if level <= need} | {layout.start, SEA}
+        scope = {lock for lock, level in low.items() if level <= need} | {layout.start, SEA}
         for target in self.goal_pieces():
             scope |= {layout.pieces[p] for p in self.corridor(target, scope, low)}
         reached = self.reach(scope)
-        return frozenset(a for a in scope if any(layout.pieces[p] == a for p in reached))
+        return frozenset(lock for lock in scope if any(layout.pieces[p] == lock for p in reached))
 
     def neighbours(self) -> Dict[str, List[str]]:
         """Each piece's neighbours across a border, sorted (so the route searches are the same in every run)."""
@@ -468,7 +467,7 @@ class PalworldWorld(World):
         return {p: sorted(n) for p, n in out.items()}
 
     def corridor(self, target: str, scope, low: Dict[str, int]) -> List[str]:
-        """The pieces outside `scope` on the way from the start to `target`: the route whose highest such area is
+        """The pieces outside `scope` on the way from the start to `target`: the route whose highest such lock is
         lowest, then the one through the fewest pieces."""
         layout, nbrs = self.layout, self.neighbours()
         start = self.start_pieces()
@@ -482,8 +481,8 @@ class PalworldWorld(World):
             if piece == target:
                 break
             for nxt in nbrs.get(piece, ()):
-                area = layout.pieces[nxt]
-                key = (max(worst, 0 if area in scope else low[area]), steps + 1)
+                lock = layout.pieces[nxt]
+                key = (max(worst, 0 if lock in scope else low[lock]), steps + 1)
                 if key < best.get(nxt, UNVISITED):
                     best[nxt], prev[nxt] = key, piece
                     heapq.heappush(heap, (key[0], key[1], nxt))
@@ -506,14 +505,14 @@ class PalworldWorld(World):
         return frozenset(seen)
 
     def reach(self, scope) -> FrozenSet[str]:
-        """The pieces the start reaches through the borders of these areas (mounts aside: the logic sees to those)."""
+        """The pieces the start reaches through the borders of these locks (mounts aside: the logic sees to those)."""
         return self.flood(lambda piece: self.layout.pieces[piece] in scope)
 
     def reach_by_land(self, live: FrozenSet[str]) -> FrozenSet[str]:
         """The pieces in play (live) the start reaches without the open sea (and without going up to the sky)."""
         def by_land(piece: str) -> bool:
-            area = self.layout.pieces[piece]
-            return piece in live and area != SEA and area not in self.layout.sky
+            lock = self.layout.pieces[piece]
+            return piece in live and lock != SEA and lock not in self.layout.sky
         return self.flood(by_land)
 
     # --- the level model: how far the player can level, and what they can catch and fight ----------------------------
@@ -574,17 +573,17 @@ class PalworldWorld(World):
     # --- logic helpers: what the player has and where they can go ----------------------------------------------------
     # tests: test_logic.py (TestMounts), test_areas.py (TestAreasSky, TestAreasLockSize)
     def can_enter(self, state: CollectionState, piece: str) -> bool:
-        """Crossing a border into a piece needs its area's pass (the start and open sea need none), a mount that crosses
+        """Crossing a border into a piece needs its lock's pass (the start and open sea need none), a mount that crosses
         water to go out on the open sea, and one that flies to go up to the Sky Islands."""
-        area = self.layout.pieces[piece]
-        if area == SEA:
+        lock = self.layout.pieces[piece]
+        if lock == SEA:
             return not self.sea_needed or self.can_ride(state, SEA_MOUNTS)
-        if area in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
+        if lock in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
             return False
-        if area not in self.scope:              # beyond the goal: open from the start, or no pass at all
+        if lock not in self.scope:              # beyond the goal: open from the start, or no pass at all
             return self.options.beyond_goal == self.options.beyond_goal.option_open
-        return (area == self.layout.start or not self.options.area_locks
-                or state.has(self.layout.passes[area], self.player))
+        return (lock == self.layout.start or not self.options.area_locks
+                or state.has(self.layout.passes[lock], self.player))
 
     def can_ride(self, state: CollectionState, mounts: Dict[str, str]) -> bool:
         """One of these mounts: its saddle tech and its Pal."""
@@ -696,8 +695,8 @@ class PalworldWorld(World):
 
     def needs_mount(self, piece: str) -> bool:
         """Entering this piece takes a mount: it is on the open sea or up in the sky."""
-        area = self.layout.pieces[piece]
-        return area == SEA or area in self.layout.sky
+        lock = self.layout.pieces[piece]
+        return lock == SEA or lock in self.layout.sky
 
     def recheck_everywhere(self, entrance, regions: Dict[str, Region]) -> None:
         """A mount rule depends on Pals and levels anywhere, so Archipelago must re-check it as any region opens."""
@@ -869,7 +868,7 @@ class PalworldWorld(World):
     #   relics              the number of relics in the pool                          not the mod
     #   relics_needed       the number of relics that win (a count)                   the mod (Relic Hunt goal)
     #   check_level         the final cap: no check above this player level           not the mod
-    #   beyond_goal_areas   "|"-separated areas or regions with a pass that is not in this seed   the mod
+    #   beyond_goal_areas   "|"-separated locks with a pass that is not in this seed  the mod
     #   research_techs      ","-separated tech ids the mod leaves as normal research  the mod
     #   game_version        the Palworld version the tables were made from            not the mod
     #   slot                this player's slot number                                 the mod
@@ -880,7 +879,7 @@ class PalworldWorld(World):
         return {"options": self.options.as_dict(*SLOT_DATA_OPTIONS),
                 "relics": self.relics, "relics_needed": self.relics_needed,
                 "check_level": self.cap,
-                "beyond_goal_areas": "|".join(self.beyond_goal_areas()),
+                "beyond_goal_areas": "|".join(self.beyond_goal_locks()),
                 "research_techs": ",".join(sorted(self.research_techs)),
                 "game_version": GAME_VERSION,
                 "slot": self.player,

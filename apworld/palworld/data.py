@@ -5,7 +5,7 @@ each block and never moves one; test/test_ids.py holds every id to test/frozen_i
 from collections import Counter
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .game_data import ALPHA_KEYS, AREA_LIST, AREAS, BORDERS, PALDECK, PIECES, REGION_MODE, START_AREA
+from .game_data import ALPHA_KEYS, AREA_MODE, BORDERS, PALDECK, PIECE_LEVELS, PIECES, REGION_LIST, START_REGION
 from .game_data import ALPHAS as ALPHA_ROWS
 from .game_data import FAST_TRAVEL as FAST_TRAVEL_ROWS
 from .game_data import MOUNTS as MOUNT_ROWS
@@ -195,13 +195,11 @@ TOWERS = [Tower(*row) for row in TOWER_ROWS]
 
 # --- regions and areas -----------------------------------------------------------------------------------------
 # Players see two sizes of locked map part (the Lock Size option): 15 *regions*, each opened by a Region Pass, and the
-# game's 75 named *areas*, each opened by an Area Pass. A region is a group of areas.
-# The code still uses the older words, the other way round: "area" (AREA_LIST, PASS_AREAS, the "areas" layout)
-# means one of the 15 regions, and "region" (REGION_MODE, REGION_PASS_AREAS, the "regions" layout) one of the 75
-# areas. They are renamed file by file during the code tour (docs/architecture.md).
+# game's 75 named *areas*, each opened by an Area Pass. A region is a group of areas. Code that serves both sizes
+# alike calls the seed's kind a *lock* (docs/architecture.md, Words).
 # Pass ids count from the list's second row (the start has no pass), so they hold only while the start stays first:
 # checked at the end of this file.
-PASS_AREAS = [a for a in AREA_LIST if a != START_AREA]
+PASS_REGIONS = [r for r in REGION_LIST if r != START_REGION]
 SEA = "Open sea"
 
 
@@ -211,8 +209,8 @@ def region_pass(region: str) -> str:
 
 
 # The 75 areas (Lock Size: areas): each named area of the game on its own, with an Area Pass. Their ids count from
-# the second row too, as PASS_AREAS' do.
-REGION_PASS_AREAS = [r for r in REGION_MODE["AREA_LIST"] if r != REGION_MODE["START"]]
+# the second row too, as PASS_REGIONS' do.
+PASS_AREAS = [a for a in AREA_MODE["AREA_LIST"] if a != AREA_MODE["START"]]
 
 
 def area_pass(area: str) -> str:
@@ -250,14 +248,14 @@ class ItemDef(NamedTuple):
 
 def _items() -> List[ItemDef]:
     """Every item, with the id of its block and row (see BASE above)."""
-    out = [ItemDef(region_pass(a), BASE + i, "pass") for i, a in enumerate(PASS_AREAS)]
+    out = [ItemDef(region_pass(r), BASE + i, "pass") for i, r in enumerate(PASS_REGIONS)]
     out += [ItemDef(tech_item(t.id), BASE + 1000 + i, "tech") for i, t in enumerate(TECHS) if t.level > STARTER_LEVEL]
     out.append(ItemDef(PROGRESSIVE_SPHERE, BASE + 900, "progressive"))
     out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
     out.append(ItemDef(CRATE, BASE + 958, "filler"))
     out += [ItemDef(n, BASE + 970 + i, "trap") for i, n in enumerate(TRAPS)]      # 959-969 stay free for filler
-    out += [ItemDef(area_pass(r), BASE + 7000 + i, "pass") for i, r in enumerate(REGION_PASS_AREAS)]
+    out += [ItemDef(area_pass(a), BASE + 7000 + i, "pass") for i, a in enumerate(PASS_AREAS)]
     return out
 
 
@@ -266,7 +264,7 @@ ITEM_NAME_TO_ID: Dict[str, int] = {i.name: i.id for i in ITEMS}
 
 
 # The kinds of check. Code that treats them differently names every kind and raises ValueError for any other:
-# __init__.py's loc_level, wanted and check_rule, and _regions_location_piece below.
+# __init__.py's loc_level, wanted and check_rule, and _area_location_piece below.
 CHECK_KINDS = ("shop", "capture", "alpha", "fast_travel", "level", "tower")
 
 
@@ -307,28 +305,28 @@ SHARED_ALPHAS = frozenset(alpha.name for alpha in ALPHAS
 
 class Layout(NamedTuple):
     """One way of cutting the map into lockable parts (the Lock Size option): what the logic reads about the map."""
-    start: str                     # the area or region a game starts in (no pass)
-    passes: Dict[str, str]         # area or region -> its pass item
-    pieces: Dict[str, str]         # piece (the logic's region) -> its area or region; "Open sea" needs no pass
+    start: str                     # the lock a game starts in (no pass)
+    passes: Dict[str, str]         # lock -> its pass item
+    pieces: Dict[str, str]         # piece (an Archipelago Region in the logic) -> its lock; "Open sea" needs no pass
     borders: List[Tuple[str, str]]
     piece_levels: Dict[str, float]  # piece -> typical Pal level (pieces with no Pals of their own have none)
     sources: Dict[str, Tuple[PalSource, ...]]  # Paldeck entry -> its sources
     location_piece: Dict[str, Optional[str]]   # location name -> the piece it sits in (None: anywhere)
     towers: Dict[str, str]         # tower name -> its piece
-    sky: frozenset                 # areas or regions up in the sky: a flying mount to get there
+    sky: frozenset                 # locks up in the sky: a flying mount to get there
     world_tree: str                # the World Tree's piece
 
 
-def _regions_location_piece() -> Dict[str, Optional[str]]:
+def _area_location_piece() -> Dict[str, Optional[str]]:
     """For the 75 areas: each location's piece (alphas, fast-travel points and towers sit in one; the rest anywhere)."""
     out = {}
     for loc in LOCATIONS:
         if loc.kind == "alpha":
-            out[loc.name] = REGION_MODE["ALPHAS"][loc.name]
+            out[loc.name] = AREA_MODE["ALPHAS"][loc.name]
         elif loc.kind == "fast_travel":
-            out[loc.name] = REGION_MODE["FAST_TRAVEL"][loc.key]
+            out[loc.name] = AREA_MODE["FAST_TRAVEL"][loc.key]
         elif loc.kind == "tower":
-            out[loc.name] = REGION_MODE["TOWERS"][loc.key]
+            out[loc.name] = AREA_MODE["TOWERS"][loc.key]
         elif loc.kind in ("shop", "capture", "level"):
             out[loc.name] = None
         else:
@@ -336,19 +334,19 @@ def _regions_location_piece() -> Dict[str, Optional[str]]:
     return out
 
 
-# Keyed by the older words (see "regions and areas" above): "areas" is the 15 regions, "regions" the 75 areas.
+# Keyed by the Lock Size option's values: "regions" (the 15) and "areas" (the 75).
 LAYOUTS = {
-    "areas": Layout(start=START_AREA, passes={a: region_pass(a) for a in PASS_AREAS}, pieces=PIECES,
-                    borders=BORDERS, piece_levels=AREAS,
-                    sources={e: pal.sources for e, pal in PALDECK_ENTRIES.items()},
-                    location_piece={l.name: l.piece for l in LOCATIONS},
-                    towers={tower.name: tower.piece for tower in TOWERS},
-                    sky=frozenset({"Sky Islands"}), world_tree="World Tree"),
-    "regions": Layout(start=REGION_MODE["START"], passes={r: area_pass(r) for r in REGION_PASS_AREAS},
-                      pieces=REGION_MODE["PIECES"], borders=REGION_MODE["BORDERS"], piece_levels=REGION_MODE["AREAS"],
-                      sources={e: pal_sources(rows) for e, rows in REGION_MODE["SOURCES"].items()},
-                      location_piece=_regions_location_piece(), towers=REGION_MODE["TOWERS"],
-                      sky=frozenset(REGION_MODE["SKY"]), world_tree=REGION_MODE["WORLD_TREE"]),
+    "regions": Layout(start=START_REGION, passes={r: region_pass(r) for r in PASS_REGIONS}, pieces=PIECES,
+                      borders=BORDERS, piece_levels=PIECE_LEVELS,
+                      sources={e: pal.sources for e, pal in PALDECK_ENTRIES.items()},
+                      location_piece={l.name: l.piece for l in LOCATIONS},
+                      towers={tower.name: tower.piece for tower in TOWERS},
+                      sky=frozenset({"Sky Islands"}), world_tree="World Tree"),
+    "areas": Layout(start=AREA_MODE["START"], passes={a: area_pass(a) for a in PASS_AREAS},
+                    pieces=AREA_MODE["PIECES"], borders=AREA_MODE["BORDERS"], piece_levels=AREA_MODE["PIECE_LEVELS"],
+                    sources={e: pal_sources(rows) for e, rows in AREA_MODE["SOURCES"].items()},
+                    location_piece=_area_location_piece(), towers=AREA_MODE["TOWERS"],
+                    sky=frozenset(AREA_MODE["SKY"]), world_tree=AREA_MODE["WORLD_TREE"]),
 }
 
 
@@ -371,14 +369,14 @@ assert not _unknown_prereqs, f"progression techs that are not in game_data.TECHS
 _unknown_kinds = sorted({l.kind for l in LOCATIONS} - set(CHECK_KINDS))
 assert not _unknown_kinds, f"location kinds missing from CHECK_KINDS: {_unknown_kinds}"
 assert sorted(TRAP_WEIGHT_OPTION) == sorted(TRAPS), "every trap needs its weight option in TRAP_WEIGHT_OPTION"
-assert AREA_LIST[0] == START_AREA and REGION_MODE["AREA_LIST"][0] == REGION_MODE["START"], \
-    "pass ids count from the second row: the start must stay the first row of AREA_LIST and REGION_MODE's AREA_LIST"
+assert REGION_LIST[0] == START_REGION and AREA_MODE["AREA_LIST"][0] == AREA_MODE["START"], \
+    "pass ids count from the second row: the start must stay the first row of REGION_LIST and AREA_MODE's AREA_LIST"
 
 
 # --- groups (for hints, start_inventory and the like) -----------------------------------------------------------
 ITEM_GROUPS = {
-    "Area Passes": {area_pass(r) for r in REGION_PASS_AREAS},
-    "Region Passes": {region_pass(a) for a in PASS_AREAS},
+    "Area Passes": {area_pass(a) for a in PASS_AREAS},
+    "Region Passes": {region_pass(r) for r in PASS_REGIONS},
     "Techs": {i.name for i in ITEMS if i.kind == "tech"},
     "Spheres": {tech_item(t.id) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
     "Bundles": set(BUNDLES),
@@ -395,7 +393,7 @@ LOCATION_GROUPS = {
     "Levels": {l.name for l in LOCATIONS if l.kind == "level"},
     "Towers": {l.name for l in LOCATIONS if l.kind == "tower"},
 }
-for _area in AREA_LIST:                            # "Windswept Island" and so on: the checks in that region
-    _group_names = {l.name for l in LOCATIONS if l.piece and PIECES.get(l.piece) == _area}
+for _region in REGION_LIST:                        # "Windswept Island" and so on: the checks in that region
+    _group_names = {l.name for l in LOCATIONS if l.piece and PIECES.get(l.piece) == _region}
     if _group_names:
-        LOCATION_GROUPS[_area] = _group_names
+        LOCATION_GROUPS[_region] = _group_names
