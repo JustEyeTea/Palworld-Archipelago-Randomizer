@@ -40,15 +40,15 @@ local function giveFiller(ps, id, index)
         td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
         safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
     elseif RECORDS.BUNDLES[it.name] then
-        for _, b in ipairs(RECORDS.BUNDLES[it.name]) do
+        for _, bundle in ipairs(RECORDS.BUNDLES[it.name]) do
             if MAIL.on() then
-                MAIL.add(b[1], b[2])
+                MAIL.add(bundle.id, bundle.n)
             else
                 -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
-                local okg, got = pcall(BAG.give, b[1], b[2])
-                if not okg then once("give" .. tostring(got), "could not give " .. b[1] .. ": " .. tostring(got)); return false end
+                local okg, got = pcall(BAG.give, bundle.id, bundle.n)
+                if not okg then once("give" .. tostring(got), "could not give " .. bundle.id .. ": " .. tostring(got)); return false end
                 if got == 0 then return false end
-                if got < b[2] then log("bundle " .. it.name .. ": only " .. got .. " of " .. b[2] .. " " .. b[1] .. " went in") end
+                if got < bundle.n then log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in") end
             end
         end
     end
@@ -119,7 +119,7 @@ local function giveTechGift(it)
     if not gifts then return end
     local parts = {}
     for _, g in ipairs(gifts) do
-        local id, n, name = g[1], g[2], BAG.nameOf(g[1])
+        local id, n, name = g.id, g.n, BAG.nameOf(g.id)
         if g.bag or not MAIL.on() then
             local okg, got = pcall(BAG.give, id, n)
             got = okg and got or 0
