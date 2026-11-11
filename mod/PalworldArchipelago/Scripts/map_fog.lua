@@ -41,9 +41,9 @@ end
 -- The chart look's parchment fog colour (linear light, alpha 0.6, to see whether the colour's alpha lets the map show
 -- through), sent only with the test tools (fogColour). Untested in game: how the screen shows it.
 local CHART_FOG_COLOUR = "0.815,0.693,0.434,0.6"
--- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), fog whether it was
+-- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), told whether it was
 -- switched on and given the fog colour; opened and fixes count map openings and pictures Lua put back, for the log.
-local cpp = { body = nil, fog = false, opened = 0, fixes = 0, maskDone = false }
+local cpp = { body = nil, told = false, opened = 0, fixes = 0, maskDone = false }
 -- The fog colour C++ gives the screen until there is a fog picture: "" keeps the game's own dark fog.
 -- CHART_FOG_COLOUR only with the test tools, in the chart look with its fog on; config.txt says map_chart=0 keeps the
 -- game's fog.
@@ -55,8 +55,8 @@ local function fogColour()
 end
 local function tellCpp()
     if not AP_MapScreen then return end
-    if not cpp.fog then
-        cpp.fog = true
+    if not cpp.told then
+        cpp.told = true
         AP_MapScreen("enable", W.cppOff and "0" or "1")
         AP_MapScreen("fog", fogColour())
     end
@@ -68,10 +68,10 @@ end
 -- Switches the C++ map screen off where the mod's map does not belong (a seed without area locks, a world that is
 -- not the seed's): C++ would otherwise show the seed's picture and fog there. Told once; tellCpp switches it on again.
 function MAP_FOG.mapOff()
-    if not (AP_MapScreen and cpp.fog) then
+    if not (AP_MapScreen and cpp.told) then
         return
     end
-    cpp.fog, cpp.body = false, nil
+    cpp.told, cpp.body = false, nil
     AP_MapScreen("enable", "0")
     log("map screen (C++): switched off, the game's own map here")
 end
@@ -141,8 +141,32 @@ local EXPORT_GAP = UTIL.updates(60)        -- a minute between exports of the ex
 -- EARLY_MASK_TRIES times (the map data may not be there yet just after a world loads).
 local EARLY_MASK_EVERY = UTIL.updates(6)
 local EARLY_MASK_TRIES = 10
-local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
-                old = false, keptAt = nil }            -- keptAt: the fog picture's place in the kept objects
+-- State: the chart and the fog picture. Forgotten: the mask reads at a new world (MAP_FOG.resetMaskReads); the rest
+-- never (the chart and the fog picture are files and textures kept for the session).
+--   state  none -> composing   AP_ComposeChart started (the chart look)
+--          composing -> ready  AP_ChartStatus says done
+--          none -> ready       the Territories look, as soon as its fog art exists
+--          any -> failed       the chart could not start or failed (failChart), for the rest of the session
+--   fog    idle -> composing   startFog started AP_ComposeFog
+--          composing -> idle   AP_FogStatus is no longer busy (done: the picture is loaded)
+local chart = {
+    state = "none",
+    fog = "idle",
+    spec = nil,         -- which channel of the explored mask means explored, and which way ("a-": alpha low)
+    ticks = 0,          -- chart updates counted (the clock of the mask reads)
+    exportedAt = nil,   -- the tick the explored mask was last read; nil before the first read in this world
+    want = false,       -- the map opened: read the mask at the next chance (at most every EXPORT_GAP)
+    early = nil,        -- reads of the mask before the map opened, in this world (at most EARLY_MASK_TRIES)
+    tex = nil,          -- the fog picture loaded last, handed to C++
+    stampKey = nil,     -- the stamps, borders and look the last fog picture was started with
+    old = false,        -- the last session's fog picture was loaded (until a new one)
+    keptAt = nil,       -- the fog picture's place in the kept objects (W.keepInPlace)
+}
+-- The chart cannot be made: the state is failed for the rest of the session, and why is logged.
+local function failChart(why)
+    chart.state = "failed"
+    log("map chart: " .. why)
+end
 local exists = UTIL.exists
 local artFile = ART.file
 -- "explored" in the mask: the channel that differs most between the player (explored) and a corner beyond the world's
@@ -252,12 +276,15 @@ local function stepChartArt()
         local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
             W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), "0.4545")
         if err == "" then chart.state = "composing"
-        elseif err ~= "busy" then chart.state = "failed"; log("map chart: could not start: " .. err) end
+        elseif err ~= "busy" then failChart("could not start: " .. err) end
         return false
     elseif chart.state == "composing" then
         local st = AP_ChartStatus()
         if st == "busy" then return false end
-        if st ~= "done" then chart.state = "failed"; log("map chart: failed: " .. tostring(st)); return false end
+        if st ~= "done" then
+            failChart("failed: " .. tostring(st))
+            return false
+        end
         chart.state = "ready"
         log("map chart: drawn (" .. CHART_SIZE .. " px)")
     end
