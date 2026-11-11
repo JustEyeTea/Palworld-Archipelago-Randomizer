@@ -627,6 +627,8 @@ else
 end
 expect(loop ~= nil, "update loop registered")
 expect(hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"] ~= nil, "research hook registered")
+expect(logged("shop: hooked RequestUnlockTechnology_ToServer") and logged("shop: hooked IsUnlockableRecipeTechnology")
+       and logged("shop: hooked IsUnlockRecipeTechnology"), "each native shop hook's log line names the function hooked")
 expect(D.research.Torch and D.research.Lamp and not D.shop.Lamp, "before connecting, the last seed's research techs stay research")
 local early = { v = FNameOf("Lamp") }
 early.get = function(self) return self.v end

@@ -977,10 +977,16 @@ local function refreshTree()
     refreshCards(true)
 end
 
-local CONTENT = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content.WBP_MainMenu_Technology_Content_C"
-local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"
-local DIALOG = "/Game/Pal/Blueprint/UI/Dialog/WBP_PalDialog.WBP_PalDialog_C"
-local TREE = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00.WBP_MainMenu_Technology_00_C"
+-- The game's classes the shop hooks: a tech card, the tooltip, the confirm box and the tech tree.
+local SHOP_CLASS = {
+    card = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content"
+        .. ".WBP_MainMenu_Technology_Content_C",
+    tooltip = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo"
+        .. ".WBP_InventoryEquipment_ItemInfo_C",
+    dialog = "/Game/Pal/Blueprint/UI/Dialog/WBP_PalDialog.WBP_PalDialog_C",
+    tree = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00"
+        .. ".WBP_MainMenu_Technology_00_C",
+}
 local hoveredTech = nil   -- the card under the pointer: a confirm box opened while it is set came from that card
 local retarget = nil      -- the tech a tooltip is being set up again for (see the tooltip hook)
 
@@ -1018,70 +1024,59 @@ local function guardedHook(name, cb)
     end
 end
 
-local lazyHooks = {
-    -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
-    { fn = CONTENT .. ":IsUnlocked", cb = function(self, out)
-        if not ap.shown then return end        -- no shop card yet (shopCard is false for all): the game's answer
-        local tech = self:get().BindedTechnologyName:ToString()
-        if not shopCard(tech) then return end
-        pcall(function() out:set(bought(tech)) end)
-        return bought(tech)
-    end },
-    -- Tooltips: a slot holding one of your techs shows that tech's own tooltip (set up again for it, a moment later,
-    -- outside this hook); other slot cards have none (the card already says what it sends). Hidden by transparency
-    -- rather than collapsing: the game makes the tooltip visible again after setting it up.
-    { fn = INFO .. ":Setup by Technology Name", cb = function(self, techName)
-        local tech = techName:get():ToString()
-        local info = self:get()
-        if retarget == tech then
-            retarget = nil
-            -- Its prerequisite / tower note does not apply here: the item unlocks the tech outright.
-            pcall(function() info.WBP_InventoryEquipment_ItemInfo_Caution:SetVisibility(1) end)   -- Collapsed
-            pcall(function() info:SetRenderOpacity(1.0) end)
-            return
-        end
-        hoveredTech = tech
-        local mine = shopCard(tech) and ownTech(tech)
-        pcall(function() info:SetRenderOpacity((shopCard(tech) or mine) and 0.0 or 1.0) end)
-        if not mine then return end
-        ExecuteInGameThread(function()
-            if not info:IsValid() or hoveredTech ~= tech then return end
-            retarget = mine
-            local ok, err = pcall(function() info["Setup by Technology Name"](info, FName(mine), false, techIcon(mine)) end)
-            if not ok then retarget = nil; once("retarget", "could not show the tooltip of " .. mine .. ": " .. tostring(err)) end
-        end)
-    end },
-    -- Leaving a card forgets it, so a later dialog (Return to Title...) is not mistaken for a purchase.
-    { fn = TREE .. ":OnUnhoveredAnyTechnology_Internal", cb = function()
-        hoveredTech = nil
-    end },
-    -- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
-    -- applied on the next frame and again on the next two updates (only while it still differs): about the first
-    -- half second, as the five ExecuteWithDelay re-applies did, all on the game thread.
-    { fn = DIALOG .. ":SetupUI", cb = function(self, dialogType, message)
-        local tech = hoveredTech
-        once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
-        if not shopCard(tech) or bought(tech) then return end
-        local dialog, text = self:get(), confirmText(tech)
-        local function apply()
-            if not dialog:IsValid() then return end
-            local popup = dialog.WBP_CommonPopupWindow
-            local msg = safe(function() return popup.BP_PalRichTextBlock_Message:GetText():ToString() end)
-            if msg ~= text then pcall(function() popup:SetMainText(FText(text)) end) end
-        end
-        ExecuteInGameThread(apply)                      -- (from this hook, on the game thread: the next frame)
-        later(1, apply)
-        later(2, apply)
-    end },
-}
--- Each is registered once its class has loaded (UTIL.hookWhenLoaded retries while it loads), through guardedHook.
-local function registerLazyHooks()
-    for _, h in ipairs(lazyHooks) do
-        if not h.done then
-            h.guarded = h.guarded or guardedHook(h.fn, h.cb)
-            h.done = UTIL.hookWhenLoaded(h.fn, h.guarded, "shop")
-        end
+-- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
+local function cardLooksResearched(self, out)
+    if not ap.shown then return end        -- no shop card yet (shopCard is false for all): the game's answer
+    local tech = self:get().BindedTechnologyName:ToString()
+    if not shopCard(tech) then return end
+    pcall(function() out:set(bought(tech)) end)
+    return bought(tech)
+end
+-- Tooltips: a slot holding one of your techs shows that tech's own tooltip (set up again for it, a moment later,
+-- outside this hook); other slot cards have none (the card already says what it sends). Hidden by transparency
+-- rather than collapsing: the game makes the tooltip visible again after setting it up.
+local function tooltipSetup(self, techName)
+    local tech = techName:get():ToString()
+    local info = self:get()
+    if retarget == tech then
+        retarget = nil
+        -- Its prerequisite / tower note does not apply here: the item unlocks the tech outright.
+        pcall(function() info.WBP_InventoryEquipment_ItemInfo_Caution:SetVisibility(1) end)   -- Collapsed
+        pcall(function() info:SetRenderOpacity(1.0) end)
+        return
     end
+    hoveredTech = tech
+    local mine = shopCard(tech) and ownTech(tech)
+    pcall(function() info:SetRenderOpacity((shopCard(tech) or mine) and 0.0 or 1.0) end)
+    if not mine then return end
+    ExecuteInGameThread(function()
+        if not info:IsValid() or hoveredTech ~= tech then return end
+        retarget = mine
+        local ok, err = pcall(function() info["Setup by Technology Name"](info, FName(mine), false, techIcon(mine)) end)
+        if not ok then retarget = nil; once("retarget", "could not show the tooltip of " .. mine .. ": " .. tostring(err)) end
+    end)
+end
+-- Leaving a card forgets it, so a later dialog (Return to Title...) is not mistaken for a purchase.
+local function cardUnhovered()
+    hoveredTech = nil
+end
+-- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
+-- applied on the next frame and again on the next two updates (only while it still differs): about the first
+-- half second, as the five ExecuteWithDelay re-applies did, all on the game thread.
+local function confirmBoxSetup(self, dialogType, message)
+    local tech = hoveredTech
+    once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
+    if not shopCard(tech) or bought(tech) then return end
+    local dialog, text = self:get(), confirmText(tech)
+    local function apply()
+        if not dialog:IsValid() then return end
+        local popup = dialog.WBP_CommonPopupWindow
+        local msg = safe(function() return popup.BP_PalRichTextBlock_Message:GetText():ToString() end)
+        if msg ~= text then pcall(function() popup:SetMainText(FText(text)) end) end
+    end
+    ExecuteInGameThread(apply)                      -- (from this hook, on the game thread: the next frame)
+    later(1, apply)
+    later(2, apply)
 end
 
 -- Buying: the request is rewritten so the game unlocks nothing; the mod charges the points and sends the check.
@@ -1114,20 +1109,20 @@ local function buy(tech)
     refreshTree()
 end
 
-local okh, errh = pcall(RegisterHook, "/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer",
-    guardedHook("RequestUnlockTechnology_ToServer", function(self, name)
-        local tech = name:get():ToString()
-        if not D.shop[tech] then return end
-        name:set(FName("AP_ShopSlot"))
-        -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
-        -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
-        if P.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on"); return end
-        later(1, function()                             -- the next update (within 300 ms), on the game thread
-            local ok, err = pcall(buy, tech)
-            if not ok then log("buy error: " .. tostring(err)) end
-        end)
-    end))
-log(okh and "hooked research requests" or ("could not hook research requests: " .. tostring(errh)))
+-- A research request for a shop slot: the game is asked for a slot no tech has, and the purchase runs on the next
+-- update, outside this hook.
+local function researchRequested(self, name)
+    local tech = name:get():ToString()
+    if not D.shop[tech] then return end
+    name:set(FName("AP_ShopSlot"))
+    -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
+    -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
+    if P.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on"); return end
+    later(1, function()                             -- the next update (within 300 ms), on the game thread
+        local ok, err = pcall(buy, tech)
+        if not ok then log("buy error: " .. tostring(err)) end
+    end)
+end
 
 -- Whether a slot can be bought, asked by the game before it opens the confirm box. A bought slot never can. A slot
 -- whose tech you already own (from its item) is judged here, as the game refuses anything already unlocked: your
@@ -1159,11 +1154,13 @@ local function techArg(...)
         end
     end
 end
--- The tech menu asks this (and the next hook) about 25 times for each card it builds or refreshes, and twice for all
--- 588 techs on a filter (hooks review, 2026-11-04). The early returns give exactly what the full check gives in that
--- case (nothing is a shop card before ap.shown; the next hook answers only for the hovered card), and the checks are
--- module-level functions, so no closure is made per call.
-local function unlockableCheck(self, ...)
+-- Whether a slot can be bought (the after-callback of IsUnlockableRecipeTechnology). The tech menu asks this (and
+-- the next hook) about 25 times for each card it builds or refreshes, and twice for all 588 techs on a filter. The
+-- early returns give exactly what the full check gives in that case (nothing is a shop card before ap.shown; the
+-- next hook answers only for the hovered card), and the checks are module-level functions, so no closure is made
+-- per call.
+local function canResearch(self, ...)
+    if not ap.shown then return nil end
     local tech = techArg(...)
     if not tech or not shopCard(tech) then return nil end
     local r = slotUnlockable(self:get(), tech)
@@ -1177,33 +1174,69 @@ local function unlockableCheck(self, ...)
     end
     return r
 end
-local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,
-    function(self, ...)
-        if not ap.shown then return nil end
-        local ok, v = guarded(unlockableCheck, self, ...)
-        if not ok then once("unlockableErr", "research check error: " .. tostring(v)); return nil end
-        return v
-    end)
-log(oku and "hooked research checks" or ("could not hook research checks: " .. tostring(erru)))
 
--- The click also asks whether the tech is already researched, and stops if it is. For an unbought slot whose tech you
--- own, that one question is answered "not yet" while the pointer is on its card; everywhere else (crafting, building)
--- the game's answer stands.
-local function researchedCheck(...)
+-- Whether a tech is already researched (the after-callback of IsUnlockRecipeTechnology). The click also asks this,
+-- and stops if it is. For an unbought slot whose tech you own, that one question is answered "not yet" while the
+-- pointer is on its card; everywhere else (crafting, building) the game's answer stands.
+local function isResearched(self, ...)
+    if hoveredTech == nil then return nil end      -- answers only for the card under the pointer
     local tech = techArg(...)
     if not tech or tech ~= hoveredTech or not shopCard(tech) then return nil end
     if bought(tech) or not ap.techs[tech] then return nil end
     once("ask2" .. tech, "click check on " .. tech .. ": already researched -> answered not yet")
     return false
 end
-local okr, errr = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology", function() end,
-    function(self, ...)
-        if hoveredTech == nil then return nil end      -- answers only for the card under the pointer
-        local ok, v = guarded(researchedCheck, ...)
-        if not ok then once("researchedErr", "researched check error: " .. tostring(v)); return nil end
-        return v
-    end)
-log(okr and "hooked researched checks" or ("could not hook researched checks: " .. tostring(errr)))
+
+-- The shop's seven hooks. Every callback runs through guardedHook (so no core update runs inside it), registered
+-- by one of two functions: a Blueprint class (`native` nil) can be hooked only once it has loaded, when a menu
+-- first opens (registerLazyHooks, every update); the three native classes exist at load (registerNativeHooks).
+-- UE4SS runs the first callback of a Blueprint hook AFTER the function, so those change what it produced; a native
+-- hook marked `after` changes the result through RegisterHook's second callback.
+local SHOP_HOOKS = {
+    { path = SHOP_CLASS.card .. ":IsUnlocked", cb = cardLooksResearched },
+    { path = SHOP_CLASS.tooltip .. ":Setup by Technology Name", cb = tooltipSetup },
+    { path = SHOP_CLASS.tree .. ":OnUnhoveredAnyTechnology_Internal", cb = cardUnhovered },
+    { path = SHOP_CLASS.dialog .. ":SetupUI", cb = confirmBoxSetup },
+    { path = "/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer", cb = researchRequested,
+      native = true },
+    { path = "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", cb = canResearch, native = true,
+      after = true },
+    { path = "/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology", cb = isResearched, native = true,
+      after = true },
+}
+-- A hook's function name, the part of its path after the colon: what its log lines and error keys name.
+local function hookName(h)
+    return h.path:match("[^:]+$")
+end
+-- Each Blueprint hook is registered once its class has loaded (UTIL.hookWhenLoaded retries while it loads).
+local function registerLazyHooks()
+    for _, h in ipairs(SHOP_HOOKS) do
+        if not h.native and not h.done then
+            h.guarded = h.guarded or guardedHook(hookName(h), h.cb)
+            h.done = UTIL.hookWhenLoaded(h.path, h.guarded, "shop")
+        end
+    end
+end
+-- The native hooks, registered once at start-up, each logged as UTIL.hookWhenLoaded logs a Blueprint hook.
+local function registerNativeHooks()
+    for _, h in ipairs(SHOP_HOOKS) do
+        if h.native then
+            local callback = guardedHook(hookName(h), h.cb)
+            local ok, err
+            if h.after then
+                ok, err = pcall(RegisterHook, h.path, function() end, callback)
+            else
+                ok, err = pcall(RegisterHook, h.path, callback)
+            end
+            if ok then
+                log("shop: hooked " .. hookName(h))
+            else
+                log("shop: could not hook " .. hookName(h) .. ": " .. tostring(err))
+            end
+        end
+    end
+end
+registerNativeHooks()
 
 ------------------------------------------------------------------------------------------------------------------------
 local tick = 0
@@ -1774,9 +1807,9 @@ local function preloadMenuClasses()
     if not ap.ready or preloaded then return end
     preloaded = true
     ExecuteInGameThread(function()
-        for _, h in ipairs(lazyHooks) do
-            if not h.done then
-                local class = h.fn:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
+        for _, h in ipairs(SHOP_HOOKS) do
+            if not h.native and not h.done then
+                local class = h.path:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
                 local ok, err = pcall(LoadAsset, (class:gsub("_C$", "")))
                 if not ok then once("preload" .. class, "could not preload " .. class .. ": " .. tostring(err)) end
             end
