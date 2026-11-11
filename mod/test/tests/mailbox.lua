@@ -416,4 +416,38 @@ group("the mailbox", function()
         expect(#winRows == rowsBefore + 1 and newRow and newRow:find("x3$"),
                "an item received while the window is open is listed: " .. tostring(newRow))
     end
+    do   -- a chest view the mod can't follow is left alone: the player's own chest opened then keeps its heading
+        local showPlain = hud.ShowCommonUI
+        hud.ShowCommonUI = function(self, k, p)
+            showPlain(self, k, p)
+            return "untracked"
+        end
+        MB.open()
+        run(11)
+        hud.ShowCommonUI = showPlain
+        local ownHeading = { text = "Wooden Chest", BindTextDatatableHandle = {},
+                             IsValid = function() return true end }
+        function ownHeading:SetText(t) self.text = t.text end
+        function ownHeading:GetText()
+            local t = self.text
+            return { ToString = function() return t end }
+        end
+        local ownMenu = Widget({ IsVisible = function() return true end, Text_TargetContainerName = ownHeading })
+        local ownWindow = Widget({ IsVisible = function() return true end, IsInViewport = function() return true end })
+        local savedFAO = FindAllOf
+        FindAllOf = function(class)
+            if class == "WBP_ItemChest_C" then return { ownWindow } end
+            if class == "WBP_IngameMenu_Chest_C" then return { ownMenu } end
+            return savedFAO(class)
+        end
+        run(2)
+        FindAllOf = savedFAO
+        local lostView = MB.viewOpen()
+        MB.open()                                                -- the next open settles the lost view
+        run(3)
+        h.closeChestWindow()
+        run(2)
+        expect(lostView and ownHeading.text == "Wooden Chest",
+               "the player's own chest keeps its heading while the mailbox's view is lost: " .. ownHeading.text)
+    end
 end)

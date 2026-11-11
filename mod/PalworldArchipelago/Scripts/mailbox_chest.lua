@@ -284,11 +284,12 @@ function CHEST.followView()
             UTIL.onceErr("mailbox sweep", err, "mailbox: sweep error: " .. tostring(err))
         end
     end
-    -- The chest widget is looked for only when its answer is used: the id says it is not open, or the view is
-    -- followed by the widget.
+    -- The chest widget is looked for only when its answer is used: while how the view is followed is not known yet
+    -- and the id does not show it, or when it is followed by the widget. Not once it can't be followed ("unknown"):
+    -- any chest window shown then is the player's own, which must keep its heading.
     local byId = chestOpenById()
     local byWidget = false
-    if not byId or view.how == "widget" then
+    if (view.how == nil and not byId) or view.how == "widget" then
         byWidget = chestWindowShown()
     end
     -- (not while it closes: there is no heading then)
