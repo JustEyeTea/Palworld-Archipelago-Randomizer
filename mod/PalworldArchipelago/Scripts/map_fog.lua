@@ -14,6 +14,13 @@ local owner = UTIL.gameInstance
 local W, layout, slugOf, lockedList, lockedIndexes, iconsActive, picture = nil, nil, nil, nil, nil, nil, nil
 local territories, terr, TERR_FOG, COLOUR_FILE, stampSize = nil, nil, nil, nil, nil
 local GAMMA, RTF_RGBA8, BLEND_OPAQUE = nil, nil, nil
+-- Files this part writes into the mod folder (the game's own art, made on the player's machine, never shipped):
+--   CHART_FILE         the explorer's chart, drawn once a session from the colour map (the chart look)
+--   FOG_FILE           the chart look's fog picture; TERR_FOG_FILE the Territories' (each look keeps its own)
+--   MASK_FILE          the explored mask, exported for the fog composer and read here to learn its channel
+--   DEFAULT_MASK_FILE  what every player sees uncovered, exported once a session for the fog composer
+local CHART_FILE, FOG_FILE, TERR_FOG_FILE = "map-chart.png", "map-fog.png", "map-fog-territories.png"
+local MASK_FILE, DEFAULT_MASK_FILE = "fog-mask.png", "fog-default-mask.png"
 local LOG_FIRST = 3           -- openings and pictures put back that are logged; after that they are only counted
 -- Which channel of the explored mask means explored: the mask sampled at the player and at EDGE_UV (map u and v, a
 -- point beyond the world's edge, never explored); a channel tells them apart by at least MIN_CHANNEL_GAP (of 255).
@@ -104,10 +111,10 @@ local function exportDefaultMask(def, gi)
         local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
         local drt = krl:CreateRenderTarget2D(gi, w, h, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 0 }, false)
         picture.drawInto(krl, gi, drt, function(canvas) picture.drawWhole(canvas, def, w, h, BLEND_OPAQUE) end)
-        krl:ExportRenderTarget(gi, drt, W.dir, "fog-default-mask.png")
+        krl:ExportRenderTarget(gi, drt, W.dir, DEFAULT_MASK_FILE)
         return w .. "x" .. h
     end)
-    return ok and ("; default mask " .. tostring(err) .. " exported to fog-default-mask.png")
+    return ok and ("; default mask " .. tostring(err) .. " exported to " .. DEFAULT_MASK_FILE)
         or ("; default mask export failed: " .. tostring(err))
 end
 -- At the first opening of a session: the fog's material and masks as words for the log, with the default mask exported
@@ -117,9 +124,10 @@ local function logFogMaterial(screen)
     local gi = owner()
     if rt and gi and (W.chartOff or not AP_ComposeFog) then
         local ok, err = pcall(function()
-            StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"):ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
+            local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+            krl:ExportRenderTarget(gi, rt, W.dir, MASK_FILE)
         end)
-        info = info .. (ok and "; exported to fog-mask.png" or ("; export failed: " .. tostring(err)))
+        info = info .. (ok and ("; exported to " .. MASK_FILE) or ("; export failed: " .. tostring(err)))
     end
     if def and gi then
         info = info .. exportDefaultMask(def, gi)
@@ -138,10 +146,9 @@ end
 --      own Setup: from the next opening, never swapped in view. The last session's picture is used until a new one.
 -- UNTESTED IN GAME. config.txt map_chart=0 keeps the game's fog.
 local CHART_SIZE = 2048
-local CHART_FILE, FOG_FILE = "map-chart.png", "map-fog.png"
 -- Each look keeps its own fog picture (dev.32 playtest, 2026-11-08: the first opening showed dev.31's chart, the last
 -- session's map-fog.png, until the territories' one was made).
-local function fogFile() return territories() and "map-fog-territories.png" or FOG_FILE end
+local function fogFile() return territories() and TERR_FOG_FILE or FOG_FILE end
 local EXPORT_GAP = UTIL.updates(60)        -- a minute between exports of the explored mask
 -- Before the map first opens, the explored mask is read from the world's map data every EARLY_MASK_EVERY, at most
 -- EARLY_MASK_TRIES times (the map data may not be there yet just after a world loads).
@@ -182,7 +189,7 @@ local function maskSpec(ctx)
     if not (okp and at) then return nil, "no player position" end
     local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
     local u, v = (at.Y - y0) / (y1 - y0), (x1 - at.X) / (x1 - x0)
-    local mask = W.dir .. "\\fog-mask.png"
+    local mask = W.dir .. "\\" .. MASK_FILE
     local here, corner = AP_SamplePNG(mask, tostring(u), tostring(v)), AP_SamplePNG(mask, EDGE_UV, EDGE_UV)
     local a, b = {}, {}
     for n in tostring(here):gmatch("%d+") do a[#a + 1] = tonumber(n) end
@@ -199,7 +206,7 @@ local function exportMask(screen, krl, gi)
     if not (dmi and dmi:IsValid()) then return "no fog material" end
     local rt = dmi:K2_GetTextureParameterValue(FName("TargetTexture"))
     if not (rt and rt:IsValid()) then return "no explored mask" end
-    krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
+    krl:ExportRenderTarget(gi, rt, W.dir, MASK_FILE)
     return true
 end
 -- The explored mask without the map screen (dev.34 playtest: the first opening showed the last session's fog picture,
@@ -244,17 +251,17 @@ end
 local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.28
 local function regionSpec(passes)
     if W.regionsOff then return "" end
-    return table.concat({ W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
+    return table.concat({ picture.labelsFile(), lockedIndexes(passes),
         artFile("ap-chart-hatch"),
         REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH),
         exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", GAMMA }, "|")
 end
 MAP_FOG.regionSpec = regionSpec
 local function startFog(stamps, regions, tag)
-    local def = W.dir .. "\\fog-default-mask.png"
+    local def = W.dir .. "\\" .. DEFAULT_MASK_FILE
     local art = territories() and TERR_FOG or CHART_FILE
     local size = territories() and terr.size or CHART_SIZE                  -- (the fog art's own size: its 8-bit path)
-    local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\fog-mask.png", exists(def) and def or "", chart.spec,
+    local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\" .. MASK_FILE, exists(def) and def or "", chart.spec,
         W.dir .. "\\" .. fogFile(), tostring(size), stamps, regions)
     if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
@@ -318,7 +325,7 @@ end
 local function readMaskEarly(ctx, krl, gi, stamps, regions, tag)
     chart.early = (chart.early or 0) + 1
     local rt = worldMask(ctx)
-    local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png") end)
+    local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, MASK_FILE) end)
     local spec, info = chart.spec, nil
     if okE and not spec then spec, info = maskSpec(ctx) end
     if okE and spec then

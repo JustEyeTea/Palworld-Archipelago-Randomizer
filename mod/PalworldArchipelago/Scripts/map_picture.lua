@@ -25,7 +25,23 @@ local slugOf, lockedList, lockedIndexes, openList, standing = nil, nil, nil, nil
 -- session that belongs to the world stops the world being freed when leaving it, and the game crashes on the way back
 -- to the title (v0.4.0 to v0.4.5).
 local MAP_TEXTURE = "/Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
+-- Files this part writes into the mod folder: the game's own art, made on the player's machine and never shipped.
+--   GREY_FILE         the map in greyscale (drawn without the compositor); made once, then kept
+--   COLOUR_FILE       the player's colour map, what every picture is made from; made again when the game's map
+--                     changes, which its fingerprint, COLOUR_FILE .. ".txt", tells (colourMap)
+--   TEMP_COLOUR_FILE  the colour map on its way to the greyscale one; removed at once
+--   COMPOSED_FILE     the chart look's picture (AP_ComposeMap), made again for each new look
+--   TERR_OVERLAY      the Territories picture, or its overlay over the game's map, made again for each new look
+--   TERR_FOG          the Territories fog art, made with it (map_fog.lua makes the fog picture from it)
+-- The "-1" in two names is part of the name only: a new number would make every player's copy again. map_fog.lua
+-- lists its own files.
 local GREY_FILE = "map-grey-1.png"
+local COLOUR_FILE = "map-colour-1.png"
+local TEMP_COLOUR_FILE = "map-colour.png"
+local COMPOSED_FILE = "map-composed.png"
+local TERR_OVERLAY, TERR_FOG = "map-territories.png", "map-territories-fog.png"
+-- The area labels of the cut in use (area_labels*.png, shipped: which area each pixel of the map is in).
+local function labelsFile() return W.dir .. "\\area_labels" .. layout.suffix .. ".png" end
 local RT_SIZE = 4096
 -- Engine enum values passed as numbers, with the engine's own name for each.
 local RTF_RGBA8 = 2           -- ETextureRenderTargetFormat::RTF_RGBA8 (linear: what is exported to a PNG)
@@ -113,9 +129,9 @@ local function greyscaleMap(krl, tex)
     if not UTIL.exists(path) then
         local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
         drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE) end)
-        krl:ExportRenderTarget(gi, rt, W.dir, "map-colour.png")
-        local err = AP_GreyscalePNG(W.dir .. "\\map-colour.png", path, GAMMA)
-        os.remove(W.dir .. "\\map-colour.png")
+        krl:ExportRenderTarget(gi, rt, W.dir, TEMP_COLOUR_FILE)
+        local err = AP_GreyscalePNG(W.dir .. "\\" .. TEMP_COLOUR_FILE, path, GAMMA)
+        os.remove(W.dir .. "\\" .. TEMP_COLOUR_FILE)
         if err ~= "" then log("map: no greyscale copy: " .. tostring(err)); return nil end
         log("map: made the greyscale copy " .. path)
     end
@@ -199,7 +215,6 @@ end
 -- the colour map (saved once, map-colour-1.png) and area_labels.png, with soft anti-aliased boundaries and an inner
 -- shadow; when it is ready it is loaded and drawn into the render target. The picture is the game's own art: it stays
 -- in the mod folder and is never shipped.
-local COLOUR_FILE = "map-colour-1.png"
 -- The two picture jobs, one per look (greyJob for map_style=chart, terr for Territories), keep the same three keys:
 -- composing (the look being composed in the background), done (the look last drawn into the map picture) and failed
 -- (a look whose composition failed, not tried again). A job answers "ready" (the map picture holds the look asked
@@ -249,7 +264,7 @@ local function colourMap(krl, tex, gi)
     drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE) end)
     krl:ExportRenderTarget(gi, rt, W.dir, COLOUR_FILE)
     colourSaved = true
-    if printNow then
+    if printNow then                     -- the fingerprint: PRINT_GRID^2 pixels as "r,g,b;...", compared whole
         local out = io.open(path .. ".txt", "wb")
         if out then out:write(printNow); out:close() end
     end
@@ -263,7 +278,7 @@ end
 -- layout's labels, the areas' states and the standing walls: an overlay for the map picture (drawn over the game's map)
 -- and the same over a dark fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the
 -- explorer's chart and greyscale instead.
-local TERR_OVERLAY, TERR_FOG, TERR_SIZE = "map-territories.png", "map-territories-fog.png", 2048
+local TERR_SIZE = 2048        -- px: a Territories picture from the label map (an older DLL, without AP_ComposeField)
 local TERR_FOG_COLOUR = "0E1A24"
 local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
 -- The walls: "glow colour,alpha,core colour,alpha,glow px,blur sigma,core px" (px of a 4096 map). The Art lane's colours;
@@ -380,7 +395,7 @@ local function startTerritories(krl, gi, passes, key)
             W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", GAMMA)
     else
         size = TERR_SIZE
-        err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. layout.suffix .. ".png", areaSpec(passes),
+        err = AP_ComposeTerritories(labelsFile(), areaSpec(passes),
             wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR,
             tostring(size))
     end
@@ -424,7 +439,7 @@ end
 -- could not be loaded. A picture that errors while drawn is not composed again either (composeMap): it would fail the
 -- same way.
 local function drawComposed(krl, gi, done)
-    local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\map-composed.png")
+    local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. COMPOSED_FILE)
     if not tex or not tex:IsValid() then
         log("map: could not load the composed map; drawing it without the compositor")
         greyJob.failed = done
@@ -469,8 +484,7 @@ local function startCompose(krl, gi, passes, key, open)
         if not tex then return end
         colour = colourMap(krl, tex, gi)
     end
-    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
-        W.dir .. "\\map-composed.png", GAMMA)
+    local err = AP_ComposeMap(colour, labelsFile(), lockedIndexes(passes), W.dir .. "\\" .. COMPOSED_FILE, GAMMA)
     if err == "" then
         greyJob.composing, greyJob.locked = key, lockedList(passes)
     elseif err ~= "busy" then
@@ -666,5 +680,6 @@ end
 MAP_PICTURE.target = function() return mapRT end
 MAP_PICTURE.territories, MAP_PICTURE.terr, MAP_PICTURE.TERR_FOG = territories, terr, TERR_FOG
 MAP_PICTURE.GAMMA, MAP_PICTURE.RTF_RGBA8, MAP_PICTURE.BLEND_OPAQUE = GAMMA, RTF_RGBA8, BLEND_OPAQUE
+MAP_PICTURE.labelsFile = labelsFile
 MAP_PICTURE.COLOUR_FILE, MAP_PICTURE.drawInto, MAP_PICTURE.drawWhole = COLOUR_FILE, drawInto, drawWhole
 return MAP_PICTURE
