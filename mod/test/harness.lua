@@ -2105,6 +2105,33 @@ do  -- A wall piece that cannot be dressed in a skin is logged with the error, n
            "a piece that cannot be dressed is logged with its error, at a skin change and when it is raised")
     worldGoes(mine())
 end
+do  -- With two live main-map screens (two menus), each gets the locked-area icons
+    local second = { IsValid = function() return true end, GetAddress = function() return 88 end, icons = {},
+                     MapName = FNameOf("MainMap"),
+                     Image_MapBody = { IsValid = function() return true end, Brush = {} } }
+    function second.Image_MapBody:SetBrushResourceObject(rt) self.Brush.ResourceObject = rt end
+    second["Add Icon By Location"] = mapBody["Add Icon By Location"]
+    second["Update Map Icons"] = function() end
+    second.Canvas_ForIcon_NoMask = mapBody.Canvas_ForIcon_NoMask
+    second.Canvas_ForIcon_Mask = mapBody.Canvas_ForIcon_Mask
+    local realFAO = FindAllOf
+    FindAllOf = function(class)
+        local list = realFAO(class)
+        if class == "WBP_Map_Body_C" and list then list[#list + 1] = second end
+        return list
+    end
+    mapBody.icons = {}
+    local W = freshWalls()
+    mapOpen = false
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    mapOpen = true
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    local first, other = #mapBody.icons, #second.icons
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    expect(first >= 10 and other == first and #mapBody.icons == first and #second.icons == other,
+           "two live main-map screens each get the icons, once: " .. first .. " and " .. other)
+    FindAllOf, mapOpen, mapBody.icons = realFAO, false, {}
+end
 end
 end)()
 
