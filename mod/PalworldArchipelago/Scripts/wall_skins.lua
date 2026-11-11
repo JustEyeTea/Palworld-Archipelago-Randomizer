@@ -1,7 +1,7 @@
--- Wall skins: the looks the Area Locks walls can wear (the game's red grid, the patterns and
--- colour tiles, the region colours, the cream paws), their materials, the dissolve of an opened wall and the glow near
--- the player. A part of walls.lua, which loads it (fresh for each copy of walls.lua) and hands it, by install, W (the
--- table main.lua sees), the locks part and what it reads of the pieces.
+-- Wall skins: the looks the Area Locks walls can wear (the cream paws, the region colours, the game's red grid), their
+-- materials, the dissolve of an opened wall and the glow near the player. A part of walls.lua, which loads it (fresh
+-- for each copy of walls.lua) and hands it, by install, W (the table main.lua sees), the locks part and what it reads
+-- of the pieces.
 -- Tests: mod/test/tests/walls.lua; group "area locks" (tools/lua_harness.sh, in CI).
 local WALL_SKINS = {}
 local UTIL = require("util")
@@ -14,38 +14,30 @@ local owner = UTIL.gameInstance          -- (materials belong to the game instan
 local W, pieces, layout, isOpen, REGION_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
 local PALETTE, SEALED, TEAL = nil, nil, nil   -- locks.lua's palette, and its sealed grey and teal in linear light
 
--- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the
--- patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One dynamic copy of the
--- walls' own material (MI_AirBlock_v2) per skin, owned by the game instance like the map's render targets, set on each
--- piece's mesh; the game's own barriers keep the shared red material. The material's parameters (from the server pak):
--- MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the engine's blue noise for
--- the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day); TilingU_01/TilingV_01
--- default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0.
--- a3d/b3d: the same, shaded as if raised (a and b look flat in game). <skin>-dense: that pattern tiled 10x6, twice the
--- material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
--- colour-<x>: full-colour tiles (walls/ap-wall-colour-<x>.png, RGBA) on our own material, M_APWall, from the
--- PalworldArchipelagoArt pak (logicmod/make_wall_material.py), because the game's material can show only one colour per
--- piece. Without the pak (or the file) such a skin is refused, logged, and skipped by Ctrl+F3. colour-<x>-flow: that
--- tile drifting sideways (FLOW tiles a second).
--- area (the skin's name in config.txt; paws without the pak): walls/ap-wall-pattern-pawholes.png (a coloured wall with
--- see-through paw-shaped holes; the hex lattice, pattern a, until that file exists) in the colour of the lock still
--- locked that each piece keeps you out of, so the wall says which lock it guards: the colour of its region's pass
--- ticket (locks.lua's REGION_COLOURS); an area wears its region's (area_regions.lua). A piece between two locks still
--- locked wears the one that isn't beyond the goal. Locks beyond the seed's goal (sealed for good) wear
--- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour when
--- the lock it wore opens and the other side is still locked.
+-- The skins (wall_skin in config.txt, or Ctrl+F3 with test_tools=1 to cycle them):
 -- paws (the default, WALL_SKINS.DEFAULT_SKIN; area without the pak): cream paws (walls/ap-wall-paws-layer.png, cooked
--- into the pak as T_APWallPaws with mips) on M_APWall, over the same lock colour at 0.34 (the material's Back and
--- BackAlpha); sealed locks over the slate grey.
-local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
-                "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
+--   into the pak as T_APWallPaws with mips) on our own material, M_APWall, from the PalworldArchipelagoArt pak
+--   (logicmod/make_wall_material.py), over the colour of the lock each piece guards at 0.34 (the material's Back and
+--   BackAlpha); sealed locks over the slate grey.
+-- area: walls/ap-wall-pattern-pawholes.png (a coloured wall with see-through paw-shaped holes) in the colour of the
+--   lock still locked that each piece keeps you out of, so the wall says which lock it guards: the colour of its
+--   region's pass ticket (locks.lua's REGION_COLOURS); an area wears its region's (area_regions.lua). A piece between
+--   two locks still locked wears the one that isn't beyond the goal. Locks beyond the seed's goal (sealed for good)
+--   wear walls/ap-wall-pattern-sealed.png in grey. A piece changes colour when the lock it wore opens and the other
+--   side is still locked. Where a pattern file or a piece's material is missing, the piece wears pattern a, the hex
+--   lattice in teal (walls/ap-wall-pattern-a.png).
+-- red: the game's own red grid, the material the game's barriers wear too.
+-- The area skin's materials are dynamic copies of the walls' own material (MI_AirBlock_v2), owned by the game instance
+-- like the map's render targets, set on each piece's mesh. Its parameters (from the server pak): MainTexture01 is the
+-- pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the engine's blue noise for the dither, left
+-- alone; Color, DayColor and NightColor are the tint (night = 0.42 of day); TilingU_01/TilingV_01 default to 5 and 3,
+-- ScrollingU_01/ScrollingV_01 to 0.
+local SKINS = { "red", "area", "paws" }
 local function byArea(name) return name == "area" or name == "paws" end    -- a skin in each lock's colour
 WALL_SKINS.SKINS = SKINS
 WALL_SKINS.linearOf = UTIL.linear                                 -- (for the harness's colour tests)
-local FLOW = 0.05
 -- The paws' brightness: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first.
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1
-local DENSE = { 10, 6 }
 local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
 local GLOW_MOVE_CM = 5        -- the player moves this far before the walls' glow is told again
 -- The paws' scatter: an Area's number turned into s, a fraction from 0 to 1 that looks random so neighbours differ
@@ -142,38 +134,6 @@ local function apWallMaterial()
         W.keepAlive(m)
         return m
     end
-end
-local function colourMaterial(name, gameInstance, rendering, materials)
-    local base = apWallMaterial()
-    if not base then
-        log("wall skin " .. name .. ": needs the PalworldArchipelagoArt pak (M_APWall not found)")
-        return nil
-    end
-    local flow = name:match("^(.-)%-flow$")
-    local path = W.dir .. "\\walls\\ap-wall-" .. (flow or name) .. ".png"
-    local tex = rendering:ImportFileAsTexture2D(gameInstance, path)
-    if not (tex and tex:IsValid()) then
-        log("wall skin " .. name .. ": could not load " .. path)
-        return nil
-    end
-    W.keepAlive(tex)                                                -- a colour picture: sRGB as imported
-    local material = materials:CreateDynamicMaterialInstance(gameInstance, base, FName("None"), MID_FLAGS)
-    if not (material and material:IsValid()) then
-        log("wall skin " .. name .. ": could not make the material")
-        return nil
-    end
-    W.keepAlive(material)
-    material:SetTextureParameterValue(FName("Pattern"), tex)
-    fadeOn(material)
-    local scroll = flow and { FLOW, 0 } or W.scroll
-    if scroll then
-        material:SetScalarParameterValue(FName("ScrollU"), scroll[1])
-        material:SetScalarParameterValue(FName("ScrollV"), scroll[2])
-    end
-    skin.mids[name], skin.failed[name] = material, nil
-    log("wall skin " .. name .. ": material made on M_APWall"
-        .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
-    return material
 end
 -- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every lock.
 local function pawLayerTexture(gameInstance, rendering)
@@ -273,7 +233,7 @@ end
 -- handed to W.update; checked each time.
 function WALL_SKINS.glowing()
     if pieces.count() == 0 or not apWall then return false end
-    return skin.now == "paws" or skin.now:find("^colour%-") ~= nil
+    return skin.now == "paws"
 end
 function WALL_SKINS.glowTick()
     if not WALL_SKINS.glowing() then return end
@@ -293,15 +253,10 @@ function WALL_SKINS.glowTick()
             material:SetVectorParameterValue(name, glowAt)
         end
     end
-    local wears = skin.now == "paws" and nil or skin.mids[skin.now]
     for i in pairs(pieces.raised()) do
-        if not pieces.isHidden(i) then
-            if wears then
-                tell(wears)
-                break
-            end
-            local n = dressedAs[i]
-            if n then tell(skin.mids[n]) end
+        local n = dressedAs[i]
+        if n and not pieces.isHidden(i) then
+            tell(skin.mids[n])
         end
     end
     for _, piece in ipairs(pieces.opening()) do
@@ -330,25 +285,28 @@ local function skinLibraries()
     if not (materials and materials:IsValid()) then return nil, "no KismetMaterialLibrary" end
     return gameInstance, rendering, materials
 end
--- A pattern skin's tint, pattern file and tiling: the teal lattice and its variants, a lock's colour, or sealed grey.
+-- An area material's tint and pattern file, by its name (see pieceSkin): a lock's colour, sealed grey, or the teal
+-- lattice (a).
 local function patternFor(name)
-    local tint, file = TEAL, name:match("^(.-)%-dense$")
-    local tiling = file and DENSE or W.tiling
     local hex = name:match("^area:(%x%x%x%x%x%x)$")
     if hex then
         areaFile = areaFile or patternOr("pawholes")
-        tint, file = UTIL.linear(hex), areaFile
+        return UTIL.linear(hex), areaFile
     end
     if name == "sealed" then
         sealedFile = sealedFile or patternOr("sealed")
-        tint, file = SEALED, sealedFile
+        return SEALED, sealedFile
     end
-    return tint, file or name, tiling
+    if name == "a" then
+        return TEAL, "a"
+    end
+    error("wall skin: no pattern for " .. tostring(name))
 end
--- A pattern skin's material: a dynamic copy of the walls' own material with the pattern and tint set; nil (logged)
+-- An area material: a dynamic copy of the walls' own material with the pattern and tint set; nil (logged)
 -- when the pattern or the material cannot be made.
 local function makePatternMaterial(name, gameInstance, rendering, materials)
-    local tint, file, tiling = patternFor(name)
+    local tint, file = patternFor(name)
+    local tiling = W.tiling
     local path = W.dir .. "\\walls\\ap-wall-pattern-" .. file .. ".png"
     local tex = rendering:ImportFileAsTexture2D(gameInstance, path)
     if not (tex and tex:IsValid()) then
@@ -400,7 +358,6 @@ local function skinMaterial(name)
         skin.failed[name] = nil
         return nil
     end
-    if name:find("^colour%-") then return colourMaterial(name, gameInstance, rendering, materials) end
     if name:find("^paws:") then return pawsMaterial(name, gameInstance, rendering, materials) end
     return makePatternMaterial(name, gameInstance, rendering, materials)
 end
@@ -416,7 +373,6 @@ local function dress(actor, material)
     m:SetMaterial(0, material or skin.base)
     return true
 end
--- The material a piece wears with the area skin (or paws), by name (see SKINS).
 -- The lock whose colour a piece between a1 and a2 wears: the locked side when only one is locked; otherwise (both
 -- locked, or neither: such a piece is not standing) a1, unless a1 is beyond the goal: then a2.
 local function wornLock(a1, a2, passes)
@@ -426,6 +382,8 @@ local function wornLock(a1, a2, passes)
     if W.beyond[a1] then return a2 end
     return a1
 end
+-- The material a piece wears with the area skin (or paws), by name: paws:<hex>[:<area>], paws:sealed, area:<hex>,
+-- sealed, or a (a lock without a colour).
 local function pieceSkin(i, passes, mode)
     local w = layout.walls[i]
     local a1, a2 = layout.locks[w[5] + 1], layout.locks[w[6] + 1]
@@ -452,14 +410,11 @@ local function areaDress(actor, i, passes, mode)
     end
     if material and dress(actor, material) then dressedAs[i] = name end
 end
--- Dresses a piece just raised (i: its index) in the skin worn now; an error is logged once, not raised.
+-- Dresses a piece just raised (i: its index) in the skin worn now (red needs nothing: a new piece wears it); an error
+-- is logged once, not raised.
 function WALL_SKINS.skinNew(actor, i)
-    local ok, err = true, nil
-    if byArea(skin.now) then
-        if i then ok, err = pcall(areaDress, actor, i, pieces.passes(), skin.now) end
-    elseif skin.now ~= "red" then
-        ok, err = pcall(dress, actor, skin.mids[skin.now])
-    end
+    if not (byArea(skin.now) and i) then return end
+    local ok, err = pcall(areaDress, actor, i, pieces.passes(), skin.now)
     if not ok then
         UTIL.onceErr("walls:skinnew", err, "wall skin " .. skin.now .. ": could not dress a new piece: "
             .. tostring(err))
@@ -493,18 +448,25 @@ function WALL_SKINS.recolour(passes)
 end
 -- Empty or unset: paws (area without the pak); wall_skin=red for the game's own red grid.
 WALL_SKINS.DEFAULT_SKIN = "paws"
+local function isSkin(name)
+    for _, known in ipairs(SKINS) do
+        if known == name then return true end
+    end
+    return false
+end
+-- The skin config.txt asks for (wall_skin), put on at the next update. A name that is not a skin (a typo, or one
+-- this mod no longer has) is logged and the default worn instead.
 function WALL_SKINS.setSkin(name)
     if name == "" or name == nil then name = WALL_SKINS.DEFAULT_SKIN end
-    for _, known in ipairs(SKINS) do
-        if known == name then
-            skin.want = name
-            return
-        end
+    if not isSkin(name) then
+        log("wall skin " .. tostring(name) .. ": unknown (" .. table.concat(SKINS, ", ") .. "); the default, "
+            .. WALL_SKINS.DEFAULT_SKIN .. ", instead")
+        name = WALL_SKINS.DEFAULT_SKIN
     end
-    log("wall skin " .. tostring(name) .. ": unknown (" .. table.concat(SKINS, ", ") .. ")")
+    skin.want = name
 end
--- The next skin, skipping any refused in this world (no pak, no file): it would be refused again and the cycle would
--- stop there.
+-- The next skin, skipping any refused in this world (paws without the pak): it would be refused again and the cycle
+-- would stop there.
 function WALL_SKINS.cycleSkin()
     local at = nil
     for k, name in ipairs(SKINS) do
@@ -519,14 +481,14 @@ function WALL_SKINS.cycleSkin()
         end
     end
 end
--- Dresses one raised piece in the skin wanted (mid: its material, for a skin that is not by area). True when it is
--- dressed; else false and the error, if there was one.
-local function dressOne(actor, i, material)
+-- Dresses one raised piece in the skin wanted (red: the walls' own material). True when it is dressed; else false
+-- and the error, if there was one.
+local function dressOne(actor, i)
     if byArea(skin.want) then
         local ok, err = pcall(areaDress, actor, i, pieces.passes(), skin.want)
         return ok and dressedAs[i] ~= nil, not ok and err or nil
     end
-    local ok, done = pcall(dress, actor, material)
+    local ok, done = pcall(dress, actor, nil)
     dressedAs[i] = nil
     return ok and done, not ok and done or nil
 end
@@ -552,13 +514,12 @@ local function pawsOrArea()
     skin.failed.paws, skin.want = true, "area"
     return skin.want ~= skin.now
 end
--- Dresses every raised piece in the skin wanted (mid: its material, for a skin not by area). Returns how many were
--- dressed, how many not, and the first error.
-local function dressAll(material)
+-- Dresses every raised piece in the skin wanted. Returns how many were dressed, how many not, and the first error.
+local function dressAll()
     local n, bad, firstErr = 0, 0, nil
     for i, actor in pairs(pieces.raised()) do
         if actor:IsValid() then
-            local done, err = dressOne(actor, i, material)
+            local done, err = dressOne(actor, i)
             if done then
                 n = n + 1
             else
@@ -587,15 +548,7 @@ function WALL_SKINS.skinTick()
     if skin.want == skin.now then return end
     if not learnBaseMaterial() then return end
     if not pawsOrArea() then return end
-    local material = nil
-    if skin.want ~= "red" and not byArea(skin.want) then
-        material = skinMaterial(skin.want)
-        if not material then
-            skin.want = skin.now
-            return
-        end
-    end
-    local n, bad, firstErr = dressAll(material)
+    local n, bad, firstErr = dressAll()
     skin.now = skin.want
     logSkin(n, bad, firstErr)
 end

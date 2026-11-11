@@ -616,7 +616,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         local up = mine()
         up[1].Cube.SetMaterial = function() error("the material was refused") end
-        W.setSkin("a")
+        W.setSkin("area")
         W.update(true, {}, offMap)
         local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
         gameplay.BeginDeferredActorSpawnFromClass = function(...)
@@ -629,8 +629,8 @@ group("walls and the map, on fresh copies of walls.lua", function()
             W.update(true, {}, offMap)
         end
         gameplay.BeginDeferredActorSpawnFromClass = realSpawn
-        expect(logged("wall skin a: on %d+ pieces, 1 not dressed %(the first error: .*the material was refused%)")
-               and logged("wall skin a: could not dress a new piece: .*a new piece's material was refused"),
+        expect(logged("wall skin area: on %d+ pieces, 1 not dressed %(the first error: .*the material was refused%)")
+               and logged("wall skin area: could not dress a new piece: .*a new piece's material was refused"),
                "a piece that cannot be dressed is logged with its error, at a skin change and when it is raised")
         h.wallsGo(mine())
     end
@@ -680,7 +680,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local mesh = odd.Cube
         odd.Cube = nil
         odd.GetComponentByClass = function() return mesh end
-        W.setSkin("a")
+        W.setSkin("area")
         W.update(true, {}, offMap)
         local realClock = gameplay.GetTimeSeconds
         gameplay.GetTimeSeconds = function() error("no clock") end
@@ -720,10 +720,10 @@ group("walls and the map, on fresh copies of walls.lua", function()
         for _ = 1, 3 do
             W.update(true, {}, offMap)
         end
-        W.setSkin("b")
+        W.setSkin("area")
         W.update(true, {}, offMap)
         StaticFindObject = realFind
-        expect(logged("wall skin b: no KismetMaterialLibrary yet; tried again later"),
+        expect(logged("wall skin area:%x+: no KismetMaterialLibrary yet; tried again later"),
                "a skin that cannot be made yet names what is missing")
         h.wallsGo(mine())
     end

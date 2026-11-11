@@ -23,77 +23,43 @@ group("area locks", function()
     run(15)
     expect(wallCount() == expected(open),
            "a piece the game removed is noticed (a share checked each update) and raised again")
-    do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their material with the pattern art
+    do  -- wall skins (wall_skin / Ctrl+F3): red, the area colours and the paws
         local a = next(wallsUp)
-        liveWalls.setSkin("a")
+        liveWalls.setSkin("red")
         run(1)
+        local areaAt = logMark()
+        liveWalls.cycleSkin()   -- what Ctrl+F3 does (test_tools: bound below)
+        run(1)
+        expect(loggedSince(areaAt, "wall skin area: colours ") and a.Cube.mat ~= wallRed,
+               "then the region colours (the area skin)")
         local mid = a.Cube.mat
-        expect(logged("wall skin a: on %d+ pieces") and mid and mid ~= wallRed and mid.parent == wallRed,
-               "wall skin a: a copy of the walls' red material on the AP walls, logged")
-        expect(mid and mid.textures.MainTexture01 and mid.textures.MainTexture01.path == "ap-wall-pattern-a"
-               and mid.textures.MainTexture01.SRGB == false and mid.textures.MainTexture02 == nil,
-               "with pattern a, linear, as its first texture; the dither noise (the second) left alone")
         local NIGHT_SHADE = 0.421875                         -- walls.lua's night colour: the day's at this brightness
-        expect(mid and mid.vectors.DayColor.G > 0.7
-               and math.abs(mid.vectors.NightColor.G - liveWalls.linearOf("24E0CC").G * NIGHT_SHADE) < 1e-6,
-               "in teal by day and by night: " .. tostring(mid and mid.vectors.DayColor.G))
+        expect(mid.parent == wallRed and mid.textures.MainTexture01.SRGB == false and mid.textures.MainTexture02 == nil
+               and math.abs(mid.vectors.NightColor.G - mid.vectors.DayColor.G * NIGHT_SHADE) < 1e-6,
+               "the area skin: a copy of the walls' red material, its pattern linear, the dither noise (the second "
+               .. "texture) left alone, night at 0.42 of day")
         next(wallsUp):K2_DestroyActor()
-        run(3)
+        run(15)                                   -- (a gone piece is noticed within 14 updates and raised again)
         local fresh = 0
         for w in pairs(wallsUp) do
-            if w.Cube.mat == mid then
+            if w.Cube.mat ~= wallRed and w.Cube.mat.parent == wallRed then
                 fresh = fresh + 1
             end
         end
         expect(fresh == wallCount(), "pieces raised later wear the skin too")
         a = next(wallsUp)                         -- (the piece removed above may have been a)
-        liveWalls.cycleSkin()   -- what Ctrl+F3 does (test_tools: bound below)
-        run(1)
-        expect(a.Cube.mat ~= mid and a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b",
-               "the next skin is b")
-        liveWalls.cycleSkin()
-        run(1)
-        expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-a3d", "then a3d")
-        liveWalls.cycleSkin()
-        run(1)
-        expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d", "then b3d")
-        liveWalls.cycleSkin()
-        run(1)
-        local m = a.Cube.mat
-        expect(m.textures.MainTexture01.path == "ap-wall-pattern-a3d" and m.scalars.TilingU_01 == 10
-               and m.scalars.TilingV_01 == 6
-               and logged("wall skin a3d%-dense: material made %(512x512, linear, tiling 10x6%)"),
-               "then a3d tiled 10x6")
-        liveWalls.cycleSkin()
-        run(1)
-        expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d" and a.Cube.mat.scalars.TilingU_01 == 10,
-               "then b3d tiled 10x6")
-        liveWalls.cycleSkin()
-        run(1)
-        expect(logged("wall skin area: colours ") and a.Cube.mat ~= wallRed, "then the region colours (the area skin)")
-        liveWalls.cycleSkin()
+        liveWalls.cycleSkin()                     -- paws, refused without the pak, is skipped
         run(1)
         expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
-        liveWalls.setSkin("c")
-        expect(logged("wall skin c: unknown"), "an unknown skin is refused")
-        -- colour skins: our own material from the PalworldArchipelagoArt pak, a full-colour tile on it
+        local unknownAt = logMark()
+        liveWalls.setSkin("a3d")
+        run(1)
+        expect(loggedSince(unknownAt, "wall skin a3d: unknown %(red, area, paws%); the default, paws, instead")
+               and countLogged("wall skin a3d: unknown") == 1 and a.Cube.mat ~= wallRed,
+               "a wall_skin the mod no longer has is logged once and the default worn instead (area without the pak)")
+        -- paws: the cream-paw layer (cooked in the pak) over each piece's region colour at 0.34, on M_APWall
         local hadPak = game.logicMod
         game.logicMod = true
-        liveWalls.setSkin("colour-paws")
-        run(1)
-        local cm = a.Cube.mat
-        expect(cm ~= wallRed and cm.parent and tostring(cm.parent.path):find("PalworldArchipelagoArt/M_APWall", 1, true)
-               and cm.textures.Pattern and cm.textures.Pattern.path == "ap-wall-colour-paws"
-               and cm.textures.Pattern.SRGB == true
-               and logged("wall skin colour%-paws: material made on M_APWall"),
-               "a colour skin: M_APWall from the pak with the colour tile (left sRGB)")
-        liveWalls.setSkin("colour-rainbow-flow")
-        run(1)
-        local fm = a.Cube.mat
-        expect(fm.textures.Pattern.path == "ap-wall-colour-rainbow" and fm.scalars.ScrollU == 0.05
-               and fm.scalars.ScrollV == 0,
-               "the -flow skin: the same tile, drifting sideways")
-        -- paws: the cream-paw layer (cooked in the pak) over each piece's region colour at 0.34, on M_APWall
         liveWalls.setSkin("paws")
         run(1)
         local pm = a.Cube.mat
@@ -117,7 +83,9 @@ group("area locks", function()
         for _ in pairs(backs) do
             nBacks = nBacks + 1
         end
-        expect(pm ~= cm and pm.parent == cm.parent and pm.textures.Pattern.path:find("T_APWallPaws", 1, true)
+        local pawsBase = tostring(pm.parent and pm.parent.path)
+        expect(pm ~= wallRed and pawsBase:find("PalworldArchipelagoArt/M_APWall", 1, true)
+               and pm.textures.Pattern.path:find("T_APWallPaws", 1, true)
                and logged("wall skin paws: the paw layer from the pak, with mips"),
                "the paws skin: the cooked paw layer (with its mips) on M_APWall: "
                .. tostring(pm.textures.Pattern.path))
@@ -130,17 +98,7 @@ group("area locks", function()
                and #badLoads == badLoadsBefore,
                "a pak asset LoadAsset can't find (dev.39 playtest) comes through the asset registry, as "
                .. "BPModLoader's ModActor does")
-        liveWalls.setSkin("colour-paws")
-        run(1)
-        cm.parent.IsValid = function() return false end            -- now without the pak
-        game.logicMod = false
-        expect(liveWalls.cycleSkin() == "colour-routes", "Ctrl+F3 goes on to the next colour skin")
-        run(1)
-        expect(logged("wall skin colour%-routes: needs the PalworldArchipelagoArt pak") and a.Cube.mat == cm,
-               "without the pak it is refused and the wall keeps its skin")
-        expect(liveWalls.cycleSkin() == "colour-grid", "the refused one is skipped")
-        run(1)
-        expect(liveWalls.cycleSkin() == "a", "and every refused one after it")
+        pm.parent.IsValid = function() return false end            -- now without the pak
         game.logicMod = hadPak
         liveWalls.setSkin("red")
         run(1)
