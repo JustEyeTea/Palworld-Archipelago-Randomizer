@@ -157,15 +157,16 @@ Part 1's setup, not Parts 2 and 3.
    shader library in chunk 0, which is never installed. (The first build, 2026-11-08, was 33 KB: too small to hold
    them.) The script also makes an empty `ModActor`, so BPModLoader's log says whether the game loaded the pak. Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc`
    if there), rename to `PalworldArchipelagoArt.pak` (and `.ucas` / `.utoc`), and copy to `Pal\Content\Paks\LogicMods\`.
-4. In game with `test_tools=1`, Ctrl+F3 to a `colour-...` skin. UE4SS.log says `wall skin colour-...: material made on
-   M_APWall`. Without the pak it says `needs the PalworldArchipelagoArt pak` and Ctrl+F3 skips it.
+4. In game, the walls wear the default `paws` skin. UE4SS.log says `wall skin paws:<colour>: material made on
+   M_APWall`. Without the pak it says `wall skin paws: needs the PalworldArchipelagoArt pak` and the walls wear the
+   area colours instead.
 
-What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour-<name>.png`, or the cream-paw layer
-for the default `paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; the paws skin puts the
-region's colour at 0.34), `CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`,
-`Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm), `OffsetU`/`OffsetV`/`MirrorU` (each of the 75 Areas a variant of
-its Region's look), and `DissolveStart`/`DissolveTime` (an unlock: the wall dissolves by the game's clock). It also glows and ripples
-near the player, whose position the mod sets as `PlayerPos` each update (300 ms) (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`,
-`ReactColor`). The script also cooks `walls\ap-wall-paws-layer.png` into the pak as
-`T_APWallPaws`, with mips; it reads the PNG from this repo, so run it from a full checkout. The pattern is laid on the wall in world space, so it keeps its size on every piece and recedes in
-perspective.
+What the Lua mod sets on it: `Pattern` (the cream-paw layer of the default `paws` skin), and optionally
+`Back`/`BackAlpha` (a colour under the pattern; the paws skin puts the region's colour at 0.34), `CellSize` (cm per
+tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`, `Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm),
+`OffsetU`/`OffsetV`/`MirrorU` (each of the 75 Areas a variant of its Region's look), and `DissolveStart`/`DissolveTime`
+(an unlock: the wall dissolves by the game's clock). It also glows and ripples near the player, whose position the mod
+sets as `PlayerPos` each update (300 ms) (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`, `ReactColor`).
+The script also cooks `walls\ap-wall-paws-layer.png` into the pak as `T_APWallPaws`, with mips; it reads the PNG from
+this repo, so run it from a full checkout. The pattern is laid on the wall in world space, so it keeps its size on every
+piece and recedes in perspective.

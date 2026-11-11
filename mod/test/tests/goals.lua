@@ -1,4 +1,4 @@
--- The other goals (Relic Hunt, Paldeck, World Tree, towers), the goal banner once per seed, and the mailbox off.
+-- The other goals (Relic Hunt, Paldeck, World Tree, towers), the goal banner once per seed, and the save file.
 -- Tests checks.lua, items.lua, save.lua.
 
 group("the other goals", function()
@@ -98,38 +98,30 @@ group("small failures say so in the log", function()
            "a seed with a world does not take a world it can't name as its own")
 end)
 
-group("mailbox off: bundles straight to the bag", function()
+group("the save file", function()
     local MB = require("mailbox")
-    local mailOn = MB.on
-    MB.on = function() return false end
+    local function woodWaiting()
+        for _, entry in ipairs(MB.queue) do
+            if entry.id == "Wood" then return entry.n end
+        end
+        return 0
+    end
     inWorld(true)
     h.switchSeed("70004", {})
-    game.bagFull = true
-    local woodBefore = bagHas.Wood or 0
     pushItem({ name = "Wood Bundle", from = "Friend" })
     runCycles(2)
     local save4 = h.saveFile("70004", "Other")
-    expect((bagHas.Wood or 0) == woodBefore and io.open(save4):read("*a"):find("given=-1", 1, true)
-           and table.concat(announced, "|"):find("Wood Bundle waits until there is room", 1, true),
-           "a full bag: the bundle waits, not counted as given")
-    game.bagFull = false
+    local woodBefore = woodWaiting()
+    local writes = saveWrites
     runCycles(2)
-    expect(bagHas.Wood == woodBefore + 50 and io.open(save4):read("*a"):find("given=0", 1, true),
-           "and is given once there is room")
-
-    group("the save file", function()
-        local writes = saveWrites
-        runCycles(2)
-        expect(saveWrites == writes, "not written again while nothing changed")
-        -- Cut off between putting the old file away and the new one in place: the complete copy written last is used.
-        os.rename(save4, save4 .. ".tmp")
-        h.switchSeed("70005", {})
-        h.switchSeed("70004", {})
-        pushItem({ name = "Wood Bundle", from = "Friend" })
-        runCycles(2)
-        expect(bagHas.Wood == woodBefore + 50 and logged("using the copy written last"),
-               "a save cut off: the .tmp copy is used, nothing given twice")
-    end)
-    MB.on = mailOn
+    expect(saveWrites == writes, "not written again while nothing changed")
+    -- Cut off between putting the old file away and the new one in place: the complete copy written last is used.
+    os.rename(save4, save4 .. ".tmp")
+    h.switchSeed("70005", {})
+    h.switchSeed("70004", {})
+    pushItem({ name = "Wood Bundle", from = "Friend" })
+    runCycles(2)
+    expect(woodBefore == 50 and woodWaiting() == woodBefore and logged("using the copy written last"),
+           "a save cut off: the .tmp copy is used, nothing given twice: " .. woodWaiting() .. " Wood waiting")
     inWorld(false)
 end)

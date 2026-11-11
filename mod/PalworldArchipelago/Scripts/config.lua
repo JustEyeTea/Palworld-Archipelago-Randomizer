@@ -30,10 +30,20 @@ local function readConfig()
     return cfg
 end
 
+-- A config.txt may still say mailbox=0, a setting this mod no longer has. The mailbox is always on, so the line
+-- changes nothing; the log says so, and the title menu's rewrite drops it (mailbox is not in CONFIG_KEYS).
+local function noteMailboxAlwaysOn(read)
+    if read.mailbox == "0" then
+        log("config.txt: mailbox=0 is ignored: the mailbox is always on")
+    end
+end
+
 -- Reads config.txt into CONFIG.cfg and works out the hint key.
 function CONFIG.install(handedOver)
     env = handedOver
-    for k, v in pairs(readConfig()) do
+    local read = readConfig()
+    noteMailboxAlwaysOn(read)
+    for k, v in pairs(read) do
         cfg[k] = v
     end
     -- The key that asks for a hint at a sealed wall, and says yes to tying a seed to a world with progress.
@@ -50,7 +60,7 @@ end
 -- that every cfg.<key> the mod reads is listed.
 local CONFIG_KEYS = {
     "server", "slot", "password", "servers", "hint_key",
-    "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
+    "mailbox_key", "mailbox_view", "mailbox_slots",
     "test_tools", "perf_log", "perf_no_bp_hooks",
     "wall_skin", "wall_tiling", "wall_scroll", "wall_radius", "wall_fade",
     "map_cpp", "map_chart", "map_icons", "map_regions", "map_style",

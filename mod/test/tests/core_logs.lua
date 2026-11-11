@@ -23,18 +23,20 @@ group("errors that repeat every update are logged once each", function()
     DB.tick, CW.update = dbTick, cwUpdate
     expect(tries == 5 and countLoggedText("debuff boom at") == 1 and countLoggedText("crate window boom at") == 1,
            "the debuff icons' and the crate window's errors, each naming a new address: one line each")
-    local MB, BAGM = require("mailbox"), require("bag")
-    local mailOn, give = MB.on, BAGM.give
-    MB.on = function() return false end
+    local CR, BAGM = require("crates"), require("bag")
+    local give = BAGM.give
     BAGM.give = function(id)
         tries = tries + 1
         error(string.format("give boom at 0x%x", 8192 + tries))
     end
     h.switchSeed("70031", {})                                  -- a new seed, played in this world
-    pushItem({ name = "Stone Bundle", from = "Friend" })
+    CR.holdForBag(CR.GEAR[1][1], 1)                            -- crate gear the bag refused, tried every update
+    local triesBefore = tries
     runCycles(4)
-    MB.on, BAGM.give = mailOn, give
-    expect(countLoggedText("give boom at") == 1, "a bundle the bag keeps failing on, a new address each time: one line")
+    BAGM.give = give
+    CR.pending = {}
+    expect(tries > triesBefore + 1 and countLoggedText("give boom at") == 1,
+           "crate gear the bag keeps failing on, a new address each time: one line")
 end)
 
 group("small failures of the core files say so in the log", function()
@@ -110,20 +112,36 @@ end)
 
 group("one way to give to the bag", function()
     local CR, MB, BAGM, ITEMS = require("crates"), require("mailbox"), require("bag"), require("items")
-    local noticesBefore, mailOn, give, mailAdd = #announced, MB.on, BAGM.give, MB.add
-    MB.on, MB.add = function() return true end, function() end
+    local noticesBefore, give, mailAdd = #announced, BAGM.give, MB.add
+    MB.add = function() end
     CR.list = { "sphere" }
     ITEMS.openCrate()
-    MB.on, MB.add = mailOn, mailAdd
+    MB.add = mailAdd
     expect(table.concat(announced, "|",
                         noticesBefore + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
            "a crate's stack says it went to the mailbox, as a Nomad gift's does")
-    MB.on = function() return false end
+    local openNext = CR.openNext
+    CR.openNext = function() return "rare", { { id = CR.GEAR[1][1], n = 1, bag = true } } end   -- a crate's gear
     BAGM.give = function() error("the bag broke") end
-    CR.list = { "sphere" }
+    CR.list = { "rare" }
     ITEMS.openCrate()
-    MB.on, BAGM.give = mailOn, give
+    CR.openNext, BAGM.give = openNext, give
     expect(logged("could not give [%w_]+: .*the bag broke"),
            "a give that errors is logged with the item, for crates too")
     CR.list, CR.pending = {}, {}
+end)
+
+group("a setting config.txt no longer has is ignored, and says so", function()
+    local folder = os.tmpname()
+    os.remove(folder)
+    os.execute('mkdir "' .. folder .. '"')
+    writeFile(folder .. "/config.txt", "slot=Tester\nmailbox=0\n")
+    local CONFIG2 = dofile(MOD .. "/Scripts/config.lua")      -- (a fresh copy: the session's read config.txt long ago)
+    local mark = logMark()
+    CONFIG2.install({ dir = folder })
+    os.remove(folder .. "/config.txt")
+    os.remove(folder)
+    expect(loggedSince(mark, "config%.txt: mailbox=0 is ignored: the mailbox is always on")
+           and countLogged("mailbox=0 is ignored") == 1,
+           "a config.txt with mailbox=0: one log line, the mailbox is always on")
 end)

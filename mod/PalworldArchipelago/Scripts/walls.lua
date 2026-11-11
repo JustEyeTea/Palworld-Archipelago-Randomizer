@@ -376,9 +376,8 @@ function W.update(enabled, passes, pawn)
             local ok, made = pcall(raise, i, pawn)
             -- One piece that fails does not hold up the others: the loop goes on (the try counts against the budget).
             if not ok then
-                local err = tostring(made)
                 -- Once per kind of error: a raise that fails fails again on every update (three lines a second).
-                once("raise" .. err:gsub("0x%x+", ""):gsub("%d+", "#"), "could not raise wall " .. i .. ": " .. err)
+                UTIL.onceErr("walls raise", made, "could not raise wall " .. i .. ": " .. tostring(made))
             elseif not made then
                 once("raisenil", "could not raise wall " .. i .. ": the spawn gave no actor")
                 spawning = false

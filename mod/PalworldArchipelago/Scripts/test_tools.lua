@@ -364,7 +364,7 @@ function T.install()
         RegisterKeyBind(Key[b[1]], { ModifierKey.CONTROL }, function() ExecuteInGameThread(onKey) end)
     end
     log("test tools on: Ctrl+F5-F8 Slow/Hunger/Teleport/Fool Trap, Ctrl+F9 exhaustion, Ctrl+F10 nightfall, Ctrl+F11 status")
-    -- Ctrl+F3: the next wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense; walls.lua), put on at the next update.
+    -- Ctrl+F3: the next wall skin (red, area, paws; wall_skins.lua), put on at the next update.
     -- On the game thread like every other key (run straight from the key bind, it shared the Lua
     -- state with the update; a walls error with a number for an actor, and UE4SS's "Ref was not function").
     local function skinKey()

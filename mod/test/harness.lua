@@ -23,7 +23,7 @@
 --   tests/traps.lua          traps and Death Link's amnesty
 --   tests/test_tools.lua     the test tools' hotkeys
 --   tests/title_menu.lua     the title menu's Archipelago menu
---   tests/goals.lua          the other goals, the mailbox off, the save file's .tmp copy
+--   tests/goals.lua          the other goals, the save file's .tmp copy
 --   tests/tools_probe.lua    giving a Pal through the connector, the performance probe, the art
 --   tests/locks_hud.lua      Lock Size: areas, locks beyond the goal, the walls' colours, the HUD pieces
 --   tests/crates_run_style.lua  Palworld Crates and their window, Nomad and Speed Boost

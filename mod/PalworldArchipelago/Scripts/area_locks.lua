@@ -46,8 +46,7 @@ function AREA_LOCKS.configureWalls(dir)
         mapStyle = cfg.map_style == "chart" and "chart" or "territories",
         testFogColour = cfg.test_tools == "1",
     }
-    -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|b3d-dense, wall_tiling=U,V and
-    -- wall_scroll=U,V in config.txt
+    -- wall skins (wall_skins.lua): wall_skin=paws|area|red, wall_tiling=U,V and wall_scroll=U,V in config.txt
     local function pair(s)
         local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
         return u and { tonumber(u), tonumber(v) } or nil
