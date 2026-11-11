@@ -4540,7 +4540,7 @@ end)()
     for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates",
                          "perf", "soon", "sync", "records", "art", "crate_window", "tech_gifts", "techscan",
                          "tech_icons", "areas", "wall_skins",
-                         "map_picture", "map_icons" }) do
+                         "map_picture", "map_icons", "map_fog" }) do
         local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
         local src = fh and fh:read("a") or ""
         if fh then fh:close() end

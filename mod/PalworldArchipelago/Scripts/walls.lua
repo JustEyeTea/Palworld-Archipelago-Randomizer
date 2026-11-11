@@ -20,6 +20,7 @@ AREAS.install(W)
 local WALL_SKINS = freshPart("wall_skins")
 local MAP_PICTURE = freshPart("map_picture")
 local MAP_ICONS = freshPart("map_icons")
+local MAP_FOG = freshPart("map_fog")
 local layout, isOpen, SEA, AREA_COLOURS = AREAS.layout, AREAS.isOpen, AREAS.SEA, AREAS.AREA_COLOURS
 local slugOf, lockedList, lockedIndexes, openList = AREAS.slugOf, AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList
 W.passName, W.areaAt, W.lockedAround, W.parentOf = AREAS.passName, AREAS.areaAt, AREAS.lockedAround, AREAS.parentOf
@@ -111,8 +112,8 @@ end
 function W.reset()
     W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
     WALL_SKINS.dropCaches()
-    MAP_PICTURE.resetMapShown()
-    MAP_PICTURE.resetMaskReads()
+    MAP_FOG.resetMapShown()
+    MAP_FOG.resetMaskReads()
     local live = liveWallAddresses()
     for i in pairs(raised) do
         if not live[raisedAt[i]] then
@@ -406,8 +407,9 @@ WALL_SKINS.install({ W = W, areas = AREAS, pieces = pieces, DISSOLVE_S = DISSOLV
 W.SKINS, W.setSkin, W.cycleSkin = WALL_SKINS.SKINS, WALL_SKINS.setSkin, WALL_SKINS.cycleSkin
 W.linearOf, W.modAsset, W.pieceSkin = WALL_SKINS.linearOf, WALL_SKINS.modAsset, WALL_SKINS.pieceSkin  -- (the harness)
 MAP_ICONS.install({ W = W, areas = AREAS })
-MAP_PICTURE.install({ W = W, areas = AREAS, icons = MAP_ICONS })
-W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_PICTURE.mapShown, MAP_PICTURE.mapOff
+MAP_PICTURE.install({ W = W, areas = AREAS, icons = MAP_ICONS, fog = MAP_FOG })
+MAP_FOG.install({ W = W, areas = AREAS, icons = MAP_ICONS, picture = MAP_PICTURE })
+W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_FOG.mapShown, MAP_FOG.mapOff
 W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_ICONS.worldAt                              -- (for the harness)
 
 return W
