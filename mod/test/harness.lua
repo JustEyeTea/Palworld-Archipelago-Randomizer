@@ -1676,6 +1676,35 @@ do  -- Walls opening when the pawn reads nil for a moment (same world) still ope
            .. " old walls, " .. openingNow .. " of them opening")
     worldGoes(mine())
 end
+do  -- The locked-area icons on the map: a moment without a pawn (same world, same screen) adds none twice; a new
+    -- world's screen gets new ones, and the last world's are forgotten without a call (IsValid included)
+    mapBody.icons, mapBody.iconUpdates = {}, 0
+    local W = freshWalls()
+    mapOpen = false
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    mapOpen = true
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    local placed = #mapBody.icons
+    W.reset()
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    expect(placed >= 10 and #mapBody.icons == placed,
+           "a moment without a pawn: the map icons stay, none added twice: " .. #mapBody.icons .. " for " .. placed)
+    local old, deadCalls = mapBody.icons, 0
+    for _, icon in ipairs(old) do
+        icon.IsValid = function() deadCalls = deadCalls + 1; return false end
+        icon.GetParent = function() deadCalls = deadCalls + 1; return nil end
+        icon.RemoveFromParent = function() deadCalls = deadCalls + 1 end
+    end
+    mapBody.icons = {}
+    local screenAddress = mapBody.GetAddress
+    mapBody.GetAddress = function() return 177 end            -- the new world's map screen
+    W.reset()
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    expect(deadCalls == 0 and #mapBody.icons == placed,
+           "a new world: its map screen gets the icons and the last world's are never called: " .. deadCalls
+           .. " calls on " .. #old .. " old icons, " .. #mapBody.icons .. " new")
+    mapBody.GetAddress, mapBody.icons, mapOpen = screenAddress, {}, false
+end
 end
 end)()
 

@@ -1578,11 +1578,37 @@ local mapIcons = { screen = nil, key = nil, list = {} }
 -- (349400 - X) / 1448800) of the map's width).
 local function worldAt(u, v) return { X = 349400 - v * 1448800, Y = u * 1448800 - 724400, Z = 0 } end
 W.worldAt = worldAt
+-- Forgets the icons, without calling them, once the screen they are on is not among this update's live screens: they
+-- went with the last world (Return to title). Not on the core's reset: that also runs when the pawn reads nil for a
+-- moment in the same world, where the icons are still on the screen and would be added twice.
+local function forgetIconsOfGoneScreen(screens)
+    if not mapIcons.screen then
+        return
+    end
+    for _, b in ipairs(screens) do
+        if tostring(b:GetAddress()) == mapIcons.screen then
+            return
+        end
+    end
+    mapIcons = { screen = nil, key = nil, list = {} }
+end
+-- Whether the icons on this screen are for this key and still on it (the game can drop them).
+local function iconsStillShown(addr, key)
+    if mapIcons.screen ~= addr or mapIcons.key ~= key then
+        return false
+    end
+    local first = mapIcons.list[1]
+    if not first then
+        return true
+    end
+    local ok, still = pcall(function() return first:IsValid() and first:GetParent():IsValid() end)
+    return ok and still
+end
 local function placeIcons(screen, passes, key)
     local addr = tostring(screen:GetAddress())
-    local first = mapIcons.list[1]
-    local okp, still = pcall(function() return first:IsValid() and first:GetParent():IsValid() end)
-    if mapIcons.screen == addr and mapIcons.key == key and (not first or (okp and still)) then return end
+    if iconsStillShown(addr, key) then
+        return
+    end
     for _, icon in ipairs(mapIcons.list) do pcall(function() if icon:IsValid() then icon:RemoveFromParent() end end) end
     mapIcons.list, mapIcons.screen, mapIcons.key = {}, addr, key
     local cls = StaticFindObject(ICON_ASSET .. "_C")
@@ -1704,6 +1730,7 @@ function W.updateMap(enabled, passes, ctx)
     if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
     if #images == 0 then return end
     if iconsActive() then
+        forgetIconsOfGoneScreen(screens)
         local oki, erri = pcall(placeIcons, screens[#screens], passes, key .. "#open:" .. table.concat(openList(passes), ","))
         if not oki then
             iconsFailed = true
