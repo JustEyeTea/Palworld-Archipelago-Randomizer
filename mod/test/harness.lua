@@ -2221,6 +2221,23 @@ run(1)
 expect(#winRows == 2 and table.concat(announced, "|"):find("Your bag is full: Wood stays in the mailbox.", 1, true), "a full bag keeps the item")
 expect(logged("the bag refused Wood %(result 16%)"), "a refusal is logged")
 bagFull = false
+;(function()   -- no inventory data (the player still loading): the item stays, and the bag is not called full
+    local function fullTold()
+        local n = 0
+        for _, a in ipairs(announced) do
+            if a:find("Your bag is full", 1, true) then n = n + 1 end
+        end
+        return n
+    end
+    local toldBefore, inventoryWas = fullTold(), ps.GetInventoryData
+    ps.GetInventoryData = function() return nil end
+    hooks[ROW_CLICK]({ get = function() return winRows[1] end })
+    run(1)
+    ps.GetInventoryData = inventoryWas
+    expect(#winRows == 2 and fullTold() == toldBefore and logged("Wood stays in the mailbox: no bag")
+           and logged("the player has no inventory data"),
+           "no inventory data: the item stays, the log says why, and the player is not told the bag is full")
+end)()
 hooks[ROW_CLICK]({ get = function() return winRows[1] end })
 run(1)
 expect(given[#given] == "Wood x1" and #winRows == 1, "a row takes its item into the bag")

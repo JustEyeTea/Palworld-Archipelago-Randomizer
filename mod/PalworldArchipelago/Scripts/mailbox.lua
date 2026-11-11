@@ -74,7 +74,7 @@ end
 -- The most of an item one stack holds.
 function BAG.maxStack(id)
     if maxStacks[id] then return maxStacks[id] end
-    local most = STACK_WHEN_UNKNOWN
+    local most = nil
     pcall(function()
         local _, playerState = BAG.player()
         local data = BAG.palUtility():GetItemIDManager(playerState):GetStaticItemData(FName(id))
@@ -83,6 +83,10 @@ function BAG.maxStack(id)
             most = fromGame
         end
     end)
+    if not most then
+        UTIL.took("mailbox: stack size of " .. id, "the game can't say; " .. STACK_WHEN_UNKNOWN .. " a stack")
+        most = STACK_WHEN_UNKNOWN
+    end
     maxStacks[id] = most
     return most
 end
@@ -114,7 +118,8 @@ local function bagCount(playerState, id)
     return ok and tonumber(count) or nil
 end
 
--- One stack into the bag; whether the game took it. The bag is counted before and after, and a gain that does not
+-- One stack into the bag; true when the game took it, else false and why: "full" when the game refused it, "error"
+-- when the call failed. The bag is counted before and after, and a gain that does not
 -- match the game's answer is logged: what a full bag does with AddItem is untested in game.
 local function giveStack(inventory, playerState, id, count)
     local before = bagCount(playerState, id)
@@ -131,25 +136,32 @@ local function giveStack(inventory, playerState, id, count)
     if accepted then return true end
     if not ok then
         log("mailbox: could not give " .. id .. ": " .. tostring(answer))
-    else
-        once("refused" .. tostring(result), "mailbox: the bag refused " .. id .. " (result " .. tostring(result) .. ")")
+        return false, "error"
     end
-    return false
+    once("refused" .. tostring(result), "mailbox: the bag refused " .. id .. " (result " .. tostring(result) .. ")")
+    return false, "full"
 end
 
--- Into the player's bag, a stack at a time; how many went in.
+-- Into the player's bag, a stack at a time. Returns how many went in and, when that is not all, why: "full" (the game
+-- refused it), "error" (the game's call failed) or "no bag" (the player has no inventory data, as while loading).
 function BAG.give(id, count)
     local _, playerState = BAG.player()
     local inventory = playerState and playerState:GetInventoryData()
-    if not inventory then return 0 end
+    if not inventory then
+        once("nobag", "mailbox: the player has no inventory data (no player state, or still loading); " .. id
+            .. " not given")
+        return 0, "no bag"
+    end
     local perStack, given = BAG.maxStack(id), 0
     while given < count do
         local stack = math.min(perStack, count - given)
-        if not giveStack(inventory, playerState, id, stack) then break end
+        local took, why = giveStack(inventory, playerState, id, stack)
+        if not took then return given, why end
         given = given + stack
     end
     return given
 end
+
 
 ------------------------------------------------------------------------------------------------------------------------
 -- The LogicMod's window (logicmod/ PalworldArchipelagoUI): one row per item, pick a row to take it, or Take all. The
@@ -459,12 +471,16 @@ local function chestTemplates()
     end
     local blueprint = CHEST_GAME.chestBlueprint .. "." .. CHEST_GAME.blueprintName
     consider(StaticFindObject(blueprint .. CHEST_GAME.templateSuffix))
+    local byPath = #found
     for _, component in ipairs(FindAllOf(CHEST_GAME.chestParameterClass) or {}) do
         consider(component)
     end
+    local byClass = #found - byPath
     if #found == 0 and ForEachUObject then
         ForEachUObject(considerIfChestParameter)
     end
+    UTIL.took("mailbox: the chest templates", byPath .. " by path, " .. byClass .. " by FindAllOf, "
+        .. (#found - byPath - byClass) .. " by a walk over every object")
     return found
 end
 
@@ -567,6 +583,7 @@ end
 -- Puts `count` of an item in a slot. When its item id can't be changed in place, the whole id is replaced.
 local function put(slot, id, count)
     if not pcall(function() slot.ItemId.StaticId = FName(id) end) then
+        UTIL.took("mailbox: a slot's item id", "set whole (its StaticId could not be set alone)")
         slot.ItemId = { StaticId = FName(id), DynamicId = slot.ItemId.DynamicId }
     end
     slot.StackCount = count
@@ -724,6 +741,7 @@ end
 local function newGuid()
     local ok, guid = pcall(function() return guidOf(StaticFindObject(CHEST_GAME.guidLibrary):NewGuid()) end)
     if ok and guid and guid.A then return guid end
+    once("newguid", "mailbox: a move's guid is made up: the game's NewGuid failed (" .. tostring(guid) .. ")")
     return { A = math.random(1, RANDOM_MAX), B = math.random(1, RANDOM_MAX), C = math.random(1, RANDOM_MAX),
              D = math.random(1, RANDOM_MAX) }
 end
@@ -737,7 +755,10 @@ local function moveToBag(pawn, slot, count)
                    Num = count }
     local transmitter = BAG.palUtility():GetNetworkTransmitter(pawn)
     local item = transmitter.Item
-    if not item or not item:IsValid() then
+    if item and item:IsValid() then
+        UTIL.took("mailbox: the network transmitter's item part", "its Item field")
+    else
+        UTIL.took("mailbox: the network transmitter's item part", "GetItem()")
         item = transmitter:GetItem()
     end
     item:RequestMoveToContainer_ToServer(newGuid(), { ID = bag }, { from })
@@ -835,7 +856,7 @@ end
 -- refuses stays as mailbox items. Whether the list changed.
 local function returnByHand(id, extra, slots)
     once("byhand", "mailbox: the move to the bag did nothing; deposits are returned by hand")
-    local back = BAG.give(id, extra)
+    local back, why = BAG.give(id, extra)
     local left = back
     for k = #slots, 1, -1 do
         if left <= 0 then break end
@@ -851,7 +872,7 @@ local function returnByHand(id, extra, slots)
     if back >= extra then return false end
     view.inChest[id] = (view.inChest[id] or 0) + (extra - back)
     LIST.addCount(LIST.queue, id, extra - back)
-    env.notify("Your bag is full: " .. BAG.nameOf(id) .. " stays in the mailbox.")
+    LIST.tellStays(id, why)
     return true
 end
 
@@ -1012,12 +1033,18 @@ end
 local function findHeading()
     local heading = nil
     pcall(function() heading = view.hud:GetWidget(view.id)[CHEST_GAME.chestMenu][CHEST_GAME.heading] end)
-    if answersValid(heading) then return heading, true end
+    if answersValid(heading) then
+        UTIL.took("mailbox: the chest window's heading", "found by the HUD's id")
+        return heading, true
+    end
     for _, widget in ipairs(FindAllOf(CHEST_GAME.chestMenuClass) or {}) do
         local ok, found = pcall(function()
             return widget:IsValid() and widget:IsVisible() and widget[CHEST_GAME.heading]
         end)
-        if ok and found then return found, false end
+        if ok and found then
+            UTIL.took("mailbox: the chest window's heading", "found by its class " .. CHEST_GAME.chestMenuClass)
+            return found, false
+        end
     end
     return nil, false
 end
@@ -1334,17 +1361,26 @@ function M.reset()
     CHEST.forgetView()
 end
 
+-- Tells the player an item stays in the mailbox because the bag is full; any other reason is only logged.
+function M.tellStays(id, why)
+    if why == "full" then
+        env.notify("Your bag is full: " .. BAG.nameOf(id) .. " stays in the mailbox.")
+        return
+    end
+    log("mailbox: " .. id .. " stays in the mailbox: " .. tostring(why))
+end
+
 -- Takes one item's whole entry into the bag; how many went in. What the bag refuses stays in the list.
 function M.take(id)
     for index, entry in ipairs(M.queue) do
         if entry.id == id then
-            local got = BAG.give(id, entry.n)
+            local got, why = BAG.give(id, entry.n)
             entry.n = entry.n - got
             if entry.n <= 0 then
                 table.remove(M.queue, index)
             end
             if got == 0 then
-                env.notify("Your bag is full: " .. BAG.nameOf(id) .. " stays in the mailbox.")
+                M.tellStays(id, why)
             end
             env.save()
             return got
@@ -1463,6 +1499,7 @@ local function tryOpen()
     if not openAsked or CHEST.making() or CHEST.viewing() or WINDOW.isOpen() then return end
     local pawn, playerState = BAG.player()
     if not pawn or not playerState then
+        log("mailbox: no " .. (pawn and "player state" or "player pawn") .. " to open the mailbox for; not opened")
         openAsked = false
         return
     end
