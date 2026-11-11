@@ -19,7 +19,8 @@ local log = UTIL.log
 local notify = PLAYER.notify
 local POPUP_LINE_CHARS = 60     -- characters of a hint sentence the pop-up's second line shows when it can't shorten it
 
--- State: hints at walls. Forgotten: known, shown and offer on a new seed (resetHints); key never.
+-- State: hints at walls. Forgotten: known, shown and offer on a new seed (resetHints). The key that asks is
+-- CONFIG.hintKey, read when it is used: this file is required before start() reads config.txt.
 local hints = {
     known = {},               -- lock -> the server's hint for that lock's pass, taken apart (parsePassHint)
     shown = {},               -- lock -> the update that lock's wall notice was last shown on (noticeLockedWall)
@@ -27,7 +28,6 @@ local hints = {
     offeredAt = 0,            -- the update the offer was made on: it lasts WAIT.hintOffer
     asked = nil,              -- the update the player last asked for a hint on: the server's answer is shown within
                               -- WAIT.hintAnswer (onMessage)
-    key = CONFIG.hintKey,     -- the key that asks (config.txt's hint_key)
 }
 -- Forgets the last seed's hints, the times their notices were shown and an offer still open.
 function WALL_HINTS.resetHints()
@@ -90,7 +90,7 @@ local function wallNotice(lock)
     hints.offer, hints.offeredAt = lock, CLOCK.now()
     -- Both cases say what the player has and what a hint costs, with the configured key.
     if points >= cost then
-        local offer = hints.key .. " for a hint: "
+        local offer = CONFIG.hintKey .. " for a hint: "
         return text .. " Press " .. offer .. "you have " .. points .. " points, a hint costs " .. cost .. ".",
             { title = lock .. " is sealed", line = offer .. points .. " points, a hint costs " .. cost,
               have = points, cost = cost, ready = true }
@@ -122,8 +122,8 @@ local function hintKey()
 end
 -- Binds the hint key (start-up).
 function WALL_HINTS.bindKey()
-    if RegisterKeyBind and Key and Key[hints.key] then
-        RegisterKeyBind(Key[hints.key], function() ExecuteInGameThread(hintKey) end)
+    if RegisterKeyBind and Key and Key[CONFIG.hintKey] then
+        RegisterKeyBind(Key[CONFIG.hintKey], function() ExecuteInGameThread(hintKey) end)
     end
 end
 

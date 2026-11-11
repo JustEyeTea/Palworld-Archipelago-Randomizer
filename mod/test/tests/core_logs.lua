@@ -144,4 +144,24 @@ group("a setting config.txt no longer has is ignored, and says so", function()
     expect(loggedSince(mark, "config%.txt: mailbox=0 is ignored: the mailbox is always on")
            and countLogged("mailbox=0 is ignored") == 1,
            "a config.txt with mailbox=0: one log line, the mailbox is always on")
+    -- hint_key: main.lua requires every file before start() reads config.txt, so the key is read when it is bound.
+    do
+        local hintFolder = os.tmpname()
+        os.remove(hintFolder)
+        os.execute('mkdir "' .. hintFolder .. '"')
+        writeFile(hintFolder .. "/config.txt", "slot=Tester\nhint_key=J\n")
+        local sessionConfig, sessionHints = package.loaded["config"], package.loaded["wall_hints"]
+        local CONFIG3 = dofile(MOD .. "/Scripts/config.lua")
+        package.loaded["config"] = CONFIG3
+        local HINTS3 = dofile(MOD .. "/Scripts/wall_hints.lua")    -- (required first, as main.lua does)
+        CONFIG3.install({ dir = hintFolder })
+        local boundBefore = keyBinds[Key.J]
+        HINTS3.bindKey()
+        local bound = keyBinds[Key.J] ~= boundBefore
+        package.loaded["config"], package.loaded["wall_hints"] = sessionConfig, sessionHints
+        os.remove(hintFolder .. "/config.txt")
+        os.remove(hintFolder)
+        expect(CONFIG3.hintKey == "J" and bound, "config.txt's hint_key=J is the key bound: " .. CONFIG3.hintKey
+               .. ", bound " .. tostring(bound))
+    end
 end)
