@@ -237,8 +237,65 @@ function WIDGETS.setLabel(button, words)
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- The HUD: the hint plate, the goal banner and the debuff icons sit on the HUD layout's canvas.
-WIDGETS.HUD_LAYOUT = "WBP_PalHUDLayout_C"   -- the game's HUD layout, the one widget all three are put on
+-- The HUD: the hint plate, the goal banner, the debuff icons and the test tools' HUD probe sit on the HUD layout's
+-- canvas (WBP_PalHUDLayout_C: SafeZone_0 > CanvasPanel, found by the Ctrl+F4 probe and seen working in game).
+WIDGETS.HUD_LAYOUT = "WBP_PalHUDLayout_C"   -- the game's HUD layout, the one widget they are all put on
+WIDGETS.OVER_HUD_Z = 1000                   -- the canvas Z order that puts a widget over the HUD's own widgets
+local HUD_DEPTH = 3                         -- how deep under the HUD layout's root the canvas is looked for
+
+-- The canvas of the HUD layout the player sees, and that layout; or nil, nil and why. Not the last world's, which can
+-- still be listed and read visible after Return to title and another load (UTIL.ownerGone tells them apart; untested
+-- in game: that the last world's HUD layout is still listed and reads visible).
+function WIDGETS.hudCanvas()
+    local layout
+    for _, candidate in ipairs(FindAllOf(WIDGETS.HUD_LAYOUT) or {}) do
+        local ok, visible = pcall(function() return candidate:IsValid() and candidate:IsVisible() end)
+        if ok and visible and not UTIL.ownerGone(candidate) then
+            layout = candidate
+            break
+        end
+    end
+    if not layout then return nil, nil, "no HUD layout on screen" end
+    local root = layout.WidgetTree.RootWidget
+    for _ = 1, HUD_DEPTH do
+        if not (root and root:IsValid()) then break end
+        if WIDGETS.className(root) == "CanvasPanel" then return root, layout end
+        local ok, child = pcall(function() return root:GetChildAt(0) end)
+        root = ok and child or nil
+    end
+    return nil, nil, "no canvas in the HUD layout"
+end
+
+-- A width x height box on the HUD layout with an Overlay in it, for layers (art, text, a bar). Returns both.
+function WIDGETS.hudBox(layout, width, height)
+    local box = WIDGETS.construct(WIDGETS.UMG.sizeBox, layout)
+    box:SetWidthOverride(width)
+    box:SetHeightOverride(height)
+    local over = WIDGETS.construct(WIDGETS.UMG.overlay, layout)
+    box:AddChild(over)
+    return box, over
+end
+
+-- Puts a box on the HUD's canvas, never taking a click. `place`: anchor (0..1 of the screen across and down),
+-- alignment (which point of the box sits there, 0..1 of its size), position (px from there) and z (its Z order).
+-- Returns the canvas slot.
+function WIDGETS.pinToCanvas(canvas, box, place)
+    local slot = canvas:AddChildToCanvas(box)
+    pcall(function() slot:SetAnchors({ Minimum = place.anchor, Maximum = place.anchor }) end)
+    pcall(function() slot:SetAlignment(place.alignment) end)
+    pcall(function() slot:SetPosition(place.position) end)
+    pcall(function() slot:SetAutoSize(true) end)
+    pcall(function() slot:SetZOrder(place.z) end)
+    pcall(function() box:SetVisibility(WIDGETS.VISIBILITY.selfHitTestInvisible) end)
+    return slot
+end
+
+-- A line of text that does not wrap (the HUD's lines are short and placed by hand).
+function WIDGETS.textLine(owner, words, size, colour)
+    local block = WIDGETS.text(owner, words, size, colour)
+    pcall(function() block:SetAutoWrapText(false) end)
+    return block
+end
 
 -- Whether the HUD layout at this address (UTIL.addr) is still listed by FindAllOf, which lists only live objects. A
 -- file that keeps a widget on the HUD asks this before any call to it: after Return to title the old world's
