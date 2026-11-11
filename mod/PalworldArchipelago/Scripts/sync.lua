@@ -6,13 +6,15 @@
 -- option that warns: off, the world's settings are never touched; on, every change is
 -- shown in game, once a world, with the world's own values to set back.
 --
--- World settings: UPalOptionSubsystem is a world subsystem (a new one on every world load), so the speeds are set
--- again in each world. The world's own value is kept in the mod's save the first time, and the speed is always that
--- value times the YAML's multiplier, so it never compounds. Writing the struct's fields in place is untested in game:
--- each change is read back and logged. The game's own SetOptionWorldSettings is NOT called from Lua: its parameter,
--- the whole FPalOptionWorldSettings, is 0x210 bytes (1.0.5 object dump: its last field ends at 0x20D), more than
--- UE4SS Lua's 0x200-byte call buffer, which overran and crashed the game for a Pal's save data. If the in-place write
--- doesn't take, the log says so and the C++ mod is the route (ReflectedCall gives each call a block of its own size).
+-- World settings: UPalOptionSubsystem is a world subsystem (a new one on every world load), so the speeds are set again
+-- in each world. The world's own value is kept in the mod's save the first time, and the speed is always that value
+-- times the YAML's multiplier, so it never compounds within a seed. A new seed takes whatever the world holds then as
+-- its own: a world an earlier seed sped up and nobody set back is multiplied again, and the warning names those values,
+-- so it says they are the world's values before this seed. Writing the struct's fields in place is untested in game:
+-- each change is read back and logged. The game's own SetOptionWorldSettings is NOT called from Lua: its parameter, the
+-- whole FPalOptionWorldSettings, is 0x210 bytes (1.0.5 object dump: its last field ends at 0x20D), more than UE4SS
+-- Lua's 0x200-byte call buffer, which overran and crashed the game for a Pal's save data. If the in-place write doesn't
+-- take, the log says so and the C++ mod is the route (ReflectedCall gives each call a block of its own size).
 -- The world keeps the faster speeds in its own save; World Settings sets them back.
 -- Tests: mod/test/tests/crates_run_style.lua; group
 --   "run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning"
@@ -123,7 +125,7 @@ function S.apply(ps, get, world, say)
         end
         if say then
             say((#changed > 0 and "Speed Boost changed your World Settings: " or "Speed Boost is on: ")
-                .. table.concat(now, ", ") .. " (your world's own: " .. table.concat(own, ", ")
+                .. table.concat(now, ", ") .. " (your world's values before this seed: " .. table.concat(own, ", ")
                 .. "). Your world keeps these in its save; set them back in World Settings after the game.")
         end
     end

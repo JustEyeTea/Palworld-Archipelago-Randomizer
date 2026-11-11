@@ -339,7 +339,8 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
            and logged("sync: Speed Boost: ExpRate 1 %-> 3 %(the world's own 1 x3%); reads back 3"),
            "Speed Boost: EXP x3, work speed x3, gathering x2, logged with what reads back")
     expect(warned("Speed Boost changed your World Settings: EXP Rate 3, Work Speed Multiplier 3, Gatherable Items "
-                  .. "Multiplier 2 %(your world's own: 1, 1, 1%)%. Your world keeps these in its save; set them back"),
+                  .. "Multiplier 2 %(your world's values before this seed: 1, 1, 1%)%. Your world keeps these in its save; set "
+                  .. "them back"),
            "the player is warned in game, with the values to set back")
     expect(h.saveText("70015", "Other"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
            "the world's own values are in the save")
