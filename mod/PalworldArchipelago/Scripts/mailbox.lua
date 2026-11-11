@@ -7,6 +7,7 @@ local M = {}
 local P = require("perf")
 local UTIL = require("util")
 local WIDGETS = require("widgets")
+local CLICKS = require("clicks")
 local log = UTIL.log
 -- The window's, the chest's and the list's lines are logged once a world (forgetOnWorldChange() forgets them); the
 -- bag's once a session, since the bag is also used with the mailbox off.
@@ -173,6 +174,7 @@ end
 -- mod only fills the window and answers its buttons' AP_Clicked event (which each button's OnClicked calls).
 
 local WINDOW_FOLDER = "/Game/Mods/PalworldArchipelagoUI/"
+local WINDOW_OWNER = "mailbox"         -- the window's name as the owner of its buttons in clicks.lua
 local WINDOW_GAME = {
     window = WINDOW_FOLDER .. "WBP_APMailbox.WBP_APMailbox_C",   -- the window: Title, Summary, List, TakeAll, Close
     row = WINDOW_FOLDER .. "WBP_APButton.WBP_APButton_C",        -- a row and a button: Btn, Icon, Label
@@ -187,13 +189,10 @@ local WINDOW_GAME = {
 -- SetBrushFromTexture, SetKeyboardFocus.
 
 -- State. Forgotten: when the HUD no longer has the window, on a new world, on a new seed (WINDOW.forget()).
-local window = nil            -- the window: { id = its HUD id, hud = the HUD service, actions = see below }
-                              --   actions: a button's address -> what it does: { kind = "take", id = item id },
-                              --   { kind = "takeAll" } or { kind = "close" } (WINDOW_ACTIONS)
--- State. Forgotten: at the next update, acted on or not, and with the window.
-local clickedAction = nil     -- the action of the button just clicked (noted in the click's hook, done after it)
+-- Its buttons are claimed in clicks.lua as the owner WINDOW_OWNER, each with what it does: { kind = "take", id = item
+-- id }, { kind = "takeAll" } or { kind = "close" } (WINDOW_ACTIONS); released whenever the window is filled again.
+local window = nil            -- the window: { id = its HUD id, hud = the HUD service }
 -- State. Forgotten: never.
-local rowHook = nil           -- the buttons' click hook, made once (UTIL.hookWhenLoaded registers it)
 local iconsFailed = false     -- an icon could not be shown: the game's item data has none, so none are tried again
 
 local function setLabel(button, text)
@@ -225,6 +224,13 @@ local function checkParts(widget)
     end
 end
 
+local doAction                         -- (below: what a button does, given its action record)
+
+-- Claims a button for the window: a click on it does `action` (a record of WINDOW_ACTIONS' kinds) after the hook.
+local function claimButton(button, action)
+    CLICKS.claim(button, WINDOW_OWNER, function() doAction(action) end)
+end
+
 -- One row per item in the list; the first row made, or nil.
 local function addRows(widget)
     local rowClass = UTIL.findClass(WINDOW_GAME.row)
@@ -236,7 +242,7 @@ local function addRows(widget)
             setLabel(row, BAG.nameOf(entry.id) .. "  x" .. entry.n)
             setIcon(row, entry.id)
             widget.List:AddChild(row)
-            window.actions[UTIL.addr(row)] = { kind = "take", id = entry.id }
+            claimButton(row, { kind = "take", id = entry.id })
             first = first or row
         end
     end
@@ -259,11 +265,11 @@ local function refreshWindow()
     if not widget or not widget:IsValid() then return end
     checkParts(widget)
     widget.List:ClearChildren()
-    window.actions = {}
+    CLICKS.releaseAll(WINDOW_OWNER)
     local first = addRows(widget)
     setTexts(widget)
-    window.actions[UTIL.addr(widget.TakeAll)] = { kind = "takeAll" }
-    window.actions[UTIL.addr(widget.Close)] = { kind = "close" }
+    claimButton(widget.TakeAll, { kind = "takeAll" })
+    claimButton(widget.Close, { kind = "close" })
     pcall(function() (first or widget.TakeAll).Btn:SetKeyboardFocus() end)   -- a controller starts on the first row
 end
 
@@ -283,7 +289,7 @@ local WINDOW_ACTIONS = {
 }
 
 -- Does what a clicked button stands for (one of WINDOW_ACTIONS).
-local function doAction(action)
+doAction = function(action)
     if not window then return end
     local run = WINDOW_ACTIONS[action.kind]
     if not run then
@@ -291,26 +297,15 @@ local function doAction(action)
         return
     end
     run(action)
-    if action.kind ~= "close" then refreshWindow() end
-end
-
--- The buttons' click hook only notes which button it was: the list is rebuilt on the next update, not inside the
--- click, which would remove the very button whose click is still running.
-local function onRowClick(self)
-    local ok, err = pcall(function()
-        clickedAction = window and window.actions[UTIL.addr(self:get())] or nil
-    end)
-    if not ok then
-        log("mailbox click error: " .. tostring(err))
+    if action.kind ~= "close" then
+        refreshWindow()
     end
 end
 
--- Hooks the buttons' click once the LogicMod's button class is loaded. Called every update: UTIL.hookWhenLoaded
--- tries again every 3 s until it works, so a window already open gets working buttons too.
+-- Hooks the buttons' click once the LogicMod's button class is loaded. Called every update: it is retried every 3 s
+-- until it works, so a window already open gets working buttons too.
 function WINDOW.hookButtons()
-    if UTIL.isHooked(WINDOW_GAME.rowClick) then return end
-    rowHook = rowHook or (env.guardedHook and env.guardedHook(WINDOW_GAME.rowClick, onRowClick) or onRowClick)
-    UTIL.hookWhenLoaded(WINDOW_GAME.rowClick, rowHook, "mailbox")
+    CLICKS.hookClass(WINDOW_GAME.rowClick, "mailbox", env.guardedHook)
 end
 
 -- Whether the LogicMod's window can be shown (it is installed, and config.txt does not ask for the chest).
@@ -329,7 +324,7 @@ function WINDOW.open(pawn)
         parameter = StaticFindObject(WINDOW_GAME.gameplayStatics):SpawnObject(parameterClass, hud)
     end)
     local id = hud:Push(UTIL.findClass(WINDOW_GAME.window), parameter)
-    window = { id = id, hud = hud, actions = {} }
+    window = { id = id, hud = hud }
     refreshWindow()
     log("mailbox: window open (" .. #LIST.queue .. " kind(s))")
 end
@@ -348,25 +343,20 @@ function WINDOW.follow()
         open = widget and widget:IsValid()
     end)
     if not open then
-        window = nil
+        WINDOW.forget()
     end
 end
 
--- Does the work of a button clicked since the last update.
-function WINDOW.runClick()
-    if not clickedAction then return end
-    local action = clickedAction
-    clickedAction = nil
-    local ok, err = pcall(doAction, action)
-    if not ok then
-        log("mailbox click error: " .. tostring(err))
-    end
+-- Does the work of the buttons clicked since the last update.
+function WINDOW.runClicks()
+    CLICKS.run(WINDOW_OWNER)
 end
 
--- Forgets the window and a click not yet acted on (a new world or a new seed: they belong to the old one).
+-- Forgets the window, its buttons and their clicks not yet run (it closed, or a new world or seed: they belong to the
+-- old one).
 function WINDOW.forget()
     window = nil
-    clickedAction = nil
+    CLICKS.releaseAll(WINDOW_OWNER)
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -1516,7 +1506,7 @@ end
 local function updateMailbox(ctx)
     forgetOnWorldChange(ctx)
     WINDOW.hookButtons()
-    WINDOW.runClick()
+    WINDOW.runClicks()
     -- While an open waits for the menu to close, nothing below runs.
     if openAsked and updatesToWait > 0 then
         updatesToWait = updatesToWait - 1
