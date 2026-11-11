@@ -30,7 +30,7 @@ end
 
 -- A bundle's items, into the mailbox, or with the mailbox off straight into the bag. False when the bag refused one
 -- (it is tried again later).
-local function giveBundle(it)
+local function giveBundle(_, it)
     for _, bundle in ipairs(RECORDS.BUNDLES[it.name]) do
         if MAIL.on() then
             MAIL.add(bundle.id, bundle.n)
@@ -48,26 +48,46 @@ local function giveBundle(it)
     return true
 end
 
+-- Two tech points (the "Tech Points +2" item's TechnologyPoint).
+local function addTechPoints(ps)
+    local td = ps:GetTechnologyData()
+    td.TechnologyPoint = td.TechnologyPoint + 2
+    safe(function() td:OnRep_TechnologyPoint() end)
+    return true
+end
+
+-- One ancient tech point (the "Ancient Tech Points +1" item).
+local function addAncientPoint(ps)
+    local td = ps:GetTechnologyData()
+    td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
+    safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
+    return true
+end
+
+-- Each filler item's once-per-seed effect, by the item's name as apworld/palworld/data.py gives it (the generated
+-- ap_data.lua carries it); a bundle's effect is giveBundle, for every name in RECORDS.BUNDLES. Each takes
+-- (ps, it, index) and returns false when it could not be given yet.
+local FILLER_EFFECTS = {
+    ["Palworld Crate"] = function(_, _, index)
+        receiveCrate(index)
+        return true
+    end,
+    ["Tech Points +2"] = addTechPoints,
+    ["Ancient Tech Points +1"] = addAncientPoint,
+}
+
 -- A filler item's once-per-seed effect: a Palworld Crate, tech points or a bundle. False when it could not be applied
--- yet (a bundle the bag refused, with the mailbox off): it is tried again later.
+-- yet (a bundle the bag refused, with the mailbox off): it is tried again later. A name with no effect is logged and
+-- counted as given, so the items after it still come.
 local function giveFiller(ps, id, index)
     local it = DATA.items[id]
     if not it then return true end
-    if it.name == "Palworld Crate" then
-        receiveCrate(index)
+    local effect = FILLER_EFFECTS[it.name] or (RECORDS.BUNDLES[it.name] and giveBundle)
+    if not effect then
+        once("filler " .. it.name, "item " .. it.name .. ": no effect known to this version of the mod, nothing given")
         return true
     end
-    local td = ps:GetTechnologyData()
-    if it.name == "Tech Points +2" then
-        td.TechnologyPoint = td.TechnologyPoint + 2
-        safe(function() td:OnRep_TechnologyPoint() end)
-    elseif it.name == "Ancient Tech Points +1" then
-        td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
-        safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
-    elseif RECORDS.BUNDLES[it.name] then
-        return giveBundle(it)
-    end
-    return true
+    return effect(ps, it, index)
 end
 
 -- Relics received so far (the Relic Hunt goal), up to item index `upto` (all by default; items are numbered from 0).

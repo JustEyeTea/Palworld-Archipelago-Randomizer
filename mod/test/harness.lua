@@ -4902,6 +4902,21 @@ end)()
            "keeping a texture alive in a plain GameInstance says so")
 end)()
 ;(function()
+    print("a filler item with no effect known")
+    local DATA = require("ap_data")
+    DATA.items[987654] = { name = "Mystery Filler", kind = "filler" }   -- (from a newer APWorld)
+    slotData.seed = "70033"
+    push("status", "connected", "Other")
+    run(14)
+    keyBinds[Key.H]()
+    run(7)
+    push("item", "0", "987654", "3", "0", "0", "Mystery Filler", "Friend")
+    run(14)
+    DATA.items[987654] = nil
+    expect(logged("item Mystery Filler: no effect known to this version of the mod, nothing given"),
+           "a filler item whose name matches no effect is logged, not counted as given in silence")
+end)()
+;(function()
     print("Lua runs only on the game thread")
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
     -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread
