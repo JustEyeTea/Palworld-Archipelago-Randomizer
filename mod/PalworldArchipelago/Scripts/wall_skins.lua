@@ -253,7 +253,11 @@ function WALL_SKINS.glowTick()
             if n then tell(skin.mids[n]) end
         end
     end
-    for _, sk in ipairs(pieces.opening()) do if sk.dissolving and sk[1]:IsValid() then tell(sk.mid) end end
+    for _, piece in ipairs(pieces.opening()) do
+        if piece.dissolving and piece.actor:IsValid() then
+            tell(piece.material)
+        end
+    end
 end
 -- A new world (or the player's pawn changed): every material, texture and handle kept from before is let go, never
 -- called again (dev.42 crash: the world before's materials, dead, called 30 times a second); made again when needed.

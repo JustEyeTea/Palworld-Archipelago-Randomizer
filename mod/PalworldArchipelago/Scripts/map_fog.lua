@@ -187,7 +187,7 @@ local artFile = ART.file
 local function maskSpec(pawn)
     local okp, at = pcall(function() return pawn:K2_GetActorLocation() end)
     if not (okp and at) then return nil, "no player position" end
-    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
+    local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local u, v = (at.Y - y0) / (y1 - y0), (x1 - at.X) / (x1 - x0)
     local mask = W.dir .. "\\" .. MASK_FILE
     local here, corner = AP_SamplePNG(mask, tostring(u), tostring(v)), AP_SamplePNG(mask, EDGE_UV, EDGE_UV)
@@ -235,7 +235,9 @@ local function stampList(locked)
             local file = W.beyond[name] and "ap-map-stamp-sealed" or ("ap-map-stamp-" .. slugOf(W.parentOf(name)))
             local path = artFile(file)
             if path == "" then path = artFile("ap-map-stamp") end
-            if path ~= "" then parts[#parts + 1] = table.concat({ path, c[3] or c[1], c[4] or c[2], stampSize(c) }, "|") end
+            if path ~= "" then
+                parts[#parts + 1] = table.concat({ path, c.stampU, c.stampV, stampSize(c) }, "|")
+            end
         end
     end
     return table.concat(parts, ";")

@@ -105,7 +105,7 @@ local function addIcon(screen, icons, class, wbl, c, tex)
     if not (icon and icon:IsValid()) then error("could not make a map icon") end
     icon:ChangeTexture(tex)
     local out = {}
-    screen["Add Icon By Location"](screen, icon, worldAt(c[1], c[2]), true, false, out)
+    screen["Add Icon By Location"](screen, icon, worldAt(c.deepU, c.deepV), true, false, out)
     pcall(function() icon:SetVisibility(HIT_TEST_INVISIBLE) end)
     icons.list[#icons.list + 1] = icon
     return out.Added

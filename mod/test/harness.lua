@@ -1130,14 +1130,14 @@ do  -- v0.13.5 playtest: stamps at each area's deepest point sat under the fog o
 end
 do  -- 2026-11-06 run: the full 88 px stamp buried a small region (Small Settlement); a small one is drawn smaller
     local W = require("walls")
-    expect(W.stampSize({ 0, 0, 0, 0 }) == 88 and W.stampSize({ 0, 0, 0, 0, 120 }) == 88,
+    expect(W.stampSize({}) == 88 and W.stampSize({ room = 120 }) == 88,
            "an area with room (or data without the field) keeps the full 88 px stamp")
-    expect(W.stampSize({ 0, 0, 0, 0, 30 }) == 60 and W.stampSize({ 0, 0, 0, 0, 9 }) == 28,
+    expect(W.stampSize({ room = 30 }) == 60 and W.stampSize({ room = 9 }) == 28,
            "a small region's stamp is about as wide as the region, but at least 28 px")
     local small, tiny = 0, 0
     for _, c in pairs(dofile(MOD .. "/Scripts/area_centres_regions.lua")) do
         expect(c[5], "every region's centre carries its room")
-        if c[5] and W.stampSize(c) < 88 then small = small + 1 end
+        if c[5] and W.stampSize({ room = c[5] }) < 88 then small = small + 1 end
         if c[5] and c[5] < 14 then tiny = tiny + 1 end
     end
     expect(small > 0 and tiny > 0, "the regions set has small regions that get a smaller stamp")

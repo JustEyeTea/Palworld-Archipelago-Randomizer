@@ -68,7 +68,7 @@ local function buildTrig()
     trig = {}
     for i, w in ipairs(layout.walls) do
         local yaw = math.rad(w[4])
-        trig[i] = { math.cos(yaw), math.sin(yaw) }
+        trig[i] = { cos = math.cos(yaw), sin = math.sin(yaw) }
     end
 end
 buildTrig()
@@ -103,8 +103,9 @@ local function forget(i)
     WALL_SKINS.forget(i)
     hiddenAt[i] = nil
 end
-local opening = {}            -- the pieces opening: { actor, scale X, scale Y, started (game s), addr = its address,
-                              -- dissolving, mid = its dissolving material, collisionOff, steps }
+-- The pieces opening, each { actor, scaleX, scaleY, startedAt (game s), addr = its address, dissolving, material (its
+-- dissolving one), collisionOff (it no longer blocks), steps (updates stepped) }.
+local opening = {}
 -- The addresses of the walls the game still has. FindAllOf lists live objects only, so a wall of a world that is gone
 -- is told apart without calling it (IsValid included: its memory may be freed).
 local function liveWallAddresses()
@@ -144,9 +145,9 @@ end
 local function segDist(i, x, y)
     local w, t = layout.walls[i], trig[i]
     local dx, dy = x - w[1], y - w[2]
-    local along, half = dx * t[1] + dy * t[2], w[3] / 2
+    local along, half = dx * t.cos + dy * t.sin, w[3] / 2
     if along > half then along = half elseif along < -half then along = -half end
-    local px, py = dx - along * t[1], dy - along * t[2]
+    local px, py = dx - along * t.cos, dy - along * t.sin
     return math.sqrt(px * px + py * py)
 end
 W.segDist = segDist
@@ -184,15 +185,15 @@ local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 2.4
 -- One step of an opening piece at the game's time `now`: shrunk (unless it dissolves), let through halfway, destroyed
 -- at the end. True while it is still opening.
 local function stepOne(s, now)
-    local a = s[1]
+    local a = s.actor
     local span = s.dissolving and DISSOLVE_S or SHRINK_S
-    local half = not s.collisionOff and now >= s[4] + span / 2
-    local done = now >= s[4] + span + (s.dissolving and DISSOLVE_TAIL or 0)
+    local half = not s.collisionOff and now >= s.startedAt + span / 2
+    local done = now >= s.startedAt + span + (s.dissolving and DISSOLVE_TAIL or 0)
     if not s.dissolving then                     -- shrinking: top and bottom towards the middle
-        local t = math.min(1, (now - s[4]) / SHRINK_S)
+        local t = math.min(1, (now - s.startedAt) / SHRINK_S)
         local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
         local height = math.max(MIN_SCALE, HEIGHT_CM / CUBE_CM * (1 - eased))
-        pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = height }) end)
+        pcall(function() a:SetActorScale3D({ X = s.scaleX, Y = s.scaleY, Z = height }) end)
     end
     if half then s.collisionOff = true; pcall(function() a:SetActorEnableCollision(false) end) end
     if not done then
@@ -200,7 +201,7 @@ local function stepOne(s, now)
     end
     if s.dissolving then
         once("dissolved", string.format("wall skin paws: an opened wall went %.2f s after it began dissolving"
-            .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s[4], DISSOLVE_S, s.steps))
+            .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s.startedAt, DISSOLVE_S, s.steps))
     end
     pcall(function() a:K2_DestroyActor() end)
     return false
@@ -209,11 +210,11 @@ end
 local function stepOpeningPieces()
     local still = {}
     for _, s in ipairs(opening) do
-        local a = s[1]
+        local a = s.actor
         if a:IsValid() then
-            s.steps = (s.steps or 0) + 1
+            s.steps = s.steps + 1
             local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
-            if not (ok and type(now) == "number") then now = s[4] + s.steps * UTIL.UPDATE_MS / 1000 end
+            if not (ok and type(now) == "number") then now = s.startedAt + s.steps * UTIL.UPDATE_MS / 1000 end
             if stepOne(s, now) then
                 still[#still + 1] = s
             end
@@ -226,8 +227,8 @@ end
 local function destroyOpening()
     for _, s in ipairs(opening) do
         pcall(function()
-            if s[1]:IsValid() then
-                s[1]:K2_DestroyActor()
+            if s.actor:IsValid() then
+                s.actor:K2_DestroyActor()
             end
         end)
     end
@@ -257,8 +258,9 @@ local function startOpening(i, pawn)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
     now = (m and start) or (okT and type(now) == "number" and now) or 0
-    opening[#opening + 1] = { a, layout.walls[i][3] / CUBE_CM, THICK_CM / CUBE_CM, now, addr = addr,
-                              dissolving = m and true or nil, mid = m and mid or nil }
+    opening[#opening + 1] = { actor = a, scaleX = layout.walls[i][3] / CUBE_CM, scaleY = THICK_CM / CUBE_CM,
+                              startedAt = now, addr = addr, dissolving = m and true or nil,
+                              material = m and mid or nil, collisionOff = nil, steps = 0 }
 end
 
 

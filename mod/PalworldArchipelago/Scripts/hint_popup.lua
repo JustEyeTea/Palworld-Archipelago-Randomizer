@@ -11,9 +11,10 @@ local UTIL = require("util")
 local OPACITY = 0.8
 local SHOW_TICKS = UTIL.updates(6)      -- a hint plate stays 6 s
 local WIDTH, HEIGHT = 380, 84
-local LINE1 = { 86, 15, 280 }            -- left, top, width (half of hint_prompt.py's SLOTS)
-local LINE2 = { 86, 37, 280 }
-local BAR = { 86, 60, 280, 9 }
+-- Where the plate's two lines and its hint-points bar go on it, in px of the plate as drawn (half its art's size).
+local LINE1 = { left = 86, top = 15 }
+local LINE2 = { left = 86, top = 37 }
+local BAR = { left = 86, top = 60, width = 280, height = 9 }   -- the plate's own empty track, filled to have / cost
 local TITLE_PT, LINE_PT = 13, 10        -- text sizes: the title line, the second line (and the banner's line: TITLE_PT)
 local DEFAULT_FONT_PT = 24              -- UMG's default text size, scaled down from when the font cannot be set
 local OVER_HUD_Z = 1000                 -- the canvas Z order that puts the plate over the HUD's own widgets
@@ -116,11 +117,15 @@ function H.show(info, tick)
     local bs = over:AddChild(bg)
     pcall(function() bs:SetHorizontalAlignment(ALIGN_FILL); bs:SetVerticalAlignment(ALIGN_FILL) end)
     if not plate then once("popupnoplate", "hint pop-up: no " .. plateName .. ".png yet; a plain box instead") end
-    place(over, text(layout, info.title or "", TITLE_PT, CREAM), LINE1[1], LINE1[2])
-    place(over, text(layout, info.line or "", LINE_PT, CREAM), LINE2[1], LINE2[2])
+    place(over, text(layout, info.title or "", TITLE_PT, CREAM), LINE1.left, LINE1.top)
+    place(over, text(layout, info.line or "", LINE_PT, CREAM), LINE2.left, LINE2.top)
     if info.cost and info.cost > 0 then
         local f = math.max(0, math.min(1, (info.have or 0) / info.cost))
-        if f > 0 then place(over, fill(layout, math.max(BAR[4], math.floor(BAR[3] * f)), BAR[4], info.ready and LTEAL or SAND), BAR[1], BAR[2]) end
+        if f > 0 then
+            local filled = fill(layout, math.max(BAR.height, math.floor(BAR.width * f)), BAR.height,
+                info.ready and LTEAL or SAND)
+            place(over, filled, BAR.left, BAR.top)
+        end
     end
     pinToCanvas(canvas, box, PLATE_AT_Y)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
@@ -133,7 +138,8 @@ end
 -- The goal banner (art/ap-goal-banner.png, 1200x300 drawn at 600x150) in the upper third with what was done in its
 -- pill (where the Ctrl+F4 HUD probe put a sample line, 2026-11-05), for BANNER_TICKS. It takes the pop-up's place.
 local BANNER_TICKS = UTIL.updates(15)   -- 15 s (2026-11-08 test: 8 s was short; "could stick around a little longer")
-local BANNER_W, BANNER_H, BANNER_TEXT = 600, 150, { 155, 111 }
+local BANNER_W, BANNER_H = 600, 150
+local BANNER_TEXT = { left = 155, top = 111 }   -- the line's place in the banner's pill, in px of the banner as drawn
 function H.banner(line, tick)
     H.hide()
     local canvas, layout, why = hudCanvas()
@@ -143,7 +149,7 @@ function H.banner(line, tick)
     local box, over = hudBox(layout, BANNER_W, BANNER_H)
     local bs = over:AddChild(art)
     pcall(function() bs:SetHorizontalAlignment(ALIGN_FILL); bs:SetVerticalAlignment(ALIGN_FILL) end)
-    place(over, text(layout, line or "", TITLE_PT, BANNER_INK), BANNER_TEXT[1], BANNER_TEXT[2])
+    place(over, text(layout, line or "", TITLE_PT, BANNER_INK), BANNER_TEXT.left, BANNER_TEXT.top)
     pinToCanvas(canvas, box, BANNER_AT_Y)
     shown = { box = box, untilTick = tick + BANNER_TICKS, hud = UTIL.addr(layout), banner = true }
     log("goal banner: shown (" .. tostring(line) .. ")")

@@ -96,7 +96,7 @@ local STAMP_PX = 88
 -- Small Settlement's village. Data without the field (older area_centres files) keeps the full size.
 local STAMP_MIN_PX = 28
 local function stampSize(c)
-    local room = c[5]
+    local room = c.room
     if not room then return STAMP_PX end
     return math.max(STAMP_MIN_PX, math.min(STAMP_PX, math.floor(2 * room)))
 end
@@ -109,7 +109,7 @@ local function drawStamps(canvas, locked)
         local c = layout.centres[k]
         local tex = c and stampTexture(k)
         if tex then
-            local u, v = c[3] or c[1], c[4] or c[2]
+            local u, v = c.stampU, c.stampV
             local px = stampSize(c)
             canvas:K2_DrawTexture(tex, { X = u * RT_SIZE - px / 2, Y = v * RT_SIZE - px / 2 },
                 { X = px, Y = px }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, BLEND_TRANSLUCENT, 0,
@@ -308,7 +308,7 @@ end
 -- The standing walls (up unless both sides are open; open sea counts as open) as "u1,v1,u2,v2;..." on the map square.
 -- A piece runs along its yaw: (sin yaw, -cos yaw) in map u, v (the Art lane's mock lined them up with the labels so).
 local function wallSpec(passes)
-    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
+    local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local out = {}
     for _, w in ipairs(layout.walls) do
         if standing(w, passes) then

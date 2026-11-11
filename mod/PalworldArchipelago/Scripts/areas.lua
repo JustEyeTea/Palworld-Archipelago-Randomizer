@@ -12,9 +12,10 @@ local SEA = "Open sea"
 -- locked part of either cut. The 15 regions' cut is loaded at start.
 -- The seed's cut of the map, as data. Its fields change when the seed's Lock Size arrives (W.setLayout), so they are
 -- read through this table, never kept elsewhere: walls (the border pieces, area_walls*.lua), areas (the parts' names
--- by index), start (the starting part), map (area_map*.lua: which part each spot of the map is in), centres
--- (area_centres*.lua: where each part's stamp and icon go), shapes (area_shapes*.lua, loaded when first needed: only
--- for a map drawn without the compositor) and suffix ("" or "_regions", in the data files' names).
+-- by index), start (the starting part), map (area_map*.lua: which part each spot of the map is in), bounds (the map's
+-- xMin, xMax, yMin, yMax in world units), centres (area_centres*.lua, by area index: deepU, deepV its deepest point,
+-- stampU, stampV its stamp's place on the map square, room how far that is from the edge), shapes (area_shapes*.lua,
+-- loaded when first needed: only for a map drawn without the compositor) and suffix ("" or "_regions").
 local layout = {}
 local beyondNames = ""         -- the areas beyond the goal, sorted and joined: changes when the set does (setBeyond)
 local decoded = {}             -- map row -> its runs, decoded when first used (areaIndexAt)
@@ -22,7 +23,14 @@ local function useLayoutData(name)
     local suffix = name == "regions" and "_regions" or ""
     local walls = require("area_walls" .. suffix)
     layout.suffix, layout.walls, layout.areas, layout.start = suffix, walls.walls, walls.areas, walls.start
-    layout.map, layout.centres, layout.shapes = require("area_map" .. suffix), require("area_centres" .. suffix), nil
+    layout.map, layout.shapes = require("area_map" .. suffix), nil
+    local b = layout.map.bounds
+    layout.bounds = { xMin = b[1], xMax = b[2], yMin = b[3], yMax = b[4] }
+    layout.centres = {}
+    for k, row in pairs(require("area_centres" .. suffix)) do
+        layout.centres[k] = { deepU = row[1], deepV = row[2], stampU = row[3] or row[1], stampV = row[4] or row[2],
+                              room = row[5] }
+    end
     decoded = {}
 end
 
@@ -47,17 +55,19 @@ local function areaIndexAt(r, c)
     local runs = decoded[r]
     if not runs then
         runs = {}
-        for a, n in layout.map.rows[r + 1]:gmatch("(%d+),(%d+)") do runs[#runs + 1] = { tonumber(a), tonumber(n) } end
+        for a, n in layout.map.rows[r + 1]:gmatch("(%d+),(%d+)") do
+            runs[#runs + 1] = { area = tonumber(a), count = tonumber(n) }   -- (a run: count cells of one area)
+        end
         decoded[r] = runs
     end
     local col = 0
     for _, run in ipairs(runs) do
-        col = col + run[2]
-        if c < col then return run[1] end
+        col = col + run.count
+        if c < col then return run.area end
     end
 end
 local function cellOf(x, y)
-    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
+    local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local size = (x1 - x0) / layout.map.size
     return math.floor((x1 - x) / size), math.floor((y - y0) / size)
 end
