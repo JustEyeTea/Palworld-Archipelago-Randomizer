@@ -198,11 +198,26 @@ local function sinkStep()
     end
     sinking = still
 end
+-- Takes every opening piece down at once (a change of cut, or an error in the opening step): a piece left in no list
+-- would stand, still blocking, for good.
+local function destroyOpening()
+    for _, s in ipairs(sinking) do
+        pcall(function()
+            if s[1]:IsValid() then
+                s[1]:K2_DestroyActor()
+            end
+        end)
+    end
+    sinking = {}
+end
 -- Each core update (game thread): the opening pieces stepped, then the glow told where the player is.
 local function stepOpening()
     if #sinking > 0 then
         local ok, err = pcall(sinkStep)
-        if not ok then log("sinking error: " .. tostring(err)); sinking = {} end
+        if not ok then
+            log("sinking error: " .. tostring(err))
+            destroyOpening()
+        end
     end
     local ok, err = pcall(W.glowTick)
     if not ok then once("glow", "wall glow error: " .. tostring(err)) end
@@ -1880,7 +1895,8 @@ function W.setLayout(name)
     name = name == "regions" and "regions" or "areas"
     if name == W.layout then return false end
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
-    raised, nRaised, raisedAt, sinking, dressedAs, hiddenAt = {}, 0, {}, {}, {}, {}
+    destroyOpening()
+    raised, nRaised, raisedAt, dressedAs, hiddenAt = {}, 0, {}, {}, {}
     SUFFIX = name == "regions" and "_regions" or ""
     DATA, MAP, SHAPES = require("area_walls" .. SUFFIX), require("area_map" .. SUFFIX), nil
     CENTRES = require("area_centres" .. SUFFIX)

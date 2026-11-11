@@ -2004,6 +2004,35 @@ do  -- One explored-mask reading that tells nothing apart does not switch the fo
     takeAway()
     putBack()
 end
+do  -- Walls that are opening when the cut of the map changes, or when the opening step errors, are taken down, not
+    -- left standing in no list
+    local function openingAfterAPass(W, mine)
+        for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+        W.update(true, { [WD.areas[4]] = true }, offMap)
+        local list = {}
+        for _, a in ipairs(mine()) do if a.shrunkTo then list[#list + 1] = a end end
+        return list
+    end
+    local function standing(list)
+        local n = 0
+        for _, a in ipairs(list) do if not a.gone then n = n + 1 end end
+        return n
+    end
+    local W, mine = freshWalls()
+    local opening = openingAfterAPass(W, mine)
+    W.setLayout("regions")
+    local afterCut = standing(opening)
+    worldGoes(mine())
+    local W2, mine2 = freshWalls()
+    local opening2 = openingAfterAPass(W2, mine2)
+    opening2[1].IsValid = function() error("the opening step errors") end
+    W2.update(true, { [WD.areas[4]] = true }, offMap)
+    local afterError = standing(opening2) - 1                 -- (the piece that errors cannot be taken down)
+    expect(#opening > 0 and afterCut == 0 and #opening2 > 1 and afterError == 0,
+           "opening walls are taken down at a change of cut (" .. afterCut .. " of " .. #opening .. " left) and after an"
+           .. " error in the opening step (" .. afterError .. " of " .. (#opening2 - 1) .. " left)")
+    worldGoes(mine2())
+end
 end
 end)()
 
