@@ -962,6 +962,29 @@ end
 local SOON = require("soon")
 local later = SOON.later
 
+-- The core update never runs inside a hook. UE4SS can run its game-thread queue from inside a hook (a log showed the
+-- update's player lookup nested inside IsUnlockRecipeTechnology's hook, under a:get(); FindAllOf then got a bad
+-- argument and UE4SS logged "Ref was not function"), and an update inside a Blueprint hook would do widget work there,
+-- which crashes the game. So every hook callback runs through guarded(), and an update that finds itself inside one
+-- skips its turn. (The other way round is ordinary: the update refreshing the tech tree asks these hooks.)
+local inHook, inTick = false, false
+local function guarded(fn, ...)
+    local was = inHook
+    inHook = true
+    local ok, v = pcall(fn, ...)
+    inHook = was
+    return ok, v
+end
+-- A hook callback run through guarded(). An error is logged once under the hook's name, and the game's own result
+-- stands. Handed to menu.lua and mailbox.lua for their hooks too.
+local function guardedHook(name, cb)
+    return function(...)
+        local ok, v = guarded(cb, ...)
+        if ok then return v end
+        once("hookerr" .. name, "hook " .. name .. " error: " .. tostring(v))
+    end
+end
+
 local lazyHooks = {
     -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
     { class = CONTENT, fn = CONTENT .. ":IsUnlocked", cb = function(self, out)
@@ -1026,7 +1049,7 @@ local function registerLazyHook(h)
     if not cls or not cls:IsValid() then return end
     h.tries = (h.tries or 0) + 1
     if h.tries > 1 and h.tries % HOOK_RETRY_EVERY ~= 1 then return end
-    local ok, err = pcall(RegisterHook, h.fn, h.cb)
+    local ok, err = pcall(RegisterHook, h.fn, guardedHook(h.fn, h.cb))
     if ok then
         h.done = true
         log("hooked " .. h.fn .. (h.tries > 1 and (" (try " .. h.tries .. ")") or ""))
@@ -1071,7 +1094,7 @@ local function buy(tech)
 end
 
 local okh, errh = pcall(RegisterHook, "/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer",
-    function(self, name)
+    guardedHook("RequestUnlockTechnology_ToServer", function(self, name)
         local tech = name:get():ToString()
         if not D.shop[tech] then return end
         name:set(FName("AP_ShopSlot"))
@@ -1082,7 +1105,7 @@ local okh, errh = pcall(RegisterHook, "/Script/Pal.PalNetworkPlayerComponent:Req
             local ok, err = pcall(buy, tech)
             if not ok then log("buy error: " .. tostring(err)) end
         end)
-    end)
+    end))
 log(okh and "hooked research requests" or ("could not hook research requests: " .. tostring(errh)))
 
 -- Whether a slot can be bought, asked by the game before it opens the confirm box. A bought slot never can. A slot
@@ -1130,19 +1153,6 @@ local function unlockableCheck(self, ...)
         once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r) .. (r == nil and (" (the game says " .. tostring(game) .. ")") or ""))
     end
     return r
-end
--- The core update never runs inside a research hook. 2026-11-08 (dev.4) log: the update's player lookup ran nested
--- inside IsUnlockRecipeTechnology's hook (its traceback: FindAllOf <- playerContext <- coreTick <- a:get() in techArg
--- <- the hook); FindAllOf then got a bad argument and UE4SS logged "Ref was not function": UE4SS can run its game-thread
--- queue from inside a hook. An update that finds itself inside one skips its turn. (The other way round is ordinary:
--- the update refreshing the tech tree asks these hooks, and they answer as always.)
-local inHook, inTick = false, false
-local function guarded(fn, ...)
-    local was = inHook
-    inHook = true
-    local ok, v = pcall(fn, ...)
-    inHook = was
-    return ok, v
 end
 local oku, erru = pcall(RegisterHook, "/Script/Pal.PalTechnologyData:IsUnlockableRecipeTechnology", function() end,
     function(self, ...)
@@ -1453,8 +1463,10 @@ MENU.install({
     openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
     crateWindow = function(action) local ok, err = pcall(CWIN.action, action); if not ok then log("crate window error: " .. tostring(err)) end end,
     openMailbox = function(context) MAIL.open(context) end,
+    guardedHook = guardedHook,
 })
-MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end })
+MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end,
+               guardedHook = guardedHook })
 CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, nameOf = function(id) return MAIL.nameOf(id) end, claim = MENU.claim, unclaim = MENU.unclaim,
                openCrate = function(kind)
                    local ok, k, out = pcall(openCrate, kind)
@@ -1990,7 +2002,7 @@ local lastFrame = nil         -- the engine frame the last update ran in
 -- Never inside a research hook, nor inside itself (see guarded(), above the research hooks), and at most once a frame:
 -- waits are counted in updates, and updates run back to back would use them up with no time passing.
 local function coreTick()
-    if inHook or inTick then once("nested", "update skipped: it came inside a research hook or itself (UE4SS ran it nested)"); return end
+    if inHook or inTick then once("nested", "update skipped: it came inside a hook or itself (UE4SS ran it nested)"); return end
     local f = engineFrame()
     if f and f == lastFrame then return end
     lastFrame = f

@@ -1769,6 +1769,22 @@ expect(cards[2].shown.clickable == true and cards[2].shown.name == "Campfire",
 req.v = FNameOf("Workbench"); research(nil, req)
 expect(req.v:ToString() == "Workbench", "level-1 research left alone")
 ;(function()
+    print("an update UE4SS runs inside a Blueprint hook skips its turn")
+    local CONTENT = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content."
+        .. "WBP_MainMenu_Technology_Content_C:IsUnlocked"
+    local walks, fao = 0, FindAllOf
+    FindAllOf = function(class, ...)
+        if class == "PalPlayerController" then walks = walks + 1 end
+        return fao(class, ...)
+    end
+    local card = { BindedTechnologyName = FNameOf("RepairBench") }
+    frameCount = frameCount + 1                             -- (a new frame: only the hook can stop it)
+    hooks[CONTENT]({ get = function() loop(); return card end }, { set = function() end })
+    FindAllOf = fao
+    expect(walks == 0 and logged("update skipped: it came inside a hook"),
+           "the card's IsUnlocked hook: no update ran inside it: " .. walks .. " controller walk(s)")
+end)()
+;(function()
     print("a bought slot's check is sent again on every connection, and kept in the save file")
     local loc = D.shop.RepairBench.loc
     checks[loc] = nil                                -- as if it went into a socket that was already dead

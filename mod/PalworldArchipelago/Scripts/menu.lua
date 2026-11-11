@@ -38,7 +38,8 @@ local INVENTORY_TAB = "WBP_InventoryEquipment_ForDisplay_C"
 local NOTHING = "\1"           -- what the window's result holds until OK is pressed
 
 local api                      -- status(), server(), slot(), password(), connect(server, slot, password), disconnect(),
-                               -- mailboxLabel(), openMailbox(context)
+                               -- mailboxLabel(), openMailbox(context), guardedHook(name, fn): a hook callback that
+                               -- no update can run inside (main.lua)
 local menus = {}               -- title menu address -> { rows = kind -> button, boxes = kind -> size box, list, banner,
                                --   open = the Archipelago menu is showing, hidden = the game's buttons it collapsed }
 local escMenus = {}            -- Esc menu address -> { mailbox = button, menu = the Esc menu }
@@ -465,7 +466,7 @@ local function hookOnce(path, fn)
     if not cls or not cls:IsValid() then return end
     hookTries[path] = (hookTries[path] or 0) + 1
     if hookTries[path] > 1 and hookTries[path] % 10 ~= 1 then return end
-    local ok, err = pcall(RegisterHook, path, fn)
+    local ok, err = pcall(RegisterHook, path, api.guardedHook and api.guardedHook(path, fn) or fn)
     if ok then
         hooked[path] = true
         log("menu: hooked " .. path:match("[^:]+$") .. (hookTries[path] > 1 and (" (try " .. hookTries[path] .. ")") or ""))

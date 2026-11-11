@@ -26,7 +26,7 @@ local SPOT = { X = -1050000, Y = 700000, Z = -40000 }   -- beyond the map's far 
 local SPAWN_WAIT = 20                                    -- ticks (6 s) for a new chest to appear
 local OK_RESULTS = { [0] = true, [1] = true }            -- EPalItemOperationResult Success, SuccessNoOperation
 
-local env                       -- notify(text), save(), cfg, connected()
+local env                       -- notify(text), save(), cfg, connected(), guardedHook(name, fn) (as menu.lua's api)
 M.queue = {}                    -- { { id = static item id, n = count } } in arrival order, one entry per item
 M.stale = false                 -- the last chest view never closed (game quit): the chest holds copies of the list
 local want = nil                -- an open was asked for: the context object (a pawn or a widget)
@@ -312,10 +312,11 @@ local function hookRows()
     rowTries = rowTries + 1                -- (tried on every window opening, the only time this runs)
     -- Only note which button it was: the list is rebuilt on the next update, not inside the click (that would remove
     -- the very button whose click is still running).
-    local ok, err = pcall(RegisterHook, ROW_CLICK, function(self)
+    local function onClick(self)
         local okc, errc = pcall(function() clickedRow = win and win.rows[addr(self:get())] or nil end)
         if not okc then log("mailbox click error: " .. tostring(errc)) end
-    end)
+    end
+    local ok, err = pcall(RegisterHook, ROW_CLICK, env.guardedHook and env.guardedHook(ROW_CLICK, onClick) or onClick)
     if ok then rowHooked = true; log("mailbox: hooked the LogicMod's buttons")
     elseif rowTries == 1 then log("mailbox: could not hook the LogicMod's buttons yet: " .. tostring(err):match("^[^\n]*")) end
 end
