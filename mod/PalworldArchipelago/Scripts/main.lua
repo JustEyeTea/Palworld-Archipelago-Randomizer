@@ -40,7 +40,7 @@ local TRAPS = require("traps")
 local WALL_HINTS = require("wall_hints")
 local WALLS = require("walls")
 local WORLD = require("world")
-local WAIT, PHASE, isPhase = CLOCK.WAIT, CLOCK.PHASE, CLOCK.isPhase
+local WAIT, PHASE = CLOCK.WAIT, CLOCK.PHASE
 local ap = STATE.ap
 local cfg = CONFIG.cfg
 local guardedHook = UTIL.guardedHook
@@ -180,32 +180,6 @@ local function update(ctx)
     runPhase(pawn)
 end
 
--- Ctrl+0 (perf test tools): after each update, the per-update load 6dd356e had and this build no longer has, so one
--- session can compare old and new. Results are thrown away; the game sees nothing it did not see in 6dd356e (the cards
--- are labelled again with the same text). An approximate replay of the cost, not the old code:
-local function oldLoad(ctx)
-    P.start("legacy")
-    FindFirstOf("PalPlayerController")                   -- the menu's own controller lookup
-    if ctx.pawn then FindAllOf("WBP_TitleMenu_C") end    -- the title menu, looked for in a world too
-    if ap.ready and isPhase(PHASE.records) then FindAllOf("PalPlayerState") end     -- a second player-state walk
-    if MAIL.viewOpen() then                              -- the chest view's own player and window lookups
-        FindFirstOf("PalPlayerController")
-        FindAllOf("PalPlayerState")
-        FindAllOf("WBP_ItemChest_C")
-    end
-    if WALLS.mapShown() then FindFirstOf("PalGameInstance") end
-    AP_SlotData("options.area_locks")
-    WALLS.oldSweep()                                     -- every raised piece checked every update
-    for _, card in ipairs(SHOP_CARDS.lastCards() or {}) do   -- every card labelled every update
-        if card:IsValid() then
-            local key = safe(function() return tostring(card:GetAddress()) end) or card
-            pcall(SHOP_CARDS.relabel, card, key, true)
-        end
-    end
-    if ap.ready and isPhase(PHASE.items) then writeSave(true) end   -- the save written whether or not it changed
-    P.stop("legacy")
-end
-
 -- The core update, on the game thread. LoopAsync's callback runs on another thread over the same Lua state, so it does
 -- nothing there but hand over this function, made once (2026-11-08: two crashes with the 08E98397 stack came from a
 -- 33 ms loop that ran Lua on that thread; building a new closure there every time is the same risk, smaller).
@@ -225,7 +199,7 @@ local function coreTickBody()
     if ran then
         local ok, err = pcall(update, ctx)
         if not ok then onceErr("update", err, "update error: " .. tostring(err)) end
-        if P.legacy then pcall(oldLoad, ctx) end
+        if P.legacy then pcall(P.replayOldCost, ctx) end
         P.world(ctx)
     end
     PLAYER.setFrame(nil)
@@ -273,7 +247,9 @@ end
 -- The performance probe (perf_log=1; perf.lua).
 local function installPerfProbe()
     P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
-                     mailOpen = function() return MAIL.viewOpen() end })
+                     mailOpen = function() return MAIL.viewOpen() end,
+                     oldCost = { mapShown = WALLS.mapShown, sweepWalls = WALLS.oldSweep, cards = SHOP_CARDS.lastCards,
+                                 relabel = SHOP_CARDS.relabel, writeSave = writeSave } })
 end
 
 -- The files that keep files next to the mod (the save, research.txt, mod_techs.txt, the icons) get its folder.
