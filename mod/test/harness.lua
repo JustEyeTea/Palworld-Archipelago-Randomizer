@@ -1862,6 +1862,30 @@ do  -- A seed with area locks, then one without in the same session: C++ is told
     takeAway()
     putBack()
 end
+do  -- Walls that cannot be made are reported: a spawn that gives no actor (logged once, and no more spawns tried in
+    -- that update), and a wall class that cannot be found (a game update renamed it)
+    local tries = 0
+    local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
+    gameplay.BeginDeferredActorSpawnFromClass = function()
+        tries = tries + 1
+        return { IsValid = function() return false end }
+    end
+    local W = freshWalls()
+    for _ = 1, 20 do W.update(true, {}, offMap) end
+    gameplay.BeginDeferredActorSpawnFromClass = realSpawn
+    expect(logged("could not raise wall %d+: the spawn gave no actor") and tries == 20,
+           "a spawn that gives no actor is logged, and only one is tried an update: " .. tries .. " in 20 updates")
+    local realFind = StaticFindObject
+    StaticFindObject = function(path)
+        if path:find("BP_PalBlockingVolume", 1, true) then return nil end
+        return realFind(path)
+    end
+    local W2, mine = freshWalls()
+    for _ = 1, 40 do W2.update(true, {}, offMap) end
+    StaticFindObject = realFind
+    expect(#mine() == 0 and logged("area locks: no walls: the wall class .*BP_PalBlockingVolume_C was not found"),
+           "a wall class that cannot be found is logged")
+end
 end
 end)()
 

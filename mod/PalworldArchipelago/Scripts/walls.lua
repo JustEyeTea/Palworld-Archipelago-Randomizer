@@ -75,6 +75,13 @@ local function ready()
     if cls and cls:IsValid() then W.keep(cls) end
     return cls ~= nil and cls:IsValid() and gs ~= nil and gs:IsValid()
 end
+-- What ready() did not find, for the log: the wall class (a game update could rename it) or the spawning library.
+local function missingForWalls()
+    if not (cls and cls:IsValid()) then
+        return "the wall class " .. WALL
+    end
+    return "GameplayStatics"
+end
 
 local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
 -- Forgets piece i was raised, with its look: a new actor raised for it starts shown and undressed.
@@ -264,17 +271,26 @@ local catchingUp = false              -- back to full after a Ctrl+7 test state:
 function W.update(enabled, passes, context)
     checkSome()
     W.lastPasses, W.lastContext = passes, context
-    if not ready() then return end
+    if not ready() then
+        once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
+        return
+    end
     local budget = PER_TICK
+    local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
     for i, w in ipairs(DATA.walls) do
         if budget <= 0 then break end
         local up = enabled and not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes))
-        if up and not raised[i] then
-            local ok, err = pcall(raise, i, context)
+        if up and not raised[i] and spawning then
+            local ok, made = pcall(raise, i, context)
             if not ok then
+                local err = tostring(made)
                 -- Once per kind of error: a raise that fails fails again on every update (three lines a second).
-                once("raise" .. tostring(err):gsub("0x%x+", ""):gsub("%d+", "#"), "could not raise wall " .. i .. ": " .. tostring(err))
+                once("raise" .. err:gsub("0x%x+", ""):gsub("%d+", "#"), "could not raise wall " .. i .. ": " .. err)
                 return
+            end
+            if not made then
+                once("raisenil", "could not raise wall " .. i .. ": the spawn gave no actor")
+                spawning = false
             end
             budget = budget - 1
         elseif not up and raised[i] then
