@@ -1,7 +1,8 @@
 """Item and location tables for the Palworld APWorld, built from game_data. IDs are stable: each kind has its own
 block, and an id is a row's position in its game_data table (the Paldeck in its own order). tools/gen_apworld_data.py
 keeps the rows of the last game_data.py where they were and appends new ones, so a game update adds ids at the end of
-each block and never moves one; test/test_ids.py holds the 1.0.5 ids to it."""
+each block and never moves one; test/test_ids.py holds every id to test/frozen_ids.tsv."""
+from collections import Counter
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from .game_data import (ALPHA_KEYS, ALPHAS, AREA_LIST, AREAS, BORDERS, FAST_TRAVEL, MOUNTS, PALDECK, PIECES,
@@ -111,6 +112,8 @@ CAPTURE_NAMES = {e: f"Capture: {v[0]}" + (f" ({e})" if _names.count(v[0]) > 1 el
 # The code still uses the older words, the other way round: "area" (AREA_LIST, PASS_AREAS, the "areas" layout)
 # means one of the 15 regions, and "region" (REGION_MODE, REGION_PASS_AREAS, the "regions" layout) one of the 75
 # areas. They are renamed file by file during the code tour (docs/architecture.md).
+# Pass ids count from the list's second row (the start has no pass), so they hold only while the start stays first:
+# checked at the end of this file.
 PASS_AREAS = [a for a in AREA_LIST if a != START_AREA]
 SEA = "Open sea"
 
@@ -120,7 +123,8 @@ def region_pass(region: str) -> str:
     return f"Region Pass: {region}"
 
 
-# The 75 areas (Lock Size: areas): each named area of the game on its own, with an Area Pass.
+# The 75 areas (Lock Size: areas): each named area of the game on its own, with an Area Pass. Their ids count from
+# the second row too, as PASS_AREAS' do.
 REGION_PASS_AREAS = [r for r in REGION_MODE["AREA_LIST"] if r != REGION_MODE["START"]]
 
 
@@ -237,12 +241,25 @@ LAYOUTS = {
                       REGION_MODE["TOWERS"], frozenset(REGION_MODE["SKY"]), REGION_MODE["WORLD_TREE"]),
 }
 
-assert len(ITEM_NAME_TO_ID) == len(ITEMS), "duplicate item names"
-assert len({i.id for i in ITEMS}) == len(ITEMS), "duplicate item ids"
-assert len(LOCATION_NAME_TO_ID) == len(LOCATIONS), "duplicate location names"
-assert DECOR_TECHS <= {t.id for t in SHOP_TECHS} and not DECOR_TECHS & PREREQ_TECHS, \
-    "décor techs must be plain shop techs"
-assert PREREQ_TECHS <= set(TECH_BY_ID), "progression techs must be techs"
+
+# --- checks made when the world loads: each names the rows that break it ------------------------------------------
+def _repeated(values) -> List:
+    """The values that occur more than once, sorted."""
+    return sorted(value for value, count in Counter(values).items() if count > 1)
+
+
+assert not _repeated(i.name for i in ITEMS), f"item names used twice: {_repeated(i.name for i in ITEMS)}"
+assert not _repeated(i.id for i in ITEMS), f"item ids used twice: {_repeated(i.id for i in ITEMS)}"
+assert not _repeated(l.name for l in LOCATIONS), f"location names used twice: {_repeated(l.name for l in LOCATIONS)}"
+assert not _repeated(l.id for l in LOCATIONS), f"location ids used twice: {_repeated(l.id for l in LOCATIONS)}"
+_decor_not_shop = sorted(DECOR_TECHS - {t.id for t in SHOP_TECHS})
+assert not _decor_not_shop, f"décor techs that are not shop techs: {_decor_not_shop}"
+_decor_needed = sorted(DECOR_TECHS & PREREQ_TECHS)
+assert not _decor_needed, f"décor techs that progression needs (they must be plain shop techs): {_decor_needed}"
+_unknown_prereqs = sorted(PREREQ_TECHS - set(TECH_BY_ID))
+assert not _unknown_prereqs, f"progression techs that are not in game_data.TECHS: {_unknown_prereqs}"
+assert AREA_LIST[0] == START_AREA and REGION_MODE["AREA_LIST"][0] == REGION_MODE["START"], \
+    "pass ids count from the second row: the start must stay the first row of AREA_LIST and REGION_MODE's AREA_LIST"
 
 
 # --- groups (for hints, start_inventory and the like) -----------------------------------------------------------

@@ -192,7 +192,7 @@ class TestMaterialBundles(PalworldTestBase):
 
 
 class TestTechSlotNames(PalworldTestBase):
-    """Tech-tree checks are named by their place in the menu (2026-11-05 run: "Shop: <vanilla tech>" misled others)."""
+    """Tech-tree checks are named by their place in the menu, because a slot may hold anything."""
 
     def test_names_are_level_and_slot(self):
         from ..data import TECH_BY_ID, shop_location

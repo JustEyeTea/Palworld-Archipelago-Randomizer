@@ -135,13 +135,15 @@ Every item and every location, each with its name and permanent id.
   Its keys use the older names: `areas` is the 15 regions (Region Passes) and `regions` the 75 areas (Area Passes).
 - **Groups.** `ITEM_GROUPS` and `LOCATION_GROUPS` are the names players can use for hints and `start_inventory`.
 
-A few `assert`s at import time stop generation at once if two items share a name or an id.
+A few `assert`s at import time stop generation at once if two items or locations share a name or an id, or a
+hand-typed tech id is not in the game's table; each message names the rows that break it.
 
 #### Ids never move
 
 Every id is `BASE` (`0x50A10000`, 1352728576) plus an offset in a fixed block. Old seeds, trackers and other players'
 clients keep working after a game update because a row's id is its position in its table, and new rows are only ever
-added at the end. `test/test_ids.py` fails if any 1.0.5 id moves.
+added at the end. `test/test_ids.py` fails if any id in `test/frozen_ids.tsv` moves or is gone, and names it;
+`tools/freeze_ids.py` writes that file again after a rename that keeps every id.
 
 | Offset | Items | Locations |
 |---|---|---|
@@ -274,7 +276,7 @@ follow as the tour reaches them).
 
 - `tools/ap_tests.sh` runs Archipelago's own test suites for this world (unique names and ids, filling a multiworld,
   the docs pages, the website), then the world's own tests in `apworld/palworld/test/`:
-  - `test_ids.py`: ids never move (a fingerprint of every 1.0.5 name and id);
+  - `test_ids.py`: ids never move (every name and id, frozen in `frozen_ids.tsv`);
   - `test_logic.py`: the level climb, mounts for the sea and the sky;
   - `test_progression.py`: each goal's plan (cap, passes, Regions Beyond the Goal, Gear Logic, the points budget);
   - `test_areas.py`: Lock Size: areas;
