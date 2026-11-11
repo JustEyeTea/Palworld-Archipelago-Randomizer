@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from Options import Choice, DeathLink, DefaultOnToggle, OptionGroup, PerGameCommonOptions, Range, Toggle
 
+from .data import MAX_LEVEL
+
 
 class Goal(Choice):
     """What wins the game.
@@ -62,7 +64,7 @@ class CheckLevel(Range):
     register enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2."""
     display_name = "Check Level Cap"
     range_start = 0
-    range_end = 80
+    range_end = MAX_LEVEL
     default = 0
 
 

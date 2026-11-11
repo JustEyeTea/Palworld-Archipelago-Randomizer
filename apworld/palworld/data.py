@@ -32,21 +32,25 @@ class Tech(NamedTuple):
 
 TECHS = [Tech(*row) for row in TECH_ROWS]
 STARTER_LEVEL = 1                                  # level-1 techs stay vanilla: never shop slots, never items
+# The game's highest player level. Its copies: the Check Level Cap's range (options.py) and the level counts in the
+# options' player text, which test_options.py checks against the code.
+MAX_LEVEL = 80
 SHOP_TECHS = [t for t in TECHS if t.level > STARTER_LEVEL]
 TECH_BY_ID = {t.id: t for t in TECHS}
 SPHERE_TECHS = sorted((t for t in TECHS if t.id.startswith("Special_PalSphere_Grade_")), key=lambda t: t.id)
-BREEDING_TECH = "BreedFarm"
-LAB_TECH = "Lab"
-# What crafting each sphere needs besides the sphere tech (DT_ItemRecipeDataTable): Mega, Giga and Hyper take Copper
-# Ingots (Primitive Furnace), Ultra Iron Ingots (Improved Furnace), Legendary Refined Ingots (Electric Furnace), and
-# Ultimate Refined Ingots and Plastic, made from Crude Oil.
+BREEDING_TECH = "BreedFarm"                        # Breeding Farm
+LAB_TECH = "Lab"                                   # Pal Labor Research Lab
+# What crafting each sphere needs besides the sphere tech (DT_ItemRecipeDataTable), as the techs that make it: the
+# furnace for its ingots, and for the Ultimate Sphere also Plasteel and the Crude Oil it is made from. The Pal Sphere
+# has no row: it needs nothing more, and the logic gives it no recipe gate.
 SPHERE_NEEDS = {
-    "Special_PalSphere_Grade_02": ("Product_Ingot_Grade_01_Copper",),
-    "Special_PalSphere_Grade_03": ("Product_Ingot_Grade_01_Copper",),
-    "Special_PalSphere_Grade_04": ("Product_Ingot_Grade_01_Copper",),
-    "Special_PalSphere_Grade_05": ("Product_Ingot_Grade_02_Iron",),
-    "Special_PalSphere_Grade_06": ("Product_Ingot_Grade_03_Steal",),
-    "Special_PalSphere_Grade_07": ("Product_Ingot_Grade_03_Steal", "Plastic", "OilPump"),
+    "Special_PalSphere_Grade_02": ("Product_Ingot_Grade_01_Copper",),      # Mega Sphere: Primitive Furnace
+    "Special_PalSphere_Grade_03": ("Product_Ingot_Grade_01_Copper",),      # Giga Sphere: Primitive Furnace
+    "Special_PalSphere_Grade_04": ("Product_Ingot_Grade_01_Copper",),      # Hyper Sphere: Primitive Furnace
+    "Special_PalSphere_Grade_05": ("Product_Ingot_Grade_02_Iron",),        # Ultra Sphere: Improved Furnace
+    "Special_PalSphere_Grade_06": ("Product_Ingot_Grade_03_Steal",),       # Legendary Sphere: Electric Furnace
+    "Special_PalSphere_Grade_07": ("Product_Ingot_Grade_03_Steal",         # Ultimate Sphere: Electric Furnace,
+                                   "Plastic", "OilPump"),                  # Plasteel, Crude Oil Extractor
 }
 # Mounts that cross the open sea (flying or swimming) and those that fly (the only way up to the Sky Islands): saddle
 # tech -> the Pal it is for.
@@ -60,11 +64,31 @@ PREREQ_TECHS = ({t.prereq for t in TECHS if t.prereq} | {BREEDING_TECH, LAB_TECH
 # something (work-speed boosters such as the Silo or Stump, fridges, flea markets, the pylon) are not in it. None of
 # these is another tech's prerequisite.
 DECOR_TECHS = frozenset(
-    ["Torch", "WallTorch", "Lamp", "CeilingLamp", "LargeLamp", "LargeCeilingLamp", "Signboard", "WallSignboard",
-     "Headstone", "TableCircular", "TableDresser01_Stone", "JetDragonStatue", "IceHorseStatue", "FurnitureSet_Japanese",
-     "HunterFlagSet", "BelieverFlagSet", "FireCultFlagSet", "PoliceFlagSet", "ScientistFlagSet", "NinjaFlagSet",
-     "DarkIslandFlagSet", "SkyIslandFlagSet"]
+    ["Torch",                      # Mounted Torch
+     "WallTorch",                  # Wall Torch
+     "Lamp",                       # Lamp
+     "CeilingLamp",                # Ceiling Lamp
+     "LargeLamp",                  # Large Mounted Lamp
+     "LargeCeilingLamp",           # Large Ceiling Lamp
+     "Signboard",                  # Sign
+     "WallSignboard",              # WallSignBoard
+     "Headstone",                  # Tombstone
+     "TableCircular",              # Tidy Table Set
+     "TableDresser01_Stone",       # Antique Dresser
+     "JetDragonStatue",            # Jetragon Statue
+     "IceHorseStatue",             # Frostallion Statue
+     "FurnitureSet_Japanese",      # Japanese-Style Furniture Set
+     "HunterFlagSet",              # Rayne Syndicate Flag Set
+     "BelieverFlagSet",            # Free Pal Alliance Flag Set
+     "FireCultFlagSet",            # Brothers of the Eternal Pyre Flag Set
+     "PoliceFlagSet",              # PIDF Flag Set
+     "ScientistFlagSet",           # PAL Genetic Research Unit Flag Set
+     "NinjaFlagSet",               # Moonflower Flag Set
+     "DarkIslandFlagSet",          # Feybreak Flag Set
+     "SkyIslandFlagSet"]           # Azure Covenant Flag Set
+    # The eight Faux ... Greenery, Foliage, Cherry Blossoms and Bamboo Sets
     + [f"FurnitureTree_{c}" for c in ("Green", "Red", "Yellow", "Cherry", "Tropical", "Snow", "Desert", "Bamboo")]
+    # The 32 numbered sets, Wooden Living Room Furniture Set (1) to Antique High Quality Furniture Set (32)
     + [f"FurnitureSet_{n}" for n in range(1, 33)])
 
 
@@ -134,7 +158,7 @@ def area_pass(area: str) -> str:
 
 
 TOWER_EVENTS = {name: f"{name} Defeated" for name, _ in TOWERS}
-LEVELS = list(range(2, 81))
+CHECK_LEVELS = list(range(STARTER_LEVEL + 1, MAX_LEVEL + 1))     # the player levels that can be checks
 
 # --- filler ----------------------------------------------------------------------------------------------------
 FILLER = ["Tech Points +2", "Ancient Tech Points +1", "Wood Bundle", "Stone Bundle", "Paldium Bundle",
@@ -187,7 +211,7 @@ def _locations() -> List[LocationDef]:
             for i, (name, entry, level, area) in enumerate(ALPHAS)]
     out += [LocationDef(name, BASE + 4000 + i, "fast_travel", area, fid)
             for i, (name, fid, area) in enumerate(FAST_TRAVEL)]
-    out += [LocationDef(f"Level {n}", BASE + 5000 + n, "level", None, n) for n in LEVELS]
+    out += [LocationDef(f"Level {n}", BASE + 5000 + n, "level", None, n) for n in CHECK_LEVELS]
     out += [LocationDef(f"Beat the {name}", BASE + 6000 + i, "tower", area, name)
             for i, (name, area) in enumerate(TOWERS)]
     return out

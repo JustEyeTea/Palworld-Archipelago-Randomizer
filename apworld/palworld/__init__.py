@@ -12,20 +12,26 @@ from worlds.AutoWorld import WebWorld, World
 
 from .data import (BREEDING_TECH, CATCHABLE, CRATE, DECOR_TECHS, DIRECT, FILLER, FLYING_MOUNTS, ITEM_GROUPS,
                    ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS,
-                   PREREQ_TECHS, PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS, SPHERE_NEEDS,
-                   SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, Layout, Tech, shop_location, tech_item)
-from .game_data import TOWERS
+                   MAX_LEVEL, PREREQ_TECHS, PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS, SHOP_TECHS,
+                   SPHERE_NEEDS, SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TOWER_EVENTS, TRAPS, Layout, Tech,
+                   shop_location, tech_item)
+from .game_data import GAME_VERSION, TOWERS
 from .options import PalworldOptions, option_groups, options_presets
 
+# Tuning, in player levels unless said. The options' player text (options.py, docs/en_Palworld.md) repeats
+# TOWER_LEVELS, TOWER_MARGIN, PALDECK_MARGIN, RELIC_LEVEL and MAX_LEVEL; test_options.py checks options.py's copies.
 FREE_LEVEL = 15              # levels anyone reaches in the starting zone
-LEVEL_SLACK = 8              # an area lets you level about this far past its typical Pal level
+LEVELS_PAST_PIECE = 8        # a piece lets a player level about this far past its typical Pal level
+LEVELS_BELOW_PIECE = 8       # and only a player at most this far below that level can start levelling there
+WORLD_TREE_BOSS_MARGIN = 4   # the World Tree boss asks for this much past its piece's Pal level (half a climb)
 SPHERE_STEP = 10             # each sphere tier catches Pals about this many levels higher
 TOWER_MARGIN = 8             # levels a player passes the last tower they need (the Towers goal's check level)
 PALDECK_MARGIN = 5           # the same for the Pal that completes a Paldeck goal
 RELIC_LEVEL = 30             # the Relic Hunt goal's check level when left on auto
-MAX_LEVEL = 80
 TECH_POINTS_PER_LEVEL = 6    # the game's tech points for each level (1.0.5 tables)
 ANCIENT_POINTS_PER_TOWER = 5  # Ancient tech points a tower boss gives
+NO_LEVEL = MAX_LEVEL + 1     # "never": above every real level, so it fails any "<= cap" test
+UNVISITED = (NO_LEVEL + 1, 0)  # corridor's cost of a piece it has not reached yet: worse than any real route
 WORLD_TREE_EVENT = "World Tree Boss Defeated"
 # The level each tower's boss fight asks for (Zoe, Lily, Axel, Marcus, Victor, Saya, Bjorn, Auri; from web research,
 # not the game's tables), which is also the order a Towers goal takes them in.
@@ -50,7 +56,7 @@ class Levels:
 
     def boss(self, piece: str) -> int:
         """The level a boss in this piece asks for (as the logic has it)."""
-        return piece_level(self.layout, piece) + LEVEL_SLACK // 2
+        return piece_level(self.layout, piece) + WORLD_TREE_BOSS_MARGIN
 
     def tech(self, tech: Tech) -> int:
         """The level from which a tech can be had: its own, or its tower's if it needs one."""
@@ -61,12 +67,12 @@ class Levels:
         parents' level and the Breeding Farm's. With `live`, only sources in those pieces count."""
         sources = self.layout.sources
         caught = lambda s: s[0] in ("wild", "alpha", "dungeon") and (live is None or s[1] in live)
-        best = MAX_LEVEL + 1
+        best = NO_LEVEL
         for source in sources[entry]:
             if caught(source):
                 best = min(best, int(source[2]))
             elif breed and source[0] == "breed" and all(p in DIRECT for p in source[1]):
-                parents = max(min((int(s[2]) for s in sources[p] if caught(s)), default=MAX_LEVEL + 1)
+                parents = max(min((int(s[2]) for s in sources[p] if caught(s)), default=NO_LEVEL)
                               for p in source[1])
                 best = min(best, max(parents, self.tech(TECH_BY_ID[BREEDING_TECH])))
         return best
@@ -225,7 +231,7 @@ class PalworldWorld(World):
             return self.every_area()
         low: Dict[str, int] = {}
         for piece, area in layout.pieces.items():
-            low[area] = min(low.get(area, MAX_LEVEL + 1), piece_level(layout, piece))
+            low[area] = min(low.get(area, NO_LEVEL), piece_level(layout, piece))
         # Up to the cap, but never short of what the goal's towers need to level for (a low cap set by hand only
         # takes checks away, not the areas a player levels in).
         need = max([self.cap] + [self.lv.tower[t] + TOWER_MARGIN for t in self.goal_towers])
@@ -262,7 +268,7 @@ class PalworldWorld(World):
             for nxt in nbrs.get(piece, ()):
                 area = layout.pieces[nxt]
                 key = (max(worst, 0 if area in scope else low[area]), steps + 1)
-                if key < best.get(nxt, (MAX_LEVEL + 2, 0)):
+                if key < best.get(nxt, UNVISITED):
                     best[nxt], prev[nxt] = key, piece
                     heapq.heappush(heap, (key[0], key[1], nxt))
         path, piece = [], target
@@ -288,9 +294,9 @@ class PalworldWorld(World):
         top = FREE_LEVEL
         levels = self.layout.levels
         for a in sorted((a for a in levels if a in self.live), key=levels.get):
-            if levels[a] - LEVEL_SLACK > top:
+            if levels[a] - LEVELS_BELOW_PIECE > top:
                 break
-            top = max(top, int(levels[a]) + LEVEL_SLACK)
+            top = max(top, int(levels[a]) + LEVELS_PAST_PIECE)
         return min(MAX_LEVEL, top)
 
     def reach_by_land(self) -> FrozenSet[str]:
@@ -384,15 +390,16 @@ class PalworldWorld(World):
         return piece in self.live and state.can_reach_region(piece, self.player)
 
     def max_level(self, state: CollectionState) -> int:
-        """How far the player can level. An area takes you LEVEL_SLACK past its Pals' level once you can catch them and
-        are no more than LEVEL_SLACK below them, so levels climb area by area from the starting zone."""
+        """How far the player can level. A piece takes you LEVELS_PAST_PIECE past its Pals' level once you can catch
+        them and are no more than LEVELS_BELOW_PIECE below them, so levels climb piece by piece from the starting
+        zone."""
         top = FREE_LEVEL
         levels = self.layout.levels
         for a in sorted((a for a in levels if a in self.live), key=levels.get):
-            if levels[a] - LEVEL_SLACK > top:
+            if levels[a] - LEVELS_BELOW_PIECE > top:
                 break
             if self.area_open(state, a) and self.can_catch_at(state, levels[a], top):
-                top = max(top, int(levels[a]) + LEVEL_SLACK)
+                top = max(top, int(levels[a]) + LEVELS_PAST_PIECE)
         return top
 
     def level_ok(self, state: CollectionState, level: int) -> bool:
@@ -672,6 +679,6 @@ class PalworldWorld(World):
                 "check_level": self.cap,                                   # checks above it are not in this seed
                 "beyond_goal_areas": "|".join(self.beyond_goal_areas()),   # passes not in this seed (beyond_goal)
                 "research_techs": ",".join(sorted(self.research())),   # techs the mod leaves as normal research
-                "game_version": "1.0.5.102999",
+                "game_version": GAME_VERSION,
                 "slot": self.player,
                 "seed": self.multiworld.seed_name}   # the mod keeps its per-seed state (items already given) under this
