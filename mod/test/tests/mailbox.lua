@@ -445,9 +445,21 @@ group("the mailbox", function()
         local lostView = MB.viewOpen()
         MB.open()                                                -- the next open settles the lost view
         run(3)
-        h.closeChestWindow()
-        run(2)
+        h.closeChest()
         expect(lostView and ownHeading.text == "Wooden Chest",
                "the player's own chest keeps its heading while the mailbox's view is lost: " .. ownHeading.text)
+    end
+    do   -- the hidden chest can't even start being made: the open is given up, so traps are not held
+        local chestsWere, managerWas = chests, util.GetMapObjectManager
+        chests = {}
+        util.GetMapObjectManager = function() error("no map object manager") end
+        local toldAt = #announced
+        MB.add("Wood", 1)
+        MB.open()
+        run(20)
+        local busy = MB.busy()
+        local told = table.concat(announced, "|", toldAt + 1):find("mailbox could not open", 1, true)
+        chests, util.GetMapObjectManager = chestsWere, managerWas
+        expect(not busy and told, "an open that can't start making the chest is given up, and the player told")
     end
 end)

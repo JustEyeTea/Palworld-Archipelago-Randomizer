@@ -278,7 +278,13 @@ end
 local function tryChest(pawn, playerState)
     local chest = CHEST.find()
     if not chest then
-        CHEST.startMaking(pawn, playerState)
+        local ok, err = pcall(CHEST.startMaking, pawn, playerState)
+        if not ok then
+            -- Given up, not asked again every update: an open still asked holds every trap back (M.busy).
+            openAsked = false
+            once("startmaking", "mailbox: could not start making the hidden chest: " .. tostring(err))
+            env.notify("The mailbox could not open: its chest could not be made. Try again in a moment.")
+        end
         return
     end
     openAsked = false
