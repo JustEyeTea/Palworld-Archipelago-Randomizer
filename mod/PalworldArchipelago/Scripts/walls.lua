@@ -188,10 +188,10 @@ end
 -- unfilled without a sweep) UE4SS copies back into Lua: that crashed the game twice on 2026-11-05, both times within
 -- 2 s of a Region Pass, in UE4SS's nested push_structproperty (reading 0x7b and 0x0a). SetActorScale3D has no
 -- out-parameters.
--- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. Stepped from the
--- core's 300 ms update, on the game thread: no loop of its own. dev.42-45 had a 33 ms LoopAsync for it and the glow;
--- LoopAsync's callback runs on another thread over the same Lua state, and with it running 30 times a second the game
--- crashed twice (stack 08E98397) and dev.45, its callback cut down to a flag and a prebuilt function, still logged
+-- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. Stepped from
+-- the core's 300 ms update, on the game thread: no loop of its own. dev.42-45 had a 33 ms LoopAsync for it and the
+-- glow; LoopAsync's callback runs on another thread over the same Lua state, and with it running 30 times a second the
+-- game crashed twice (stack 08E98397) and dev.45, its callback cut down to a flag and a prebuilt function, still logged
 -- "Ref was not function" three times and a broken ipairs iterator: Lua's state corrupted.
 -- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
 -- at 80 to 85% dissolved; dev.46, its tail 0.8 s, still not quite through): blocking stops at DISSOLVE_S/2, the piece
@@ -211,7 +211,10 @@ local function stepOne(s, now)
         local height = math.max(MIN_SCALE, HEIGHT_CM / CUBE_CM * (1 - eased))
         pcall(function() actor:SetActorScale3D({ X = s.scaleX, Y = s.scaleY, Z = height }) end)
     end
-    if half then s.collisionOff = true; pcall(function() actor:SetActorEnableCollision(false) end) end
+    if half then
+        s.collisionOff = true
+        pcall(function() actor:SetActorEnableCollision(false) end)
+    end
     if not done then
         return true
     end

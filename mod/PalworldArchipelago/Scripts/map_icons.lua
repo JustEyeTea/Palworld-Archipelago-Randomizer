@@ -29,7 +29,8 @@ local function stampTexture(k)
         or ART.texture("ap-map-stamp")
 end
 
-local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon.WBP_WorldMap_IconBase_OnlyIcon"
+local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon."
+    .. "WBP_WorldMap_IconBase_OnlyIcon"
 -- Unlocked areas the player has not stood in yet get an open stamp (the user, 2026-11-07: "some other image type ... to
 -- show that a region has been unlocked, even when it is unexplored"; go): the Art lane's ap-map-stamp-open-<area>.png
 -- (or ap-map-stamp-open.png), none until there is one. W.visited: the core's set of areas stood in (in its save).
@@ -144,7 +145,7 @@ local function placeIcons(screen, passes, key)
             opened = opened + 1
         end
     end
-    screen["Update Map Icons"](screen)          -- each icon's scale for the current zoom (the game does it on scroll/zoom)
+    screen["Update Map Icons"](screen)   -- each icon's scale for the current zoom (the game does it on scroll and zoom)
     local where = ""
     local okw, parent = pcall(function() return icons.list[1] and icons.list[1]:GetParent():GetFName():ToString() end)
     if okw and parent then where = " on " .. parent end

@@ -41,7 +41,10 @@ local function hudCanvas()
     local layout
     for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
         local ok, vis = pcall(function() return l:IsValid() and l:IsVisible() end)
-        if ok and vis and not UTIL.ownerGone(l) then layout = l; break end
+        if ok and vis and not UTIL.ownerGone(l) then
+            layout = l
+            break
+        end
     end
     if not layout then return nil, nil, "no HUD layout on screen" end
     local root = layout.WidgetTree.RootWidget
@@ -97,7 +100,10 @@ function H.show(info, tick)
     end
     H.hide()
     local canvas, layout, why = hudCanvas()
-    if not canvas then once("popupnohud" .. why, "hint pop-up: " .. why .. "; chat only"); return false end
+    if not canvas then
+        once("popupnohud" .. why, "hint pop-up: " .. why .. "; chat only")
+        return false
+    end
     local plateName = info.ready and "ap-hint-plate-ready" or "ap-hint-plate-short"
     local plate = ART.box(layout, plateName, WIDTH, HEIGHT)
     local box, over = hudBox(layout, WIDTH, HEIGHT)
@@ -118,8 +124,8 @@ function H.show(info, tick)
     pinToCanvas(canvas, box, PLATE_AT_Y)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
     shown = { box = box, untilTick = tick + SHOW_TICKS, hud = UTIL.addr(layout) }
-    once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen (" .. (plate and plateName or "plain box")
-        .. ", opacity " .. OPACITY .. ")")
+    once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen ("
+        .. (plate and plateName or "plain box") .. ", opacity " .. OPACITY .. ")")
     return true
 end
 
@@ -131,9 +137,16 @@ local BANNER_TEXT = { left = 155, top = 111 }   -- the line's place in the banne
 function H.banner(line, tick)
     H.hide()
     local canvas, layout, why = hudCanvas()
-    if not canvas then log("goal banner: " .. why .. "; chat only"); return false end      -- (a goal: rare, so each time)
+    -- (a goal: rare, so each time)
+    if not canvas then
+        log("goal banner: " .. why .. "; chat only")
+        return false
+    end
     local art = ART.box(layout, "ap-goal-banner", BANNER_W, BANNER_H)
-    if not art then log("goal banner: no ap-goal-banner.png; chat only"); return false end
+    if not art then
+        log("goal banner: no ap-goal-banner.png; chat only")
+        return false
+    end
     local box, over = hudBox(layout, BANNER_W, BANNER_H)
     local bs = over:AddChild(art)
     WIDGETS.fill(bs)
@@ -156,7 +169,10 @@ local function hudLive(addr)
 end
 function H.tick(tick)
     if not shown then return end
-    if not hudLive(shown.hud) then shown = nil; return end
+    if not hudLive(shown.hud) then
+        shown = nil
+        return
+    end
     if tick >= shown.untilTick then H.hide() end
 end
 -- The core saw a new pawn, or none: the world may have gone (the title), or the pawn read nil for a moment in the same

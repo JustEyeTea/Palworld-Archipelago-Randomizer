@@ -114,7 +114,10 @@ end
 MAP_PICTURE.stampSize = stampSize                                 -- (for the harness)
 local iconsActive, stampTexture = nil, nil   -- (the icons part's: install)
 local function drawStamps(canvas, locked)
-    if iconsActive() then once("stampsicons", "map: locked areas are shown as map icons, not drawn on the picture"); return end
+    if iconsActive() then
+        once("stampsicons", "map: locked areas are shown as map icons, not drawn on the picture")
+        return
+    end
     local n = 0
     for _, k in ipairs(locked) do
         local centre = layout.centres[k]
@@ -139,7 +142,10 @@ local function greyscaleMap(rendering, tex)
     if greyTried or not AP_GreyscalePNG then return nil end
     greyTried = true
     local gameInstance = owner()
-    if not gameInstance then greyTried = false; return nil end
+    if not gameInstance then
+        greyTried = false
+        return nil
+    end
     local path = W.dir .. "\\" .. GREY_FILE
     if not UTIL.exists(path) then
         local rt = rendering:CreateRenderTarget2D(gameInstance, RT_SIZE, RT_SIZE, RTF_RGBA8, BLACK, false)
@@ -149,11 +155,18 @@ local function greyscaleMap(rendering, tex)
         rendering:ExportRenderTarget(gameInstance, rt, W.dir, TEMP_COLOUR_FILE)
         local err = AP_GreyscalePNG(W.dir .. "\\" .. TEMP_COLOUR_FILE, path, GAMMA)
         os.remove(W.dir .. "\\" .. TEMP_COLOUR_FILE)
-        if err ~= "" then log("map: no greyscale copy: " .. tostring(err)); return nil end
+        if err ~= "" then
+            log("map: no greyscale copy: " .. tostring(err))
+            return nil
+        end
         log("map: made the greyscale copy " .. path)
     end
     greyTex = rendering:ImportFileAsTexture2D(gameInstance, path)
-    if not greyTex or not greyTex:IsValid() then log("map: could not load " .. path); greyTex = nil; return nil end
+    if not greyTex or not greyTex:IsValid() then
+        log("map: could not load " .. path)
+        greyTex = nil
+        return nil
+    end
     W.keep(greyTex)
     return greyTex
 end
@@ -209,7 +222,10 @@ local function drawMap(passes)
     local gameInstance = owner()
     if not gameInstance then return false end
     local okg, grey = pcall(greyscaleMap, rendering, tex)
-    if not okg then log("map: greyscale copy failed: " .. tostring(grey)); grey = nil end
+    if not okg then
+        log("map: greyscale copy failed: " .. tostring(grey))
+        grey = nil
+    end
     if not mapTarget(rendering, gameInstance) then return false end
     -- (Not through drawInto: with no canvas this gives up before End, and the map is drawn at a later update.)
     local canvasOut, contextOut, extra = {}, {}, {}
@@ -267,7 +283,11 @@ local function colourMap(rendering, tex, gameInstance)
     if not printChecked then
         printChecked = true
         local ok, fp = pcall(mapPrint, rendering, tex, gameInstance)
-        if ok then printNow = fp else log("map: no fingerprint (" .. tostring(fp) .. "): keeping the saved colour map") end
+        if ok then
+            printNow = fp
+        else
+            log("map: no fingerprint (" .. tostring(fp) .. "): keeping the saved colour map")
+        end
     end
     local saved = readFile(path .. ".txt")
     if UTIL.exists(path) then
@@ -281,7 +301,10 @@ local function colourMap(rendering, tex, gameInstance)
     colourSaved = true
     if printNow then                     -- the fingerprint: PRINT_GRID^2 pixels as "r,g,b;...", compared whole
         local out = io.open(path .. ".txt", "wb")
-        if out then out:write(printNow); out:close() end
+        if out then
+            out:write(printNow)
+            out:close()
+        end
     end
     log("map: saved the colour map " .. path)
     return path
@@ -342,7 +365,9 @@ local function drawTerritories(rendering, gameInstance, k, key)
         map = gameMapTexture()
     end
     if not (map and map:IsValid() and over and over:IsValid()) then
-        log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
+        log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map"))
+        terr.failed = k
+        return "failed"
     end
     drawInto(rendering, gameInstance, mapTarget(rendering, gameInstance), function(canvas)
         drawWhole(canvas, map, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
@@ -351,7 +376,8 @@ local function drawTerritories(rendering, gameInstance, k, key)
         end
     end)
     terr.done = k
-    once("terrdrawn" .. tostring(terr.whole), terr.whole and "map territories: drawn (the player's map, locked areas greyscale)"
+    once("terrdrawn" .. tostring(terr.whole), terr.whole
+        and "map territories: drawn (the player's map, locked areas greyscale)"
         or "map territories: drawn over the game's map")
     return k == key and "ready" or "busy"
 end
@@ -551,11 +577,15 @@ end
 local function mainMapScreens()
     local images, screens = {}, {}
     for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
-        local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
+        local ok, img = pcall(function()
+            local image = b.Image_MapBody
+            return image:IsValid() and image or nil
+        end)
         local okn, mapName = pcall(function() return b.MapName:ToString() end)
-        local main = not (okn and type(mapName) == "string" and mapName ~= "" and mapName ~= "None") or mapName:find("Main", 1, true)
+        local named = okn and type(mapName) == "string" and mapName ~= "" and mapName ~= "None"
+        local main = not named or mapName:find("Main", 1, true)
         local playerGone = false
-        if ok and img then                    -- (the game's template has no map image and no player: not a last world's)
+        if ok and img then              -- (the game's template has no map image and no player: not a last world's)
             playerGone = UTIL.ownerGone(b)
         end
         if playerGone then
@@ -578,7 +608,12 @@ local function pictureKey(passes)
     -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
     -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
     local been = {}
-    if territories() then for area in pairs(W.visited) do been[#been + 1] = area end; table.sort(been) end
+    if territories() then
+        for area in pairs(W.visited) do
+            been[#been + 1] = area
+        end
+        table.sort(been)
+    end
     local key = table.concat(locked, "|") .. "#" .. beyondSig() .. (iconsActive() and "#icons" or "#stamps")
         .. (territories() and ("#territories#" .. table.concat(been, "|")) or "")
     return key, #locked
@@ -609,7 +644,11 @@ local function makePicture(passes, key, open, nLocked)
     if not compose and key ~= mapKey then
         if not open then return false end          -- without the compositor the map is drawn when it opens, as before
         local ok, done = pcall(drawMap, passes)
-        if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return false end
+        if not ok then
+            log("map overlay error: " .. tostring(done))
+            mapKey = key
+            return false
+        end
         if not done then return false end
         mapKey, redrawn = key, true
         log("map: " .. nLocked .. " locked area(s) greyed")
@@ -633,7 +672,8 @@ local function putPictureBack(images, redrawn)
         if mainMap and (redrawn or current ~= want) then
             if okr and shown and current ~= want and not mapShownOn then
                 mapShownOn = true
-                log("map: the map screen was showing " .. tostring(select(2, pcall(function() return shown:GetFullName() end))))
+                local _, showing = pcall(function() return shown:GetFullName() end)
+                log("map: the map screen was showing " .. tostring(showing))
             end
             if AP_MapScreen and not redrawn and current ~= want then
                 MAP_FOG.notePictureFixed()

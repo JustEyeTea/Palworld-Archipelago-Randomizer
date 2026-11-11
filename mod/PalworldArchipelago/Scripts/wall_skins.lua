@@ -14,15 +14,15 @@ local owner = UTIL.gameInstance          -- (materials belong to the game instan
 local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
 local PALETTE, SEALED, TEAL = nil, nil, nil   -- areas.lua's palette, and its sealed grey and teal in linear light
 
--- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the Art &
--- Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
+-- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the
+-- Art & Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
 -- dynamic copy of the walls' own material (MI_AirBlock_v2) per skin, owned by the game instance like the map's render
 -- targets, set on each piece's mesh; the game's own barriers keep the shared red material. The material's parameters
 -- (from the server pak): MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the
 -- engine's blue noise for the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day);
 -- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0.
--- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat). <skin>-dense: that pattern tiled 10x6,
--- twice the material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
+-- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat). <skin>-dense: that pattern tiled
+-- 10x6, twice the material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
 -- colour-<x>: full-colour tiles (walls/ap-wall-colour-<x>.png, RGBA) on our own material, M_APWall, from the
 -- PalworldArchipelagoArt pak (logicmod/make_wall_material.py; the user, 2026-11-05: the game's material can show one
 -- colour per piece, they want multicolour). Without the pak (or the file) such a skin is refused, logged, and skipped
@@ -45,7 +45,8 @@ local function byArea(name) return name == "area" or name == "paws" end
 WALL_SKINS.SKINS = SKINS
 WALL_SKINS.linearOf = UTIL.linear                                 -- (for the harness's colour tests)
 local FLOW = 0.05
-local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
+-- The Art lane's: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first.
+local PAW_BACK, PAW_BRIGHT = 0.34, 1.1
 local DENSE = { 10, 6 }
 local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
 local GLOW_MOVE_CM = 5        -- the player moves this far before the walls' glow is told again
@@ -98,7 +99,10 @@ local function modAsset(pkg, name, notes)
         return ok and o and o:IsValid() and o or nil
     end
     local o = found()
-    if o then notes[#notes + 1] = name .. " already loaded"; return o end
+    if o then
+        notes[#notes + 1] = name .. " already loaded"
+        return o
+    end
     local ok, got = pcall(function()
         local helpers = StaticFindObject("/Script/AssetRegistry.Default__AssetRegistryHelpers")
         if not (helpers and helpers:IsValid()) then return "no AssetRegistryHelpers" end
@@ -106,11 +110,17 @@ local function modAsset(pkg, name, notes)
         local actor = helpers:GetAsset({ PackageName = fname(pkg), AssetName = fname(name) })
         return actor and actor:IsValid() and actor or "GetAsset gave nothing"
     end)
-    if ok and type(got) ~= "string" then notes[#notes + 1] = name .. " from the asset registry"; return got end
+    if ok and type(got) ~= "string" then
+        notes[#notes + 1] = name .. " from the asset registry"
+        return got
+    end
     notes[#notes + 1] = name .. " registry: " .. tostring(got)
     local okL, err = pcall(LoadAsset, full)
     o = found()
-    if o then notes[#notes + 1] = name .. " from LoadAsset"; return o end
+    if o then
+        notes[#notes + 1] = name .. " from LoadAsset"
+        return o
+    end
     notes[#notes + 1] = name .. " LoadAsset " .. (okL and "found nothing" or ("errored: " .. tostring(err)))
 end
 WALL_SKINS.modAsset = modAsset
@@ -126,18 +136,28 @@ local function apWallMaterial()
         apWallProbed = true
         local okA, actor = pcall(StaticFindObject, "/Game/Mods/PalworldArchipelagoArt/ModActor.ModActor_C")
         local hasActor = okA and actor and actor:IsValid()
-        log("wall material probe: " .. (m and "found" or "not found") .. " (" .. table.concat(notes, "; ") .. "); ModActor_C "
-            .. (hasActor and "loaded" or "not loaded"))
+        log("wall material probe: " .. (m and "found" or "not found") .. " (" .. table.concat(notes, "; ")
+            .. "); ModActor_C " .. (hasActor and "loaded" or "not loaded"))
     end
-    if m then apWall = m; W.keep(m); return m end
+    if m then
+        apWall = m
+        W.keep(m)
+        return m
+    end
 end
 local function colourMaterial(name, gameInstance, rendering, materials)
     local base = apWallMaterial()
-    if not base then log("wall skin " .. name .. ": needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
+    if not base then
+        log("wall skin " .. name .. ": needs the PalworldArchipelagoArt pak (M_APWall not found)")
+        return nil
+    end
     local flow = name:match("^(.-)%-flow$")
     local path = W.dir .. "\\walls\\ap-wall-" .. (flow or name) .. ".png"
     local tex = rendering:ImportFileAsTexture2D(gameInstance, path)
-    if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
+    if not (tex and tex:IsValid()) then
+        log("wall skin " .. name .. ": could not load " .. path)
+        return nil
+    end
     W.keep(tex)                                                -- a colour picture: sRGB as imported
     local material = materials:CreateDynamicMaterialInstance(gameInstance, base, FName("None"), MID_FLAGS)
     if not (material and material:IsValid()) then
@@ -153,14 +173,16 @@ local function colourMaterial(name, gameInstance, rendering, materials)
         material:SetScalarParameterValue(FName("ScrollV"), scroll[2])
     end
     skin.mids[name], skin.failed[name] = material, nil
-    log("wall skin " .. name .. ": material made on M_APWall" .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
+    log("wall skin " .. name .. ": material made on M_APWall"
+        .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
     return material
 end
 -- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every area.
 local function pawLayerTexture(gameInstance, rendering)
     if pawLayer and pawLayer:IsValid() then return pawLayer end
     local notes = {}
-    local t, from = modAsset("/Game/Mods/PalworldArchipelagoArt/T_APWallPaws", "T_APWallPaws", notes), "the pak, with mips"
+    local t = modAsset("/Game/Mods/PalworldArchipelagoArt/T_APWallPaws", "T_APWallPaws", notes)
+    local from = "the pak, with mips"
     if not (t and t:IsValid()) then
         t = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\walls\\ap-wall-paws-layer.png")
         from = "walls\\ap-wall-paws-layer.png, no mips"
@@ -174,9 +196,15 @@ end
 -- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour (made, not kept in skin.mids).
 local function makePaws(name, gameInstance, rendering, materials)
     local base = apWallMaterial()
-    if not base then log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
+    if not base then
+        log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found)")
+        return nil
+    end
     local tex = pawLayerTexture(gameInstance, rendering)
-    if not tex then log("wall skin paws: could not load walls\\ap-wall-paws-layer.png"); return nil end
+    if not tex then
+        log("wall skin paws: could not load walls\\ap-wall-paws-layer.png")
+        return nil
+    end
     local hex, own = name:match("^paws:(%x%x%x%x%x%x):?(%d*)$")
     local back = hex and UTIL.linear(hex) or SEALED
     local s = nil
@@ -237,7 +265,8 @@ function WALL_SKINS.dissolving(name, pawn)
     material:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
     if glowAt then material:SetVectorParameterValue(FName("PlayerPos"), glowAt) end
     dissolveMaterials[key], dissolveStarts[key] = material, now
-    once("dissolve", "wall skin paws: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now) .. " s)")
+    once("dissolve", "wall skin paws: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now)
+        .. " s)")
     return material, now
 end
 -- The glow near the player (M_APWall's PlayerPos; dev.41 playtest: keyed to the camera it sat off to the side of the
@@ -269,7 +298,10 @@ function WALL_SKINS.glowTick()
     local wears = skin.now == "paws" and nil or skin.mids[skin.now]
     for i in pairs(pieces.raised()) do
         if not pieces.isHidden(i) then
-            if wears then tell(wears); break end
+            if wears then
+                tell(wears)
+                break
+            end
             local n = dressedAs[i]
             if n then tell(skin.mids[n]) end
         end
@@ -320,8 +352,14 @@ local function makePatternMaterial(name, gameInstance, rendering, materials)
     local tint, file, tiling = patternFor(name)
     local path = W.dir .. "\\walls\\ap-wall-pattern-" .. file .. ".png"
     local tex = rendering:ImportFileAsTexture2D(gameInstance, path)
-    if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
-    local srgb = pcall(function() tex.SRGB = false; tex:UpdateResource() end)   -- the game's pattern is linear
+    if not (tex and tex:IsValid()) then
+        log("wall skin " .. name .. ": could not load " .. path)
+        return nil
+    end
+    local srgb = pcall(function()            -- the game's pattern is linear
+        tex.SRGB = false
+        tex:UpdateResource()
+    end)
     W.keep(tex)
     local material = materials:CreateDynamicMaterialInstance(gameInstance, skin.base, FName("None"), MID_FLAGS)
     if not (material and material:IsValid()) then
@@ -343,7 +381,8 @@ local function makePatternMaterial(name, gameInstance, rendering, materials)
         material:SetScalarParameterValue(FName("ScrollingV_01"), W.scroll[2])
     end
     skin.mids[name], skin.failed[name] = material, nil
-    -- Blueprint_GetSizeX/Y: Lua sees only UFunctions (v0.13.5 playtest: GetSurfaceWidth is C++ only, and the call errored).
+    -- Blueprint_GetSizeX/Y: Lua sees only UFunctions (v0.13.5 playtest: GetSurfaceWidth is C++ only, and the call
+    -- errored).
     local okw, size = pcall(function() return tex:Blueprint_GetSizeX() .. "x" .. tex:Blueprint_GetSizeY() end)
     log("wall skin " .. name .. ": material made (" .. (okw and size or "size unknown")
         .. (srgb and ", linear" or ", sRGB: could not change") .. ", tiling "
@@ -370,7 +409,11 @@ end
 local function dress(actor, material)
     local m = meshOf(actor)
     if not m then return false end
-    if not skin.base then skin.base = m:GetMaterial(0); W.keep(skin.base) end   -- the red original, before any change
+    -- the red original, before any change
+    if not skin.base then
+        skin.base = m:GetMaterial(0)
+        W.keep(skin.base)
+    end
     m:SetMaterial(0, material or skin.base)
     return true
 end
@@ -419,7 +462,8 @@ function WALL_SKINS.skinNew(actor, i)
         ok, err = pcall(dress, actor, skin.mids[skin.now])
     end
     if not ok then
-        UTIL.onceErr("walls:skinnew", err, "wall skin " .. skin.now .. ": could not dress a new piece: " .. tostring(err))
+        UTIL.onceErr("walls:skinnew", err, "wall skin " .. skin.now .. ": could not dress a new piece: "
+            .. tostring(err))
     end
 end
 -- A pass that opens one side of a piece still up turns it to the other side's colour; so does the list of areas
@@ -439,8 +483,8 @@ function WALL_SKINS.recolour(passes)
         if actor and actor:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
             local ok, err = pcall(areaDress, actor, i, passes, skin.now)
             if not ok then
-                UTIL.onceErr("walls:recolour", err, "wall skin " .. skin.now .. ": could not recolour piece " .. i .. ": "
-                    .. tostring(err))
+                UTIL.onceErr("walls:recolour", err, "wall skin " .. skin.now .. ": could not recolour piece " .. i
+                    .. ": " .. tostring(err))
             end
             budget = budget - 1
         end
@@ -452,7 +496,12 @@ end
 WALL_SKINS.DEFAULT_SKIN = "paws"
 function WALL_SKINS.setSkin(name)
     if name == "" or name == nil then name = WALL_SKINS.DEFAULT_SKIN end
-    for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
+    for _, known in ipairs(SKINS) do
+        if known == name then
+            skin.want = name
+            return
+        end
+    end
     log("wall skin " .. tostring(name) .. ": unknown (" .. table.concat(SKINS, ", ") .. ")")
 end
 -- The next skin, skipping any refused in this world (no pak, no file): it would be refused again and the cycle would
@@ -465,7 +514,10 @@ function WALL_SKINS.cycleSkin()
     if not at then return nil end
     for j = 1, #SKINS do
         local nxt = SKINS[(at + j - 1) % #SKINS + 1]
-        if not skin.failed[nxt] then skin.want = nxt; return nxt end
+        if not skin.failed[nxt] then
+            skin.want = nxt
+            return nxt
+        end
     end
 end
 -- Dresses one raised piece in the skin wanted (mid: its material, for a skin that is not by area). True when it is
@@ -528,7 +580,8 @@ local function logSkin(n, bad, firstErr)
         log("wall skin " .. skin.now .. ": colours " .. table.concat(list, ", "))
     end
     local why = firstErr and (" (the first error: " .. tostring(firstErr) .. ")") or " (no mesh or no material)"
-    log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " not dressed" .. why) or ""))
+    log("wall skin " .. skin.now .. ": on " .. n .. " pieces"
+        .. (bad > 0 and (", " .. bad .. " not dressed" .. why) or ""))
 end
 -- On the game thread (from W.update): the skin wanted, once the wall material is known (from the first piece raised).
 function WALL_SKINS.skinTick()
@@ -538,7 +591,10 @@ function WALL_SKINS.skinTick()
     local material = nil
     if skin.want ~= "red" and not byArea(skin.want) then
         material = skinMaterial(skin.want)
-        if not material then skin.want = skin.now; return end
+        if not material then
+            skin.want = skin.now
+            return
+        end
     end
     local n, bad, firstErr = dressAll(material)
     skin.now = skin.want

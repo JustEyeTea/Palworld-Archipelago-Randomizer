@@ -103,7 +103,10 @@ local function tellCpp()
     end
     if picture.target() and picture.target():IsValid() then
         local path = UTIL.objectPath(picture.target())
-        if path ~= cpp.body then cpp.body = path; AP_MapScreen("body", path) end
+        if path ~= cpp.body then
+            cpp.body = path
+            AP_MapScreen("body", path)
+        end
     end
 end
 -- Switches the C++ map screen off where the mod's map does not belong (a seed without area locks, a world that is
@@ -195,7 +198,8 @@ local function maskSpec(pawn)
     local a, b = {}, {}
     for n in tostring(here):gmatch("%d+") do a[#a + 1] = tonumber(n) end
     for n in tostring(corner):gmatch("%d+") do b[#b + 1] = tonumber(n) end
-    local info = string.format("at the player (%.3f, %.3f) %s, beyond the world's edge %s", u, v, tostring(here), tostring(corner))
+    local info = string.format("at the player (%.3f, %.3f) %s, beyond the world's edge %s", u, v, tostring(here),
+        tostring(corner))
     if #a ~= 4 or #b ~= 4 then return nil, info end
     local best, diff = nil, 0
     for c = 1, 4 do if math.abs(a[c] - b[c]) > math.abs(diff) then best, diff = c, a[c] - b[c] end end
@@ -295,14 +299,17 @@ end
 -- ready (from the next update, when it became ready just now in Territories).
 local function stepChartArt()
     if chart.state == "none" and territories() then                          -- (the territories' fog art)
-        if terr.done and exists(W.dir .. "\\" .. TERR_FOG) then chart.state = "ready"; log("map territories: the fog art is ready") end
+        if terr.done and exists(W.dir .. "\\" .. TERR_FOG) then
+            chart.state = "ready"
+            log("map territories: the fog art is ready")
+        end
         return false
     elseif chart.state == "none" then                                        -- the chart
         local colour = W.dir .. "\\" .. COLOUR_FILE
         if not exists(colour) then return false end
         -- AP_ComposeChart(colour, paper, sea, compass, out, size, gamma): dllmain.cpp's list
-        local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
-            W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), GAMMA)
+        local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"),
+            artFile("ap-chart-compass"), W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), GAMMA)
         if err == "" then chart.state = "composing"
         elseif err ~= "busy" then failChart("could not start: " .. err) end
         return false
@@ -393,7 +400,10 @@ end
 -- 3. The fog picture loaded and handed to C++, which shows it from the next opening.
 local function loadFogPicture(rendering, gameInstance)
     local tex = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\" .. fogFile())
-    if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
+    if not (tex and tex:IsValid()) then
+        once("fogload", "map chart: could not load " .. fogFile())
+        return
+    end
     chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
     chart.tex = tex
     AP_MapScreen("fogpic", UTIL.objectPath(tex))
@@ -438,7 +448,8 @@ function MAP_FOG.step(pawn, screens, opening, passes, key)
     if AP_MapScreen and opening then
         cpp.opened = cpp.opened + 1
         if cpp.opened <= LOG_FIRST then
-            log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back " .. cpp.fixes .. "x")
+            log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back "
+                .. cpp.fixes .. "x")
         end
         if not cpp.maskDone then
             cpp.maskDone = true
