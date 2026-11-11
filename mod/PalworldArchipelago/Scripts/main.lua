@@ -2046,8 +2046,8 @@ local function coreTick()
     inTick = false
     if not ok then onceErr("coreTick", err, "update error: " .. tostring(err)) end
 end
--- Every UPDATE_MS (the number stays a literal: the harness reads it).
-LoopAsync(300, function()
+-- Every UPDATE_MS (the harness's thread-rule check reads this loop: keep its shape).
+LoopAsync(UTIL.UPDATE_MS, function()
     ExecuteInGameThread(coreTick)
     return false
 end)
