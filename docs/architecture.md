@@ -295,6 +295,18 @@ How it works:
 - **Death Link** faints the player by the first of three routes that works (lethal poison, the Death Penalty's bag
   then a self-kill, a plain self-kill), and sends a death after the slot's amnesty is used up.
 
+### The title menu's Archipelago menu
+
+`menu.lua` wires the mod's menu buttons and calls the title screen's Archipelago menu through `menu_title.lua`, which
+uses three files of its own:
+
+| File | What it holds |
+|---|---|
+| `menu_title.lua` | One record per title menu (`newTitleMenu`) and its life: finding the title menus (`TITLE.find`), building our rows on a new one (`buildTitleMenu`), bringing it up to date each update (`updateTitleMenu`), and giving it up when the menu goes (`dropTitleMenu`, `TITLE.forgetGone`). Also the title buttons' hover hooks and Esc. |
+| `menu_title_banner.lua` | The banner above the title buttons: its art, the connection in its status pill (`BANNER.showConnection`), its tint and pop under the pointer (`BANNER.refreshLook`), and its place over the button list (`BANNER.listTop`). |
+| `menu_title_rows.lua` | The rows built: the typed layout (`ROWS.buildTyped`), else the window layout (`ROWS.buildWindow`), each row's dark backing (`backed`), the typed rows' text boxes, the saved servers' panel, and every button claimed for its click (`ROWS.addRow`). |
+| `menu_title_connect.lua` | What the rows say and do: the draft the menu will connect with (`draftNow`), each kind of row's label, click and when it shows (`ROW_KINDS`), the typed boxes read back (`readEdits`), Connect or Disconnect, and folding the menu once connected (`CONNECT.followConnection`). |
+
 ## The LogicMod paks
 
 *(not written yet)*
