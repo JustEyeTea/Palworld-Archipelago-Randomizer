@@ -25,6 +25,7 @@ local CWIN = require("crate_window")
 local MENU = require("menu")
 local TECHSCAN = require("techscan")
 local MAIL = require("mailbox")
+local BAG = require("bag")
 local TRAPS = require("traps")
 local SYNC = require("sync")
 
@@ -219,7 +220,7 @@ WALLS.visited = ap.visited                -- (the same table: the map reads it)
 --   bought=123,456            checks the mod sent itself (ap.bought): sent again on connecting
 --   visited=Area|Area         open areas the player has stood in (the map's open stamps)
 --   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
---   mail=id:n,... and mailview=0|1           mailbox.lua: the mailbox's items; whether a chest view was open
+--   mail=id:n,...             mailbox.lua: the mailbox's items
 --   crates=kind,... and cratebag=id:n,...    crates.lua: unopened crates; crate gear the bag refused
 --   syncbase=Field:value,...  sync.lua: the world's own rates from before the run style changed them
 --   end                       the last line: the file was written whole
@@ -538,7 +539,7 @@ local function giveOneOff(ps, id, index)
                 MAIL.add(b[1], b[2])
             else
                 -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
-                local okg, got = pcall(MAIL.give, b[1], b[2])
+                local okg, got = pcall(BAG.give, b[1], b[2])
                 if not okg then once("give" .. tostring(got), "could not give " .. b[1] .. ": " .. tostring(got)); return false end
                 if got == 0 then return false end
                 if got < b[2] then log("bundle " .. it.name .. ": only " .. got .. " of " .. b[2] .. " " .. b[1] .. " went in") end
@@ -565,12 +566,12 @@ local waiting = nil           -- the index of a bundle the bag had no room for (
 local function givePending()
     while CRATES.pending[1] do
         local e = CRATES.pending[1]
-        local okg, got = pcall(MAIL.give, e[1], e[2])
+        local okg, got = pcall(BAG.give, e[1], e[2])
         got = okg and got or 0
         if got <= 0 then return end
         e[2] = e[2] - got
         if e[2] <= 0 then table.remove(CRATES.pending, 1) end
-        notify("Your bag had room: " .. MAIL.nameOf(e[1]) .. " from a crate is in it now.")
+        notify("Your bag had room: " .. BAG.nameOf(e[1]) .. " from a crate is in it now.")
     end
 end
 
@@ -585,9 +586,9 @@ local function openCrate(kind)
     if not kind then return end
     local parts = {}
     for _, r in ipairs(out) do
-        local name = MAIL.nameOf(r.id)
+        local name = BAG.nameOf(r.id)
         if r.bag or not MAIL.on() then
-            local okg, got = pcall(MAIL.give, r.id, r.n)
+            local okg, got = pcall(BAG.give, r.id, r.n)
             got = okg and got or 0
             if got < r.n then CRATES.pending[#CRATES.pending + 1] = { r.id, r.n - got } end
             parts[#parts + 1] = (r.n > 1 and (r.n .. " x ") or "") .. name .. (got < r.n and " (waits for room in your bag)" or " (in your bag)")
@@ -611,9 +612,9 @@ local function giveTechGift(it)
     if not gifts then return end
     local parts = {}
     for _, g in ipairs(gifts) do
-        local id, n, name = g[1], g[2], MAIL.nameOf(g[1])
+        local id, n, name = g[1], g[2], BAG.nameOf(g[1])
         if g.bag or not MAIL.on() then
-            local okg, got = pcall(MAIL.give, id, n)
+            local okg, got = pcall(BAG.give, id, n)
             got = okg and got or 0
             if got < n then CRATES.pending[#CRATES.pending + 1] = { id, n - got } end
             parts[#parts + 1] = (n > 1 and (n .. " x ") or "") .. name .. (got < n and " (waits for room in your bag)" or " (in your bag)")
@@ -1482,13 +1483,12 @@ MENU.install({
     mailboxLabel = MAIL.label,
     crateLabel = CRATES.label,
     openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
-    crateWindow = function(action) local ok, err = pcall(CWIN.action, action); if not ok then log("crate window error: " .. tostring(err)) end end,
-    openMailbox = function(context) MAIL.open(context) end,
+    openMailbox = function() MAIL.open() end,
     guardedHook = guardedHook,
 })
 MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end,
                guardedHook = guardedHook })
-CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, nameOf = function(id) return MAIL.nameOf(id) end, claim = MENU.claim, unclaim = MENU.unclaim,
+CWIN.install({ chestWidget = function() return MAIL.chestWidget() end,
                openCrate = function(kind)
                    local ok, k, out = pcall(openCrate, kind)
                    if not ok then log("crate error: " .. tostring(k)); return nil end

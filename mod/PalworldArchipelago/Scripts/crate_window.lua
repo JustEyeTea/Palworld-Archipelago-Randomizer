@@ -1,263 +1,340 @@
--- The Palworld Crates window (the user, 2026-11-05: "the full mailbox window with a crate list, crate icons and the Art
--- lane's plates"). Built in Lua from UMG widgets over the mailbox's chest window, which already has the cursor and the
--- input: the Art & Assets lane's plate (art/ap-mailbox-window.png, 1600x1000, shown at 800x500; its slots halved
--- below), one row per crate kind waiting (ap-mailbox-row.png, the kind's icon, its count and the game's own button to
--- open one), the chosen crate in the details pane (its icon on the reveal glow, name, how many, what it holds), the
--- last crate opened in the contents cells, a big Open button and a Close button. Closed, a small "Palworld Crates (N)"
--- button on the chest window brings it back. Buttons are WBP_CommonButton_C (the Inventory page's, verified in game);
--- menu.lua's click hook routes them here through env.claim, and their actions run on the next update, outside the
--- hook. Every image falls back to a plain box when its file is missing. Untested in game (2026-11-05).
+-- The Palworld Crates window, drawn over the mailbox's chest window (which already has the cursor and the input): a
+-- row per crate kind waiting (its icon, its count, a button to open one), the chosen kind in the details pane, and the
+-- last crate opened in the contents cells. Closed, a small "Open Palworld Crates (N)" button brings it back. Every
+-- image falls back to a plain box without its file. Untested in game: the window's look and its buttons.
+-- Tests: mod/test/harness.lua, group "the crate window" (run by tools/lua_harness.sh).
 local CW = {}
 local ART = require("art")
+local BAG = require("bag")
+local CLICKS = require("clicks")
 local CRATES = require("crates")
+local MAIL = require("mailbox")
 local UTIL = require("util")
+local WIDGETS = require("widgets")
 local log, once = UTIL.log, UTIL.onceIn("crate_window")
+local place, sized = WIDGETS.place, WIDGETS.sized
 
-local env = nil               -- { chestWidget(), openCrate(kind) -> kind, out, claim(button, action), nameOf(id) }
-local W, H = 800, 500
-local S = {                   -- the plate's slots at display size (Art lane's 2x coordinates halved): x, y, w, h
-    close = { 734, 17, 46, 38 }, list_header = { 32, 98, 356, 22 }, list = { 32, 126 }, row_stride = 52,
-    row = { 360, 48 }, row_icon = { 6, 4, 40, 40 }, row_name = { 54, 6, 210, 20 }, row_count = { 54, 27, 210, 15 },
-    row_button = { 276, 7, 78, 34 }, icon = { 436, 106, 112, 112 }, reveal = { 396, 66, 192, 192 },
-    name = { 562, 111, 202, 28 }, line2 = { 562, 143, 202, 18 }, line3 = { 562, 165, 202, 48 },
-    contents_header = { 436, 234, 328, 20 }, contents = { 436, 262 }, cell = 60, cell_stride = 68, open = { 604, 420, 160, 44 },
+-- What main.lua hands over (CW.install).
+--   chestWidget()     the chest window the mailbox has open, or nil
+--   openCrate(kind)   opens one crate of a kind into the mailbox: the kind opened and its contents { id, n }, or nil
+local env = nil
+
+-- The window's buttons are the game's WBP_CommonButton_C, claimed in clicks.lua under this owner. menu.lua's hook on
+-- that class notes their clicks; CW.update runs them.
+local OWNER = "crate window"
+
+-- The art plate (art/ap-mailbox-window.png, 1600x1000) is shown at half size; its slots below are the art's own
+-- coordinates halved, in the window's units: x, y from the plate's top-left corner, w and h.
+local PLATE = { w = 800, h = 500 }
+local SLOT = {
+    title = { x = 32, y = 26 },                         -- the window's name, when the plate (which has it) is missing
+    close = { x = 734, y = 17, w = 46, h = 38 },
+    listHeader = { x = 32, y = 98, w = 356, h = 22 },
+    list = { x = 32, y = 126 },                         -- the first row's top-left corner
+    row = { w = 360, h = 48 },                          -- art/ap-mailbox-row.png
+    rowIcon = { x = 6, y = 4, w = 40, h = 40 },         -- these four are inside a row
+    rowName = { x = 54, y = 6, w = 210, h = 20 },
+    rowCount = { x = 54, y = 27, w = 210, h = 15 },
+    rowButton = { x = 276, y = 7, w = 78, h = 34 },
+    icon = { x = 436, y = 106, w = 112, h = 112 },      -- the details pane: the chosen kind's icon on its glow
+    reveal = { x = 396, y = 66, w = 192, h = 192 },     -- art/ap-mailbox-reveal.png
+    name = { x = 562, y = 111, w = 202, h = 28 },
+    line2 = { x = 562, y = 143, w = 202, h = 18 },
+    line3 = { x = 562, y = 165, w = 202, h = 48 },
+    contentsHeader = { x = 436, y = 234, w = 328, h = 20 },
+    contents = { x = 436, y = 262 },                    -- the first cell's top-left corner
+    cell = { w = 60, h = 60 },                          -- art/ap-mailbox-cell.png
+    open = { x = 604, y = 420, w = 160, h = 44 },       -- the big Open button
 }
-local function linear(hex)
-    local c = { A = 1 }
-    for k, at in pairs({ R = 1, G = 3, B = 5 }) do
-        local v = tonumber(hex:sub(at, at + 1), 16) / 255
-        c[k] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
-    end
-    return c
+local ROW_STRIDE = 52                 -- from one row's top to the next
+local CELL_STRIDE = 68                -- from one cell's corner to the next, both ways
+local CONTENTS_CELLS = 10             -- the most of the last crate's contents shown: two rows of five
+local CELLS_PER_ROW = 5
+local CELL_INSET = 5                  -- the text inside a cell keeps this far from its edges
+local NAME_MAX_CHARS = 22             -- a longer item name is cut, so it fits a cell
+local EMPTY_NOTE_INSET = 8            -- "No crates waiting." sits this far into the list
+local TOGGLE = { w = 300, h = 36, top = 130 }   -- the small button: top centre, above the inventory and chest panels
+local OVER_CHEST = 1000               -- the canvas ZOrder that puts the window over everything on the chest window
+local CANVAS_DEPTH = 4                -- how deep under the chest window's root its canvas is looked for
+local FONT = { title = 22, header = 12, rowName = 12, rowCount = 9, name = 16, detail = 10, contentsHeader = 11,
+               cell = 8 }             -- point sizes
+local CENTRE, TOP_CENTRE = { X = 0.5, Y = 0.5 }, { X = 0.5, Y = 0 }   -- anchors and alignments on a canvas
+
+local CREAM, MUTED, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("A3ADC9"), UTIL.linear("17324D")
+local GLOW = { sphere = UTIL.linear("3FC1D9"), food = UTIL.linear("ECBE6E"), common = UTIL.linear("C8B79A"),
+               rare = UTIL.linear("8B6FD6"), jackpot = UTIL.linear("F2C14E") }   -- each crate kind's colour
+
+-- State: what is drawn over the chest window. Forgotten: when the chest window goes (CW.update). Its buttons are
+-- released whenever it is drawn again, and when it goes (hide()).
+local overlay = nil           -- { widgetAddress = the chest window's address, panel, toggle, signature }
+-- State: the player's choices in the window. Forgotten: when a new chest window opens (a fresh mailbox).
+local dismissed = false       -- the player closed the crate window
+local selected = nil          -- the kind in the details pane
+local last = nil              -- the last crate opened: { kind, out = its contents { id, n }, stamp = +1 a crate }
+
+local function valid(object)
+    local ok, answer = pcall(function() return object:IsValid() end)
+    return ok and answer
 end
-local CREAM, MUTED, NAVY = linear("FFF4DC"), linear("A3ADC9"), linear("17324D")
-local GLOW = { sphere = linear("3FC1D9"), food = linear("ECBE6E"), common = linear("C8B79A"), rare = linear("8B6FD6"),
-               jackpot = linear("F2C14E") }
-
-local shown = nil             -- { widget = chest window, panel, toggle, sig } while the chest window is up
-local claimed = {}            -- the buttons of what is shown (released when it is rebuilt or goes)
-CW.dismissed = false          -- the player closed the crate window (until the mailbox opens again)
-CW.selected = nil             -- the kind in the details pane
-CW.last = nil                 -- { kind, out } the last crate opened
-
-local addr = UTIL.addr
-local function valid(o) local ok, v = pcall(function() return o:IsValid() end); return ok and v end
 
 -- The first CanvasPanel at or under a widget's root (as the HUD layout's: a SafeZone may hold it).
 local function canvasOf(widget)
     local root = nil
     pcall(function() root = widget.WidgetTree.RootWidget end)
-    for _ = 1, 4 do
+    for _ = 1, CANVAS_DEPTH do
         if not (root and valid(root)) then return nil end
-        local okc, cls = pcall(function() return root:GetClass():GetFName():ToString() end)
-        if okc and cls == "CanvasPanel" then return root end
-        local okk, k = pcall(function() return root:GetChildAt(0) end)
-        root = okk and k or nil
+        local okClass, class = pcall(function() return root:GetClass():GetFName():ToString() end)
+        if okClass and class == "CanvasPanel" then return root end
+        local okChild, child = pcall(function() return root:GetChildAt(0) end)
+        root = okChild and child or nil
     end
 end
 
-local function text(outer, s, size, colour)
-    local t = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), outer)
-    if not pcall(function() local f = t.Font; f.Size = size; t:SetFont(f) end) then
-        pcall(function() t:SetRenderTransformPivot({ X = 0, Y = 0 }); t:SetRenderScale({ X = size / 24, Y = size / 24 }) end)
-    end
-    pcall(function() t:SetColorAndOpacity({ SpecifiedColor = colour or CREAM, ColorUseRule = 0 }) end)
-    pcall(function() t:SetAutoWrapText(true) end)
-    t:SetText(FText(s))
-    return t
+local function text(owner, words, size, colour)
+    return WIDGETS.text(owner, words, size, colour or CREAM)
 end
-local function plain(outer, w, h, colour)
-    local img = StaticConstructObject(StaticFindObject("/Script/UMG.Image"), outer)
-    pcall(function() img:SetColorAndOpacity(colour) end)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
-    box:SetWidthOverride(w)
-    box:SetHeightOverride(h)
-    local s = box:AddChild(img)
-    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)
-    return box, img
-end
+
 -- An image of art `name` w x h, or a plain box of `colour` without the file.
-local function picture(outer, name, w, h, colour)
-    local box, img = ART.box(outer, name, w, h)
-    if box then return box, img end
+local function picture(owner, name, width, height, colour)
+    local box, image = ART.box(owner, name, width, height)
+    if box then return box, image end
     once("noart" .. name, "crate window: no " .. name .. ".png; a plain box instead")
-    return plain(outer, w, h, colour or NAVY)
-end
-local function sized(outer, child, w, h)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
-    box:SetWidthOverride(w)
-    if h then box:SetHeightOverride(h) end
-    local s = box:AddChild(child)
-    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)
-    return box
-end
-local function place(over, w, x, y)
-    local s = over:AddChild(w)
-    pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)        -- Left, Top
-    pcall(function() s:SetPadding({ Left = x, Top = y, Right = 0, Bottom = 0 }) end)
-    return s
-end
--- The game's own small button (WBP_CommonButton_C), w x h, labelled, its clicks routed to `action`.
-local BUTTON = "/Game/Pal/Blueprint/UI/UserInterface/Common/WBP_CommonButton.WBP_CommonButton_C"
-local function button(outer, label, w, h, action)
-    pcall(LoadAsset, "/Game/Pal/Blueprint/UI/UserInterface/Common/WBP_CommonButton.WBP_CommonButton")
-    local class = StaticFindObject(BUTTON)
-    local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
-    if not (class and valid(class) and wbl) then error("no WBP_CommonButton_C") end
-    local b = wbl:Create(outer, class, nil)
-    pcall(function() b.Text_Main:SetText(FText(label)) end)
-    env.claim(b, action)
-    claimed[#claimed + 1] = b
-    return sized(outer, b, w, h), b
+    return WIDGETS.plain(owner, width, height, colour or NAVY)
 end
 
+-- What each button does. A button names one of these, with a value for "open" (the kind).
+local ACTIONS = {
+    close = function()
+        dismissed = true
+    end,
+    show = function()
+        dismissed = false
+    end,
+    open = function(kind)
+        local opened, out = env.openCrate(kind)
+        if not opened then
+            log("crate window: no " .. tostring(CRATES.NAMES[kind] or kind) .. " was opened (none of that kind left, "
+                .. "or no player in a world)")
+            return
+        end
+        last = { kind = opened, out = out, stamp = (last and last.stamp or 0) + 1 }
+        selected = opened
+    end,
+}
+
+local function runAction(name, value)
+    local run = ACTIONS[name]
+    if not run then
+        log("crate window: a button with an unknown action (" .. tostring(name) .. ") was clicked; nothing done")
+        return
+    end
+    run(value)
+end
+
+-- The game's own small button, w x h, labelled; a click on it runs ACTIONS[action](value) after the click's hook.
+-- Its box, and the button.
+local function button(owner, label, width, height, action, value)
+    local made = WIDGETS.makeButton(owner, label)
+    CLICKS.claim(made, OWNER, function() runAction(action, value) end)
+    return sized(owner, made, width, height), made
+end
+
+-- What the window shows now; when this changes, the window is drawn again.
 local function signature()
-    local n, parts = CRATES.counts(), {}
-    for _, k in ipairs(CRATES.KINDS) do parts[#parts + 1] = k .. (n[k] or 0) end
-    return table.concat(parts, ",") .. "|" .. tostring(CW.selected) .. "|" .. tostring(CW.last and CW.last.stamp)
-        .. "|" .. tostring(CW.dismissed)
+    local counts, parts = CRATES.counts(), {}
+    for _, kind in ipairs(CRATES.KINDS) do
+        parts[#parts + 1] = kind .. (counts[kind] or 0)
+    end
+    return table.concat(parts, ",") .. "|" .. tostring(selected) .. "|" .. tostring(last and last.stamp)
+        .. "|" .. tostring(dismissed)
 end
 
-local function buildPanel(outer)
-    local root = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
-    root:SetWidthOverride(W)
-    root:SetHeightOverride(H)
-    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), outer)
-    root:AddChild(over)
-    local bg, hasPlate = picture(outer, "ap-mailbox-window", W, H), ART.texture("ap-mailbox-window") ~= nil
-    local bs = over:AddChild(bg)
-    pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
-    if not hasPlate then place(over, text(outer, "Archipelago Mailbox", 22), 32, 26) end
-    place(over, (button(outer, "X", S.close[3], S.close[4], "close")), S.close[1], S.close[2])
-    place(over, text(outer, "Palworld Crates", 12, MUTED), S.list_header[1], S.list_header[2])
-    -- One row per kind waiting.
-    local counts, row = CRATES.counts(), 0
+-- The plate, its title when the plate is missing, the Close button and the list's header.
+local function addPlateAndClose(over, owner)
+    local plate = picture(owner, "ap-mailbox-window", PLATE.w, PLATE.h)
+    WIDGETS.fill(over:AddChild(plate))
+    if not ART.texture("ap-mailbox-window") then
+        place(over, text(owner, MAIL.TITLE, FONT.title), SLOT.title.x, SLOT.title.y)
+    end
+    place(over, (button(owner, "X", SLOT.close.w, SLOT.close.h, "close")), SLOT.close.x, SLOT.close.y)
+    place(over, text(owner, "Palworld Crates", FONT.header, MUTED), SLOT.listHeader.x, SLOT.listHeader.y)
+end
+
+-- One row: its plate, the kind's icon, name and count, and its Open button.
+local function addCrateRow(over, owner, kind, count, top)
+    local left = SLOT.list.x
+    local plate = kind == selected and "ap-mailbox-row-selected" or "ap-mailbox-row"
+    place(over, (picture(owner, plate, SLOT.row.w, SLOT.row.h)), left, top)
+    local icon = picture(owner, CRATES.ICONS[kind], SLOT.rowIcon.w, SLOT.rowIcon.h, GLOW[kind])
+    place(over, icon, left + SLOT.rowIcon.x, top + SLOT.rowIcon.y)
+    place(over, text(owner, CRATES.NAMES[kind], FONT.rowName), left + SLOT.rowName.x, top + SLOT.rowName.y)
+    place(over, text(owner, count .. " waiting", FONT.rowCount, MUTED), left + SLOT.rowCount.x, top + SLOT.rowCount.y)
+    local open = button(owner, "Open", SLOT.rowButton.w, SLOT.rowButton.h, "open", kind)
+    place(over, open, left + SLOT.rowButton.x, top + SLOT.rowButton.y)
+end
+
+-- One row per kind waiting, in the kinds' order; a note when none waits.
+local function addCrateRows(over, owner, counts)
+    local rows = 0
     for _, kind in ipairs(CRATES.KINDS) do
-        local n = counts[kind] or 0
-        if n > 0 then
-            local y = S.list[2] + row * S.row_stride
-            local plate = kind == CW.selected and "ap-mailbox-row-selected" or "ap-mailbox-row"
-            place(over, (picture(outer, plate, S.row[1], S.row[2])), S.list[1], y)
-            place(over, (picture(outer, CRATES.ICONS[kind], S.row_icon[3], S.row_icon[4], GLOW[kind])), S.list[1] + S.row_icon[1], y + S.row_icon[2])
-            place(over, text(outer, CRATES.NAMES[kind], 12), S.list[1] + S.row_name[1], y + S.row_name[2])
-            place(over, text(outer, n .. " waiting", 9, MUTED), S.list[1] + S.row_count[1], y + S.row_count[2])
-            place(over, (button(outer, "Open", S.row_button[3], S.row_button[4], "open:" .. kind)),
-                S.list[1] + S.row_button[1], y + S.row_button[2])
-            row = row + 1
+        local count = counts[kind] or 0
+        if count > 0 then
+            addCrateRow(over, owner, kind, count, SLOT.list.y + rows * ROW_STRIDE)
+            rows = rows + 1
         end
     end
-    if row == 0 then place(over, text(outer, "No crates waiting.", 12, MUTED), S.list[1] + 8, S.list[2] + 8) end
-    -- The details pane: the chosen kind (or the last opened one), on its glow.
-    local kind = CW.selected or (CW.last and CW.last.kind)
+    if rows == 0 then
+        local note = text(owner, "No crates waiting.", FONT.header, MUTED)
+        place(over, note, SLOT.list.x + EMPTY_NOTE_INSET, SLOT.list.y + EMPTY_NOTE_INSET)
+    end
+end
+
+-- The details pane: a kind's icon on its glow, its name, how many wait, what it holds, and the big Open button.
+local function addDetails(over, owner, kind, counts)
+    local glowBox, glow = picture(owner, "ap-mailbox-reveal", SLOT.reveal.w, SLOT.reveal.h, GLOW[kind])
+    pcall(function() glow:SetColorAndOpacity(GLOW[kind]) end)
+    place(over, glowBox, SLOT.reveal.x, SLOT.reveal.y)
+    place(over, (picture(owner, CRATES.ICONS[kind], SLOT.icon.w, SLOT.icon.h, GLOW[kind])), SLOT.icon.x, SLOT.icon.y)
+    local count = counts[kind] or 0
+    place(over, sized(owner, text(owner, CRATES.NAMES[kind], FONT.name), SLOT.name.w), SLOT.name.x, SLOT.name.y)
+    local waiting = text(owner, count .. " waiting", FONT.detail, MUTED)
+    place(over, sized(owner, waiting, SLOT.line2.w), SLOT.line2.x, SLOT.line2.y)
+    local about = text(owner, CRATES.ABOUT[kind], FONT.detail)
+    place(over, sized(owner, about, SLOT.line3.w, SLOT.line3.h), SLOT.line3.x, SLOT.line3.y)
+    if count == 0 then return end
+    local open = button(owner, "Open " .. CRATES.NAMES[kind], SLOT.open.w, SLOT.open.h, "open", kind)
+    place(over, open, SLOT.open.x, SLOT.open.y)
+end
+
+-- An item's name cut to fit a cell.
+local function cellName(id)
+    local name = BAG.nameOf(id)
+    if #name > NAME_MAX_CHARS then
+        name = name:sub(1, NAME_MAX_CHARS - 1) .. "."
+    end
+    return name
+end
+
+-- The last crate opened: its contents, one cell each (name and count as text), at most CONTENTS_CELLS.
+local function addLastOpened(over, owner, opened)
+    local header = text(owner, "Last opened: " .. CRATES.NAMES[opened.kind], FONT.contentsHeader, MUTED)
+    place(over, header, SLOT.contentsHeader.x, SLOT.contentsHeader.y)
+    local inner = SLOT.cell.w - 2 * CELL_INSET
+    for index, entry in ipairs(opened.out) do
+        if index > CONTENTS_CELLS then break end
+        local x = SLOT.contents.x + ((index - 1) % CELLS_PER_ROW) * CELL_STRIDE
+        local y = SLOT.contents.y + ((index - 1) // CELLS_PER_ROW) * CELL_STRIDE
+        place(over, (picture(owner, "ap-mailbox-cell", SLOT.cell.w, SLOT.cell.h)), x, y)
+        local label = text(owner, cellName(entry.id) .. "\nx" .. entry.n, FONT.cell)
+        place(over, sized(owner, label, inner, inner), x + CELL_INSET, y + CELL_INSET)
+    end
+end
+
+-- The whole window, PLATE.w x PLATE.h.
+local function buildPanel(owner)
+    local root = WIDGETS.construct(WIDGETS.UMG.sizeBox, owner)
+    root:SetWidthOverride(PLATE.w)
+    root:SetHeightOverride(PLATE.h)
+    local over = WIDGETS.construct(WIDGETS.UMG.overlay, owner)
+    root:AddChild(over)
+    local counts = CRATES.counts()
+    addPlateAndClose(over, owner)
+    addCrateRows(over, owner, counts)
+    local kind = selected or (last and last.kind)          -- the chosen kind, or the last one opened
     if kind then
-        local glowBox, glow = picture(outer, "ap-mailbox-reveal", S.reveal[3], S.reveal[4], GLOW[kind])
-        pcall(function() glow:SetColorAndOpacity(GLOW[kind]) end)
-        place(over, glowBox, S.reveal[1], S.reveal[2])
-        place(over, (picture(outer, CRATES.ICONS[kind], S.icon[3], S.icon[4], GLOW[kind])), S.icon[1], S.icon[2])
-        place(over, sized(outer, text(outer, CRATES.NAMES[kind], 16), S.name[3]), S.name[1], S.name[2])
-        place(over, sized(outer, text(outer, (counts[kind] or 0) .. " waiting", 10, MUTED), S.line2[3]), S.line2[1], S.line2[2])
-        place(over, sized(outer, text(outer, CRATES.ABOUT[kind], 10), S.line3[3], S.line3[4]), S.line3[1], S.line3[2])
-        if (counts[kind] or 0) > 0 then
-            place(over, (button(outer, "Open " .. CRATES.NAMES[kind], S.open[3], S.open[4], "open:" .. kind)), S.open[1], S.open[2])
-        end
+        addDetails(over, owner, kind, counts)
     end
-    -- The last crate opened: its contents, one cell each (name and count as text).
-    if CW.last then
-        place(over, text(outer, "Last opened: " .. CRATES.NAMES[CW.last.kind], 11, MUTED), S.contents_header[1], S.contents_header[2])
-        for i, r in ipairs(CW.last.out) do
-            if i > 10 then break end
-            local cx = S.contents[1] + ((i - 1) % 5) * S.cell_stride
-            local cy = S.contents[2] + ((i - 1) // 5) * S.cell_stride
-            place(over, (picture(outer, "ap-mailbox-cell", S.cell, S.cell)), cx, cy)
-            local name = env.nameOf(r.id)
-            if #name > 22 then name = name:sub(1, 21) .. "." end
-            place(over, sized(outer, text(outer, name .. "\nx" .. r.n, 8), S.cell - 10, S.cell - 10), cx + 5, cy + 5)
-        end
+    if last then
+        addLastOpened(over, owner, last)
     end
     return root
 end
 
-local function toggleButton(outer)
-    local box = button(outer, "Open Palworld Crates (" .. CRATES.count() .. ")", 300, 36, "show")
-    return box
-end
-
+-- Takes down what is drawn and releases its buttons.
 local function hide()
-    for _, b in ipairs(claimed) do pcall(env.unclaim, b) end
-    claimed = {}
-    if not shown then return end
-    for _, k in ipairs({ "panel", "toggle" }) do
-        if shown[k] then pcall(function() shown[k]:RemoveFromParent() end) end
+    CLICKS.releaseAll(OWNER)
+    if not overlay then return end
+    for _, part in ipairs({ "panel", "toggle" }) do
+        local widget = overlay[part]
+        if widget then
+            pcall(function() widget:RemoveFromParent() end)
+        end
     end
-    shown.panel, shown.toggle = nil, nil
+    overlay.panel, overlay.toggle = nil, nil
 end
 
--- Builds what should show over `widget` now: the window (crates waiting, or one just opened, and not closed) or the
--- small button to bring it back.
+-- Puts a widget on the chest window's canvas, at `anchor` (also its alignment) and `offsetY` below it, over the rest.
+local function putOnCanvas(canvas, widget, anchor, offsetY)
+    local slot = canvas:AddChildToCanvas(widget)
+    pcall(function() slot:SetAnchors({ Minimum = anchor, Maximum = anchor }) end)
+    pcall(function() slot:SetAlignment(anchor) end)
+    pcall(function() slot:SetPosition({ X = 0, Y = offsetY }) end)
+    pcall(function() slot:SetAutoSize(true) end)
+    pcall(function() slot:SetZOrder(OVER_CHEST) end)
+end
+
+-- Draws what should show over `widget` now: the window (crates waiting, or one just opened, and not closed) or the
+-- small button that brings it back.
 local function build(widget)
     local canvas = canvasOf(widget)
-    if not canvas then once("cwnocanvas", "crate window: the chest window has no canvas; crates open from the Inventory page"); return end
-    hide()
-    local wantPanel = not CW.dismissed and (CRATES.count() > 0 or CW.last ~= nil)
-    if wantPanel then
-        local panel = buildPanel(widget)
-        local slot = canvas:AddChildToCanvas(panel)
-        pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0.5 }, Maximum = { X = 0.5, Y = 0.5 } }) end)
-        pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
-        pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
-        pcall(function() slot:SetAutoSize(true) end)
-        pcall(function() slot:SetZOrder(1000) end)
-        shown.panel = panel
-        once("cwshown", "crate window: shown over the mailbox (" .. CRATES.count() .. " crate(s))")
-    elseif CRATES.count() > 0 then
-        local t = toggleButton(widget)
-        local slot = canvas:AddChildToCanvas(t)
-        -- Top centre, above the inventory and chest panels (2026-11-05 run: at the screen's top-left corner, 40,40, the
-        -- player never saw it and could not bring the window back).
-        pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0 }, Maximum = { X = 0.5, Y = 0 } }) end)
-        pcall(function() slot:SetAlignment({ X = 0.5, Y = 0 }) end)
-        pcall(function() slot:SetPosition({ X = 0, Y = 130 }) end)
-        pcall(function() slot:SetAutoSize(true) end)
-        pcall(function() slot:SetZOrder(1000) end)
-        shown.toggle = t
-    end
-end
-
--- Every update: follows the mailbox's chest window; rebuilds when the crates, the choice or the last opened change.
-function CW.update()
-    local widget = env and env.chestWidget()
-    if not (widget and valid(widget)) then
-        if shown then hide(); shown = nil end
+    if not canvas then
+        once("cwnocanvas", "crate window: the chest window has no canvas; crates open from the Inventory page")
         return
     end
-    if not shown or shown.widget ~= addr(widget) then
-        shown = { widget = addr(widget) }
-        CW.dismissed, CW.last = false, nil                  -- a fresh mailbox: the window again, no old contents
-        CW.selected = nil
-    end
-    if not CW.selected or (CRATES.counts()[CW.selected] or 0) == 0 then
-        local counts = CRATES.counts()
-        CW.selected = nil
-        for _, k in ipairs(CRATES.KINDS) do if (counts[k] or 0) > 0 then CW.selected = k; break end end
-    end
-    local sig = signature()
-    if shown.sig ~= sig then
-        shown.sig = sig
-        local ok, err = pcall(build, widget)
-        if not ok then once("cwbuild" .. tostring(err), "crate window error: " .. tostring(err)) end
+    hide()
+    if not dismissed and (CRATES.count() > 0 or last ~= nil) then
+        overlay.panel = buildPanel(widget)
+        putOnCanvas(canvas, overlay.panel, CENTRE, 0)
+        once("cwshown", "crate window: shown over the mailbox (" .. CRATES.count() .. " crate(s))")
+    elseif CRATES.count() > 0 then
+        local label = "Open Palworld Crates (" .. CRATES.count() .. ")"
+        overlay.toggle = button(widget, label, TOGGLE.w, TOGGLE.h, "show")
+        putOnCanvas(canvas, overlay.toggle, TOP_CENTRE, TOGGLE.top)
     end
 end
 
--- A button's action (menu.lua routes the click here, on the next update): open:<kind>, close or show.
-function CW.action(action)
-    if action == "close" then CW.dismissed = true; return end
-    if action == "show" then CW.dismissed = false; return end
-    local kind = action:match("^open:(%a+)$")
-    if kind then
-        local k, out = env.openCrate(kind)
-        if k then CW.last = { kind = k, out = out, stamp = (CW.last and CW.last.stamp or 0) + 1 }; CW.selected = k end
+-- The first kind with a crate waiting, when the chosen kind has none left.
+local function keepSelectionValid()
+    local counts = CRATES.counts()
+    if selected and (counts[selected] or 0) > 0 then return end
+    selected = nil
+    for _, kind in ipairs(CRATES.KINDS) do
+        if (counts[kind] or 0) > 0 then
+            selected = kind
+            return
+        end
     end
 end
 
-function CW.install(e) env = e end
+-- Every update: runs the buttons' clicks, follows the mailbox's chest window, and draws the window again when the
+-- crates, the choice or the last crate opened change.
+function CW.update()
+    CLICKS.run(OWNER)
+    local widget = env and env.chestWidget()
+    if not (widget and valid(widget)) then
+        if overlay then
+            hide()
+        end
+        overlay = nil
+        return
+    end
+    if not overlay or overlay.widgetAddress ~= UTIL.addr(widget) then
+        overlay = { widgetAddress = UTIL.addr(widget) }
+        dismissed, last, selected = false, nil, nil       -- a fresh mailbox: the window again, no old contents
+    end
+    keepSelectionValid()
+    local now = signature()
+    if overlay.signature == now then return end
+    overlay.signature = now
+    local ok, err = pcall(build, widget)
+    if not ok then
+        once("cwbuild" .. tostring(err), "crate window error: " .. tostring(err))
+    end
+end
+
+-- Takes what main.lua hands over (see env above).
+function CW.install(handedOver)
+    env = handedOver
+end
+
 return CW

@@ -2229,7 +2229,7 @@ local ESC_CLICK = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Butt
 print("the mailbox")
 local kinds, items = require("mailbox").count()
 expect(kinds == 1 and items == 50, "the Wood Bundle waits in the mailbox: " .. items)
-expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\nmailview=0", 1, true), "kept in the save file")
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\n", 1, true), "kept in the save file")
 expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox.", 1, true)
        and not table.concat(announced, "|"):find("Inventory", 1, true),
        "the player is told where it is: the Esc menu (the Inventory button is not named until a playtest has seen it)")
@@ -2396,7 +2396,8 @@ local slots = chests[1].c.slots
 expect(#shown == 1 and shown[1].kind == 7 and shown[1].param.MapObjectConcreteModel == chests[1], "the game's chest window opens on it")
 expect(slots[1].ItemId.StaticId:ToString() == "Wood" and slots[1].StackCount == 50, "filled from the mailbox")
 expect(chests[1].model.DeteriorationDamage == 0 and chests[1].model.DamagableType == 2 and chests[1].locked, "kept from decay and locked")
-expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview=1", 1, true), "the save knows a view is open")
+expect(not io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview", 1, true),
+       "the save holds the list only, with no line for an open view (nothing read it)")
 expect(chests[1].c.Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
        and slots[7].Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
        and logged("deposits refused by permission: container set, 300 slot%(s%)"), "the chest accepts nothing (the game's own rule)")
@@ -2461,7 +2462,7 @@ expect(given[#given] == "Wood x1" and logged("put in at the last moment went bac
 expect(slots[1]:IsEmpty() and slots[2]:IsEmpty(), "the chest is emptied")
 expect(not logged("no chest window heading found"), "the heading is not looked for as the window closes")
 local saved = io.open(MOD .. "/save-12345-Tester.txt"):read("*a")
-expect(saved:find("mail=Wood:20,Stone:50\nmailview=0", 1, true), "saved: " .. saved)
+expect(saved:find("mail=Wood:20,Stone:50\n", 1, true), "saved: " .. saved)
 -- Open again: the chest is found, not made again. A plain stack left in it (a world save older than the mod's save,
 -- after a crash) is a copy: it goes before filling.
 slots[5].ItemId.StaticId, slots[5].StackCount = FNameOf("Wood"), 20
@@ -2501,6 +2502,13 @@ hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
 kinds, items = require("mailbox").count()
 expect(items == 55 and slots[1].StackCount == 5, "the next open fills from the list, not the copy: " .. slots[1].StackCount)
+;(function()   -- what the mailbox found out in one world is logged again in the next
+    local permissionLines = 0
+    for _, l in ipairs(printed) do
+        if l:find("deposits refused by permission", 1, true) then permissionLines = permissionLines + 1 end
+    end
+    expect(permissionLines == 2, "a new world logs its own findings again (the chest's permission): " .. permissionLines)
+end)()
 run(1)
 hudWindows["chest" .. #shown].gone = true
 run(2)
@@ -2546,12 +2554,10 @@ wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, t
 hookFailures.AP_Clicked = 1                                  -- its first opening: the button class still loading
 hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
-expect(logged("mailbox: could not hook the LogicMod's buttons yet"), "a failed hook of its buttons is logged")
-hudWindows["mail"] = nil                                     -- the player closes it with Esc
-run(1)
-hooks[ESC_CLICK]({ get = function() return mailBtn end })    -- the next opening tries again
-run(3)
 local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
+expect(logged("mailbox: could not hook AP_Clicked yet") and not hooks[ROW_CLICK], "a failed hook of its buttons is logged")
+run(10)
+expect(hooks[ROW_CLICK] and hudWindows["mail"], "tried again within 3 s, with the window still open: its buttons work")
 expect(#winRows == 2 and winRows[1].Label.text == "Wood  x1" and winRows[2].Label.text == "Stone  x50",
        "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
 expect(winRows[1].Btn.focused, "a controller starts on the first row")
@@ -2563,16 +2569,64 @@ run(1)
 expect(#winRows == 2 and table.concat(announced, "|"):find("Your bag is full: Wood stays in the mailbox.", 1, true), "a full bag keeps the item")
 expect(logged("the bag refused Wood %(result 16%)"), "a refusal is logged")
 bagFull = false
+;(function()   -- no inventory data (the player still loading): the item stays, and the bag is not called full
+    local function fullTold()
+        local n = 0
+        for _, a in ipairs(announced) do
+            if a:find("Your bag is full", 1, true) then n = n + 1 end
+        end
+        return n
+    end
+    local toldBefore, inventoryWas = fullTold(), ps.GetInventoryData
+    ps.GetInventoryData = function() return nil end
+    hooks[ROW_CLICK]({ get = function() return winRows[1] end })
+    run(1)
+    ps.GetInventoryData = inventoryWas
+    expect(#winRows == 2 and fullTold() == toldBefore and logged("Wood stays in the mailbox: no bag")
+           and logged("the player has no inventory data"),
+           "no inventory data: the item stays, the log says why, and the player is not told the bag is full")
+end)()
 hooks[ROW_CLICK]({ get = function() return winRows[1] end })
 run(1)
 expect(given[#given] == "Wood x1" and #winRows == 1, "a row takes its item into the bag")
 hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
 run(1)
 expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
-expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\nmailview=0", 1, true), "and the save")
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\n", 1, true), "and the save")
+;(function()   -- an item whose id reads like a button's action ("close") is still an item
+    MB.add("close", 2)
+    bagFull = true
+    hooks[ROW_CLICK]({ get = function() return window.TakeAll end })   -- nothing fits: the window shows the row
+    run(1)
+    bagFull = false
+    local row = winRows[1]
+    hooks[ROW_CLICK]({ get = function() return row end })
+    run(1)
+    expect(row and given[#given] == "close x2" and not hudWindows["mail"].gone,
+           "its row takes it into the bag, and the window stays open: " .. tostring(given[#given]))
+end)()
 hooks[ROW_CLICK]({ get = function() return window.Close end })
 run(1)
 hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false
+;(function()   -- a new seed while the hidden chest is being made: the chest templates get their size back at once
+    local chestsWere, spawnWas = chests, mapObjects.RequestSpawnMapObjectByPlayer_Server
+    chests = {}
+    mapObjects.RequestSpawnMapObjectByPlayer_Server = function() return true end   -- the chest never appears
+    MB.add("Wood", 1)
+    MB.open()
+    run(3)
+    local raised = chestTemplates[1].SlotNum
+    MB.reset()
+    local afterReset, toldBefore = chestTemplates[1].SlotNum, #announced
+    run(25)
+    local toldFailure = false
+    for i = toldBefore + 1, #announced do
+        if announced[i]:find("could not be made", 1, true) then toldFailure = true end
+    end
+    expect(raised == 300 and afterReset == 54 and not toldFailure and not MB.busy(),
+           "the templates are put back with the reset, and nothing more is made or said: " .. tostring(afterReset))
+    chests, mapObjects.RequestSpawnMapObjectByPlayer_Server = chestsWere, spawnWas
+end)()
 
 do   -- (its own block, as the traps tests below)
 print("the Inventory page's mailbox button")
@@ -2797,6 +2851,23 @@ commonClick(lastBtn)
 run(3)
 expect(lastBtn and not mainMenu.closed and linesWith("main menu closed for the mailbox") == closeLines and #shown == shownBefore,
        "out of a world, a click at an old button's address does nothing")
+;(function()   -- an error every update that names a new address each time is logged once
+    playerController.K2_GetPawn = function() return pawn end
+    local raised, was = 0, mainMenu
+    mainMenu = MainMenu(inventoryTab((inventoryPage())), 8)
+    mainMenu.IsValid = function()
+        raised = raised + 1
+        error(string.format("boom at 0x%x", 4096 + raised))
+    end
+    mainMenuOpen = true
+    run(5)
+    mainMenu = was
+    local lines = 0
+    for _, l in ipairs(printed) do
+        if l:find("menu: main menu error", 1, true) and l:find("boom at", 1, true) then lines = lines + 1 end
+    end
+    expect(raised >= 5 and lines == 1, "one line, not one an update: " .. lines .. " for " .. raised .. " errors")
+end)()
 mainMenuOpen, inputSubsystems = false, nil
 escOpen = false
 playerController.K2_GetPawn, playerController.GetAddress = nil, nil
@@ -3245,10 +3316,11 @@ expect(logged("Archipelago menu added to the title menu %(VerticalBox VerticalBo
        "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox/0 < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
--- menu.lua's ExecuteInGameThread runs at the next game tick, as in the game (the rest of the harness runs it at once).
+-- The menu's ExecuteInGameThread runs at the next game tick, as in the game (the rest of the harness runs it at once).
 local queued, realGT = {}, ExecuteInGameThread
 ExecuteInGameThread = function(f)
-    if debug.getinfo(2, "S").source:find("menu.lua", 1, true) then queued[#queued + 1] = f else f() end
+    local source = debug.getinfo(2, "S").source             -- (the menu's files, and clicks.lua for its rows)
+    if source:find("menu", 1, true) or source:find("clicks.lua", 1, true) then queued[#queued + 1] = f else f() end
 end
 local function tick() local q = queued; queued = {}; for _, f in ipairs(q) do f() end end
 local HOVER, UNHOVER = CLICK:gsub("Event_0_", "Event_1_"), CLICK:gsub("Event_0_", "Event_2_")
@@ -3413,6 +3485,20 @@ do
     run(2)
     expect(#menuChildren > before and logged("Archipelago menu added to the title menu"), "then made again once it can be")
 end
+;(function()   -- one test of "in a world": a pawn the lookup answers with, even one not valid, counts
+    local pawnWas, addressWas = playerController.K2_GetPawn, playerController.GetAddress
+    local notValid = Widget({ IsValid = function() return false end })
+    titleOpen = false                                       -- (no title menu up: it is only looked for)
+    playerController.K2_GetPawn, playerController.GetAddress = function() return notValid end, function() return 1001 end
+    run(1)
+    local looks = lookups.WBP_TitleMenu_C or 0
+    run(10)
+    local inTen = (lookups.WBP_TitleMenu_C or 0) - looks
+    playerController.K2_GetPawn, playerController.GetAddress = pawnWas, addressWas
+    titleOpen = true
+    run(2)
+    expect(inTen <= 1, "in a world, the title menu is looked for every 10th update, as the world buttons see it: " .. inTen)
+end)()
 -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
 -- 10 updates, logged, and looked for every update again.
 playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end
@@ -3446,6 +3532,48 @@ titleOpen = false
 run(1)
 palEditOk, umgEditOk = nil, nil
 ExecuteInGameThread = realGT
+end)()
+;(function()   -- a title menu whose rows kept failing, gone and back at the same address: tried again at once
+    local function added()
+        local n = 0
+        for _, l in ipairs(printed) do
+            if l:find("Archipelago menu added to the title menu", 1, true) then n = n + 1 end
+        end
+        return n
+    end
+    local create = wbl.Create
+    wbl.Create = function() return nil end
+    titleOpen = true
+    run(13)                                                 -- builds failing every update, then every 10th
+    titleOpen = false
+    run(1)                                                  -- the menu goes
+    wbl.Create = create
+    for i = #menuChildren, 1, -1 do menuChildren[i] = nil end
+    menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+    gameButtonWrap.vis, quitWrap.vis = 0, 0
+    titleOpen = true                                        -- back, at the address it had
+    local before = added()
+    run(1)
+    expect(added() == before + 1, "its rows are made on the first update it is back, not after a backoff")
+    titleOpen = false
+    run(1)
+end)()
+;(function()   -- a button whose label the mod can't set (the game's widget changed) says so, once
+    local WIDGETS = require("widgets")
+    WIDGETS.setLabel(Widget({}), "Archipelago Mailbox")
+    WIDGETS.setLabel(Widget({}), "Archipelago Mailbox")
+    local lines = 0
+    for _, l in ipairs(printed) do
+        if l:find("a button has neither Text_Main nor Test_Content", 1, true) then lines = lines + 1 end
+    end
+    expect(lines == 1, "a label that can't be set is logged once: " .. lines)
+end)()
+;(function()   -- the fallback chains say once which branch they took
+    expect(logged("menu: the button list: the panel above WBP_Title_MenuButton_StartLocalGame")
+           and logged("widgets: a button's label: Test_Content") and logged("widgets: a button's label: Text_Main")
+           and logged("menu: a text box's text: its Text field")
+           and logged("util: WBP_APMailbox_C: not there, even after loading its package"),
+           "the button list, a label, a text box's text and a class each say where they came from")
 end)()
 
 print("the other goals")
@@ -4107,7 +4235,8 @@ end)()
     expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
 end)()
 ;(function()  -- the Palworld Crates window over the mailbox's chest window (v0.14.0-dev.5)
-    local CR, MB, CW = require("crates"), require("mailbox"), require("crate_window")
+    print("the crate window")
+    local CR, MB = require("crates"), require("mailbox")
     local kids = {}
     local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
     function canvas:AddChildToCanvas(w)
@@ -4183,6 +4312,59 @@ end)()
     MB.chestWidget, CR.list = savedCW, savedList
     run(1)
     expect(kids[#kids].removed, "and it all goes with the chest window")
+end)()
+;(function()   -- a crate the window asks for and can't open (none of that kind left) is logged
+    local CR, MB = require("crates"), require("mailbox")
+    local kids = {}
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function canvas:AddChildToCanvas(w)
+        kids[#kids + 1] = w
+        w.RemoveFromParent = function(self) self.removed = true end
+        return { SetAnchors = function() end, SetAlignment = function() end, SetPosition = function() end,
+                 SetAutoSize = function() end, SetZOrder = function() end }
+    end
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedWidget, savedList = MB.chestWidget, CR.list
+    MB.chestWidget = function() return chestWin end
+    CR.list = { "sphere" }
+    run(1)
+    local open, clickHook
+    for _, c in ipairs(kids[#kids] and kids[#kids].child.children or {}) do
+        if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then open = c.child end
+    end
+    for k, f in pairs(hooks) do
+        if k:find("WBP_CommonButton_C:BndEvt", 1, true) then clickHook = f end
+    end
+    clickHook({ get = function() return open end })
+    clickHook({ get = function() return open end })            -- twice before the next update: one crate only
+    run(1)
+    expect(open and #CR.list == 0 and logged("crate window: no Sphere Crate was opened"),
+           "the second click finds no crate left, and says so")
+    MB.chestWidget, CR.list = savedWidget, savedList
+    run(1)
+end)()
+;(function()   -- a text whose font can't be set is scaled to its size instead, and that is said once
+    local CR, MB = require("crates"), require("mailbox")
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function canvas:AddChildToCanvas(w)
+        w.RemoveFromParent = function() end
+        return { SetAnchors = function() end, SetAlignment = function() end, SetPosition = function() end,
+                 SetAutoSize = function() end, SetZOrder = function() end }
+    end
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedWidget, savedList, construct = MB.chestWidget, CR.list, StaticConstructObject
+    StaticConstructObject = function(class, owner)
+        local made = construct(class, owner)
+        made.SetFont = nil                                          -- no font setter, as a different engine build
+        return made
+    end
+    MB.chestWidget = function() return chestWin end
+    CR.list = { "food" }
+    run(1)
+    StaticConstructObject = construct
+    expect(logged("widgets: text sizes: scaled, as a text's font could not be set"), "the fallback is logged")
+    MB.chestWidget, CR.list = savedWidget, savedList
+    run(1)
 end)()
 print("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning")
 ;(function()

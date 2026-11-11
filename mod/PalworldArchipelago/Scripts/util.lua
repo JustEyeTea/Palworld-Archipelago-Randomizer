@@ -44,6 +44,21 @@ function UTIL.onceIn(owner)
     end
 end
 
+-- A log-once of a module's own whose lines can be logged again: for what is found out about one world. Returns
+-- once(key, msg) and forget(); after forget() every key is new again. Its keys never meet UTIL.once's.
+function UTIL.onceForgettable()
+    local said = {}           -- key -> true: the lines logged since the last forget()
+    local function onceHere(key, msg)
+        if said[key] then return end
+        said[key] = true
+        UTIL.log(msg)
+    end
+    local function forget()
+        said = {}
+    end
+    return onceHere, forget
+end
+
 -- For errors caught every update: the key drops numbers and addresses (an error naming an object's address would
 -- otherwise log anew on each update, three lines a second), and each kind logs at most ERRORS_PER_KIND errors.
 function UTIL.onceErr(kind, err, msg)
@@ -76,12 +91,50 @@ function UTIL.safe(fn, ...)
     return nil
 end
 
+-- Calls fn, for a call on the game's own fields or functions, whose failure means the game is not as the mod
+-- expects: its results, or nil after logging the error once under `what` (UTIL.onceErr). Styling calls whose
+-- failure is harmless use a plain pcall instead.
+function UTIL.attempt(what, fn, ...)
+    local ok, a, b = pcall(fn, ...)
+    if ok then return a, b end
+    UTIL.onceErr(what, a, what .. ": " .. tostring(a))
+    return nil
+end
+
 -- A game object's address as text, or nil when it can't be read. The address is the object's identity in tables
 -- that track it. The engine reuses addresses, so every such table is emptied when the world changes.
 function UTIL.addr(obj)
     return UTIL.safe(function()
         return tostring(obj:GetAddress())
     end)
+end
+
+-- A class (or another object loaded from the game's files) by its full path, loading its package when the game has
+-- not loaded it yet; nil when it can't be had. LoadAsset needs the full "/Game/Dir/Asset.Asset", so the class path's
+-- "_C" is taken off (a package path or a class path loads nothing, and says nothing).
+function UTIL.findClass(path)
+    local found = StaticFindObject(path)
+    if found and found:IsValid() then return found end
+    pcall(LoadAsset, (path:gsub("_C$", "")))
+    found = StaticFindObject(path)
+    if found and found:IsValid() then
+        UTIL.took("util: " .. path:match("[^./]+$"), "not loaded yet; its package was loaded")
+        return found
+    end
+    UTIL.took("util: " .. path:match("[^./]+$"), "not there, even after loading its package")
+    return nil
+end
+
+-- An sRGB colour "RRGGBB" (as the art and the brand palette give it, a leading # allowed) as the linear R/G/B/A colour
+-- UMG takes. `alpha` is 1 when left out.
+function UTIL.linear(hex, alpha)
+    local digits = hex:gsub("^#", "")
+    local colour = { A = alpha or 1 }
+    for channel, at in pairs({ R = 1, G = 3, B = 5 }) do
+        local srgb = tonumber(digits:sub(at, at + 1), 16) / 255
+        colour[channel] = srgb <= 0.04045 and srgb / 12.92 or ((srgb + 0.055) / 1.055) ^ 2.4
+    end
+    return colour
 end
 
 ------------------------------------------------------------------------------------------------------------------------
