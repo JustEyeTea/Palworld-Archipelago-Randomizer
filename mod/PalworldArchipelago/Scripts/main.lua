@@ -242,8 +242,8 @@ local function coreTickBody()
         if not ok then
             onceErr("update", err, "update error: " .. tostring(err))
         end
-        if PERF.legacy then
-            pcall(PERF.replayOldCost, frame)
+        if PERF.replayingCost then
+            pcall(PERF.replayUnsharedLookups, frame)
         end
         PERF.world(frame)
     end
