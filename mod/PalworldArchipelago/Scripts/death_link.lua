@@ -14,6 +14,8 @@ local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
 local cfg = CONFIG.cfg
 local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
 local notify, writeSave = PLAYER.notify, SAVE.write
+local LETHAL_DAMAGE = 999999    -- more than any character's health and shield: one hit faints the player
+local DEAD_TYPE_POISON = 5      -- EPalDeadType Poison: an ordinary death to the game, so its Death Penalty applies
 
 -- State: Death Link. Forgotten: never. `on` is set each connection; the route that worked stays for the session,
 -- whatever the seed, and a death in flight belongs to whoever plays now.
@@ -74,7 +76,7 @@ local function faint(route, ps)
     local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")   -- this update's controller (the frame)
     if route == 1 then
         local pawn = pc:K2_GetPawn()
-        pawn.DamageReactionComponent:SlipDamage(999999, true, 5, true)
+        pawn.DamageReactionComponent:SlipDamage(LETHAL_DAMAGE, true, DEAD_TYPE_POISON, true)
     elseif route == 2 then
         local penalty = deathPenalty(ps)
         if penalty == 0 then

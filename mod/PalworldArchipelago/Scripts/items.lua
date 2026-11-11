@@ -20,9 +20,9 @@ local ap, slotNumber = STATE.ap, STATE.slotNumber
 local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
 
--- One-off effects of items, in index order; each is applied once per seed. False when it could not be applied yet (a
--- bundle the bag refused, with the mailbox off): it is tried again later.
-local function giveOneOff(ps, id, index)
+-- A filler item's once-per-seed effect: a Palworld Crate, tech points or a bundle. False when it could not be applied
+-- yet (a bundle the bag refused, with the mailbox off): it is tried again later.
+local function giveFiller(ps, id, index)
     local it = DATA.items[id]
     if not it then return true end
     if it.name == "Palworld Crate" then
@@ -134,13 +134,24 @@ local function giveTechGift(it)
     notify(it.name .. " brought " .. table.concat(parts, ", ") .. ".")
 end
 
+-- What each kind of item does, and where. An item's kind is DATA.items[id].kind.
+--   kind          on arrival, on every connection (ITEMS.onItem)     once per seed, in index order (ITEMS.applyItems)
+--   tech          unlocks its tech (ap.techs)                        Nomad only: hands over what it makes (giveTechGift)
+--   progressive   unlocks the techs of every sphere tier received    -
+--   pass          opens its area or region (ap.passes)               -
+--   trap          keeps who sent it (ap.from)                        queued for traps.lua to fire (TRAPS.add)
+--   relic         -                                                  the "Palpagos Relic n/m found!" notice
+--   filler        -                                                  its effect (giveFiller): a crate, points, a bundle
+-- Every kind but a trap also says "Received ..." in chat when it is new (its index is past ap.given).
+-- Applies each received item's once-per-seed effect, in index order from ap.given + 1, after retrying what the bag
+-- refused; it stops at a bundle the bag has no room for.
 function ITEMS.applyItems(ps)
     givePending()
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
         local it = DATA.items[id]
-        if it and it.kind == "filler" and not giveOneOff(ps, id, i) then
+        if it and it.kind == "filler" and not giveFiller(ps, id, i) then
             if waiting ~= i then
                 waiting = i
                 notify("Your bag is full: " .. it.name .. " waits until there is room.")

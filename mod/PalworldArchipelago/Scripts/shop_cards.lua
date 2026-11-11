@@ -72,9 +72,13 @@ function SHOP_CARDS.techIcon(tech)
     return t
 end
 
+-- Archipelago's item flags, bit masks on a scouted item's flags (a trap's bit is not shown on a card).
+local FLAG_PROGRESSION = 1
+local FLAG_USEFUL = 2
+-- The icon a card shows for another item: by its most important flag.
 local function iconKind(flags)
-    if flags & 1 ~= 0 then return "progression" end
-    if flags & 2 ~= 0 then return "useful" end
+    if flags & FLAG_PROGRESSION ~= 0 then return "progression" end
+    if flags & FLAG_USEFUL ~= 0 then return "useful" end
     return "filler"
 end
 
@@ -190,14 +194,15 @@ function SHOP_CARDS.relabel(card, key, full)
 end
 
 -- State: forgotten never (cardPasses counts the session's passes); lastCards is replaced every update.
-local cardPasses = 0          -- card passes so far: every 10th relabels every card
+local cardPasses = 0          -- card passes so far: every FULL_RELABEL_EVERY-th relabels every card
+local FULL_RELABEL_EVERY = UTIL.updates(3)   -- card passes, one per update: every card relabelled about every 3 s
 local lastCards = nil         -- this update's cards (the Ctrl+0 old-load replay relabels them again)
 function SHOP_CARDS.refreshCards(full)
     local cards = FindAllOf("WBP_MainMenu_Technology_Content_C")
     lastCards = cards
     if not cards then labelled = {}; return end
     cardPasses = cardPasses + 1
-    full = full or cardPasses % 10 == 0
+    full = full or UTIL.isDue(cardPasses, FULL_RELABEL_EVERY)
     local current = {}
     for _, card in ipairs(cards) do
         if card:IsValid() then

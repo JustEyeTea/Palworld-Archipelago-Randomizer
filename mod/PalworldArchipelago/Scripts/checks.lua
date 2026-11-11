@@ -17,6 +17,7 @@ local log, once = UTIL.log, UTIL.once
 local notify, relicCount = PLAYER.notify, ITEMS.relicCount
 
 -- The seed's goal (slot data options.goal: 0 towers, 1 relic hunt, 2 Paldeck, 3 World Tree); what was done, or nil.
+local GOAL_NEVER = math.huge  -- the count a goal needs when slot data does not say: never reached
 local GOALS = { ["0"] = "towers", ["1"] = "relic_hunt", ["2"] = "paldeck", ["3"] = "world_tree" }
 local function goalReached(found)
     local number = AP_SlotData("options.goal")
@@ -28,15 +29,15 @@ local function goalReached(found)
         return nil
     end
     if goal == "relic_hunt" then
-        local have, need = relicCount(), slotNumber("relics_needed", 999)
+        local have, need = relicCount(), slotNumber("relics_needed", GOAL_NEVER)
         return have >= need and (have .. " Palpagos Relics found") or nil
     elseif goal == "paldeck" then
-        local need = slotNumber("options.paldeck_count", 999)
+        local need = slotNumber("options.paldeck_count", GOAL_NEVER)
         return found.pals >= need and (found.pals .. " Pals registered") or nil
     elseif goal == "world_tree" then
         return found.beaten.WorldTreeBoss and "the World Tree's boss beaten" or nil
     end
-    local need = slotNumber("options.tower_count", 99)
+    local need = slotNumber("options.tower_count", GOAL_NEVER)
     return found.towers >= need and (found.towers .. " tower(s) beaten") or nil
 end
 

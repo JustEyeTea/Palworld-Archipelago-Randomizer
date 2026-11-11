@@ -72,6 +72,7 @@ end
 -- skip is tied to the TechnologyData it was taken from (another world loaded with the same seed and an equally long
 -- list must be compared at once, within one cycle), and it is forgotten on a world change as well.
 local techsSeen, techPolls = nil, 0
+local FULL_TECH_COMPARE_EVERY = 15  -- polls, one per cycle: a full comparison about every 30 s, whatever the skip says
 local researchedNow = {}      -- tech -> true: the world's researched list at the last full read (prerequisites)
 function TECH_LOCK.lockAndUnlockTechs(ps)
     local td = ps:GetTechnologyData()
@@ -83,7 +84,7 @@ function TECH_LOCK.lockAndUnlockTechs(ps)
     local okAddr, addr = pcall(function() return tostring(td:GetAddress()) end)
     if not okAddr then addr = nil end
     if num and addr and techsSeen and techsSeen.version == techsVersion and techsSeen.num == num and techsSeen.td == addr
-        and techPolls % 15 ~= 0 then
+        and not UTIL.isDue(techPolls, FULL_TECH_COMPARE_EVERY) then
         return false
     end
     techsSeen = nil

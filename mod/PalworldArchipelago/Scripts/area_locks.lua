@@ -18,6 +18,7 @@ local keepAlive, keepInPlace = UTIL.keepAlive, UTIL.keepInPlace
 local log, onceErr = UTIL.log, UTIL.onceErr
 local notify, playerState = PLAYER.notify, PLAYER.playerState
 local SENT_HOME_AFTER = 2       -- looks in a row (one per cycle) inside a locked area before the player is sent home
+local CM_PER_METRE = 100        -- config.txt gives the walls' distances in metres; the game measures in centimetres
 
 local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
 local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
@@ -52,9 +53,10 @@ function AREA_LOCKS.configureWalls(dir)
     settings.tiling, settings.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
     -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall walls)
     local radius = tonumber(cfg.wall_radius or "")
-    if radius and radius >= 0 then settings.radius = radius * 100 end
+    if radius and radius >= 0 then settings.radius = radius * CM_PER_METRE end
     local fade = pair(cfg.wall_fade)
-    if fade and fade[2] > fade[1] then settings.fade = { fade[1] * 100, fade[2] * 100 } end
+    local near, far = fade and fade[1], fade and fade[2]
+    if fade and far > near then settings.fade = { near * CM_PER_METRE, far * CM_PER_METRE } end
     WALLS.install(settings)
     ART.install({ keepAlive = keepAlive, dir = dir })
     WALLS.setSkin(cfg.wall_skin)

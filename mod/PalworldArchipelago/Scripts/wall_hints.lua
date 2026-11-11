@@ -17,6 +17,7 @@ local ap = STATE.ap
 local cfg = CONFIG.cfg
 local log = UTIL.log
 local notify = PLAYER.notify
+local POPUP_LINE_CHARS = 60     -- the most of a hint sentence the pop-up's second line shows when it cannot be shortened
 
 -- State: hints at walls. Forgotten: known, shown and offer on a new seed (resetHints); key never.
 local hints = {
@@ -59,7 +60,7 @@ local function wallNotice(area)
         local where, world = hints.known[area]:match(" is at (.-) in (.-)'s World")
         return area .. " is sealed. " .. hints.known[area],
             { title = area .. " is sealed", line = where and ("Its pass is at " .. where .. " (" .. world .. ")")
-                                                     or hints.known[area]:sub(1, 60), ready = true }
+                                                     or hints.known[area]:sub(1, POPUP_LINE_CHARS), ready = true }
     end
     local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
     local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
@@ -108,7 +109,9 @@ function WALL_HINTS.noticeLockedWall(pawn)
         local loc = pawn:K2_GetActorLocation()
         return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
     end)
-    if not (okn and area) or (hints.shown[area] or -1e9) + WAIT.wallNotice > CLOCK.now() then return end
+    if not (okn and area) then return end
+    local lastShown = hints.shown[area]
+    if lastShown and lastShown + WAIT.wallNotice > CLOCK.now() then return end
     hints.shown[area] = CLOCK.now()
     local line, info = wallNotice(area)
     notify(line)
