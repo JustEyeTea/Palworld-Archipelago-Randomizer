@@ -72,7 +72,6 @@ local function stepTimers()
     end
 end
 
-
 -- The title and Esc menus, the mailbox and the crate window.
 local function updateWindows(frame)
     PERF.start("menu")
@@ -252,6 +251,7 @@ local function coreTickBody()
     PLAYER.setFrame(nil)
     PERF.frameEnd(ran)
 end
+
 local kismet = nil             -- state: the engine's system library; looked up again when no longer valid
 -- The engine's frame number, or nil when it can't be read. The timer hands one update to the game thread every
 -- UPDATE_MS whether or not the last has run, so after a stall (a world loading) the queued ones arrive in one frame.
@@ -263,7 +263,8 @@ local function engineFrame()
     local ok, n = pcall(function() return kismet:GetFrameCount() end)
     return ok and tonumber(n) or nil
 end
-local lastFrame = nil         -- the engine frame the last update ran in
+
+local lastEngineFrame = nil   -- state: the engine frame the last update ran in
 -- Never inside a research hook, nor inside itself (see UTIL.runInsideHook), and at most once a frame:
 -- waits are counted in updates, and updates run back to back would use them up with no time passing.
 local function coreTick()
@@ -272,8 +273,8 @@ local function coreTick()
         return
     end
     local f = engineFrame()
-    if f and f == lastFrame then return end
-    lastFrame = f
+    if f and f == lastEngineFrame then return end
+    lastEngineFrame = f
     inTick = true
     local ok, err = pcall(coreTickBody)
     inTick = false
@@ -281,6 +282,7 @@ local function coreTick()
         onceErr("coreTick", err, "update error: " .. tostring(err))
     end
 end
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Start-up: each step in its own function, called in order by start() at the end of this file.
 
