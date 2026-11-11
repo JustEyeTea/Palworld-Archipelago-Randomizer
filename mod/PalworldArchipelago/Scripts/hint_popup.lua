@@ -91,8 +91,9 @@ end
 -- The goal banner (art/ap-goal-banner.png, 1200x300 drawn at 600x150) in the upper third with what was done in its
 -- pill (where the Ctrl+F4 HUD probe put a sample line), for BANNER_TICKS. It takes the pop-up's place.
 local BANNER_TICKS = UTIL.updates(15)   -- long enough to read what was done
-local BANNER_W, BANNER_H = 600, 150
-local BANNER_TEXT = { left = 155, top = 111 }   -- the line's place in the banner's pill, in px of the banner as drawn
+-- The banner as drawn, in px: its size, and its line's place in its pill. The Ctrl+F4 HUD probe draws a sample by it.
+POPUP.BANNER = { width = 600, height = 150, text = { left = 155, top = 111 }, ink = BANNER_INK, pt = TITLE_PT }
+local BANNER = POPUP.BANNER
 -- Shows the goal banner with `line` from update `tick`; whether it is on screen (else the goal is in chat only). A goal
 -- is rare, so each failure is logged each time.
 function POPUP.banner(line, tick)
@@ -102,14 +103,14 @@ function POPUP.banner(line, tick)
         log("goal banner: " .. why .. "; chat only")
         return false
     end
-    local art = ART.box(layout, "ap-goal-banner", BANNER_W, BANNER_H)
+    local art = ART.box(layout, "ap-goal-banner", BANNER.width, BANNER.height)
     if not art then
         log("goal banner: no ap-goal-banner.png; chat only")
         return false
     end
-    local box, over = WIDGETS.hudBox(layout, BANNER_W, BANNER_H)
+    local box, over = WIDGETS.hudBox(layout, BANNER.width, BANNER.height)
     WIDGETS.fill(over:AddChild(art))
-    WIDGETS.place(over, WIDGETS.textLine(layout, line or "", TITLE_PT, BANNER_INK), BANNER_TEXT.left, BANNER_TEXT.top)
+    WIDGETS.place(over, WIDGETS.textLine(layout, line or "", BANNER.pt, BANNER.ink), BANNER.text.left, BANNER.text.top)
     pinCentred(canvas, box, BANNER_AT_Y)
     shown = { box = box, untilTick = tick + BANNER_TICKS, hud = UTIL.addr(layout), banner = true }
     log("goal banner: shown (" .. tostring(line) .. ")")

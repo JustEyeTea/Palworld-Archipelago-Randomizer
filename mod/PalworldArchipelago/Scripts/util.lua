@@ -266,6 +266,23 @@ function UTIL.insideHook()
 end
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Key binds. A key bind's callback runs off the game thread, over the same Lua state: Lua run there, or a function
+-- made there on each press, races the game thread and crashes the game. So the callback only hands over a function
+-- made once, here, when the key is bound.
+
+-- Binds `key` (a UE4SS Key, with `modifiers`, a list of ModifierKey) to onKey, run on the game thread. An error is
+-- logged as "<what> error: ...".
+function UTIL.bindKey(key, modifiers, onKey, what)
+    local function onGameThread()
+        local ok, err = pcall(onKey)
+        if not ok then
+            UTIL.log(what .. " error: " .. tostring(err))
+        end
+    end
+    RegisterKeyBind(key, modifiers, function() ExecuteInGameThread(onGameThread) end)
+end
+
+------------------------------------------------------------------------------------------------------------------------
 -- Hooks on Blueprint classes. RegisterHook fails ("UFunction::Func: 0x0") while the class is still loading, so a hook
 -- is done only once it registered.
 local HOOK_RETRY_CALLS = 10   -- a hook that failed is tried again on every 10th call (3 s when called each update)

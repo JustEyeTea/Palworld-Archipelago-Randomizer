@@ -506,16 +506,10 @@ end
 local WALL_MODES = { full = "hidden", hidden = "nocoll", nocoll = "none", none = "full" }
 local function hotkeys()
     if not RegisterKeyBind or not Key or not ModifierKey then log("no key binds in this UE4SS"); return end
-    -- Ctrl and the number keys 6 to 0: the traps' test keys have Ctrl+F5 to Ctrl+F11 and the Pal gifts' Ctrl+Shift+F5 to F9
-    -- (test_tools.lua), and a key bound twice would run both.
-    -- (The function handed over is made here, once: a key bind runs off the game thread, where making a new function
-    -- each press races the game thread over the Lua state and crashes the game.)
+    -- Ctrl and the number keys 6 to 0: the traps' test keys have Ctrl+F5 to Ctrl+F11 and the Pal gifts' Ctrl+Shift+F5
+    -- to F9 (test_tools.lua), and a key bound twice would run both.
     local function bind(key, label, fn)
-        local function onKey()
-            local ok, err = pcall(fn)
-            if not ok then log("Ctrl+" .. label .. " error: " .. tostring(err)) end
-        end
-        RegisterKeyBind(Key[key], { ModifierKey.CONTROL }, function() ExecuteInGameThread(onKey) end)
+        UTIL.bindKey(Key[key], { ModifierKey.CONTROL }, fn, "[perf] Ctrl+" .. label)
     end
     bind("SIX", "6", function()
         marks = marks + 1
