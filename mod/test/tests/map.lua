@@ -26,7 +26,7 @@ group("the world map", function()
         expect(liveWalls.stampSize({ room = 30 }) == 60 and liveWalls.stampSize({ room = 9 }) == 28,
                "a small region's stamp is about as wide as the region, but at least 28 px")
         local small, tiny = 0, 0
-        for _, c in pairs(dofile(MOD .. "/Scripts/area_centres_regions.lua")) do
+        for _, c in pairs(dofile(MOD .. "/Scripts/area_centres.lua")) do
             expect(c[5], "every region's centre carries its room")
             if c[5] and liveWalls.stampSize({ room = c[5] }) < 88 then
                 small = small + 1

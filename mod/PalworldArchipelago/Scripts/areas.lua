@@ -16,7 +16,7 @@ local SEA = "Open sea"
 -- by index), start (the starting part), map (area_map*.lua: which part each spot of the map is in), bounds (the map's
 -- xMin, xMax, yMin, yMax in world units), centres (area_centres*.lua, by area index: deepU, deepV its deepest point,
 -- stampU, stampV its stamp's place on the map square, room how far that is from the edge), shapes (area_shapes*.lua,
--- loaded when first needed: only for a map drawn without the compositor), prefix and suffix (of the cut's files).
+-- loaded when first needed: only for a map drawn without the compositor) and prefix (of the cut's file names).
 -- Forgotten: layout and decoded are made again at a change of cut (useLayoutData); beyondNames when the set beyond the
 -- goal arrives; parents never (a data file, the same for every seed).
 local layout = {}
@@ -24,16 +24,14 @@ local parents = nil                                            -- region -> area
 local beyondNames = ""         -- the areas beyond the goal, sorted and joined: changes when the set does (setBeyond)
 local decoded = {}             -- map row -> its runs, decoded when first used (areaIndexAt)
 local function useLayoutData(name)
-    local prefix, suffix = "region_", ""                       -- the 15 regions' files: region_walls.lua and so on
-    if name == "regions" then prefix, suffix = "area_", "_regions" end
-    local walls = require(prefix .. "walls" .. suffix)
-    layout.prefix, layout.suffix = prefix, suffix
-    layout.walls, layout.areas, layout.start = walls.walls, walls.areas, walls.start
-    layout.map, layout.shapes = require(prefix .. "map" .. suffix), nil
+    local prefix = name == "regions" and "area_" or "region_"  -- each cut's files: region_walls.lua, area_walls.lua
+    local walls = require(prefix .. "walls")
+    layout.prefix, layout.walls, layout.areas, layout.start = prefix, walls.walls, walls.areas, walls.start
+    layout.map, layout.shapes = require(prefix .. "map"), nil
     local b = layout.map.bounds
     layout.bounds = { xMin = b[1], xMax = b[2], yMin = b[3], yMax = b[4] }
     layout.centres = {}
-    for k, row in pairs(require(prefix .. "centres" .. suffix)) do
+    for k, row in pairs(require(prefix .. "centres")) do
         layout.centres[k] = { deepU = row[1], deepV = row[2], stampU = row[3] or row[1], stampV = row[4] or row[2],
                               room = row[5] }
     end
@@ -110,7 +108,7 @@ local AREA_COLOURS = {
 -- The region (one of the 15) an area of the 75 belongs to; with the 15 regions' cut, the region itself.
 function AREAS.parentOf(area)
     if W.layout ~= "regions" then return area end
-    parents = parents or require("area_parents_regions")
+    parents = parents or require("area_regions")
     return parents[area] or area
 end
 -- Areas beyond the seed's goal (a set of names; main.lua at connect): their walls wear the sealed look.

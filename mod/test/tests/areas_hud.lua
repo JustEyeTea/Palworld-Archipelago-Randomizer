@@ -4,7 +4,7 @@
 group("Lock Size: areas", function()
     -- Slot data options.lock_size 1: every named area of the game on its own, opened by an Area Pass.
     -- walls.lua still calls this cut "regions" (the older word).
-    local RD = dofile(MOD .. "/Scripts/area_walls_regions.lua")
+    local RD = dofile(MOD .. "/Scripts/area_walls.lua")
     local liveWalls = require("walls")
     slotData["options.lock_size"] = "1"
     h.reconnect("Tester")
@@ -20,7 +20,7 @@ group("Lock Size: areas", function()
     expect(wallCount() < up, "an Area Pass takes its area's walls down: " .. up .. " -> " .. wallCount())
     expect(liveWalls.parentOf("Golden Hills") == "Bamboo Groves"
            and liveWalls.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
-           "an area wears its region's colour, ticket and stamp (area_parents_regions.lua)")
+           "an area wears its region's colour, ticket and stamp (area_regions.lua)")
     local perHex = {}
     for i in ipairs(RD.walls) do
         local name = liveWalls.pieceSkin(i, {}, "paws")

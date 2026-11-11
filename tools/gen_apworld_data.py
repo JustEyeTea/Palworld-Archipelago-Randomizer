@@ -2,7 +2,7 @@
 The APWorld then needs no game files: names, levels, costs, areas and where each Pal comes from are plain Python data.
     python3 tools/gen_apworld_data.py <tables dir> <areas json> <pal sources json> [<text tables dir>]
 The text tables dir holds DT_PalFirstActivatedInfoText.tsv (which Pals fly or swim) when the tables dir does not.
-With data/regions-1.0.5.json and data/pal-sources-regions-1.0.5.json (tools/area_model.py run with AREA_SIZE=regions)
+With data/area-model-1.0.5.json and data/area-pal-sources-1.0.5.json (tools/area_model.py run with AREA_SIZE=regions)
 it also writes REGION_MODE: the same locations placed in the game's own regions, for the area_size option.
 Item and location ids are row positions (apworld/palworld/data.py), so the rows of the game_data.py already there keep
 their places and new rows go at the end; a row that is gone stops the script, for a person to decide.
@@ -151,10 +151,10 @@ def region_mode():
     """The per-region set (area_size: regions): every location keeps its name and id; only the piece it sits in, the
     pieces, their borders and levels, and where each Pal comes from are the regions' own."""
     data = pathlib.Path(__file__).resolve().parent.parent / 'data'
-    if not (data / 'regions-1.0.5.json').exists():
+    if not (data / 'area-model-1.0.5.json').exists():
         return None
-    rj = json.load(open(data / 'regions-1.0.5.json'))
-    rs = json.load(open(data / 'pal-sources-regions-1.0.5.json'))
+    rj = json.load(open(data / 'area-model-1.0.5.json'))
+    rs = json.load(open(data / 'area-pal-sources-1.0.5.json'))
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     from area_groups import GROUPS as AREA_GROUPS, REGIONS, REGIONS_START
     in_area = lambda area: [n for n, rows in REGIONS.items() if set(rows) & set(AREA_GROUPS[area])]
