@@ -104,8 +104,13 @@ end
 -- the seed is not tied to one (logged above).
 -- A world that already has shop techs researched is tied only after the player says yes (the hint key): tying it
 -- locks those techs again, and the points spent on them do not come back.
-local seedWorld = nil         -- whether the world loaded now is the seed's; nil until looked at
+-- State: the seed's world. Forgotten: on a world change (noteWorldChange) and on a new seed (resetSeedWorld).
+local seedWorld = nil         -- whether the world loaded now is the seed's; nil until the records phase looks
 local worldAsk = nil          -- { id = world folder, yes = pressed }: a world with progress, asked about
+-- Forgets whether the loaded world is the seed's, and any question about tying a world to it.
+local function resetSeedWorld()
+    seedWorld, worldAsk = nil, nil
+end
 -- The researched techs of the loaded world that tying a seed to it would lock (nil: not readable yet).
 local function techsToRelock(ps)
     local ok, names = pcall(function()
@@ -206,6 +211,8 @@ local function relicCount(upto)
     return n
 end
 
+-- State: the items. Forgotten: never. A new seed starts its items from index 0 again, so an index kept from the last
+-- seed only means its first "bag is full" notice for that same index is not shown; the item still waits.
 local waiting = nil           -- the index of a bundle the bag had no room for (mailbox off): given once there is room
 
 -- Gear and accessories from a crate go straight to the bag (the mailbox chest can't hold per-item data); what the
@@ -356,7 +363,14 @@ end
 -- The goal waits for the player to leave the boss's arena (a stage, as for the Teleport Trap): the user, 2026-11-08,
 -- beat the tower goal and the release flooded chat mid-arena, the goal line lost in it, before the game took them out
 -- of the tower. Sent once a check finds them out of any stage, or WAIT.goal after (never stuck); with the banner.
-local goalWait = nil                     -- { done = what, since = the update it was reached on }
+-- State: the goal. Three flags, in the order they are set: goalWait (reached, waiting for the player to leave the
+-- boss's arena), ap.goalSent (sent this connection) and ap.goalShown (banner shown, in the save file). Forgotten:
+-- goalWait on a new seed (resetGoal); the two ap flags as ap_state.lua says.
+local goalWait = nil          -- { done = what, since = the update it was reached on }
+-- Forgets a goal reached in the last seed that was still waiting to be sent.
+local function resetGoal()
+    goalWait = nil
+end
 local function pollRecords(ps, tick)
     local okp, found = pcall(R.progress, ps, D, os.time())
     if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
@@ -390,6 +404,7 @@ end
 -- Blueprint hooks, which crashed kits 5 and 6).
 -- Textures the cards use are kept alive in the game instance's ReferencedObjects for the whole session: otherwise
 -- nothing references them once the menu rebuilds its cards, the engine frees them, and the cards go blank grey.
+-- State: forgotten never; looked up again when it is no longer valid.
 local keptBy = nil         -- the game instance lives all session (skill: GameInstance-owned objects); checked on use
 -- Keeps obj alive in place `index` of ReferencedObjects, in place of what was kept there, so a picture that is made
 -- again and again keeps one place, not one more each time. Nothing is removed from the list: that is untested from
@@ -438,7 +453,8 @@ do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|
     WALLS.setSkin(cfg.wall_skin)
 end
 
-local textures = {}
+-- State: forgotten never (each is kept alive in the game instance; one no longer valid is loaded again).
+local textures = {}           -- icon kind -> its texture, or false when loading it failed
 -- A failed load is remembered as false for the session, so it is not loaded again for every card on every update.
 local function icon(kind, ctx)
     local t = textures[kind]
@@ -459,7 +475,7 @@ local function icon(kind, ctx)
 end
 
 -- A technology's own icon (an asset in the game), for slots that hold one of your techs.
-local techTextures = {}
+local techTextures = {}       -- tech id -> its icon's texture, or false when loading it failed (state, as textures)
 local function techIcon(tech)
     local t = techTextures[tech]
     if t == false then return nil end                 -- (failed before: see icon)
@@ -504,11 +520,11 @@ local function rewardText(tech)
     return r.player .. "'s " .. r.item .. " (" .. r.game .. ")"
 end
 
-local function shopCard(tech) return ap.shown and D.shop[tech] ~= nil end
+local function shopCard(tech) return ap.shopOpen and D.shop[tech] ~= nil end
 local function bought(tech) return ap.checked[D.shop[tech].loc] == true end
 
 -- The game's own card categories, read off the level-1 cards (never relabelled) so they follow the game's language.
-local categories = { structure = "Structures", item = "Items" }
+local categories = { structure = "Structures", item = "Items" }    -- state, forgotten never (the game's language)
 local function readCategory(card, tech)
     local text = safe(function() return card.BP_PalTextBlock_Category:GetText():ToString() end)
     if type(text) == "string" and text ~= "" then categories[STRUCTURES[tech] and "structure" or "item"] = text; return true end
@@ -522,6 +538,8 @@ end
 -- which catches the game setting a pooled card up again, or a text block re-applying its own text-table row on a
 -- rebuild (issues-log: PalTextBlockBase). Anything that can't be read back counts as changed. Every 10th pass (3 s)
 -- relabels every card anyway, as a safety net for anything those reads miss.
+-- State: the cards. Forgotten: a card's entry once the card is no longer found (refreshCards), all of them when no
+-- card is; readBack never (each is logged once a session).
 local labelled = {}           -- card address -> { tech, sig, name, category, tex address, clickable } as last applied
 local readBack = {}           -- which read-backs worked (logged once each, for the playtest)
 local function noteRead(what, ok)
@@ -596,7 +614,8 @@ local function relabel(card, key, full)
     labelled[key] = { tech = tech, sig = sig, name = name, category = category, tex = texAddr, clickable = clickable }
 end
 
-local cardPasses = 0
+-- State: forgotten never (cardPasses counts the session's passes); lastCards is replaced every update.
+local cardPasses = 0          -- card passes so far: every 10th relabels every card
 local lastCards = nil         -- this update's cards (the Ctrl+0 old-load replay relabels them again)
 local function refreshCards(full)
     local cards = FindAllOf("WBP_MainMenu_Technology_Content_C")
@@ -634,8 +653,18 @@ local SHOP_CLASS = {
     tree = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00"
         .. ".WBP_MainMenu_Technology_00_C",
 }
-local hoveredTech = nil   -- the card under the pointer: a confirm box opened while it is set came from that card
-local retarget = nil      -- the tech a tooltip is being set up again for (see the tooltip hook)
+-- State: the shop's hover hand-off, between four hooks and a deferred call, in this order:
+--   1. The pointer goes onto a slot card: tooltipSetup sets hoveredTech and hides the tooltip.
+--   2. If the slot holds one of your own techs, on the next frame (tooltipSetup's ExecuteInGameThread) retarget is
+--      set to that tech and the tooltip is set up again for it.
+--   3. tooltipSetup runs again, sees retarget, shows the tooltip and clears retarget.
+--   4. A click: canResearch and isResearched answer for hoveredTech only, and confirmBoxSetup reads hoveredTech to
+--      name what the purchase sends.
+--   5. The pointer leaves the card: cardUnhovered clears hoveredTech (updateWindows also clears it once the main
+--      menu is closed, as the un-hover event may not come then).
+-- hoveredTech is set whenever the game sets a tooltip up, for any tech, not only for the card under the pointer.
+local hoveredTech = nil       -- the tech whose tooltip was set up last: a confirm box opened then came from its card
+local retarget = nil          -- the tech a tooltip is being set up again for (step 2), until step 3 uses it
 
 local function confirmText(tech)
     local s = D.shop[tech]
@@ -653,6 +682,7 @@ local later = SOON.later
 -- argument and UE4SS logged "Ref was not function"), and an update inside a Blueprint hook would do widget work there,
 -- which crashes the game. So every hook callback runs through guarded(), and an update that finds itself inside one
 -- skips its turn. (The other way round is ordinary: the update refreshing the tech tree asks these hooks.)
+-- State: each is true only while a hook callback or an update runs.
 local inHook, inTick = false, false
 local function guarded(fn, ...)
     local was = inHook
@@ -673,7 +703,7 @@ end
 
 -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
 local function cardLooksResearched(self, out)
-    if not ap.shown then return end        -- no shop card yet (shopCard is false for all): the game's answer
+    if not ap.shopOpen then return end     -- no shop card yet (shopCard is false for all): the game's answer
     local tech = self:get().BindedTechnologyName:ToString()
     if not shopCard(tech) then return end
     pcall(function() out:set(bought(tech)) end)
@@ -803,11 +833,11 @@ local function techArg(...)
 end
 -- Whether a slot can be bought (the after-callback of IsUnlockableRecipeTechnology). The tech menu asks this (and
 -- the next hook) about 25 times for each card it builds or refreshes, and twice for all 588 techs on a filter. The
--- early returns give exactly what the full check gives in that case (nothing is a shop card before ap.shown; the
+-- early returns give exactly what the full check gives in that case (nothing is a shop card before ap.shopOpen; the
 -- next hook answers only for the hovered card), and the checks are module-level functions, so no closure is made
 -- per call.
 local function canResearch(self, ...)
-    if not ap.shown then return nil end
+    if not ap.shopOpen then return nil end
     local tech = techArg(...)
     if not tech or not shopCard(tech) then return nil end
     local r = slotUnlockable(self:get(), tech)
@@ -886,18 +916,47 @@ end
 registerNativeHooks()
 
 ------------------------------------------------------------------------------------------------------------------------
-local preloaded = false
-local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
-                key = HINT_KEY }
-local wallsLogged = false
-local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil, pending = nil, route = 1 }
-local lockedTicks = 0
+-- State of the menus' preload, the hints at walls, Death Link, the area locks and the world.
+local preloaded = false       -- the shop's menu classes were loaded once ready: forgotten never (once a session)
+-- State: hints at walls. Forgotten: known, shown and offer on a new seed (resetHints); key never.
+local hints = {
+    known = {},               -- area -> the server's hint sentence for that area's pass (onMessage)
+    shown = {},               -- area -> the update that area's wall notice was last shown on (noticeLockedWall)
+    offer = nil,              -- the area whose hint the player may ask for now (wallNotice; askHint takes it)
+    offeredAt = 0,            -- the update the offer was made on: it lasts WAIT.hintOffer
+    asked = nil,              -- the update the player last asked for a hint on: the server's answer is shown within
+                              -- WAIT.hintAnswer (onMessage)
+    key = HINT_KEY,           -- the key that asks (config.txt's hint_key)
+}
+-- Forgets the last seed's hints, the times their notices were shown and an offer still open.
+local function resetHints()
+    hints.known, hints.shown, hints.offer = {}, {}, nil
+end
+local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
+-- State: Death Link. Forgotten: never. `on` is set each connection; the route that worked stays for the session,
+-- whatever the seed, and a death in flight belongs to whoever plays now.
+local death = {
+    on = false,               -- the seed has Death Link on (applySeedOptions)
+    wasDead = false,          -- the player was dead at the last look: a new death is the change to dead
+    incoming = nil,           -- the cause of a death received from the link, until it is applied or dropped
+    at = nil,                 -- the update that death was received on (it is dropped after WAIT.deathLate)
+    caused = nil,             -- the update the link last fainted the player on: a death soon after is not sent back
+    pending = nil,            -- the cause of a faint just tried: the next look checks it worked
+    route = 1,                -- which of ROUTES faints the player (the first that works)
+}
+local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
+-- State: the world. Forgotten: never (the key is replaced at a world change, and the age counted again from 0).
 local wallsWorld, worldTicks = nil, 0
 -- Notices that would come while the loading screen is still up (Speed Boost's, 2026-11-07 test: sent 2 s after the world
 -- loaded, before the player could see it; they found it later in chat): held until the player's character has moved
 -- MOVED_CM from where it first stood in this world, or WAIT.heldNotice has passed, then shown. Dropped if the world
 -- changes first.
-local heldNotices = { list = {}, world = nil, from = nil }
+-- State: forgotten when the world changes (the held notices are dropped, not shown).
+local heldNotices = {
+    list = {},                -- the notices held, in order
+    world = nil,              -- the world they were held in
+    from = nil,               -- { X, Y }: where the player's character first stood in that world
+}
 local MOVED_CM = 300
 local function noticeLater(msg)
     local held = heldNotices
@@ -927,7 +986,7 @@ local function showLater(pawn)
 end
 -- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
 -- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
-local areaLocks = false
+local areaLocks = false       -- state: set each connection (applySeedOptions)
 
 -- Server events: one line each from AP_Poll, fields separated by tabs. The kinds and their fields, in order, are
 -- defined in cppmod/APConnector/src/ap_bridge.hpp (take_events); each handler below takes them by name, in that order.
@@ -1001,25 +1060,32 @@ local function onMessage(textField, kindOf)
     end
 end
 
-local techScan = { report = nil, tries = 0, sent = false }   -- other mods' techs (techscan.lua)
+-- State: other mods' techs (techscan.lua). Forgotten: report and tries never (other mods do not change while the game
+-- runs, so one scan a session is enough); sent on a new seed (resetTechScan), whose slots are other checks.
+local techScan = {
+    report = nil,             -- what the scan found, once it ran
+    tries = 0,                -- scans tried this session (until the player's tech data is there)
+    sent = false,             -- the checks of slots whose tech another mod removed were sent for this seed
+}
+-- Lets the removed slots' checks be sent again for a new seed.
+local function resetTechScan()
+    techScan.sent = false
+end
 
+-- Forgets everything tied to the last seed: a different seed or slot connected. One call per topic; what each forgets
+-- is written at its state.
 local function resetSeed()
-    ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
-    ap.bought = {}
+    STATE.forgetSeed()
+    WALLS.visited = ap.visited                -- (the new table: the map reads it)
     CRATES.reset()
     SYNC.reset()
-    ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
-    ap.goalShown = false
-    goalWait = nil
-    ap.world, seedWorld, worldAsk = nil, nil, nil
-    ap.from, ap.forgiven = {}, 0
-    ap.visited = {}
-    WALLS.visited = ap.visited
     MAIL.reset()
     TRAPS.reset()
     TECH_LOCK.techsChanged()
-    hints.known, hints.shown, hints.offer = {}, {}, nil
-    techScan.sent = false
+    resetGoal()
+    resetSeedWorld()
+    resetHints()
+    resetTechScan()
     log("a different seed or slot: progress of the last one forgotten")
 end
 
@@ -1069,7 +1135,7 @@ end
 -- Connected (again): the slot, the seed and its save, the techs left as research, what each shop slot holds, and the
 -- seed's options. `was` is the status before.
 local function onConnected(was)
-    ap.status = "connected"
+    STATE.setStatus("connected")
     ap.connectedTick = CLOCK.now()
     ap.me = tonumber(AP_SlotData("slot"))
     local seed = AP_SlotData("seed")
@@ -1097,12 +1163,12 @@ local function onStatus(state, detail)
     if state == "connected" then
         onConnected(ap.status)
     elseif state == "connecting" then
-        if ap.status ~= "connected" then ap.status = "connecting" end
+        if ap.status ~= "connected" then STATE.setStatus("connecting") end
     elseif state == "refused" then
-        ap.status = "refused"
+        STATE.setStatus("refused")
         notify("Archipelago refused the connection: " .. tostring(detail))
     elseif state == "disconnected" then
-        ap.status = "disconnected"
+        STATE.setStatus("disconnected")
         ap.ready = false
     end
 end
@@ -1121,7 +1187,7 @@ local function connectTo(server, slot, password)
     cfg.server, cfg.slot, cfg.password = server, slot, password or ""
     writeConfig()
     log("connecting to " .. server .. " as " .. slot)
-    ap.status = "connecting"
+    STATE.setStatus("connecting")
     AP_Connect(server, slot, password or "")
 end
 MENU.install({
@@ -1134,7 +1200,8 @@ MENU.install({
     connect = connectTo,
     disconnect = function()
         AP_Disconnect()
-        ap.status, ap.ready = "disconnected", false
+        STATE.setStatus("disconnected")
+        ap.ready = false
         log("disconnected by the player")
         notify("Disconnected from Archipelago.")
     end,
@@ -1420,7 +1487,7 @@ end
 local function markReady()
     if ap.status ~= "connected" or ap.ready or CLOCK.now() - ap.connectedTick < WAIT.firstItems then return end
     ap.ready = true
-    ap.shown = true
+    ap.shopOpen = true
     local n = 0
     for _ in pairs(ap.items) do n = n + 1 end
     log("ready: " .. n .. " item(s) received, slot " .. tostring(ap.me))
