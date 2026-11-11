@@ -1,8 +1,7 @@
 -- Items the server sends: what each does on arrival (ITEMS.onItem, on every connection) and its once-per-seed effect
 -- (ITEMS.applyItems: points, crates, bundles, a Nomad gift, traps, relics), and opening a Palworld Crate.
--- Tests: mod/test/tests/core.lua, mod/test/tests/core_loop.lua, mod/test/tests/goals.lua,
+-- Tests: mod/test/tests/core.lua, mod/test/tests/core_loop.lua,
 --   mod/test/tests/crates_run_style.lua; groups "connect and receive", "reconnect does not repeat one-off items",
---   "mailbox off: bundles straight to the bag",
 --   "run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning"
 --   (tools/lua_harness.sh, in CI).
 local ITEMS = {}
@@ -57,22 +56,11 @@ local function receiveCrate(index)
     notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
 end
 
--- A bundle's items, into the mailbox, or with the mailbox off straight into the bag. False when the bag refused one
--- (it is tried again later).
+-- A bundle's items, into the mailbox.
 local function giveBundle(_, it)
     for _, bundle in ipairs(RECORDS.BUNDLES[it.name]) do
-        if MAIL.on() then
-            MAIL.add(bundle.id, bundle.n)
-        else
-            -- Counted and logged as the mailbox does (see giveToBag). A bundle is one stack.
-            local got = giveToBag(bundle.id, bundle.n)
-            if got == 0 then return false end
-            if got < bundle.n then
-                log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in")
-            end
-        end
+        MAIL.add(bundle.id, bundle.n)
     end
-    return true
 end
 
 -- Two tech points (the "Tech Points +2" item's TechnologyPoint).
@@ -80,7 +68,6 @@ local function addTechPoints(ps)
     local td = ps:GetTechnologyData()
     td.TechnologyPoint = td.TechnologyPoint + 2
     safe(function() td:OnRep_TechnologyPoint() end)
-    return true
 end
 
 -- One ancient tech point (the "Ancient Tech Points +1" item).
@@ -88,33 +75,30 @@ local function addAncientPoint(ps)
     local td = ps:GetTechnologyData()
     td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
     safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
-    return true
 end
 
 -- Each filler item's once-per-seed effect, by the item's name as apworld/palworld/data.py gives it (the generated
 -- ap_data.lua carries it); a bundle's effect is giveBundle, for every name in RECORDS.BUNDLES. Each takes
--- (ps, it, index) and returns false when it could not be given yet.
+-- (ps, it, index).
 local FILLER_EFFECTS = {
     ["Palworld Crate"] = function(_, _, index)
         receiveCrate(index)
-        return true
     end,
     ["Tech Points +2"] = addTechPoints,
     ["Ancient Tech Points +1"] = addAncientPoint,
 }
 
--- A filler item's once-per-seed effect: a Palworld Crate, tech points or a bundle. False when it could not be applied
--- yet (a bundle the bag refused, with the mailbox off): it is tried again later. A name with no effect is logged and
+-- A filler item's once-per-seed effect: a Palworld Crate, tech points or a bundle. A name with no effect is logged and
 -- counted as given, so the items after it still come.
 local function giveFiller(ps, id, index)
     local it = DATA.items[id]
-    if not it then return true end
+    if not it then return end
     local effect = FILLER_EFFECTS[it.name] or (RECORDS.BUNDLES[it.name] and giveBundle)
     if not effect then
         once("filler " .. it.name, "item " .. it.name .. ": no effect known to this version of the mod, nothing given")
-        return true
+        return
     end
-    return effect(ps, it, index)
+    effect(ps, it, index)
 end
 
 -- Relics received so far (the Relic Hunt goal), up to item index `upto` (all by default; items are numbered from 0).
@@ -128,10 +112,6 @@ function ITEMS.relicCount(upto)
     end
     return n
 end
-
--- State: the items. Forgotten: never. A new seed starts its items from index 0 again, so an index kept from the last
--- seed only means its first "bag is full" notice for that same index is not shown; the item still waits.
-local waiting = nil           -- the index of a bundle the bag had no room for (mailbox off): given once there is room
 
 -- Gear and accessories from a crate go straight to the bag (the mailbox chest can't hold per-item data); what the
 -- bag refused is tried again here, every applying update.
@@ -159,7 +139,7 @@ function ITEMS.openCrate(kind)
     if not kind then return end
     local parts = {}
     for _, row in ipairs(out) do
-        parts[#parts + 1] = handOver(row.id, row.n, row.bag or not MAIL.on())
+        parts[#parts + 1] = handOver(row.id, row.n, row.bag)
     end
     log("crate: opened a " .. CRATES.NAMES[kind] .. " at level " .. lv .. ": " .. table.concat(parts, ", ")
         .. "; " .. CRATES.count() .. " left")
@@ -176,7 +156,7 @@ local function giveTechGift(it)
     if not gifts then return end
     local parts = {}
     for _, gift in ipairs(gifts) do
-        parts[#parts + 1] = handOver(gift.id, gift.n, gift.bag or not MAIL.on())
+        parts[#parts + 1] = handOver(gift.id, gift.n, gift.bag)
     end
     log("nomad: " .. it.name .. " brought " .. table.concat(parts, ", "))
     notify(it.name .. " brought " .. table.concat(parts, ", ") .. ".")
@@ -191,24 +171,16 @@ end
 --   relic        -                                                the "Palpagos Relic n/m found!" notice
 --   filler       -                                                its effect (giveFiller): a crate, points, a bundle
 -- Every kind but a trap also says "Received ..." in chat when it is new (its index is past ap.given).
--- Applies each received item's once-per-seed effect, in index order from ap.given + 1, after retrying what the bag
--- refused; it stops at a bundle the bag has no room for.
+-- Applies each received item's once-per-seed effect, in index order from ap.given + 1, after retrying the gear the bag
+-- refused (from crates and Nomad gifts).
 function ITEMS.applyItems(ps)
     givePending()
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
         local it = DATA.items[id]
-        if it and it.kind == "filler" and not giveFiller(ps, id, i) then
-            if waiting ~= i then
-                waiting = i
-                notify("Your bag is full: " .. it.name .. " waits until there is room.")
-            end
-            break
-        end
-        if waiting == i then
-            waiting = nil
-            log("bundle " .. it.name .. " given, now the bag has room")
+        if it and it.kind == "filler" then
+            giveFiller(ps, id, i)
         end
         if it and it.kind == "tech" then
             giveTechGift(it)

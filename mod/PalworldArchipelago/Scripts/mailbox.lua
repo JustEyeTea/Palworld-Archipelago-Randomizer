@@ -1,9 +1,8 @@
 -- The Archipelago mailbox: items received from the multiworld wait here until the player takes them, instead of
 -- landing in the bag mid-fight. The list is the mod's own, kept in the save file, with no limit. It opens from the
 -- "Archipelago Mailbox" button on the Esc menu and the Inventory page (menu.lua), or an optional key (mailbox_key).
--- config.txt: mailbox=0 gives items straight to the bag; mailbox_view=chest skips the LogicMod's window.
--- Tests: mod/test/tests/mailbox.lua, mod/test/tests/goals.lua; groups "the mailbox",
---   "mailbox off: bundles straight to the bag" (tools/lua_harness.sh, in CI).
+-- config.txt: mailbox_view=chest skips the LogicMod's window.
+-- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local M = {}
 local UTIL = require("util")
 local BAG = require("bag")
@@ -11,7 +10,7 @@ local WINDOW = require("mailbox_window")
 local CHEST = require("mailbox_chest")
 local log = UTIL.log
 -- The window's, the chest's and the list's lines are logged once a world (forgetOnWorldChange() forgets them); the
--- bag's (bag.lua) once a session, since the bag is also used with the mailbox off.
+-- bag's (bag.lua) once a session, since the bag is also used for crate gear.
 local once, forgetOnce = UTIL.onceForgettable()
 
 -- The name the player sees, on the buttons, the LogicMod window and the chest window's heading.
@@ -20,7 +19,7 @@ M.TITLE = "Archipelago Mailbox"
 -- What main.lua hands over (M.install).
 --   notify(text)          shows a line to the player
 --   save()                writes the mod's save file
---   cfg                   config.txt's values (mailbox, mailbox_view, mailbox_slots, mailbox_key)
+--   cfg                   config.txt's values (mailbox_view, mailbox_slots, mailbox_key)
 --   connected()           whether the connection to Archipelago is up
 --   guardedHook(name, fn) optional: a hook callback that no update can run inside
 local env
@@ -91,11 +90,6 @@ function M.removeCount(list, id, count)
             return
         end
     end
-end
-
--- Whether the mailbox is on (config.txt mailbox=0 turns it off).
-function M.on()
-    return env.cfg.mailbox ~= "0"
 end
 
 -- How many kinds of item wait, and how many items in all.
@@ -214,10 +208,6 @@ end
 
 -- Asks for the mailbox to open; it opens on a later update, once the menu the player clicked in has closed.
 function M.open()
-    if not M.on() then
-        env.notify("The mailbox is off (mailbox=0 in config.txt): items go straight to your bag.")
-        return
-    end
     if not env.connected() and #M.queue == 0 then
         env.notify("Connect to Archipelago to see your mailbox.")
         return

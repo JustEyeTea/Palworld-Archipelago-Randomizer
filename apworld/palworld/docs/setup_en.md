@@ -66,8 +66,8 @@ with `[PalworldAP]`.
 
 - The Technology tree (levels 2 and up) is the shop. Each card shows what buying it sends; buying spends the usual
   tech points. A tech itself unlocks only when its item arrives. Shop slots can only be bought while connected.
-- Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox). Set `mailbox=0` in
-  `config.txt` to have them put straight into your bag instead.
+- Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them. Gear and
+  accessories from Palworld Crates go straight into your bag.
 - With Area Locks on, a locked region is walled off with a red grid and shown grey on the map until its Region Pass
   arrives (with Lock Size: areas, each area and its Area Pass). Press `H` at a wall to buy a hint for its pass (the
   `hint_key` setting).

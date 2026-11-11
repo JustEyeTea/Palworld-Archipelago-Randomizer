@@ -7,8 +7,8 @@
 --   Common   Gold Coins (200 x level x 0.5-2.5), medicine, small Training Manuals, Copper Keys
 --   Rare     Skill Fruits, accessories, gear up to a tier above the player ("sometimes good stuff"), big manuals, keys
 --   Jackpot  stat fruits, Remedies and Elixirs, gear up to two tiers above, a big stack of high spheres
--- Plain items go to the mailbox (or the bag with mailbox=0); gear and accessories, which carry per-item data the
--- mailbox chest can't hold, go straight to the bag, and what the bag refuses waits in `pending` and is tried again.
+-- Plain items go to the mailbox; gear and accessories, which carry per-item data the mailbox chest can't hold, go
+-- straight to the bag, and what the bag refuses waits in `pending` and is tried again.
 -- Item ids from the 1.0.5 item table. Untested in game: opening a crate and the items it gives.
 -- Tests: mod/test/tests/crates_run_style.lua; groups "Palworld Crates", "the crate window"
 --   (tools/lua_harness.sh, in CI).
