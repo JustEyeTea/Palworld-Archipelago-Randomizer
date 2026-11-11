@@ -9,7 +9,9 @@
 function Widget(extra)
     local w = { IsValid = function(self) return not self.gone end, addr = math.random(1, 1e9) }
     function w:GetAddress() return self.addr end
-    for k, v in pairs(extra or {}) do w[k] = v end
+    for k, v in pairs(extra or {}) do
+        w[k] = v
+    end
     return w
 end
 -- A widget's class, as GetClass returns it: an object with the class's name.
@@ -174,6 +176,30 @@ function EditBox(kind)
         rawset(self, k, v)
     end })
 end
+-- Gives a made widget children: AddChild (a child gets its slot in .slot) and RemoveChild.
+local function holdsChildren(box)
+    function box:AddChild(c)
+        self.child = c
+        self.children[#self.children + 1] = c
+        c.GetParent = function() return self end
+        local slot = { SetPadding = function(s, pad) s.padding = pad end,
+                       SetHorizontalAlignment = function(s, a) s.h = a end,
+                       SetVerticalAlignment = function(s, a) s.v = a end }
+        c.slot = slot
+        return slot
+    end
+    function box:RemoveChild(c)
+        for i, x in ipairs(self.children) do
+            if x == c then
+                table.remove(self.children, i)
+            end
+        end
+        if self.child == c then
+            self.child = nil
+        end
+        return true
+    end
+end
 -- One stand-in for every other widget the mod makes (SizeBox, Overlay, Image, TextBlock, Border): it records what is
 -- done to it.
 local function MadeWidget(kind)
@@ -197,23 +223,7 @@ local function MadeWidget(kind)
         self.text = t.text
         bannerTexts[#bannerTexts + 1] = t.text
     end
-    function box:AddChild(c)
-        self.child = c
-        self.children[#self.children + 1] = c
-        c.GetParent = function() return self end
-        local slot = { SetPadding = function(s, pad) s.padding = pad end,
-                       SetHorizontalAlignment = function(s, a) s.h = a end,
-                       SetVerticalAlignment = function(s, a) s.v = a end }
-        c.slot = slot
-        return slot
-    end
-    function box:RemoveChild(c)
-        for i, x in ipairs(self.children) do
-            if x == c then table.remove(self.children, i) end
-        end
-        if self.child == c then self.child = nil end
-        return true
-    end
+    holdsChildren(box)
     return box
 end
 StaticConstructObject = function(cls)
@@ -271,7 +281,9 @@ function hud.ShowCommonUI(_, kind, param)
     return id
 end
 function hud.Close(_, id)
-    if hudWindows[id] then hudWindows[id].gone = true end
+    if hudWindows[id] then
+        hudWindows[id].gone = true
+    end
 end
 util.GetHUDService = function() return hud end
 
@@ -284,7 +296,9 @@ local function escMenuButton()
     local b = Widget({ GetClass = function() return classed("WBP_MenuESC_Button_C") end })
     return Widget({ GetClass = function() return classed("SizeBox") end, GetChildAt = function() return b end })
 end
-for i = 1, 3 do escChildren[i] = escMenuButton() end
+for i = 1, 3 do
+    escChildren[i] = escMenuButton()
+end
 local escBox = Widget({ GetClass = function() return classed("VerticalBox") end,
                         GetFName = function() return FNameOf("VerticalBox_Esc") end,
                         GetChildrenCount = function() return #escChildren end,
@@ -449,7 +463,9 @@ end
 -- The chest's container: its slots, as many as the template says.
 local function Container()
     local slots = {}
-    for i = 1, chestTemplates[1].SlotNum do slots[i] = Slot(i - 1) end
+    for i = 1, chestTemplates[1].SlotNum do
+        slots[i] = Slot(i - 1)
+    end
     local c = { Num = function() return #slots end, Get = function(_, i) return slots[i + 1] end, slots = slots,
                 Permission = Permission(), OnRep_Permission = function() end }
     function c.GetLastNotEmptyIndex()
@@ -524,6 +540,9 @@ GAME_PATH.titleClick = GAME_PATH.title .. "WBP_Title_MenuButton.WBP_Title_MenuBu
     .. "WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
 GAME_PATH.escClick = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Button_S.WBP_MenuESC_Button_S_C:"
     .. "BndEvt__WBP_MenuESC_Button_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__"
+    .. "DelegateSignature"
+GAME_PATH.windowOk = GAME_PATH.title .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:"
+    .. "BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__"
     .. "DelegateSignature"
 GAME_PATH.commonClick = "/Game/Pal/Blueprint/UI/UserInterface/Common/WBP_CommonButton.WBP_CommonButton_C:BndEvt__"
     .. "WBP_CommonButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_3_CommonButtonBaseClicked__DelegateSignature"

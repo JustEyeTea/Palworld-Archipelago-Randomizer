@@ -4,11 +4,14 @@
 group("shop cards", function()
     expect(cards[1].shown.name == "Friend's Map Width (ChecksFinder)" and cards[1].shown.icon == "progression",
            "another player's item: " .. tostring(cards[1].shown.name) .. ", icon " .. tostring(cards[1].shown.icon))
-    expect(cards[2].shown.category == "Estructuras", "your own tech carries the game's own category: " .. tostring(cards[2].shown.category))
-    expect(cards[3].shown.category == "Archipelago" and cards[1].shown.category == "Archipelago", "other unbought slots say Archipelago")
+    expect(cards[2].shown.category == "Estructuras", "your own tech carries the game's own category: "
+           .. tostring(cards[2].shown.category))
+    expect(cards[3].shown.category == "Archipelago" and cards[1].shown.category == "Archipelago",
+           "other unbought slots say Archipelago")
     expect(cards[4].shown.category == "Estructuras" and cards[4].shown.name == nil, "level-1 cards untouched")
     expect(cards[2].shown.name == "Campfire" and tostring(cards[2].shown.icon):find("CampFire"),
-           "your own tech shows as itself: " .. tostring(cards[2].shown.name) .. ", icon " .. tostring(cards[2].shown.icon))
+           "your own tech shows as itself: " .. tostring(cards[2].shown.name) .. ", icon "
+           .. tostring(cards[2].shown.icon))
     expect(cards[3].shown.name == "Your Wood Bundle" and cards[3].shown.icon == "filler",
            "your own filler: " .. tostring(cards[3].shown.name))
     expect(#kept >= 3, "textures kept alive: " .. #kept)
@@ -16,7 +19,8 @@ group("shop cards", function()
     shared.passCard = passCard       -- your Region Pass's card: the buying tests read it again
     cards[#cards + 1] = passCard
     run(1)
-    expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own area's ticket: " .. tostring(passCard.shown.icon))
+    expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own area's ticket: "
+           .. tostring(passCard.shown.icon))
 
     do   -- a card whose address can't be read is skipped (its entry could not be told from another's)
         local nameless = Card("Product_Cooking_Grade_01")
@@ -50,7 +54,7 @@ group("cards are labelled again only when needed", function()
            "a card the game set up again is labelled again on the next update: " .. tostring(cards[1].shown.name)
            .. ", " .. tostring(cards[3].shown.icon))
     run(1)
-    cards[3].shown.category = "Items"                            -- a rebuild re-applied the category's own text-table row
+    cards[3].shown.category = "Items" -- a rebuild re-applied the category's own text-table row
     run(1)
     expect(cards[3].shown.category == "Archipelago", "a category the game reset is labelled again on the next update: "
            .. tostring(cards[3].shown.category))
@@ -64,11 +68,13 @@ group("cards are labelled again only when needed", function()
            .. tostring(cards[3].shown.category))
     table.remove(cards, 1)
     run(10)                                                      -- a full pass reads the other level-1 card again
-    expect(cards[2].shown.category == "Estructuras", "and back to the other level-1 card's category: " .. tostring(cards[2].shown.category))
+    expect(cards[2].shown.category == "Estructuras", "and back to the other level-1 card's category: "
+           .. tostring(cards[2].shown.category))
 end)
 
 group("tooltips", function()
-    local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"
+    local INFO = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/InventoryEquipment/"
+        .. "WBP_InventoryEquipment_ItemInfo.WBP_InventoryEquipment_ItemInfo_C"
     local setupHook = hooks[INFO .. ":Setup by Technology Name"]
     local info = { IsValid = function() return true end, opacity = nil, shownFor = {},
                    WBP_InventoryEquipment_ItemInfo_Caution = { SetVisibility = function(self, v) self.vis = v end } }
@@ -101,14 +107,18 @@ group("which slots can be bought", function()
     local researched = postHooks["/Script/Pal.PalTechnologyData:IsUnlockRecipeTechnology"]
     local function isResearched(tech) return researched(h.param(td), true, h.param(FNameOf(tech))) end
     shared.isResearched = isResearched   -- the mod's answer to the game's 'is this researched?'
-    expect(isResearched("Special_PalSphere_Grade_01") == nil, "owned slot, pointer elsewhere: the game's answer (crafting unaffected)")
+    expect(isResearched("Special_PalSphere_Grade_01") == nil,
+           "owned slot, pointer elsewhere: the game's answer (crafting unaffected)")
     shared.info["Setup by Technology Name"](shared.info, FNameOf("Special_PalSphere_Grade_01"))
-    expect(isResearched("Special_PalSphere_Grade_01") == false, "owned slot under the pointer: 'not researched yet', so it can be clicked")
+    expect(isResearched("Special_PalSphere_Grade_01") == false,
+           "owned slot under the pointer: 'not researched yet', so it can be clicked")
     expect(isResearched("Product_Cooking_Grade_01") == nil, "another owned tech meanwhile: the game's answer")
     expect(logged("could not hook .*OnUnhoveredAnyTechnology_Internal yet")
            and logged("hooked .*OnUnhoveredAnyTechnology_Internal %(try"),
            "a Blueprint hook that failed to register is tried again and registered")
-    hooks["/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00.WBP_MainMenu_Technology_00_C:OnUnhoveredAnyTechnology_Internal"]()
+    local UNHOVERED = "/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/"
+        .. "WBP_MainMenu_Technology_00.WBP_MainMenu_Technology_00_C:OnUnhoveredAnyTechnology_Internal"
+    hooks[UNHOVERED]()
     expect(isResearched("Special_PalSphere_Grade_01") == nil, "pointer gone: the game's answer again")
     td.TechnologyPoint = 0
     expect(canBuy("Special_PalSphere_Grade_01") == false, "not without the points")

@@ -38,12 +38,20 @@ local function noSuchSwitch(name)
     error("game." .. tostring(name) .. " is not a switch: declare it in fakes.lua's GAME_START", 3)
 end
 game = setmetatable({}, {
-    __index = function(_, k) if GAME_START[k] == nil then noSuchSwitch(k) end end,
+    __index = function(_, k)
+        if GAME_START[k] == nil then
+            noSuchSwitch(k)
+        end
+    end,
     __newindex = function(t, k, v)
-        if GAME_START[k] == nil then noSuchSwitch(k) end
+        if GAME_START[k] == nil then
+            noSuchSwitch(k)
+        end
         rawset(t, k, v)
     end })
-for k, v in pairs(GAME_START) do rawset(game, k, v) end
+for k, v in pairs(GAME_START) do
+    rawset(game, k, v)
+end
 
 -- This machine ------------------------------------------------------------------------------------------------------
 
@@ -51,7 +59,9 @@ for k, v in pairs(GAME_START) do rawset(game, k, v) end
 local realOpen = io.open
 saveWrites = 0                                             -- the mod's save file written (by its .tmp)
 io.open = function(p, m)
-    if (m or ""):find("w", 1, true) and p:find("save%-[^\\/]*%.txt") then saveWrites = saveWrites + 1 end
+    if (m or ""):find("w", 1, true) and p:find("save%-[^\\/]*%.txt") then
+        saveWrites = saveWrites + 1
+    end
     return realOpen((p:gsub("\\", "/")), m)
 end
 local realRemove, realRename = os.remove, os.rename
@@ -59,7 +69,9 @@ os.remove = function(p) return realRemove((p:gsub("\\", "/"))) end
 os.rename = function(a, b) return realRename((a:gsub("\\", "/")), (b:gsub("\\", "/"))) end
 -- The probe's clock (os.clock) and the engine's frame counter: run() moves them with the updates.
 clock, frameCount = 0, 0
-if PERF then os.clock = function() return clock end end
+if PERF then
+    os.clock = function() return clock end
+end
 package.path = MOD .. "/Scripts/?.lua;" .. package.path
 D = dofile(MOD .. "/Scripts/ap_data.lua")                  -- the mod's data: items, locations, the shop
 package.loaded["ap_data"] = D                              -- the mod's require gets this same table
@@ -75,7 +87,9 @@ function TextOf(s) return { ToString = function() return s end } end
 function TArray(list)
     local a = { list = list }
     function a:ForEach(fn)
-        for i, v in ipairs(self.list) do fn(i, { get = function() return v end }) end
+        for i, v in ipairs(self.list) do
+            fn(i, { get = function() return v end })
+        end
     end
     function a:Empty() self.list = {} end
     function a:GetArrayNum() return #self.list end
@@ -84,7 +98,9 @@ end
 -- A fast array of key-value pairs (the player's records), each pair { name, value }.
 function FastArray(pairsList)
     local items = {}
-    for _, kv in ipairs(pairsList) do items[#items + 1] = { Key = FNameOf(kv[1]), Value = kv[2] } end
+    for _, kv in ipairs(pairsList) do
+        items[#items + 1] = { Key = FNameOf(kv[1]), Value = kv[2] }
+    end
     return { Items = TArray(items), ArrayReplicationKey = 1 }
 end
 -- What UE4SS returns for a null object: a wrapper that is not nil, whose IsValid is false and whose calls fail.
@@ -144,7 +160,9 @@ pawn.DamageReactionComponent = {}
 function pawn.DamageReactionComponent.SlipDamage(_, damage, shieldIgnore, deadType, clearShield)
     DL.calls[#DL.calls + 1] = "poison"
     DL.slip = { damage = damage, shieldIgnore = shieldIgnore, deadType = deadType, clearShield = clearShield }
-    if DL.poisonWorks then game.playerDead = true end
+    if DL.poisonWorks then
+        game.playerDead = true
+    end
 end
 -- The movement component's named walk-speed multipliers (the game multiplies them), as LuaTypes lists them.
 function Movement(address)
@@ -154,7 +172,9 @@ function Movement(address)
     function m:SetWalkSpeedMultiplier(name, v) self.mult[name:ToString()] = v end
     function m:GetWalkSpeedMultiplier()
         local p = 1.0
-        for _, v in pairs(self.mult) do p = p * v end
+        for _, v in pairs(self.mult) do
+            p = p * v
+        end
         return p
     end
     function m:IsMovingOnGround() return true end
@@ -277,9 +297,13 @@ gameInstance = { IsValid = function() return true end,
 -- The game's live tech table as other mods left it: one tech added, one vanilla tech moved up 12 levels, one removed.
 liveTechs = { "ModdedTech_Rocket" }
 for id in pairs(D.shop) do
-    if id ~= "Product_Pickaxe_Grade_02" then liveTechs[#liveTechs + 1] = id end
+    if id ~= "Product_Pickaxe_Grade_02" then
+        liveTechs[#liveTechs + 1] = id
+    end
 end
-for id in pairs(D.starters) do liveTechs[#liveTechs + 1] = id end
+for id in pairs(D.starters) do
+    liveTechs[#liveTechs + 1] = id
+end
 techRows = { ModdedTech_Rocket = { LevelCap = 12, Cost = 3, RequireTechnology = FNameOf("Workbench"),
                                    IsBossTechnology = false } }
 local MOVED_UP_LEVELS = 12                                 -- how far another mod moved AutoMealPouch_Tier3
@@ -295,7 +319,9 @@ techTable = { IsValid = function() return true end }
 dataTableLib = { IsValid = function() return true end }
 function dataTableLib.GetDataTableRowNames(_, dt, out)
     assert(dt == techTable, "reads the table the game uses")
-    for i, n in ipairs(liveTechs) do out[i] = { get = function() return FNameOf(n) end } end   -- as UE4SS does
+    for i, n in ipairs(liveTechs) do   -- as UE4SS does
+        out[i] = { get = function() return FNameOf(n) end }
+    end
 end
 
 -- UE4SS -----------------------------------------------------------------------------------------------------------
@@ -338,7 +364,9 @@ ExecuteInGameThread = function(fn)
     onGameThread = true
     local ok, err = pcall(fn)
     onGameThread = outer
-    if not ok then error(err, 0) end
+    if not ok then
+        error(err, 0)
+    end
 end
 ExecuteWithDelay = function()
     error("the mod must never call ExecuteWithDelay: its callback runs off the game thread")
@@ -352,7 +380,9 @@ keyMods = {}                                               -- the same keys -> t
 RegisterKeyBind = function(key, a, b)
     local k = key
     for _, m in ipairs(b and a or {}) do
-        if m == "shift" then k = key .. "+shift" end
+        if m == "shift" then
+            k = key .. "+shift"
+        end
     end
     keyBinds[k] = b or a
     keyMods[k] = b and a or nil
@@ -388,8 +418,12 @@ lookups = {}                                               -- class -> FindAllOf
 local function mapScreens()
     if not game.mapOpen then return {} end
     local list = { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody }
-    if game.treeOpen then list[#list + 1] = treeBody end          -- the World Tree's screen too
-    if game.staleBody then list[#list + 1] = game.staleBody end        -- the last world's, not yet collected
+    if game.treeOpen then   -- the World Tree's screen too
+        list[#list + 1] = treeBody
+    end
+    if game.staleBody then   -- the last world's, not yet collected
+        list[#list + 1] = game.staleBody
+    end
     return list
 end
 -- The player controllers: the class default object first, as in the game.
@@ -407,7 +441,9 @@ local function mainMenus()
 end
 local function liveWalls()
     local list = {}
-    for a in pairs(wallsUp) do list[#list + 1] = a end
+    for a in pairs(wallsUp) do
+        list[#list + 1] = a
+    end
     return list
 end
 local CHEST_PACKAGE = "/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"
@@ -425,7 +461,7 @@ FindAllOf = function(class)
     if class == "PalMapObjectItemChestModel" then return chests end
     if class == "PalMapObjectItemChestParameterComponent" then return loaded[CHEST_PACKAGE] and chestTemplates or {} end
     if class == "WBP_MenuESC_C" then return game.escOpen and { escMenu } or {} end
-    if class == "UserWidget" then return game.escOpen and { taskList, escMenu } or {} end   -- the HUD's mission list too
+    if class == "UserWidget" then return game.escOpen and { taskList, escMenu } or {} end -- the HUD's mission list too
     if class == "WBP_InGameMainMenu_C" then return mainMenus() end
     if class == "CommonInputSubsystem" then return game.inputSubsystems or {} end
     return nil
@@ -522,8 +558,12 @@ drawLog = {}                                               -- the textures drawn
 canvas = {}
 function canvas.K2_DrawTexture(_, tex, pos, size, uv0, uvSize, colour, blend)
     drawLog[#drawLog + 1] = { path = tex and tex.path, blend = blend }
-    if tex == nil then greyBoxes = greyBoxes + 1 end
-    if tex and tostring(tex.path):find("ap%-map%-stamp") then stampAt[tex.path] = pos end
+    if tex == nil then
+        greyBoxes = greyBoxes + 1
+    end
+    if tex and tostring(tex.path):find("ap%-map%-stamp") then
+        stampAt[tex.path] = pos
+    end
 end
 function canvas.K2_DrawLine() end
 function canvas.K2_DrawTriangle(_, tex, tris)
@@ -536,20 +576,25 @@ function materialLib.CreateDynamicMaterialInstance(_, _, parent)
     local m = { IsValid = function() return true end, parent = parent, textures = {}, scalars = {}, vectors = {} }
     function m:SetTextureParameterValue(name, t)
         self.textures[name:ToString()] = t
-        if name:ToString() == "Texture" then self.texture = t end
+        if name:ToString() == "Texture" then
+            self.texture = t
+        end
     end
     function m:SetScalarParameterValue(name, v)
         self.scalars[name:ToString()] = v
-        if name:ToString() == "Saturation" then self.saturation = v end
+        if name:ToString() == "Saturation" then
+            self.saturation = v
+        end
     end
     function m:SetVectorParameterValue(name, c) self.vectors[name:ToString()] = c end
     return m
 end
 local WORLD_MAP = "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
--- The map picture a screen opens with: the game's T_WorldMap.
-function gameMapPicture(address)
+-- A picture of the game's own on a map screen, at `address`: the world map (T_WorldMap) unless `fullName` names
+-- another.
+function gameMapPicture(address, fullName)
     return { IsValid = function() return true end, GetAddress = function() return address end,
-             GetFullName = function() return WORLD_MAP end }
+             GetFullName = function() return fullName or WORLD_MAP end }
 end
 -- A map screen's picture: what the mod sets on it is in .shown.
 local function mapImage()
@@ -654,7 +699,9 @@ function gameplay.BeginDeferredActorSpawnFromClass(_, _, _, t) return WallActor(
 -- How many wall actors stand now.
 function wallCount()
     local n = 0
-    for _ in pairs(wallsUp) do n = n + 1 end
+    for _ in pairs(wallsUp) do
+        n = n + 1
+    end
     return n
 end
 
@@ -665,7 +712,9 @@ events, checks, goals = {}, {}, 0                          -- event lines waitin
 SLOT_DATA_START = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1",
                     ["options.death_link"] = "1", research_techs = "Torch,WallTorch" }
 slotData = {}                                              -- the slot data of the seed connected now
-for k, v in pairs(SLOT_DATA_START) do slotData[k] = v end
+for k, v in pairs(SLOT_DATA_START) do
+    slotData[k] = v
+end
 connects, disconnects = {}, 0                              -- every connect asked for: { server =, slot =, password = }
 AP_Connect = function(server, slot, password)
     connects[#connects + 1] = { server = server, slot = slot, password = password }
@@ -680,7 +729,9 @@ AP_SlotData = function(k) return slotData[k] or "" end
 scoutAsked = ""                                            -- the locations the last scout asked for
 AP_Scout = function(csv) scoutAsked = csv end
 AP_Check = function(csv)
-    for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end
+    for id in csv:gmatch("%d+") do
+        checks[tonumber(id)] = true
+    end
 end
 AP_Goal = function() goals = goals + 1 end
 said = {}                                                  -- every chat line or server command sent
@@ -774,7 +825,9 @@ function plugInGiftConnector()
     AP_GivePal = function(species, level, route, options)
         if not onGameThread then return NOT_ON_GAME_THREAD end
         gift.made[#gift.made + 1] = { species = species, level = level, route = route, options = options }
-        if gift.reply == "throw" then error("boom") end
+        if gift.reply == "throw" then
+            error("boom")
+        end
         return gift.reply
             or ("route=" .. route .. "\nparty: 3/5\ncreate: handle=PalIndividualCharacterHandle_1\nresult: ok party")
     end

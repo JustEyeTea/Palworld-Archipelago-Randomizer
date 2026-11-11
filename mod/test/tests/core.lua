@@ -5,28 +5,37 @@
 group("loading the mod", function()
     local harnessGlobals = { FindAllOf = FindAllOf, FindFirstOf = FindFirstOf, RegisterHook = RegisterHook }
     local rf = io.open(MOD .. "/research.txt", "w")          -- the last seed's research list, from an earlier session
-    rf:write("Torch,Lamp\n"); rf:close()
+    rf:write("Torch,Lamp\n")
+    rf:close()
     dofile(MOD .. "/Scripts/main.lua")
-    -- config.txt without map_icons: the locked areas are the map's own icons. The main run below keeps testing the stamps
-    -- drawn into the picture (map_icons=0, also what a failure of the icons falls back to); the icons have their own tests.
+    -- config.txt without map_icons: the locked areas are the map's own icons. The main run below keeps testing the
+    -- stamps drawn into the picture (map_icons=0, also what a failure of the icons falls back to); the icons have their
+    -- own tests.
     expect(require("walls").iconsOff == false, "map icons are on unless config.txt says map_icons=0")
     require("walls").iconsOff = true
     if PERF then
-        expect(FindAllOf ~= harnessGlobals.FindAllOf and RegisterHook ~= harnessGlobals.RegisterHook, "perf_log=1: the probe counts lookups and hooks")
+        expect(FindAllOf ~= harnessGlobals.FindAllOf and RegisterHook ~= harnessGlobals.RegisterHook,
+               "perf_log=1: the probe counts lookups and hooks")
     else
         expect(FindAllOf == harnessGlobals.FindAllOf and FindFirstOf == harnessGlobals.FindFirstOf
                and RegisterHook == harnessGlobals.RegisterHook, "without perf_log: nothing is wrapped")
         local bound = false
-        for _, k in ipairs({ "SIX", "SEVEN", "EIGHT", "NINE", "ZERO" }) do bound = bound or keyBinds["key:" .. k] ~= nil end
+        for _, k in ipairs({ "SIX", "SEVEN", "EIGHT", "NINE", "ZERO" }) do
+            bound = bound or keyBinds["key:" .. k] ~= nil
+        end
         expect(not bound and not logged("%[perf%]"), "and no test keys are bound, no probe lines")
     end
     expect(loop ~= nil, "update loop registered")
     expect(require("ap_state").ap.status == "connecting" and logged("connecting to localhost:38281 as Tester"),
            "the start-up connect from config.txt says it is connecting, as the title menu's does")
-    expect(hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"] ~= nil, "research hook registered")
-    expect(logged("shop: hooked RequestUnlockTechnology_ToServer") and logged("shop: hooked IsUnlockableRecipeTechnology")
-           and logged("shop: hooked IsUnlockRecipeTechnology"), "each native shop hook's log line names the function hooked")
-    expect(D.research.Torch and D.research.Lamp and not D.shop.Lamp, "before connecting, the last seed's research techs stay research")
+    expect(hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"] ~= nil,
+           "research hook registered")
+    expect(logged("shop: hooked RequestUnlockTechnology_ToServer")
+           and logged("shop: hooked IsUnlockableRecipeTechnology")
+           and logged("shop: hooked IsUnlockRecipeTechnology"),
+           "each native shop hook's log line names the function hooked")
+    expect(D.research.Torch and D.research.Lamp and not D.shop.Lamp,
+           "before connecting, the last seed's research techs stay research")
     local early = { v = FNameOf("Lamp") }
     early.get = function(self) return self.v end
     early.set = function(self, v) self.v = v end
@@ -82,7 +91,8 @@ group("techs the seed leaves as research (tech_checks no_decor)", function()
     expect(have.Torch, "a research tech stays researched without an item")
     expect(D.research.Torch and D.research.WallTorch and not D.shop.Torch, "research techs leave the shop")
     expect(not ("," .. scoutAsked .. ","):find("," .. D.research.Torch.loc .. ",", 1, true)
-           and ("," .. scoutAsked .. ","):find("," .. D.shop.PalBox.loc .. ",", 1, true), "their slots are not scouted; shop slots are")
+           and ("," .. scoutAsked .. ","):find("," .. D.shop.PalBox.loc .. ",", 1, true),
+           "their slots are not scouted; shop slots are")
     expect(logged("2 tech%(s%) are normal research in this seed"), "the log says how many")
     expect(D.shop.Lamp and not D.research.Lamp, "the seed's own list replaces the last one")
     local rf2 = io.open(MOD .. "/research.txt")
@@ -90,23 +100,28 @@ group("techs the seed leaves as research (tech_checks no_decor)", function()
 end)
 
 group("other mods' techs", function()
-    expect(logged("tech table: %d+ techs; 1 added by mods, 1 vanilla changed, 1 vanilla removed"), "the live tech table compared with vanilla")
+    expect(logged("tech table: %d+ techs; 1 added by mods, 1 vanilla changed, 1 vanilla removed"),
+           "the live tech table compared with vanilla")
     local have = h.unlockedTechs()
     expect(have.ModdedTech_Rocket, "a tech another mod added stays researched (never locked)")
     local mt = io.open(MOD .. "/mod_techs.txt")
     local mtText = mt and mt:read("*a") or ""
-    expect(mtText:find("added\tModdedTech_Rocket\tlevel=12\tcost=3\tprereq=Workbench", 1, true), "mod_techs.txt lists the added tech")
-    expect(mtText:find("changed\tAutoMealPouch_Tier3\tlevel 23 -> 35", 1, true) and mtText:find("removed\tProduct_Pickaxe_Grade_02", 1, true),
+    expect(mtText:find("added\tModdedTech_Rocket\tlevel=12\tcost=3\tprereq=Workbench", 1, true),
+           "mod_techs.txt lists the added tech")
+    expect(mtText:find("changed\tAutoMealPouch_Tier3\tlevel 23 -> 35", 1, true)
+           and mtText:find("removed\tProduct_Pickaxe_Grade_02", 1, true),
            "and the changed and removed ones")
     expect(checks[D.shop.Product_Pickaxe_Grade_02.loc], "a removed tech's shop slot is sent (it can never be bought)")
     local notices = table.concat(announced, " | ")
-    expect(notices:find("from other mods", 1, true) and notices:find("much higher levels", 1, true) and notices:find("checks were sent", 1, true),
+    expect(notices:find("from other mods", 1, true) and notices:find("much higher levels", 1, true)
+           and notices:find("checks were sent", 1, true),
            "and the player is told: " .. notices)
     local TS = dofile(MOD .. "/Scripts/techscan.lua")
     local saved = liveTechs
     liveTechs = { "Workbench", "PalBox", "ModdedTech_Rocket" }
     local r, why = TS.scan(td, D)
-    expect(r == nil and tostring(why):find("not trusted"), "a read missing most vanilla techs is not trusted: " .. tostring(why))
+    expect(r == nil and tostring(why):find("not trusted"), "a read missing most vanilla techs is not trusted: "
+           .. tostring(why))
     liveTechs = {}
     r, why = TS.scan(td, D)
     expect(r == nil, "nor an empty one: " .. tostring(why))

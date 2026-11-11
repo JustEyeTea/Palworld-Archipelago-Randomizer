@@ -4,10 +4,14 @@
 group("updates queued in one engine frame (after a stall) run once", function()
     local walks, fao = 0, FindAllOf
     FindAllOf = function(class, ...)
-        if class == "PalPlayerController" then walks = walks + 1 end
+        if class == "PalPlayerController" then
+            walks = walks + 1
+        end
         return fao(class, ...)
     end
-    for _ = 1, 5 do loop() end                              -- five hand-offs, the frame the last update ran in
+    for _ = 1, 5 do   -- five hand-offs, the frame the last update ran in
+        loop()
+    end
     local sameFrame = walks
     frameCount = frameCount + 1
     loop()
@@ -32,21 +36,26 @@ group("buying a slot", function()
     shared.research, shared.req = research, req   -- the research hook and a request to call it with
     research(nil, req)
     expect(req.v:ToString() == "AP_ShopSlot", "request rewritten")
-    expect(not checks[D.shop.RepairBench.loc], "the purchase waits for the next update (on the game thread; no ExecuteWithDelay)")
+    expect(not checks[D.shop.RepairBench.loc],
+           "the purchase waits for the next update (on the game thread; no ExecuteWithDelay)")
     run(1)
     expect(checks[D.shop.RepairBench.loc], "shop check sent")
     expect(td.TechnologyPoint == 12 - D.shop.RepairBench.cost, "points charged: " .. td.TechnologyPoint)
     local pointsBefore = td.TechnologyPoint
-    req.v = FNameOf("RepairBench"); research(nil, req)
+    req.v = FNameOf("RepairBench")
+    research(nil, req)
     expect(td.TechnologyPoint == pointsBefore, "a bought slot is not charged twice")
     expect(shared.canBuy("RepairBench") == false, "a bought slot cannot be bought again")
-    req.v = FNameOf("PalBox"); research(nil, req)
+    req.v = FNameOf("PalBox")
+    research(nil, req)
     run(1)
-    expect(cards[1].shown.clickable == false and cards[1].shown.category == "Sent", "bought card (another player's item) switched off")
+    expect(cards[1].shown.clickable == false and cards[1].shown.category == "Sent",
+           "bought card (another player's item) switched off")
     expect(cards[2].shown.category == "Estructuras", "bought, your tech still shows its own category")
     expect(cards[2].shown.clickable == true and cards[2].shown.name == "Campfire",
            "bought card showing your tech stays interactive for its tooltip: " .. tostring(cards[2].shown.name))
-    req.v = FNameOf("Workbench"); research(nil, req)
+    req.v = FNameOf("Workbench")
+    research(nil, req)
     expect(req.v:ToString() == "Workbench", "level-1 research left alone")
 end)
 
@@ -55,12 +64,18 @@ group("an update UE4SS runs inside a Blueprint hook skips its turn", function()
         .. "WBP_MainMenu_Technology_Content_C:IsUnlocked"
     local walks, fao = 0, FindAllOf
     FindAllOf = function(class, ...)
-        if class == "PalPlayerController" then walks = walks + 1 end
+        if class == "PalPlayerController" then
+            walks = walks + 1
+        end
         return fao(class, ...)
     end
     local card = { BindedTechnologyName = FNameOf("RepairBench") }
     frameCount = frameCount + 1                             -- (a new frame: only the hook can stop it)
-    hooks[CONTENT]({ get = function() loop(); return card end }, { set = function() end })
+    local function cardWithAnUpdateInside()                  -- UE4SS runs an update while the hook reads its card
+        loop()
+        return card
+    end
+    hooks[CONTENT]({ get = cardWithAnUpdateInside }, { set = function() end })
     FindAllOf = fao
     expect(walks == 0 and logged("update skipped: it came inside a hook"),
            "the card's IsUnlocked hook: no update ran inside it: " .. walks .. " controller walk(s)")
@@ -88,13 +103,16 @@ group("still loading into the world", function()
 end)
 
 group("buying a slot: what the cards and the save file say afterwards", function()
-    shared.req.v = FNameOf("Special_PalSphere_Grade_01"); shared.research(nil, shared.req)
+    shared.req.v = FNameOf("Special_PalSphere_Grade_01")
+    shared.research(nil, shared.req)
     run(1)
     expect(shared.passCard.shown.category == "Received" and shared.passCard.shown.name == "Your Region Pass: Feybreak",
-           "bought, your other items say Received: " .. tostring(shared.passCard.shown.category) .. " / " .. tostring(shared.passCard.shown.name))
+           "bought, your other items say Received: " .. tostring(shared.passCard.shown.category) .. " / "
+           .. tostring(shared.passCard.shown.name))
     expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent: prefix")
 
-    expect(h.saveText():match("given=" .. (nextItemIndex - 1)), "save file records items applied")   -- (every item so far)
+    -- (every item so far)
+    expect(h.saveText():match("given=" .. (nextItemIndex - 1)), "save file records items applied")
 end)
 
 group("a save file that can't be written is logged, and the player told once", function()
@@ -109,7 +127,11 @@ group("a save file that can't be written is logged, and the player told once", f
     runCycles(2)                                                   -- (tried again: the text was never written)
     io.open = openWas
     local timesTold = 0
-    for _, a in ipairs(announced) do if a:find("Can't write the mod's save file", 1, true) then timesTold = timesTold + 1 end end
+    for _, a in ipairs(announced) do
+        if a:find("Can't write the mod's save file", 1, true) then
+            timesTold = timesTold + 1
+        end
+    end
     expect(logged("could not write .*save%-12345%-Tester%.txt%.tmp: Permission denied") and timesTold == 1,
            "the failure is logged with the reason, and the player is told once: " .. timesTold)
     table.remove(MB.queue)
@@ -131,13 +153,20 @@ end)
 
 group("the tech list is compared only when it may have changed", function()
     local reads, forEachTechs = 0, unlocked.ForEach
-    unlocked.ForEach = function(self, fn) reads = reads + 1; return forEachTechs(self, fn) end
+    unlocked.ForEach = function(self, fn)
+        reads = reads + 1
+        return forEachTechs(self, fn)
+    end
     runCycles(2)
     expect(reads <= 1, "nothing changed: the list is not read on every poll: " .. reads .. " read(s) in 2 polls")
     unlocked.list[#unlocked.list + 1] = FNameOf("PalBox")      -- the game unlocks a shop tech by itself
     runCycles(1)
     local relocked = true
-    for _, n in ipairs(unlocked.list) do if n:ToString() == "PalBox" then relocked = false end end
+    for _, n in ipairs(unlocked.list) do
+        if n:ToString() == "PalBox" then
+            relocked = false
+        end
+    end
     expect(relocked, "a tech the game added is still locked again at the next poll")
     runCycles(1)
     local techDataWas = tdAddress
@@ -155,9 +184,13 @@ end)
 group("an error every update is logged once", function()
     local MB = require("mailbox")
     local mailUpdate, boom = MB.update, 0
-    MB.update = function() boom = boom + 1; error(string.format("boom at 0x%x (try %d)", 4096 + boom, boom)) end
+    MB.update = function()
+        boom = boom + 1
+        error(string.format("boom at 0x%x (try %d)", 4096 + boom, boom))
+    end
     run(5)
     MB.update = mailUpdate
     local boomLines = countLogged("mailbox error: .*boom at")
-    expect(boom == 5 and boomLines == 1, "an error naming a different address each time: one line, not " .. boom .. ": " .. boomLines)
+    expect(boom == 5 and boomLines == 1, "an error naming a different address each time: one line, not " .. boom
+           .. ": " .. boomLines)
 end)

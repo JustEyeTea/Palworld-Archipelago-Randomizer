@@ -10,19 +10,27 @@ group("Palworld Crates", function()
     run(20)
     expect(CR.count() == cratesBefore + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
            "a Palworld Crate arrives as one of the five crates, and says which")
-    expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS), "the same seed and index roll the same crate")
+    expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS),
+           "the same seed and index roll the same crate")
     local n = {}
-    for i = 1, 10000 do local k = CR.kindFor("seed", i, CR.DEFAULT_WEIGHTS); n[k] = (n[k] or 0) + 1 end
+    for i = 1, 10000 do
+        local k = CR.kindFor("seed", i, CR.DEFAULT_WEIGHTS)
+        n[k] = (n[k] or 0) + 1
+    end
     expect(math.abs(n.sphere - 3000) < 300 and math.abs(n.food - 2500) < 300 and math.abs(n.rare - 1200) < 200
            and math.abs(n.jackpot - 300) < 120, string.format("over 10,000 the chances hold: %d %d %d %d %d",
            n.sphere, n.food, n.common, n.rare, n.jackpot))
-    expect(CR.kindFor("x", 1, { sphere = 0, food = 0, common = 0, rare = 0, jackpot = 5 }) == "jackpot", "the slot's weights are used")
+    expect(CR.kindFor("x", 1, { sphere = 0, food = 0, common = 0, rare = 0, jackpot = 5 }) == "jackpot",
+           "the slot's weights are used")
     local ok = true
     for _, kind in ipairs(CR.KINDS) do
         for _, lv in ipairs({ 1, 20, 50 }) do
             CR.list = { kind }
             local k, out = CR.openNext(lv)
-            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then ok = false; print("  bad roll: " .. kind .. " at level " .. lv) end
+            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then
+                ok = false
+                print("  bad roll: " .. kind .. " at level " .. lv)
+            end
         end
     end
     expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
@@ -42,8 +50,12 @@ group("the crate window", function()
     local function texts(o)
         local t = {}
         for _, c in ipairs(o and o.children or {}) do
-            if c.text then t[#t + 1] = c.text end
-            if c.child and c.child.text then t[#t + 1] = c.child.text end
+            if c.text then
+                t[#t + 1] = c.text
+            end
+            if c.child and c.child.text then
+                t[#t + 1] = c.child.text
+            end
         end
         return table.concat(t, "|")
     end
@@ -51,16 +63,25 @@ group("the crate window", function()
     expect(panel and panel.width == 800 and panel.height == 500 and panel.canvasSlot.anchors.Minimum.X == 0.5
            and logged("crate window: shown over the mailbox %(4 crate%(s%)%)"),
            "with crates waiting, the mailbox shows the crate window, 800x500, centred")
-    expect(over and over.children[1].child and over.children[1].child.texture and over.children[1].child.texture.path == "ap-mailbox-window",
+    expect(over and over.children[1].child and over.children[1].child.texture
+           and over.children[1].child.texture.path == "ap-mailbox-window",
            "on the Art lane's window plate")
     expect(all:find("Sphere Crate|1 waiting", 1, true) and all:find("Rare Supply Crate|2 waiting", 1, true)
            and all:find("Jackpot Supply Crate|1 waiting", 1, true) and not all:find("Food Crate", 1, true),
            "one row per kind waiting, with its count: " .. all)
     -- The rows' Open buttons: find the Rare row's and click it.
     local clickHook
-    for k, f in pairs(hooks) do if k:find("WBP_CommonButton_C:BndEvt", 1, true) then clickHook = f end end
+    for k, f in pairs(hooks) do
+        if k:find("WBP_CommonButton_C:BndEvt", 1, true) then
+            clickHook = f
+        end
+    end
     local opens = {}
-    for _, c in ipairs(over.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then opens[#opens + 1] = c.child end end
+    for _, c in ipairs(over.children) do
+        if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then
+            opens[#opens + 1] = c.child
+        end
+    end
     local rareOpen = opens[2]                  -- rows follow the kinds' order: sphere first, then rare
     expect(#opens == 3 and clickHook, "each row has the game's button to open one: " .. #opens)
     clickHook({ get = function() return rareOpen end })
@@ -68,21 +89,32 @@ group("the crate window", function()
     run(1)
     run(1)
     local n = 0
-    for _, k in ipairs(CR.list) do if k == "rare" then n = n + 1 end end
-    expect(#CR.list == 3 and n == 1 and logged("crate: opened a Rare Supply Crate"), "the row's Open opens one of its kind")
+    for _, k in ipairs(CR.list) do
+        if k == "rare" then
+            n = n + 1
+        end
+    end
+    expect(#CR.list == 3 and n == 1 and logged("crate: opened a Rare Supply Crate"),
+           "the row's Open opens one of its kind")
     local panel2 = kids[#kids]
     local all2 = texts(panel2 and panel2.child)
     expect(panel ~= panel2 and panel.removed and all2:find("Last opened: Rare Supply Crate", 1, true),
            "the window is rebuilt with the contents of the crate just opened: " .. all2)
     -- Close: the small button brings it back.
     local closeBtn
-    for _, c in ipairs(panel2.child.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "X" then closeBtn = c.child end end
+    for _, c in ipairs(panel2.child.children) do
+        if c.child and c.child.Text_Main and c.child.Text_Main.text == "X" then
+            closeBtn = c.child
+        end
+    end
     clickHook({ get = function() return closeBtn end })
     run(2)
     local toggle = kids[#kids]
-    expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
+    expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main
+           and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
            "Close leaves the chest with an Open Palworld Crates (3) button")
-    expect(not toggle.slot or not toggle.slot.anchors or (toggle.slot.anchors.Minimum.X == 0.5 and toggle.slot.anchors.Minimum.Y == 0),
+    expect(not toggle.slot or not toggle.slot.anchors or (toggle.slot.anchors.Minimum.X == 0.5
+                                                          and toggle.slot.anchors.Minimum.Y == 0),
            "at the top centre, where the player sees it (not the screen's corner)")
     clickHook({ get = function() return toggle.child end })
     run(2)
@@ -100,10 +132,14 @@ group("the crate window", function()
         run(1)
         local open, clickHook
         for _, c in ipairs(kids[#kids] and kids[#kids].child.children or {}) do
-            if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then open = c.child end
+            if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then
+                open = c.child
+            end
         end
         for k, f in pairs(hooks) do
-            if k:find("WBP_CommonButton_C:BndEvt", 1, true) then clickHook = f end
+            if k:find("WBP_CommonButton_C:BndEvt", 1, true) then
+                clickHook = f
+            end
         end
         clickHook({ get = function() return open end })
         clickHook({ get = function() return open end })            -- twice before the next update: one crate only
@@ -133,16 +169,32 @@ group("the crate window", function()
     end
 end)
 
-group("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning", function()
+group("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning",
+      function()
     local MB = require("mailbox")
     local ws = { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 }
     local optionSub = { OptionWorldSettings = ws, sets = 0 }
     function optionSub:IsValid() return true end
-    function optionSub:SetOptionWorldSettings() self.sets = self.sets + 1; error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer") end
+    function optionSub:SetOptionWorldSettings()
+        self.sets = self.sets + 1
+        error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer")
+    end
     util.GetOptionSubsystem = function() return optionSub end
     inWorld(true)                                                 -- the bag is reached through the pawn
-    local function mailHas(id) local n = 0; for _, e in ipairs(MB.queue) do if e.id == id then n = n + e.n end end; return n end
-    local function warned(pattern) for _, t in ipairs(announced) do if t:find(pattern) then return true end end end
+    local function mailHas(id)
+        local n = 0
+        for _, e in ipairs(MB.queue) do
+            if e.id == id then
+                n = n + e.n
+            end
+        end
+        return n
+    end
+    local function warned(pattern)
+        for _, t in ipairs(announced) do
+            if t:find(pattern) then return true end
+        end
+    end
     -- The defaults (Standard, no Speed Boost): the world's settings are never touched, and a tech is a recipe only.
     h.switchSeed("70012", { ["options.run_style"] = "0", ["options.speed_boost"] = "0" })
     local bows = bagHas.WeakerBow or 0
@@ -152,7 +204,8 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
            and not warned("Speed Boost"), "defaults: world settings untouched, no warning, no bow handed over")
     -- Speed Boost: the world's own values times the multipliers, the base kept in the save, never compounding, and
     -- the player told in game what changed and the values to set back.
-    h.switchSeed("70015", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3", ["options.boost_work_speed"] = "3",
+    h.switchSeed("70015", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3",
+                            ["options.boost_work_speed"] = "3",
                        ["options.boost_gather_rate"] = "2" })
     run(40)
     expect(ws.ExpRate == 3 and ws.WorkSpeedRate == 3 and ws.CollectionDropRate == 2
@@ -171,11 +224,17 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     runCycles(2)
     expect((bagHas.WeakerBow or 0) == bows, "Standard with Speed Boost: a tech is still a recipe only")
     -- A struct that comes back as a copy (writes don't stick): reported once for that world; the game's setter is never
-    -- called from Lua (its struct is bigger than UE4SS Lua's 0x200-byte call buffer: in game that is a crash, not an error).
+    -- called from Lua (its struct is bigger than UE4SS Lua's 0x200-byte call buffer: in game that is a crash, not an
+    -- error).
     local copySub = { sets = 0 }
     function copySub:IsValid() return true end
-    setmetatable(copySub, { __index = function(_, k) if k == "OptionWorldSettings" then return { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 } end end })
-    function copySub:SetOptionWorldSettings() self.sets = self.sets + 1; error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer") end
+    setmetatable(copySub, { __index = function(_, k)                    -- a new copy at every read
+        if k == "OptionWorldSettings" then return { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 } end
+    end })
+    function copySub:SetOptionWorldSettings()
+        self.sets = self.sets + 1
+        error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer")
+    end
     util.GetOptionSubsystem = function() return copySub end
     run(40)
     expect(copySub.sets == 0 and logged("didn't change in place; not calling SetOptionWorldSettings from Lua"),
@@ -188,11 +247,13 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     pushItem({ name = "Tech: Old Bow", from = "Friend" })
     pushItem({ name = "Tech: Pal Sphere", from = "Friend" })
     run(40)
-    expect((bagHas.WeakerBow or 0) == bows + 1 and logged("nomad: Tech: Old Bow brought"), "Nomad: the Old Bow itself, in the bag")
+    expect((bagHas.WeakerBow or 0) == bows + 1 and logged("nomad: Tech: Old Bow brought"),
+           "Nomad: the Old Bow itself, in the bag")
     expect(mailHas("PalSphere") == spheres + 10, "Nomad: 10 Pal Spheres in the mailbox")
     expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1, "Nomad alone leaves the world's settings alone")
     run(40)
-    expect((bagHas.WeakerBow or 0) == bows + 1 and mailHas("PalSphere") == spheres + 10, "handed over once, not every update")
+    expect((bagHas.WeakerBow or 0) == bows + 1 and mailHas("PalSphere") == spheres + 10,
+           "handed over once, not every update")
     -- The Nomad Sync preset (Nomad and Speed Boost) in a world already sped up from before: a reminder, not a change.
     ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 5, 3, 2
     h.switchSeed("70013", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "5" })

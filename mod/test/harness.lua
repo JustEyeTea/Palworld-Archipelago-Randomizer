@@ -57,11 +57,15 @@ HARNESS_DIR = arg[0]:match("^(.*[/\\])") or "./"      -- where harness.lua and i
 do
     local cfgFile = io.open(MOD .. "/config.txt")
     local cfgText = cfgFile and cfgFile:read("a") or ""
-    if cfgFile then cfgFile:close() end
+    if cfgFile then
+        cfgFile:close()
+    end
     assert(cfgText:find("slot=Tester", 1, true),
            "no config.txt with slot=Tester: run this through tools/lua_harness.sh")
     local old = io.open(MOD .. "/save-12345-Tester.txt")
-    if old then old:close() end
+    if old then
+        old:close()
+    end
     assert(not old, "this folder was used by an earlier run: run this through tools/lua_harness.sh")
 end
 
@@ -151,7 +155,9 @@ end
 itemHistory = {}                                             -- every item sent, as the server sends them all again
 function push(...)
     events[#events + 1] = table.concat({ ... }, "\t")
-    if select(1, ...) == "item" then itemHistory[#itemHistory + 1] = events[#events] end
+    if select(1, ...) == "item" then
+        itemHistory[#itemHistory + 1] = events[#events]
+    end
 end
 -- Archipelago's item flags (ap_bridge.hpp: 1 progression, 2 useful, 4 trap; filler has none).
 FLAG = { filler = "0", progression = "1", useful = "2", trap = "4" }
@@ -194,7 +200,10 @@ end
 -- Everything printed (the mod's log, the titles, the results), in order.
 printed = {}
 local realPrint = print
-print = function(s) printed[#printed + 1] = tostring(s); realPrint(s) end
+print = function(s)
+    printed[#printed + 1] = tostring(s)
+    realPrint(s)
+end
 -- Whether any line printed so far IN THE WHOLE RUN matches the pattern. A line an earlier test already caused makes
 -- it true whatever the mod does now: to test one step, take logMark() before it and ask loggedSince(mark, pattern).
 function logged(pattern)
@@ -214,20 +223,30 @@ end
 -- How many lines printed so far in the whole run match the pattern.
 function countLogged(pattern)
     local n = 0
-    for _, l in ipairs(printed) do if l:find(pattern) then n = n + 1 end end
+    for _, l in ipairs(printed) do
+        if l:find(pattern) then
+            n = n + 1
+        end
+    end
     return n
 end
 
 -- How many lines printed so far in the whole run hold the text (plain, not a pattern).
 function countLoggedText(text)
     local n = 0
-    for _, l in ipairs(printed) do if l:find(text, 1, true) then n = n + 1 end end
+    for _, l in ipairs(printed) do
+        if l:find(text, 1, true) then
+            n = n + 1
+        end
+    end
     return n
 end
 
 -- An item's id by its name.
 itemId = {}
-for id, it in pairs(D.items) do itemId[it.name] = id end
+for id, it in pairs(D.items) do
+    itemId[it.name] = id
+end
 
 dofile(HARNESS_DIR .. "helpers.lua")
 
@@ -242,8 +261,12 @@ local STARTS_EMPTY = { "loop", "teleported", "lastGone", "mainMenu", "chests", "
                        "AP_GivePal", "AP_GivePalPoll" }
 do
     local declared = {}
-    for name in pairs(_G) do declared[name] = true end
-    for _, name in ipairs(STARTS_EMPTY) do declared[name] = true end
+    for name in pairs(_G) do
+        declared[name] = true
+    end
+    for _, name in ipairs(STARTS_EMPTY) do
+        declared[name] = true
+    end
     setmetatable(_G, { __newindex = function(globals, name, value)
         if not declared[name] and debug.getinfo(2, "S").source:find(HARNESS_DIR, 1, true) then
             error("a new global '" .. tostring(name) .. "': a mistype, or declare it in fakes.lua", 2)
@@ -255,7 +278,9 @@ end
 -- Every file in tests/ is in TEST_FILES, so none is left out of the run.
 do
     local listed = {}
-    for _, name in ipairs(TEST_FILES) do listed[name] = true end
+    for _, name in ipairs(TEST_FILES) do
+        listed[name] = true
+    end
     local ls = io.popen('ls "' .. HARNESS_DIR .. 'tests"')
     for name in ls:lines() do
         assert(listed[name], "tests/" .. name .. " is not in harness.lua's TEST_FILES: it would never run")

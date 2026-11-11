@@ -14,7 +14,10 @@ end)
 group("errors that repeat every update are logged once each", function()
     local DB, CW, tries = require("debuffs"), require("crate_window"), 0
     local dbTick, cwUpdate = DB.tick, CW.update
-    DB.tick = function() tries = tries + 1; error(string.format("debuff boom at 0x%x", 8192 + tries)) end
+    DB.tick = function()
+        tries = tries + 1
+        error(string.format("debuff boom at 0x%x", 8192 + tries))
+    end
     CW.update = function() error(string.format("crate window boom at 0x%x", 8192 + tries)) end
     run(5)
     DB.tick, CW.update = dbTick, cwUpdate
@@ -23,7 +26,10 @@ group("errors that repeat every update are logged once each", function()
     local MB, BAGM = require("mailbox"), require("bag")
     local mailOn, give = MB.on, BAGM.give
     MB.on = function() return false end
-    BAGM.give = function(id) tries = tries + 1; error(string.format("give boom at 0x%x", 8192 + tries)) end
+    BAGM.give = function(id)
+        tries = tries + 1
+        error(string.format("give boom at 0x%x", 8192 + tries))
+    end
     h.switchSeed("70031", {})                                  -- a new seed, played in this world
     pushItem({ name = "Stone Bundle", from = "Friend" })
     runCycles(4)
@@ -84,7 +90,8 @@ end)
 group("log lines say what the code found", function()
     expect(logged("death link received while no player was in the world %([%d.]+ s ago%)"),
            "a late death's age is given in seconds")
-    expect(logged("a different seed or slot %(seed %d+, slot %S+ %-> seed %d+, slot %S+%): progress of the last one forgotten"),
+    expect(logged("a different seed or slot %(seed %d+, slot %S+ %-> seed %d+, slot %S+%): progress of the last one " ..
+                  "forgotten"),
            "a new seed's line names the old and the new seed and slot")
     local open = io.open
     io.open = function(path, mode)
@@ -96,7 +103,8 @@ group("log lines say what the code found", function()
     require("config").write()
     require("tech_lock").keepResearch("Torch")
     io.open = open
-    expect(logged("could not write .*config%.txt: .*Permission denied") and logged("could not write .*research%.txt: .*Permission denied"),
+    expect(logged("could not write .*config%.txt: .*Permission denied")
+           and logged("could not write .*research%.txt: .*Permission denied"),
            "config.txt and research.txt that can't be written are logged with their path and the reason")
 end)
 
@@ -107,13 +115,15 @@ group("one way to give to the bag", function()
     CR.list = { "sphere" }
     ITEMS.openCrate()
     MB.on, MB.add = mailOn, mailAdd
-    expect(table.concat(announced, "|", noticesBefore + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
+    expect(table.concat(announced, "|",
+                        noticesBefore + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
            "a crate's stack says it went to the mailbox, as a Nomad gift's does")
     MB.on = function() return false end
     BAGM.give = function() error("the bag broke") end
     CR.list = { "sphere" }
     ITEMS.openCrate()
     MB.on, BAGM.give = mailOn, give
-    expect(logged("could not give [%w_]+: .*the bag broke"), "a give that errors is logged with the item, for crates too")
+    expect(logged("could not give [%w_]+: .*the bag broke"),
+           "a give that errors is logged with the item, for crates too")
     CR.list, CR.pending = {}, {}
 end)

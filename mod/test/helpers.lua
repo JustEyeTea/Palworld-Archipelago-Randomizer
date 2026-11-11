@@ -43,7 +43,9 @@ end
 
 -- The server sends every item of the run again, as it does on every connection.
 function h.replayItems()
-    for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+    for _, line in ipairs(itemHistory) do
+        events[#events + 1] = line
+    end
 end
 
 -- Quitting and starting again: the mod's state for seed 12345 comes back from its save file only (another seed is
@@ -62,8 +64,12 @@ end
 -- Its slot data is the first seed's (SLOT_DATA_START) with `changes`: no option of an earlier seed is kept.
 function h.switchSeed(seed, changes)
     slotData = {}
-    for k, v in pairs(SLOT_DATA_START) do slotData[k] = v end
-    for k, v in pairs(changes) do slotData[k] = v end
+    for k, v in pairs(SLOT_DATA_START) do
+        slotData[k] = v
+    end
+    for k, v in pairs(changes) do
+        slotData[k] = v
+    end
     slotData.seed = seed
     nextItemIndex = 0
     push("status", "connected", "Other")
@@ -89,7 +95,9 @@ end
 function h.wallsGo(walls)
     if not walls then
         walls = {}
-        for a in pairs(wallsUp) do walls[#walls + 1] = a end
+        for a in pairs(wallsUp) do
+            walls[#walls + 1] = a
+        end
     end
     for _, a in ipairs(walls) do
         a.gone = true
@@ -100,14 +108,18 @@ end
 -- A world loads again (after Return to title): the last one's walls are gone, and the player has a new pawn. `dir`
 -- is the world's save folder, if it is another world.
 function h.loadWorld(dir)
-    if dir then game.worldDir = dir end
+    if dir then
+        game.worldDir = dir
+    end
     newPawn()
     h.wallsGo()
 end
 
 -- A click on a game's WBP_CommonButton_C, as the game calls the hook on its click (if the mod hooked it).
 function h.clickCommonButton(button)
-    if hooks[GAME_PATH.commonClick] then hooks[GAME_PATH.commonClick](h.param(button)) end
+    if hooks[GAME_PATH.commonClick] then
+        hooks[GAME_PATH.commonClick](h.param(button))
+    end
 end
 
 -- The player closes the chest window shown last.
@@ -133,11 +145,15 @@ function h.freshWalls()
     local walls = dofile(MOD .. "/Scripts/walls.lua")
     walls.dir, walls.keepAlive = MOD, function() end
     local before = {}
-    for a in pairs(wallsUp) do before[a] = true end
+    for a in pairs(wallsUp) do
+        before[a] = true
+    end
     local function mine()
         local out = {}
         for a in pairs(wallsUp) do
-            if not before[a] then out[#out + 1] = a end
+            if not before[a] then
+                out[#out + 1] = a
+            end
         end
         return out
     end
@@ -179,7 +195,9 @@ function h.spotBesideStart(wanted)
             for _, side in ipairs({ 1, -1 }) do
                 local x = row.x - side * math.sin(yaw) * SPOT_FROM_WALL
                 local y = row.y + side * math.cos(yaw) * SPOT_FROM_WALL
-                if liveWalls.areaAt(x, y) == start then spot = { X = x, Y = y, Z = 0 } end
+                if liveWalls.areaAt(x, y) == start then
+                    spot = { X = x, Y = y, Z = 0 }
+                end
             end
             if spot then return spot, other, w end
         end

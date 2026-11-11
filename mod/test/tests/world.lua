@@ -2,14 +2,16 @@
 -- Tests world.lua, area_locks.lua and death_link.lua.
 
 group("a new world", function()
-    -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
-    run(10)                                                       -- (walls opened above finish shrinking: 2 s of updates)
+    -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised
+    -- twice.
+    run(10) -- (walls opened above finish shrinking: 2 s of updates)
     local spawnedBefore, up = spawned, wallCount()
     game.pawnGone = true
     run(5)
     game.pawnGone = false
     run(80)
-    expect(spawned == spawnedBefore and wallCount() == up, "a moment without a pawn: no second set of walls: " .. (spawned - spawnedBefore))
+    expect(spawned == spawnedBefore and wallCount() == up, "a moment without a pawn: no second set of walls: "
+           .. (spawned - spawnedBefore))
     h.loadWorld()                                                  -- back from the title, the world loaded again
     spawnedBefore = spawned
     run(10)
@@ -30,16 +32,20 @@ group("another world", function()
     local spawnedBefore = spawned
     run(80)
     local have = h.unlockedTechs()
-    expect(have.PalBox and not checks[D.captures.sheepball] and spawned == spawnedBefore, "another world: no tech relocked, no check sent, no walls")
-    expect(logged("world: VANILLA is not this seed's world %(AP_WORLD%)") and table.concat(announced, "|"):find("not the world this Archipelago seed", 1, true),
+    expect(have.PalBox and not checks[D.captures.sheepball] and spawned == spawnedBefore,
+           "another world: no tech relocked, no check sent, no walls")
+    expect(logged("world: VANILLA is not this seed's world %(AP_WORLD%)")
+           and table.concat(announced, "|"):find("not the world this Archipelago seed", 1, true),
            "and the player is told")
     expect(table.concat(mapScreenCalls, " | "):find("enable=1 | .*enable=0$"),
            "and C++ is told to leave its map screen alone: " .. table.concat(mapScreenCalls, " | "))
     h.loadWorld("AP_WORLD")
     run(80)
     local have = h.unlockedTechs()
-    expect(not have.PalBox and checks[D.captures.sheepball] and spawned > spawnedBefore, "back in the seed's world, all as before")
-    expect(table.concat(mapScreenCalls, " | "):find("enable=0 | enable=1", 1, true), "C++'s map screen switched on again")
+    expect(not have.PalBox and checks[D.captures.sheepball] and spawned > spawnedBefore,
+           "back in the seed's world, all as before")
+    expect(table.concat(mapScreenCalls, " | "):find("enable=0 | enable=1", 1, true),
+           "C++'s map screen switched on again")
     AP_MapScreen = nil
     record.PalCaptureCount.Items.list[2].Value = 0
 end)
@@ -50,40 +56,53 @@ group("death link", function()
     runCycles(1)
     local b = bounces[#bounces]
     expect(#bounces == 1 and b.tags == "DeathLink" and b.json:find('"source":"Tester"', 1, true)
-           and b.json:find('"cause":"Tester fainted in Palworld."', 1, true), "dying sends a death: " .. tostring(b and b.json))
+           and b.json:find('"cause":"Tester fainted in Palworld."', 1, true), "dying sends a death: "
+           .. tostring(b and b.json))
     game.playerDead = false
     runCycles(1)
     push("bounce", "DeathLink", '{"cause":"Tester died","source":"Tester","time":1}')
     runCycles(1)
     expect(not game.playerDead, "our own death coming back is ignored")
-    -- (Announced among this run's notices, not necessarily last: the pawn stands at a wall here, and its notice can come
-    -- after the death within the same 7 updates now that Death Link runs two updates after the records.)
+    -- (Announced among this run's notices, not necessarily last: the pawn stands at a wall here, and its notice can
+    -- come after the death within the same 7 updates now that Death Link runs two updates after the records.)
     local noticesBefore = #announced
     inWorld(true)                                                      -- (a player in the world has a pawn)
     push("bounce", "DeathLink", '{"cause":"Ash fell off a cliff.","source":"Ash","time":2}')
     runCycles(1)
     local deathTold = false
-    for i = noticesBefore + 1, #announced do deathTold = deathTold or announced[i]:find("Ash fell off a cliff", 1, true) ~= nil end
+    for i = noticesBefore + 1, #announced do
+        deathTold = deathTold or announced[i]:find("Ash fell off a cliff", 1, true) ~= nil
+    end
     expect(game.playerDead and deathTold, "a linked death faints the player")
-    expect(DL.calls[#DL.calls] == "poison" and DL.slip.damage >= 99999 and DL.slip.shieldIgnore == true and DL.slip.deadType == 5
+    expect(DL.calls[#DL.calls] == "poison" and DL.slip.damage >= 99999 and DL.slip.shieldIgnore == true
+           and DL.slip.deadType == 5
            and DL.slip.clearShield == true,
-           "through lethal poison damage, an ordinary death, so the world's Death Penalty drops items: " .. tostring(DL.calls[#DL.calls]))
+           "through lethal poison damage, an ordinary death, so the world's Death Penalty drops items: "
+           .. tostring(DL.calls[#DL.calls]))
     runCycles(1)
     expect(#bounces == 1, "and is not sent back")
     expect(logged("death link: the poison worked"), "the log says the poison took")
     game.playerDead = false
     runCycles(1)
     -- If the poison kills nobody, the next run drops the Death Penalty's bag and self-kills; that route is kept for the
-    -- session. (dev.17 test, 2026-11-07: the previous "normal death" call fainted nobody, and the self-kill dropped nothing.)
+    -- session. (dev.17 test, 2026-11-07: the previous "normal death" call fainted nobody, and the self-kill dropped
+    -- nothing.)
     DL.poisonWorks = false
     DL.penaltyFor = nil
-    util.GetDeathPenaltyManager = function() return { DropDeathPenaltyChest = function(_, who) DL.calls[#DL.calls + 1] = "drop"; DL.penaltyFor = who end } end
+    local penalty = {}
+    function penalty.DropDeathPenaltyChest(_, who)
+        DL.calls[#DL.calls + 1] = "drop"
+        DL.penaltyFor = who
+    end
+    util.GetDeathPenaltyManager = function() return penalty end
     push("bounce", "DeathLink", '{"cause":"Brock tripped.","source":"Brock","time":4}')
     runCycles(1)
     expect(not game.playerDead and DL.calls[#DL.calls] == "poison", "first the poison")
     runCycles(1)
-    expect(game.playerDead and DL.calls[#DL.calls - 1] == "drop" and DL.calls[#DL.calls] == "self" and DL.penaltyFor == pawn
-           and logged("the poison did not faint the player; used the penalty drop"), "then the Death Penalty's bag for the player, and the self-kill")
+    expect(game.playerDead and DL.calls[#DL.calls - 1] == "drop" and DL.calls[#DL.calls] == "self"
+           and DL.penaltyFor == pawn
+           and logged("the poison did not faint the player; used the penalty drop"),
+           "then the Death Penalty's bag for the player, and the self-kill")
     runCycles(1)
     expect(#bounces == 1, "and that death is not sent back either")
     game.playerDead = false
@@ -92,18 +111,21 @@ group("death link", function()
         local calls = #DL.calls
         push("bounce", "DeathLink", '{"cause":"Brock tripped again.","source":"Brock","time":5}')
         runCycles(1)
-        expect(game.playerDead and #DL.calls == calls + 2 and DL.calls[calls + 1] == "drop", "later deaths go straight to the bag and the self-kill")
-        runCycles(1)                                                       -- (checked while still down: a faint lasts longer than a run)
+        expect(game.playerDead and #DL.calls == calls + 2 and DL.calls[calls + 1] == "drop",
+               "later deaths go straight to the bag and the self-kill")
+        runCycles(1) -- (checked while still down: a faint lasts longer than a run)
         expect(logged("death link: the penalty drop worked"), "the log says the bag and the self-kill took")
         game.playerDead = false
         runCycles(1)
         -- A world whose Death Penalty is None: no bag, only the faint.
         local sub = util.GetOptionSubsystem
-        util.GetOptionSubsystem = function() return { IsValid = function() return true end, OptionWorldSettings = { DeathPenalty = 0 } } end
+        util.GetOptionSubsystem = function() return { IsValid = function() return true end,
+                                                      OptionWorldSettings = { DeathPenalty = 0 } } end
         calls = #DL.calls
         push("bounce", "DeathLink", '{"cause":"Brock tripped once more.","source":"Brock","time":6}')
         runCycles(1)
-        expect(game.playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self" and logged("Death Penalty is None"),
+        expect(game.playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self"
+               and logged("Death Penalty is None"),
                "with the world's Death Penalty None, no bag is dropped")
         util.GetOptionSubsystem = sub
         runCycles(1)
@@ -113,7 +135,8 @@ group("death link", function()
         util.GetDeathPenaltyManager = function() error("no manager") end
         push("bounce", "DeathLink", '{"cause":"Brock, finally.","source":"Brock","time":7}')
         runCycles(1)
-        expect(game.playerDead and DL.calls[#DL.calls] == "self" and logged("penalty drop failed: .*no manager.*trying self%-kill"),
+        expect(game.playerDead and DL.calls[#DL.calls] == "self"
+               and logged("penalty drop failed: .*no manager.*trying self%-kill"),
                "a route that errors falls to the next at once")
     end
     util.GetDeathPenaltyManager = nil
@@ -127,7 +150,8 @@ group("death link", function()
     runCycles(10)
     game.noPlayer = false
     runCycles(2)
-    expect(not game.playerDead and logged("death link received while no player was in the world"), "a death from before the world loaded is dropped")
+    expect(not game.playerDead and logged("death link received while no player was in the world"),
+           "a death from before the world loaded is dropped")
     do  -- another client's cause with escaped quotes and a backslash is read whole (it was cut off at \")
         local noticesAt = #announced
         inWorld(true)
