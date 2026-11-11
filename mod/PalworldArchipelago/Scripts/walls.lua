@@ -794,10 +794,14 @@ local function areaDress(a, i, passes, mode)
     if mid and dress(a, mid) then dressedAs[i] = name end
 end
 function W.skinNew(a, i)
+    local ok, err = true, nil
     if byArea(skin.now) then
-        if i then pcall(areaDress, a, i, W.lastPasses, skin.now) end
+        if i then ok, err = pcall(areaDress, a, i, W.lastPasses, skin.now) end
     elseif skin.now ~= "red" then
-        pcall(dress, a, skin.mids[skin.now])
+        ok, err = pcall(dress, a, skin.mids[skin.now])
+    end
+    if not ok then
+        UTIL.onceErr("walls:skinnew", err, "wall skin " .. skin.now .. ": could not dress a new piece: " .. tostring(err))
     end
 end
 -- A pass that opens one side of a piece still up turns it to the other side's colour; so does the list of areas
@@ -815,7 +819,11 @@ function W.recolour(passes)
     while recolourAt <= #DATA.walls and budget > 0 do
         local i, a = recolourAt, raised[recolourAt]
         if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
-            pcall(areaDress, a, i, passes, skin.now)
+            local ok, err = pcall(areaDress, a, i, passes, skin.now)
+            if not ok then
+                UTIL.onceErr("walls:recolour", err, "wall skin " .. skin.now .. ": could not recolour piece " .. i .. ": "
+                    .. tostring(err))
+            end
             budget = budget - 1
         end
         recolourAt = recolourAt + 1
@@ -849,6 +857,17 @@ function W.cycleSkin()
         end
     end
 end
+-- Dresses one raised piece in the skin wanted (mid: its material, for a skin that is not by area). True when it is
+-- dressed; else false and the error, if there was one.
+local function dressOne(a, i, mid)
+    if byArea(skin.want) then
+        local ok, err = pcall(areaDress, a, i, W.lastPasses, skin.want)
+        return ok and dressedAs[i] ~= nil, not ok and err or nil
+    end
+    local ok, done = pcall(dress, a, mid)
+    dressedAs[i] = nil
+    return ok and done, not ok and done or nil
+end
 -- On the game thread (from W.update): the skin wanted, once the wall material is known (from the first piece raised).
 function W.skinTick()
     if skin.want == skin.now then return end
@@ -875,18 +894,15 @@ function W.skinTick()
         mid = skinMaterial(skin.want)
         if not mid then skin.want = skin.now; return end
     end
-    local n, bad = 0, 0
+    local n, bad, firstErr = 0, 0, nil
     for i, a in pairs(raised) do
         if a:IsValid() then
-            local ok, done
-            if byArea(skin.want) then
-                ok = pcall(areaDress, a, i, W.lastPasses, skin.want)
-                done = dressedAs[i] ~= nil
+            local done, err = dressOne(a, i, mid)
+            if done then
+                n = n + 1
             else
-                ok, done = pcall(dress, a, mid)
-                dressedAs[i] = nil
+                bad, firstErr = bad + 1, firstErr or err
             end
-            if ok and done then n = n + 1 else bad = bad + 1 end
         end
     end
     skin.now = skin.want
@@ -898,7 +914,8 @@ function W.skinTick()
         table.sort(list)
         log("wall skin " .. skin.now .. ": colours " .. table.concat(list, ", "))
     end
-    log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " without a mesh") or ""))
+    local why = firstErr and (" (the first error: " .. tostring(firstErr) .. ")") or " (no mesh or no material)"
+    log("wall skin " .. skin.now .. ": on " .. n .. " pieces" .. (bad > 0 and (", " .. bad .. " not dressed" .. why) or ""))
 end
 
 -- The locked-area stamps (Art & Assets lane: art/ap-map-stamp-<area>.png per area, round 2; art/ap-map-stamp.png when

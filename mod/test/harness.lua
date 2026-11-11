@@ -2083,6 +2083,28 @@ do  -- The chart look with its stamps drawn in (map_icons=0): while nothing chan
     takeAway()
     putBack()
 end
+do  -- A wall piece that cannot be dressed in a skin is logged with the error, not counted as "without a mesh"
+    local W, mine = freshWalls()
+    W.radius = 0
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local up = mine()
+    up[1].Cube.SetMaterial = function() error("the material was refused") end
+    W.setSkin("a")
+    W.update(true, {}, offMap)
+    local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
+    gameplay.BeginDeferredActorSpawnFromClass = function(...)
+        local a = realSpawn(...)
+        a.Cube.SetMaterial = function() error("a new piece's material was refused") end
+        return a
+    end
+    up[2]:K2_DestroyActor()                                   -- (gone: the update raises a new piece in its place)
+    for _ = 1, 20 do W.update(true, {}, offMap) end           -- (a gone piece is noticed within 14 updates)
+    gameplay.BeginDeferredActorSpawnFromClass = realSpawn
+    expect(logged("wall skin a: on %d+ pieces, 1 not dressed %(the first error: .*the material was refused%)")
+           and logged("wall skin a: could not dress a new piece: .*a new piece's material was refused"),
+           "a piece that cannot be dressed is logged with its error, at a skin change and when it is raised")
+    worldGoes(mine())
+end
 end
 end)()
 
