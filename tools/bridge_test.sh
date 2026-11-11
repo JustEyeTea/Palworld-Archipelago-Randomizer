@@ -18,6 +18,8 @@ restore() {
 }
 trap restore EXIT
 s=$deps/ap-soeclient/subprojects
+# The same defines and include paths as cppmod/APConnector/CMakeLists.txt (the Windows build); change both. -w: the
+# dependencies' headers give hundreds of warnings.
 g++ -std=c++17 -O1 -DASIO_STANDALONE -DAP_NO_SCHEMA -I"$deps/apclientpp" -I"$deps/wswrap/include" \
   -I"$s/asio/include" -I"$s/websocketpp" -I"$s/json/include" -w \
   cppmod/APConnector/src/ap_bridge.cpp cppmod/APConnector/src/event_lines.cpp cppmod/APConnector/src/lua_text.cpp \
