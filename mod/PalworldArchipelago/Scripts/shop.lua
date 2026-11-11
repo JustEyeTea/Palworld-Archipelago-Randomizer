@@ -45,6 +45,7 @@ local SHOP_CLASS = {
 local hoveredTech = nil       -- the tech whose tooltip was set up last: a confirm box opened then came from its card
 local retarget = nil          -- the tech a tooltip is being set up again for (step 2), until step 3 uses it
 
+-- The confirm box's question for buying a slot: what it sends and what it costs.
 local function confirmText(tech)
     local s = DATA.shop[tech]
     return "Buy " .. rewardText(tech) .. " for " .. s.cost .. (s.ancient and " Ancient" or "") .. " Technology Point(s)?"

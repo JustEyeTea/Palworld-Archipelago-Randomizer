@@ -89,6 +89,7 @@ function STATE.slotFlag(path)
     local v = AP_SlotData(path)
     return v == "1" or v == "true"
 end
+-- A number from slot data, or `default` when slot data has none.
 function STATE.slotNumber(path, default) return tonumber(AP_SlotData(path)) or default end
 
 return STATE

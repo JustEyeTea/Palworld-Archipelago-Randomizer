@@ -22,11 +22,13 @@ local heldNotices = {
     from = nil,               -- { X, Y }: where the player's character first stood in that world
 }
 local MOVED_CM = 300
+-- Holds a chat notice until the player can see it.
 function HELD.holdNotice(msg)
     local held = heldNotices
     if held.world ~= WORLD.key() then held.list, held.world, held.from = {}, WORLD.key(), nil end
     held.list[#held.list + 1] = msg
 end
+-- Shows the held notices once the player has moved or WAIT.heldNotice has passed; drops them in another world.
 function HELD.showHeldNotices(pawn)
     local held = heldNotices
     if #held.list == 0 then return end

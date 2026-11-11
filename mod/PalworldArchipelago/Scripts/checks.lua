@@ -16,9 +16,10 @@ local ap, slotNumber = STATE.ap, STATE.slotNumber
 local log, once = UTIL.log, UTIL.once
 local notify, relicCount = PLAYER.notify, ITEMS.relicCount
 
--- The seed's goal (slot data options.goal: 0 towers, 1 relic hunt, 2 Paldeck, 3 World Tree); what was done, or nil.
 local GOAL_NEVER = math.huge  -- the count a goal needs when slot data does not say: never reached
+-- The seed's goal, by slot data options.goal: 0 towers, 1 relic hunt, 2 Paldeck, 3 World Tree.
 local GOALS = { ["0"] = "towers", ["1"] = "relic_hunt", ["2"] = "paldeck", ["3"] = "world_tree" }
+-- What was done, as the goal's notice words it, once the records (`found`) say the seed's goal is reached; else nil.
 local function goalReached(found)
     local number = AP_SlotData("options.goal")
     if number == nil or number == "" then number = "0" end      -- (a seed without the option: the default, towers)
@@ -41,6 +42,7 @@ local function goalReached(found)
     return found.towers >= need and (found.towers .. " tower(s) beaten") or nil
 end
 
+-- Marks the locations not yet checked or sent as sent, and sends them as checks while connected.
 function CHECKS.sendChecks(locs)
     local fresh = {}
     for _, loc in ipairs(locs) do
@@ -79,6 +81,7 @@ local goalWait = nil          -- { done = what, since = the update it was reache
 function CHECKS.resetGoal()
     goalWait = nil
 end
+-- The records phase's work: sends what the game's records say is done, and the goal once it is reached.
 function CHECKS.pollRecords(ps, tick)
     local okp, found = pcall(RECORDS.progress, ps, DATA, os.time())
     if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end

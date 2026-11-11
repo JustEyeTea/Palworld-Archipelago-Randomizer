@@ -28,6 +28,8 @@ local techsVersion = 0
 -- DATA.shop for DATA.research, so nothing locks, labels or sends them. Set again on every connection. DATA is the
 -- generated table (ap_data.lua); research is a field the mod adds to it, and techscan.lua reads it too.
 DATA.research = {}
+-- Moves the seed's normal-research techs (a comma list) from DATA.shop to DATA.research, after putting the last
+-- seed's back.
 function TECH_LOCK.setResearch(list)
     for tech, s in pairs(DATA.research) do DATA.shop[tech] = s end
     DATA.research = {}
@@ -66,7 +68,7 @@ end
 
 -- The techs items have unlocked, and nothing else from the shop. Level-1 techs and anything outside the shop are left
 -- alone. Runs only once the connection is ready, so playing offline never relocks anything.
--- The whole list was read and compared every 7th update (estimated 0.3-1.2 ms, unmeasured). It is skipped while the
+-- Reading and comparing the whole list costs an estimated 0.3-1.2 ms (unmeasured), so it is skipped while the
 -- game's list has the same length and techsVersion is unchanged since a comparison that changed nothing: the game adds
 -- techs to the list, so a new one changes its length. Every 15th poll (about 30 s) compares in full regardless. The
 -- skip is tied to the TechnologyData it was taken from (another world loaded with the same seed and an equally long
@@ -74,6 +76,8 @@ end
 local techsSeen, techPolls = nil, 0
 local FULL_TECH_COMPARE_EVERY = 15  -- polls, one per cycle: a full comparison about every 30 s, whatever the skip says
 local researchedNow = {}      -- tech -> true: the world's researched list at the last full read (prerequisites)
+-- Makes the game's researched list hold the techs items unlocked and no other shop tech. Returns true when it changed
+-- the list, false when nothing changed or the comparison was skipped, nil while the list cannot be read.
 function TECH_LOCK.lockAndUnlockTechs(ps)
     local td = ps:GetTechnologyData()
     if not td or not td:IsValid() then return end   -- still loading into the world

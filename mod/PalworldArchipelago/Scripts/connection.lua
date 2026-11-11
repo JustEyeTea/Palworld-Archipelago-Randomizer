@@ -151,6 +151,7 @@ end
 
 local EVENT_HANDLERS = { status = onStatus, item = ITEMS.onItem, scout = onScout, checked = onChecked, bounce = DEATH_LINK.onBounce,
                          message = WALL_HINTS.onMessage }
+-- Hands one event line to its kind's handler, the fields after the kind as its arguments.
 local function onEvent(line)
     local fields = split(line)
     local handler = EVENT_HANDLERS[fields[1]]

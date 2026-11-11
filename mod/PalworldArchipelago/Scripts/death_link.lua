@@ -35,6 +35,7 @@ local function jsonText(text)
     local clean = text:gsub("%c", "")
     return (clean:gsub('[\\"]', "\\%0"))
 end
+-- A string field of a JSON object, its escapes undone, or nil.
 local function jsonField(data, key)
     local _, open = data:find('"' .. key .. '"%s*:%s*"')
     if not open then return nil end
@@ -114,6 +115,8 @@ local function faintNow(ps)
     end
     return ok, err, ROUTES[death.route].name
 end
+-- One Death Link step (the items phase): checks the last faint worked, applies a death received, and reports the
+-- player's own death.
 function DEATH_LINK.step(ps)
     if not death.on then return end
     local okd, dead = pcall(function() return ps:IsPlayerDead() end)

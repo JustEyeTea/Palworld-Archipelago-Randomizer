@@ -34,7 +34,6 @@ function WALL_HINTS.resetHints()
     hints.known, hints.shown, hints.offer = {}, {}, nil
 end
 
--- message <text> <type>: chat; hints are shown, and a hint for one of our passes is kept for its wall's notice.
 -- Takes apart the server's hint for a pass. A full line, as the server sends it:
 --   [Hint]: Tester's Region Pass: Bamboo Groves is at Shop: Foo Stand in Friend's World. (not found)
 -- Returns nil for a line that is no pass hint, else { owner = "Tester" (whose pass), area = "Bamboo Groves",
@@ -48,6 +47,7 @@ local function parsePassHint(text)
     return { owner = owner, area = area, sentence = sentence, location = location, worldOwner = worldOwner }
 end
 
+-- message <text> <type>: chat; hints are shown, and a hint for one of our passes is kept for its wall's notice.
 function WALL_HINTS.onMessage(textField, kindOf)
     local text = tostring(textField)
     log("AP: " .. text)
@@ -90,6 +90,7 @@ local function wallNotice(area)
         { title = area .. " is sealed", line = "Not enough points for a hint: " .. points .. " of " .. cost,
           have = points, cost = cost, ready = false }
 end
+-- Asks the server for the hint on offer (!hint), while the offer lasts and the player has the points.
 local function askHint()
     local area = hints.offer
     if not area or CLOCK.now() - hints.offeredAt > WAIT.hintOffer then return end

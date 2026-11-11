@@ -53,6 +53,7 @@ local CONFIG_KEYS = {
     "wall_skin", "wall_tiling", "wall_scroll", "wall_radius", "wall_fade",
     "map_cpp", "map_chart", "map_icons", "map_regions", "map_style",
 }
+-- Writes config.txt with every key of CONFIG_KEYS that cfg holds (the title menu's connect).
 function CONFIG.write()
     local f = io.open(env.dir .. "\\config.txt", "w")
     if not f then
@@ -69,7 +70,9 @@ end
 -- (host names only, since an archipelago.gg room's port changes with every room). Kept in config.txt as
 -- servers=host,host.
 local DEFAULT_SERVER = "archipelago.gg"
+-- A server's host name in lower case, without its port.
 local function hostOf(server) return ((server or ""):match("^%s*([^:%s]+)") or ""):lower() end
+-- The servers the title menu offers: archipelago.gg first, then the saved ones and the one config.txt names.
 function CONFIG.servers()
     local list, seen = { DEFAULT_SERVER }, { [DEFAULT_SERVER] = true }
     for host in ((cfg.servers or "") .. "," .. hostOf(cfg.server)):gmatch("[^,%s]+") do
@@ -78,6 +81,7 @@ function CONFIG.servers()
     end
     return list
 end
+-- Saves a server's host in servers= once it has been connected to, unless it is archipelago.gg or saved already.
 function CONFIG.rememberServer(server)
     local host = hostOf(server)
     if host == "" or host == DEFAULT_SERVER then return end

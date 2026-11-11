@@ -7,6 +7,7 @@ local RECORDS = require("records")
 local UTIL = require("util")
 local log = UTIL.log
 
+-- The first valid player state, found by a walk of every object (FindAllOf).
 function PLAYER.findPlayerState()
     local all = FindAllOf("PalPlayerState")
     if not all then return nil end
@@ -19,6 +20,7 @@ end
 -- state.
 -- It lives for one update only (frame is cleared after it), so nothing kept goes stale across a world change.
 local frame = nil
+-- A controller's address, or nil for one that is not valid or is the class's default object.
 local function liveControllerKey(pc)
     if not pc:IsValid() then return nil end
     local okn, n = pcall(function() return pc:GetFullName() end)
@@ -51,6 +53,7 @@ function PLAYER.lookUpFrame()
     end
     return newFrame
 end
+-- This update's player state (the frame's), or a lookup of its own outside an update.
 function PLAYER.playerState()
     if frame then return frame.playerState() end
     return PLAYER.findPlayerState()
@@ -72,6 +75,7 @@ function PLAYER.emptyFrame()
     return { pc = nil, controllerKey = nil, hasPawn = false, pawn = nil, playerState = PLAYER.findPlayerState }
 end
 
+-- Logs a line and shows it to the player in chat, with the [Archipelago] prefix.
 function PLAYER.notify(text)
     log(text)
     RECORDS.notify("[Archipelago] " .. text, PLAYER.playerState())

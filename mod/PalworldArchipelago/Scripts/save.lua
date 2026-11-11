@@ -55,6 +55,7 @@ local function readSave(path)
     f:close()
     return lines, complete
 end
+-- Reads the seed's save file (or its complete .tmp copy when the file was cut short) and hands each line to its owner.
 function SAVE.load()
     local path = SAVE.path()
     if not path then return end
@@ -92,12 +93,13 @@ function SAVE.load()
         .. items .. " item(s) of " .. kinds .. " kind(s); " .. #TRAPS.queue .. " trap(s) waiting; " .. ap.forgiven
         .. " faint(s) forgiven; world " .. tostring(ap.world))
 end
--- Written only when its text changed (it was rewritten every 7th update, 2.1 s, even when nothing had changed: an
--- estimated 0.2-2 ms each time for creating, writing and closing the file; more with antivirus; unmeasured). The text
+-- Written only when its text changed: creating, writing and closing the file costs an estimated 0.2-2 ms each time
+-- (more with antivirus; unmeasured), and the items phase asks for a write every cycle. The text
 -- is compared, not ap.given alone: mail that arrives (MAIL.add) is saved only by this write. always: write it anyway
 -- (the perf probe's Ctrl+0 replay of the old load).
 local lastSave = nil          -- path and text of the last write: the same again is not written
 local saveWarned = false      -- the player was told the save file can't be written (once a session)
+-- Writes the save file whole when its text changed, or anyway with `always`.
 function SAVE.write(always)
     local path = SAVE.path()
     if not path then return end

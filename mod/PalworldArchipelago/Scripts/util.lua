@@ -154,6 +154,7 @@ function UTIL.keepInPlace(index, obj)
     end
     return at
 end
+-- Keeps obj alive for the session, in a new place at the end of ReferencedObjects.
 function UTIL.keepAlive(obj) UTIL.keepInPlace(nil, obj) end
 
 -- An object's path without its class: GetFullName gives "Class /Path.Object", the engine's lookups take "/Path.Object".
@@ -233,6 +234,7 @@ end
 -- one skips its turn. (The other way round is ordinary: the update refreshing the tech tree asks these hooks.)
 -- State: true only while a hook callback runs.
 local inHook = false
+-- Runs fn(...) under pcall as a hook callback: an update that comes meanwhile skips its turn. Returns ok and a result.
 function UTIL.runInsideHook(fn, ...)
     local was = inHook
     inHook = true

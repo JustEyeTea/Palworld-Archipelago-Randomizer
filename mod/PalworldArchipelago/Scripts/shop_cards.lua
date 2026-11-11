@@ -49,8 +49,8 @@ local function modIcon(kind, worldContext)
     return t
 end
 
--- A technology's own icon (an asset in the game), for slots that hold one of your techs.
 local techTextures = {}       -- tech id -> its icon's texture, or false when loading it failed (state, as textures)
+-- A technology's own icon (an asset in the game), for slots that hold one of your techs.
 function SHOP_CARDS.techIcon(tech)
     local t = techTextures[tech]
     if t == false then return nil end                 -- (failed before: see modIcon)
@@ -99,11 +99,14 @@ function SHOP_CARDS.rewardText(tech)
     return scouted.player .. "'s " .. scouted.item .. " (" .. scouted.game .. ")"
 end
 
+-- Whether a tech's card is a shop slot now: one of DATA.shop, once the shop is open (ap.shopOpen).
 function SHOP_CARDS.isShopSlot(tech) return ap.shopOpen and DATA.shop[tech] ~= nil end
+-- Whether a shop slot's check has been sent, or found checked.
 function SHOP_CARDS.bought(tech) return ap.checked[DATA.shop[tech].loc] == true end
 
 -- The game's own card categories, read off the level-1 cards (never relabelled) so they follow the game's language.
 local categories = { structure = "Structures", item = "Items" }    -- state, forgotten never (the game's language)
+-- Reads a level-1 card's category text into categories. Returns whether it found one.
 local function readCategory(card, tech)
     local text = safe(function() return card.BP_PalTextBlock_Category:GetText():ToString() end)
     if type(text) == "string" and text ~= "" then categories[STRUCTURES[tech] and "structure" or "item"] = text; return true end
@@ -121,12 +124,14 @@ end
 -- card is; readBack never (each is logged once a session).
 local labelled = {}           -- card address -> { tech, sig, name, category, tex address, clickable } as last applied
 local readBack = {}           -- which read-backs worked (logged once each, for the playtest)
+-- Logs, once for each kind of read-back, whether reading it back from a card works.
 local function logReadBackOnce(what, ok)
     if readBack[what] == nil then
         readBack[what] = ok
         log("cards: reading back the " .. what .. (ok and " works" or " does not work (those cards are relabelled every update)"))
     end
 end
+-- Whether a card still shows what was last applied to it (seen), as its widgets read back.
 local function stillShows(card, seen)
     local okt, text = pcall(function() return card.RichText_TechnologyName_Lock:GetText():ToString() end)
     logReadBackOnce("name", okt)
@@ -197,6 +202,7 @@ end
 local cardPasses = 0          -- card passes so far: every FULL_RELABEL_EVERY-th relabels every card
 local FULL_RELABEL_EVERY = UTIL.updates(3)   -- card passes, one per update: every card relabelled about every 3 s
 local lastCards = nil         -- this update's cards (the Ctrl+0 old-load replay relabels them again)
+-- Labels every tech card the menu has (relabel), each one in full on a full pass, and forgets cards no longer found.
 function SHOP_CARDS.refreshCards(full)
     local cards = FindAllOf("WBP_MainMenu_Technology_Content_C")
     lastCards = cards
@@ -217,6 +223,7 @@ function SHOP_CARDS.refreshCards(full)
     labelled = kept
 end
 
+-- Asks the tech tree to refresh its buttons, then labels every card in full (after a purchase or a new tech list).
 function SHOP_CARDS.refreshTree()
     local tree = FindFirstOf("WBP_MainMenu_Technology_00_C")
     if tree and tree:IsValid() then safe(function() tree:UpdateAllTechnologyButton() end) end

@@ -204,9 +204,9 @@ local function coreTickBody()
     PLAYER.setFrame(nil)
     PERF.frameEnd(ran)
 end
+local kismet = nil             -- state: the engine's system library; looked up again when no longer valid
 -- The engine's frame number, or nil when it can't be read. The timer hands one update to the game thread every
 -- UPDATE_MS whether or not the last has run, so after a stall (a world loading) the queued ones arrive in one frame.
-local kismet = nil
 local function engineFrame()
     if not (kismet and kismet:IsValid()) then
         kismet = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary")
