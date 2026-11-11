@@ -187,10 +187,8 @@ end
 --   relic        -                                                the "Palpagos Relic n/m found!" notice
 --   filler       -                                                its effect (giveFiller): a crate, points, a bundle
 -- Every kind but a trap also says "Received ..." in chat when it is new (its index is past ap.given).
--- Applies each received item's once-per-seed effect, in index order from ap.given + 1, after retrying the gear the bag
--- refused (from crates and Nomad gifts).
-function ITEMS.applyItems(ps)
-    givePending()
+-- Applies each received item's once-per-seed effect, in index order from ap.given + 1 (moved past each as it is done).
+local function applyNewItems(ps)
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
@@ -211,7 +209,18 @@ function ITEMS.applyItems(ps)
         ap.given = i
         i = i + 1
     end
+end
+
+-- Applies the items received since the last time, after retrying the gear the bag refused (from crates and Nomad
+-- gifts), and saves how far it got. An item whose effect raises stops the pass there: what was applied before it is
+-- saved all the same (else it would be given again after a restart), and the error goes on to the caller.
+function ITEMS.applyItems(ps)
+    givePending()
+    local ok, err = pcall(applyNewItems, ps)
     writeSave()
+    if not ok then
+        error(err, 0)
+    end
 end
 
 -- item <index> <item id> <location id> <player slot> <flags> <item name> <player name>

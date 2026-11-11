@@ -165,3 +165,31 @@ group("a setting config.txt no longer has is ignored, and says so", function()
                .. ", bound " .. tostring(bound))
     end
 end)
+
+group("an item whose effect fails stops nothing else", function()
+    -- One item raises every time it is applied: Death Link and traps still step, and what was applied before it is
+    -- in the save file.
+    local DL, TR, STATE = require("death_link"), require("traps"), require("ap_state")
+    local realStep, realAdd = DL.step, TR.add
+    local steps = 0
+    DL.step = function(...)
+        steps = steps + 1
+        return realStep(...)
+    end
+    TR.add = function() error("a trap that can't be queued") end
+    inWorld(true)
+    pushItem({ name = "Tech Points +2" })
+    trap("Slow Trap")
+    runCycles(3)
+    DL.step, TR.add = realStep, realAdd
+    local saveFile = io.open(require("save").path())
+    local saved = saveFile and tonumber(saveFile:read("a"):match("given=(%-?%d+)"))
+    if saveFile then
+        saveFile:close()
+    end
+    expect(steps >= 3, "Death Link still steps every items phase while one item errors: " .. steps .. " steps")
+    expect(saved == STATE.ap.given, "the save file says how far items were applied: file " .. tostring(saved)
+           .. ", memory " .. STATE.ap.given)
+    runCycles(2)                                              -- (the trap is queued now, and the item's effect done)
+    inWorld(false)
+end)

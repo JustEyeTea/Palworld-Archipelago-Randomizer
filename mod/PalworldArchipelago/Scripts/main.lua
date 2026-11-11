@@ -152,15 +152,22 @@ local function phaseItems()
     local ps = playerState()
     if not ps then return end
     PERF.start("e7")
+    -- Each step is caught, as the ones below are: an error in one (an item whose effect raises every time) must not
+    -- stop Death Link, traps and the sync on every cycle.
     PERF.start("techs")
-    local changed = lockAndUnlockTechs(ps)
+    local okl, changed = pcall(lockAndUnlockTechs, ps)
     PERF.stop("techs")
-    if changed then
+    if not okl then
+        onceErr("techlock", changed, "tech lock error: " .. tostring(changed))
+    elseif changed then
         refreshTree()
     end
     local td = safe(function() return ps:GetTechnologyData() end)
     if td and td:IsValid() then    -- (items wait while the tech data is still loading)
-        applyItems(ps)
+        local oka, erra = pcall(applyItems, ps)
+        if not oka then
+            onceErr("items", erra, "items error: " .. tostring(erra))
+        end
     end
     if WORLD.settled() then
         syncRunStyle(ps)
