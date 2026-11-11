@@ -87,6 +87,27 @@ local function iconsStillShown(icons, key)
     local ok, still = pcall(function() return first:IsValid() and first:GetParent():IsValid() end)
     return ok and still
 end
+-- The game's plain map icon class, loaded when first needed; raises an error when it cannot be found.
+local function iconClass()
+    local cls = StaticFindObject(ICON_ASSET .. "_C")
+    if not (cls and cls:IsValid()) then pcall(LoadAsset, ICON_ASSET); cls = StaticFindObject(ICON_ASSET .. "_C") end
+    if not (cls and cls:IsValid()) then error("no icon class " .. ICON_ASSET .. "_C") end
+    return cls
+end
+-- Adds an icon showing `tex` at the point c (an area's centre row) to the screen and to icons.list; true when the
+-- screen says it is shown. Raises an error when the icon cannot be made.
+local function addIcon(screen, icons, cls, wbl, c, tex)
+    local icon = wbl:Create(screen, cls, nil)
+    if not (icon and icon:IsValid()) then error("could not make a map icon") end
+    icon:ChangeTexture(tex)
+    local out = {}
+    screen["Add Icon By Location"](screen, icon, worldAt(c[1], c[2]), true, false, out)
+    pcall(function() icon:SetVisibility(3) end)        -- HitTestInvisible
+    icons.list[#icons.list + 1] = icon
+    return out.Added
+end
+-- Puts this look's icons on one screen, unless they are there already: a locked stamp at each locked area, an open
+-- stamp at each area unlocked but not stood in. Raises an error when an icon cannot be made.
 local function placeIcons(screen, passes, key)
     local addr = UTIL.addr(screen)
     local icons = mapIcons[addr]
@@ -98,35 +119,21 @@ local function placeIcons(screen, passes, key)
     end
     icons = { key = key, list = {} }
     mapIcons[addr] = icons
-    local cls = StaticFindObject(ICON_ASSET .. "_C")
-    if not (cls and cls:IsValid()) then pcall(LoadAsset, ICON_ASSET); cls = StaticFindObject(ICON_ASSET .. "_C") end
-    if not (cls and cls:IsValid()) then error("no icon class " .. ICON_ASSET .. "_C") end
+    local cls = iconClass()
     local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
     local added, shown = 0, 0
     for _, k in ipairs(lockedList(passes)) do
         local c, tex = layout.centres[k], stampTexture(k)
         if c and tex then
-            local icon = wbl:Create(screen, cls, nil)
-            if not (icon and icon:IsValid()) then error("could not make a map icon") end
-            icon:ChangeTexture(tex)
-            local out = {}
-            screen["Add Icon By Location"](screen, icon, worldAt(c[1], c[2]), true, false, out)
-            pcall(function() icon:SetVisibility(3) end)        -- HitTestInvisible
-            icons.list[#icons.list + 1] = icon
+            if addIcon(screen, icons, cls, wbl, c, tex) then shown = shown + 1 end
             added = added + 1
-            if out.Added then shown = shown + 1 end
         end
     end
     local opened = 0
     for _, k in ipairs(openList(passes)) do
         local c, tex = layout.centres[k], openTexture(k)
         if c and tex then
-            local icon = wbl:Create(screen, cls, nil)
-            if not (icon and icon:IsValid()) then error("could not make a map icon") end
-            icon:ChangeTexture(tex)
-            screen["Add Icon By Location"](screen, icon, worldAt(c[1], c[2]), true, false, {})
-            pcall(function() icon:SetVisibility(3) end)
-            icons.list[#icons.list + 1] = icon
+            addIcon(screen, icons, cls, wbl, c, tex)
             opened = opened + 1
         end
     end

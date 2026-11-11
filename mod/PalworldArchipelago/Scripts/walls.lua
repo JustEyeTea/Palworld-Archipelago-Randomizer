@@ -166,6 +166,30 @@ end
 -- at 80 to 85% dissolved; dev.46, its tail 0.8 s, still not quite through): blocking stops at DISSOLVE_S/2, the piece
 -- goes at DISSOLVE_S + DISSOLVE_TAIL (the material's Time node may run behind GetTimeSeconds; the first one logs it).
 local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 2.4
+-- One step of an opening piece at the game's time `now`: shrunk (unless it dissolves), let through halfway, destroyed
+-- at the end. True while it is still opening.
+local function stepOne(s, now)
+    local a = s[1]
+    local span = s.dissolving and DISSOLVE_S or SHRINK_S
+    local half = not s.open and now >= s[4] + span / 2
+    local done = now >= s[4] + span + (s.dissolving and DISSOLVE_TAIL or 0)
+    if not s.dissolving then                     -- shrinking: top and bottom towards the middle
+        local t = math.min(1, (now - s[4]) / SHRINK_S)
+        local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
+        pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
+    end
+    if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
+    if not done then
+        return true
+    end
+    if s.dissolving then
+        once("dissolved", string.format("wall skin paws: an opened wall went %.2f s after it began dissolving"
+            .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s[4], DISSOLVE_S, s.steps))
+    end
+    pcall(function() a:K2_DestroyActor() end)
+    return false
+end
+-- Each update: every opening piece one step on, by the game's clock (or the updates counted, when it can't be read).
 local function sinkStep()
     local still = {}
     for _, s in ipairs(sinking) do
@@ -174,22 +198,7 @@ local function sinkStep()
             s.steps = (s.steps or 0) + 1
             local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
             if not (ok and type(now) == "number") then now = s[4] + s.steps * UTIL.UPDATE_MS / 1000 end
-            local span = s.dissolving and DISSOLVE_S or SHRINK_S
-            local half = not s.open and now >= s[4] + span / 2
-            local done = now >= s[4] + span + (s.dissolving and DISSOLVE_TAIL or 0)
-            if not s.dissolving then                     -- shrinking: top and bottom towards the middle
-                local t = math.min(1, (now - s[4]) / SHRINK_S)
-                local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
-                pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
-            end
-            if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
-            if done then
-                if s.dissolving then
-                    once("dissolved", string.format("wall skin paws: an opened wall went %.2f s after it began dissolving"
-                        .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s[4], DISSOLVE_S, s.steps))
-                end
-                pcall(function() a:K2_DestroyActor() end)
-            else
+            if stepOne(s, now) then
                 still[#still + 1] = s
             end
         end
@@ -340,25 +349,27 @@ function W.perfMode(mode)
 end
 
 
+-- The locked side of a wall row other than `here` (the area the player stands in), or nil; with both sides locked,
+-- the second.
+local function lockedSide(row, here, passes)
+    local side = nil
+    for _, k in ipairs({ row[5], row[6] }) do
+        local name = layout.areas[k + 1]
+        if name ~= here and not isOpen(name, passes) then side = name end
+    end
+    return side
+end
 -- The locked area across a wall within NEAR of a spot (a player walking up to it), or nil. A wall between two locked
 -- areas names the one the player is not in.
 local NEAR = 3000             -- 30 m
 function W.lockedNear(x, y, passes)
     local here = W.areaAt(x, y)
     local best, bestD = nil, NEAR
-    for i, a in pairs(raised) do
-        local w = layout.walls[i]
-        local cos, sin = trig[i][1], trig[i][2]
-        local dx, dy = x - w[1], y - w[2]
-        local along = dx * cos + dy * sin
-        local across = -dx * sin + dy * cos
-        local over = math.max(0, math.abs(along) - w[3] / 2)
-        local d = math.sqrt(over * over + across * across)
-        if d < bestD then
-            for _, k in ipairs({ w[5], w[6] }) do
-                local name = layout.areas[k + 1]
-                if name ~= here and not isOpen(name, passes) then best, bestD = name, d end
-            end
+    for i in pairs(raised) do
+        local d = segDist(i, x, y)
+        local side = d < bestD and lockedSide(layout.walls[i], here, passes)
+        if side then
+            best, bestD = side, d
         end
     end
     return best
