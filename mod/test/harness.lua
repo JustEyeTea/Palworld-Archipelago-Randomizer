@@ -2252,6 +2252,18 @@ hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
 run(1)
 expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\n", 1, true), "and the save")
+;(function()   -- an item whose id reads like a button's action ("close") is still an item
+    MB.add("close", 2)
+    bagFull = true
+    hooks[ROW_CLICK]({ get = function() return window.TakeAll end })   -- nothing fits: the window shows the row
+    run(1)
+    bagFull = false
+    local row = winRows[1]
+    hooks[ROW_CLICK]({ get = function() return row end })
+    run(1)
+    expect(row and given[#given] == "close x2" and not hudWindows["mail"].gone,
+           "its row takes it into the bag, and the window stays open: " .. tostring(given[#given]))
+end)()
 hooks[ROW_CLICK]({ get = function() return window.Close end })
 run(1)
 hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false

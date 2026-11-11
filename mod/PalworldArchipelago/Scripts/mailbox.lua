@@ -188,7 +188,8 @@ local WINDOW_GAME = {
 
 -- State. Forgotten: when the HUD no longer has the window, on a new world, on a new seed (WINDOW.forget()).
 local window = nil            -- the window: { id = its HUD id, hud = the HUD service, actions = see below }
-                              --   actions: a button's address -> the item id it takes, "all" or "close"
+                              --   actions: a button's address -> what it does: { kind = "take", id = item id },
+                              --   { kind = "takeAll" } or { kind = "close" } (WINDOW_ACTIONS)
 -- State. Forgotten: at the next update, acted on or not, and with the window.
 local clickedAction = nil     -- the action of the button just clicked (noted in the click's hook, done after it)
 -- State. Forgotten: never.
@@ -235,7 +236,7 @@ local function addRows(widget)
             setLabel(row, BAG.nameOf(entry.id) .. "  x" .. entry.n)
             setIcon(row, entry.id)
             widget.List:AddChild(row)
-            window.actions[UTIL.addr(row)] = entry.id
+            window.actions[UTIL.addr(row)] = { kind = "take", id = entry.id }
             first = first or row
         end
     end
@@ -261,8 +262,8 @@ local function refreshWindow()
     window.actions = {}
     local first = addRows(widget)
     setTexts(widget)
-    window.actions[UTIL.addr(widget.TakeAll)] = "all"
-    window.actions[UTIL.addr(widget.Close)] = "close"
+    window.actions[UTIL.addr(widget.TakeAll)] = { kind = "takeAll" }
+    window.actions[UTIL.addr(widget.Close)] = { kind = "close" }
     pcall(function() (first or widget.TakeAll).Btn:SetKeyboardFocus() end)   -- a controller starts on the first row
 end
 
@@ -274,19 +275,23 @@ local function takeAllAndTell()
     env.notify("Took " .. took .. " item(s) from the mailbox" .. rest .. ".")
 end
 
--- Does what a clicked button stands for: close the window, take everything, or take one item.
+-- What each kind of button does. All but Close fill the window again afterwards.
+local WINDOW_ACTIONS = {
+    take = function(action) LIST.take(action.id) end,
+    takeAll = takeAllAndTell,
+    close = function() pcall(function() window.hud:Close(window.id) end) end,
+}
+
+-- Does what a clicked button stands for (one of WINDOW_ACTIONS).
 local function doAction(action)
     if not window then return end
-    if action == "close" then
-        pcall(function() window.hud:Close(window.id) end)
+    local run = WINDOW_ACTIONS[action.kind]
+    if not run then
+        log("mailbox: a button with an unknown action (" .. tostring(action.kind) .. ") was clicked; nothing done")
         return
     end
-    if action == "all" then
-        takeAllAndTell()
-    else
-        LIST.take(action)
-    end
-    refreshWindow()
+    run(action)
+    if action.kind ~= "close" then refreshWindow() end
 end
 
 -- The buttons' click hook only notes which button it was: the list is rebuilt on the next update, not inside the
