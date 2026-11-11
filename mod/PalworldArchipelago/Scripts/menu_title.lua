@@ -1,6 +1,7 @@
--- The title menu's Archipelago menu: the banner over the title buttons, and the rows it swaps in for them (the
--- connection's server, port, slot and password, Connect and Back). Wired by menu.lua (TITLE.install), whose
--- update calls it. Tests: mod/test/harness.lua, group "the title menu's Archipelago menu" (lua_harness.sh).
+-- The title menu's Archipelago menu: one record per title menu, and its life. Each update it finds the title menus,
+-- builds our rows (menu_title_rows.lua) and the banner (menu_title_banner.lua) on a new one, brings each up to date
+-- (menu_title_connect.lua), and gives one up when it goes. It also answers the title buttons' hover hooks and Esc.
+-- Wired by menu.lua (TITLE.install), whose update calls it.
 -- Tests: mod/test/tests/title_menu.lua; group "the title menu's Archipelago menu" (tools/lua_harness.sh, in CI).
 local TITLE = {}
 local CLICKS = require("clicks")
@@ -17,7 +18,7 @@ local LIST_LEVELS = NAMES.LIST_LEVELS
 local TITLE_OWNER = NAMES.TITLE_OWNER
 local log, once = UTIL.log, UTIL.onceIn("menu")
 local className, nameOf = WIDGETS.className, WIDGETS.nameOf
--- The menu's parts, each called by its own name: the banner, the rows' building, and what the rows say and do.
+-- The menu's other parts, a file each: the banner, the rows' building, and what the rows say and do.
 local BANNER = require("menu_title_banner")
 local ROWS = require("menu_title_rows")
 local CONNECT = require("menu_title_connect")
@@ -58,7 +59,7 @@ local function newTitleMenu(list)
         pickPanel = nil,        -- the saved servers' panel on the canvas: { box, list, slot, at, shown }, or nil
         pickHosts = {},         -- the saved servers offered now, by their row's index
         padTop = 0,             -- the soft top end's height above Server (0 without it)
-        banner = nil,           -- the banner record (newBanner), or nil without one
+        banner = nil,           -- the banner record (newBanner, in menu_title_banner.lua), or nil without one
         bannerButton = nil,     -- the banner's own button, or nil (then a row of its own opens the menu)
         bannerKey = nil,        -- that button's address (the hover events name it)
         showing = false,        -- the Archipelago menu is up, the game's buttons folded away

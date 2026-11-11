@@ -1,5 +1,6 @@
 -- The title menu's Archipelago menu: the banner, the typed fields, the saved servers, Connect, Back and Esc, and
--- what happens when its rows can't be made. Tests menu.lua, menu_title.lua, menu_survey.lua, text_window.lua.
+-- what happens when its rows can't be made. Tests menu.lua, menu_title.lua, menu_title_banner.lua,
+-- menu_title_rows.lua, menu_title_connect.lua, menu_survey.lua, text_window.lua.
 
 group("the title menu's Archipelago menu", function()
     local MB = require("mailbox")
