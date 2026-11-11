@@ -33,11 +33,12 @@
 //   AP_MapScreen(cmd, value) -> string   the world map screen, changed inside the game's own Setup so it never shows
 //                                        the game's version first: "body", path / "fog", "r,g,b,a" / "status"
 //                                        (map_screen.hpp)
+// This file needs Windows and UE4SS, so only CI's Windows build compiles it and no test runs it; what can be tested
+// without them lives in ap_bridge.*, lua_text.*, image_tools.* and pal_gift_logic.*.
 #include <Windows.h>
 
 #include <cstdio>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -47,10 +48,14 @@
 
 #include "ap_bridge.hpp"
 #include "image_tools.hpp"
+#include "lua_text.hpp"
 #include "map_screen.hpp"
 #include "pal_gift.hpp"
 
 using namespace RC;
+using lua_text::double_or;
+using lua_text::ids;
+using lua_text::int_or;
 
 namespace
 {
@@ -111,58 +116,13 @@ namespace
         return *g_bridge;
     }
 
-    // "id,id,..." as numbers. A part that isn't a number is skipped: an exception must never leave a function Lua
-    // called, or it can take the game down.
-    auto ids(std::string_view csv) -> std::vector<int64_t>
-    {
-        std::vector<int64_t> out;
-        std::stringstream ss{std::string(csv)};
-        for (std::string part; std::getline(ss, part, ',');)
-        {
-            if (part.empty()) continue;
-            try
-            {
-                std::size_t used = 0;
-                const auto id = std::stoll(part, &used);
-                if (used == part.size()) out.push_back(id);
-            }
-            catch (...)
-            {
-            }
-        }
-        return out;
-    }
-
     auto arg(const LuaMadeSimple::Lua& lua) -> std::string
     {
         return lua.is_string() ? std::string(lua.get_string()) : std::string();
     }
 
-    // A number Lua sent as text, or `fallback` when it doesn't start with one (never throws: see ids()).
-    auto int_or(const std::string& text, int fallback) -> int
-    {
-        try
-        {
-            return std::stoi(text);
-        }
-        catch (...)
-        {
-            return fallback;
-        }
-    }
-    auto double_or(const std::string& text, double fallback) -> double
-    {
-        try
-        {
-            return std::stod(text);
-        }
-        catch (...)
-        {
-            return fallback;
-        }
-    }
-
     // The Archipelago connection (ap_bridge.hpp): connect, poll events, send checks, scouts, chat, the goal, bounces.
+    // In this and every register_* below, no exception may leave a function Lua called: it can take the game down.
     void register_connection(LuaMadeSimple::Lua& lua)
     {
         lua.register_function("AP_Connect", [](const LuaMadeSimple::Lua& l) -> int {

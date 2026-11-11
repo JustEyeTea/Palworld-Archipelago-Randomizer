@@ -1,4 +1,5 @@
 #include "ap_bridge.hpp"
+#include "lua_text.hpp"
 
 #include <chrono>
 #include <list>
@@ -179,10 +180,8 @@ void ApBridge::goal()
 
 void ApBridge::set_tags(const std::string& tags_csv)
 {
-    std::list<std::string> tags;
-    std::stringstream ss(tags_csv);
-    for (std::string t; std::getline(ss, t, ',');)
-        if (!t.empty()) tags.push_back(t);
+    const auto tag_list = lua_text::split_csv(tags_csv);
+    const std::list<std::string> tags(tag_list.begin(), tag_list.end());
     std::lock_guard lock(m_mutex);
     if (m_client) m_client->ConnectUpdate(false, 0, true, tags);
 }
@@ -197,10 +196,8 @@ void ApBridge::bounce(const std::string& json_data, const std::string& tags_csv)
         push(join({"status", "error", "bounce not sent: its data is not JSON"}));
         return;
     }
-    std::list<std::string> tags;
-    std::stringstream ss(tags_csv);
-    for (std::string t; std::getline(ss, t, ',');)
-        if (!t.empty()) tags.push_back(t);
+    const auto tag_list = lua_text::split_csv(tags_csv);
+    const std::list<std::string> tags(tag_list.begin(), tag_list.end());
     m_client->Bounce(data, {}, {}, tags);
 }
 
