@@ -4815,6 +4815,17 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     playerController.K2_GetPawn = pawnWas
 end)()
 ;(function()
+    print("checks earned while not connected")
+    local STATE, CHECKS = require("ap_state"), require("checks")
+    local was = STATE.ap.status
+    STATE.setStatus("connecting")                              -- (the title menu's connect, while still ready)
+    CHECKS.sendChecks({ 999001 })
+    STATE.setStatus("connected")
+    CHECKS.sendChecks({ 999001 })
+    STATE.setStatus(was)
+    expect(checks[999001], "a check earned while connecting is sent once connected, not marked as sent and dropped")
+end)()
+;(function()
     print("Lua runs only on the game thread")
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
     -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread

@@ -31,8 +31,8 @@ local ap = {
     bought = {},          -- location id -> true: checks the mod sent itself (purchases, removed slots), not read
                           -- from the game's records; sent again on every connection and kept in the save file.
                           -- Forgotten on a new seed
-    sent = {},            -- location id -> true: handed to the connector this connection (waiting for the server to
-                          -- confirm). Forgotten each connection and on a new seed
+    sent = {},            -- location id -> true: handed to the connector this connection, while connected (waiting
+                          -- for the server to confirm). Forgotten each connection and on a new seed
     scouted = {},         -- location id -> { id, item, player, game, flags, own }: what a shop slot holds (id is the
                           -- item's id, which the shop reads). Rebuilt each connection, forgotten on a new seed
     items = {},           -- index -> item id, every item received: rebuilt each connection, forgotten on a new seed

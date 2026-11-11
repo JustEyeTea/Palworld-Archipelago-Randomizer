@@ -42,8 +42,10 @@ local function goalReached(found)
     return found.towers >= need and (found.towers .. " tower(s) beaten") or nil
 end
 
--- Marks the locations not yet checked or sent as sent, and sends them as checks while connected.
+-- Sends the locations not yet checked or sent as checks, and marks them as sent. Only while connected: otherwise it
+-- does nothing, so a location earned meanwhile is sent by the next call once connected.
 function CHECKS.sendChecks(locs)
+    if ap.status ~= "connected" then return end
     local fresh = {}
     for _, loc in ipairs(locs) do
         if not ap.checked[loc] and not ap.sent[loc] then
@@ -51,7 +53,7 @@ function CHECKS.sendChecks(locs)
             fresh[#fresh + 1] = tostring(loc)
         end
     end
-    if #fresh > 0 and ap.status == "connected" then
+    if #fresh > 0 then
         AP_Check(table.concat(fresh, ","))
         log("sent " .. #fresh .. " check(s): " .. table.concat(fresh, ","))
     end
