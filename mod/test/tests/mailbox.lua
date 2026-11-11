@@ -336,4 +336,27 @@ group("the mailbox", function()
                "the templates are put back with the reset, and nothing more is made or said: " .. tostring(afterReset))
         chests, mapObjects.RequestSpawnMapObjectByPlayer_Server = chestsWere, spawnWas
     end
+    do   -- a world this seed is not played in: the mailbox and the crates stay shut, so the seed's items stay with it
+        local WORLD, CR = require("world"), require("crates")
+        h.loadWorld("VANILLA")
+        run(80)
+        local mailWas, cratesWas, shownWas = MB.count(), CR.list, #chestWindowsShown
+        MB.add("Wood", 7)
+        local toldAt = #announced
+        MB.open()
+        run(6)
+        local told = table.concat(announced, "|", toldAt + 1):find("mailbox opens only in the world this seed", 1, true)
+        expect(WORLD.seedWorld() == false and #chestWindowsShown == shownWas and not MB.busy() and told,
+               "the mailbox does not open in a world that is not the seed's, and says why: "
+               .. #chestWindowsShown - shownWas .. " chest window(s) opened")
+        CR.list = { "sphere" }
+        local opened = require("items").openCrate()
+        expect(opened == nil and #CR.list == 1, "no crate opens in a world that is not the seed's: "
+               .. tostring(opened))
+        CR.list = cratesWas
+        h.loadWorld("AP_WORLD")
+        run(80)
+        MB.removeCount(MB.queue, "Wood", 7)
+        expect(WORLD.seedWorld() == true and MB.count() == mailWas, "back in the seed's world")
+    end
 end)

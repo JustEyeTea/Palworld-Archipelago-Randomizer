@@ -17,6 +17,7 @@ local SYNC = require("sync")
 local TECH_LOCK = require("tech_lock")
 local TRAPS = require("traps")
 local UTIL = require("util")
+local WORLD = require("world")
 local ap, slotNumber = STATE.ap, STATE.slotNumber
 local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
@@ -126,8 +127,13 @@ local function givePending()
 end
 
 -- Opening a crate (the Inventory page's Open button: the next one; the crate window's: one of `kind`), its contents
--- rolled from the player's level now. Returns the kind and the contents.
+-- rolled from the player's level now. Returns the kind and the contents. In a world that is not the seed's nothing
+-- opens: the crate's contents would leave the seed for that world's bag.
 function ITEMS.openCrate(kind)
+    if WORLD.seedWorld() == false then
+        notify("Your crates open only in the world this seed is played in.")
+        return
+    end
     local ps = playerState()
     if not (ps and ps:IsValid()) then
         notify("Open crates in your world.")

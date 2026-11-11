@@ -359,7 +359,7 @@ local function installWindows()
         guardedHook = guardedHook,
     })
     MAIL.install({ notify = notify, save = writeSave, cfg = cfg, guardedHook = guardedHook,
-                   connected = function() return ap.status == "connected" end })
+                   connected = function() return ap.status == "connected" end, seedWorld = WORLD.seedWorld })
     CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, openCrate = openCrateOfKind,
                    guardedHook = guardedHook })
     TRAPS.install({ notify = notify, save = writeSave, announce = announceTrap,

@@ -21,6 +21,7 @@ M.TITLE = "Archipelago Mailbox"
 --   save()                writes the mod's save file
 --   cfg                   config.txt's values (mailbox_view, mailbox_slots, mailbox_key)
 --   connected()           whether the connection to Archipelago is up
+--   seedWorld()           whether the loaded world is the seed's: true, false, or nil before it is known (world.lua)
 --   guardedHook(name, fn) optional: a hook callback that no update can run inside
 local env
 
@@ -206,8 +207,13 @@ function M.takeAll()
     return took, left
 end
 
--- Asks for the mailbox to open; it opens on a later update, once the menu the player clicked in has closed.
+-- Asks for the mailbox to open; it opens on a later update, once the menu the player clicked in has closed. In a
+-- world that is not the seed's it stays shut: what the player took would leave the seed for that world's bag.
 function M.open()
+    if env.seedWorld() == false then
+        env.notify("Your mailbox opens only in the world this seed is played in.")
+        return
+    end
     if not env.connected() and #M.queue == 0 then
         env.notify("Connect to Archipelago to see your mailbox.")
         return

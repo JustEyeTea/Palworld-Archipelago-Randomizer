@@ -286,8 +286,9 @@ How it works:
   name the line's fields in the order `ap_bridge.hpp` sends them. "Connected" reads the seed's setup from slot data
   (`onConnected`, `applySeedOptions`).
 - **A seed belongs to one world**, the first one it is played in (`checkWorld`, `world=` in the save). In any other
-  world nothing is locked, sent or given. A first world that already has shop techs researched is tied only after
-  the player presses the hint key (`tieWorld`), since tying it locks those techs again.
+  world nothing is locked, sent or given, and the mailbox and the crates stay shut. A first world that already has
+  shop techs researched is tied only after the player presses the hint key (`tieWorld`), since tying it locks those
+  techs again.
 - **The update** (`update()` in `main.lua`) runs every 300 ms on the game thread, at most once a frame and never
   inside a hook. Every update it reads the server's events, updates the menus, mailbox, shop cards, walls and map.
   The heavier work is spread over a cycle of 7 updates: `PHASE_STEPS` maps each phase to its function (records and
