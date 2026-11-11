@@ -54,6 +54,8 @@ or a new file, look here and use the block. Never write a second copy. A block i
 - **A log line, a log-once, a guarded call, an object's address:** `log`, `once` (`onceIn(owner)` for a module's
   own keys), `onceErr`, `safe`, `addr` in `util.lua`. A failure that can repeat every update goes through
   `onceErr`. Which branch of a fallback ran: `took`.
+- **A texture or other object the game must not free while the mod uses it:** `keep(obj)`, or `keepInPlace(index,
+  obj)` for a picture made again and again, in `util.lua`.
 - **A wait:** `updates(seconds)` from `util.lua`, as a named entry in the file's `WAIT` table. Never a bare count
   of updates, and never a typed 300 or 0.3. A schedule ("every 3 seconds") is tested with `isDue`.
 - **A function the Lua mod calls in the connector:** `register_text` in `dllmain.cpp`. Code that turns text into

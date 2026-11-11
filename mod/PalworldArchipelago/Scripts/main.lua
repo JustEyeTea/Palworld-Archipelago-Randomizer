@@ -98,34 +98,7 @@ local sendChecks, sendBoughtAgain, resetGoal, pollRecords =
 ------------------------------------------------------------------------------------------------------------------------
 -- The shop: cards relabelled every 300 ms (kit 9's shape: timer relabel plus two post-hooks, never widget work inside
 -- Blueprint hooks, which crashed kits 5 and 6).
--- Textures the cards use are kept alive in the game instance's ReferencedObjects for the whole session: otherwise
--- nothing references them once the menu rebuilds its cards, the engine frees them, and the cards go blank grey.
--- State: forgotten never; looked up again when it is no longer valid.
-local keptBy = nil         -- the game instance lives all session (skill: GameInstance-owned objects); checked on use
--- Keeps obj alive in place `index` of ReferencedObjects, in place of what was kept there, so a picture that is made
--- again and again keeps one place, not one more each time. Nothing is removed from the list: that is untested from
--- Lua. With no place yet (nil, past the list's end, or in the list of a game instance found before) obj goes at the
--- end. Returns its place.
-local function keepInPlace(index, obj)
-    if not (keptBy and keptBy:IsValid()) then
-        keptBy = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
-        index = nil
-    end
-    local gi = keptBy
-    local ok, at = pcall(function()
-        local arr = gi.ReferencedObjects
-        local n = arr:GetArrayNum()
-        local place = (index and index <= n) and index or n + 1
-        arr[place] = obj
-        return place
-    end)
-    if not ok then
-        once("keep", "could not keep a texture alive: " .. tostring(at))
-        return index
-    end
-    return at
-end
-local function keep(obj) keepInPlace(nil, obj) end
+local keep, keepInPlace = UTIL.keep, UTIL.keepInPlace
 WALLS.keep, WALLS.keepInPlace = keep, keepInPlace
 WALLS.dir = modDir
 WALLS.cppOff = cfg.map_cpp == "0"
