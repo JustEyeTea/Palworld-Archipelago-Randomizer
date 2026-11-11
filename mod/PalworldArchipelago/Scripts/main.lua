@@ -59,11 +59,17 @@ local inTick = false          -- state: true only while an update runs
 -- The modules that keep their own timers: the test tools' probes, the hint pop-up, the debuff icons.
 local function stepTimers()
     local oktt, errtt = pcall(TEST_TOOLS.update)
-    if not oktt then onceErr("testtools", errtt, "test tools error: " .. tostring(errtt)) end
+    if not oktt then
+        onceErr("testtools", errtt, "test tools error: " .. tostring(errtt))
+    end
     local okp, errp = pcall(POPUP.tick, CLOCK.now())
-    if not okp then onceErr("popup", errp, "hint pop-up error: " .. tostring(errp)) end
+    if not okp then
+        onceErr("popup", errp, "hint pop-up error: " .. tostring(errp))
+    end
     local okdb, errdb = pcall(DEBUFFS.tick, CLOCK.now())
-    if not okdb then onceErr("debuffs", errdb, "debuffs error: " .. tostring(errdb)) end
+    if not okdb then
+        onceErr("debuffs", errdb, "debuffs error: " .. tostring(errdb))
+    end
 end
 
 
@@ -72,15 +78,23 @@ local function updateWindows(frame)
     PERF.start("menu")
     local okm, errm = pcall(MENU.update, frame)
     -- The un-hover event may not come when the menu closes under the pointer: a card can't be hovered with no menu.
-    if SHOP.hovered() and MENU.mainMenuUp() == false then SHOP.forgetHover() end
+    if SHOP.hovered() and MENU.mainMenuUp() == false then
+        SHOP.forgetHover()
+    end
     PERF.stop("menu")
-    if not okm then onceErr("menu", errm, "menu error: " .. tostring(errm)) end
+    if not okm then
+        onceErr("menu", errm, "menu error: " .. tostring(errm))
+    end
     PERF.start("mail")
     local okx, errx = pcall(MAIL.update, frame)
     local okw, errw = pcall(CWIN.update)
-    if not okw then onceErr("cwin", errw, "crate window error: " .. tostring(errw)) end
+    if not okw then
+        onceErr("cwin", errw, "crate window error: " .. tostring(errw))
+    end
     PERF.stop("mail")
-    if not okx then onceErr("mail", errx, "mailbox error: " .. tostring(errx)) end
+    if not okx then
+        onceErr("mail", errx, "mailbox error: " .. tostring(errx))
+    end
 end
 
 -- The records phase: trap timers, the seed's-world check, the game's records (checks and the goal).
@@ -90,15 +104,21 @@ local function phaseRecords()
     local pawn = ps and PLAYER.playerPawn()
     -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
     local okk, errk = pcall(TRAPS.tick, { tick = CLOCK.now(), pawn = pawn })
-    if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
-    if ps and ap.ready then WORLD.checkWorld(ps) end
+    if not okk then
+        onceErr("trapsk", errk, "traps error: " .. tostring(errk))
+    end
+    if ps and ap.ready then
+        WORLD.checkWorld(ps)
+    end
     if ps and ap.ready and WORLD.seedWorld() then
         PERF.start("rec")
         pollRecords(ps, CLOCK.now())
         PERF.stop("rec")
     end
     PERF.stop("e7")
-    if ps and ap.ready then PERF.records(ps) end
+    if ps and ap.ready then
+        PERF.records(ps)
+    end
 end
 
 -- The items phase, in the seed's world only: techs and items; once the world has settled, the run style's sync and the
@@ -111,9 +131,13 @@ local function phaseItems()
     PERF.start("techs")
     local changed = lockAndUnlockTechs(ps)
     PERF.stop("techs")
-    if changed then refreshTree() end
+    if changed then
+        refreshTree()
+    end
     local td = safe(function() return ps:GetTechnologyData() end)
-    if td and td:IsValid() then applyItems(ps) end    -- (items wait while the tech data is still loading)
+    if td and td:IsValid() then    -- (items wait while the tech data is still loading)
+        applyItems(ps)
+    end
     if WORLD.settled() then
         local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.holdNotice)
         if not oks then
@@ -122,19 +146,26 @@ local function phaseItems()
             writeSave()
         end
         local okl, errl = pcall(HELD.showHeldNotices, PLAYER.playerPawn())
-        if not okl then onceErr("heldNotices", errl, "notice error: " .. tostring(errl)) end
+        if not okl then
+            onceErr("heldNotices", errl, "notice error: " .. tostring(errl))
+        end
     end
     local okdl, errdl = pcall(DEATH_LINK.step, ps)
-    if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
+    if not okdl then
+        onceErr("death", errdl, "death link error: " .. tostring(errdl))
+    end
     -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.
     local okt, errt = pcall(function()
         local pawn = PLAYER.playerPawn()
         local okd, dead = pcall(function() return ps:IsPlayerDead() end)
         -- (Not WORLD.settled(): a pawn that is there but not valid makes the key false, which counts as settled here.)
-        TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = WORLD.key() ~= nil and WORLD.age() >= WAIT.settle,
-                       dead = not okd or dead, busy = MAIL.busy() })
+        local settled = WORLD.key() ~= nil and WORLD.age() >= WAIT.settle
+        TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = settled, dead = not okd or dead,
+                       busy = MAIL.busy() })
     end)
-    if not okt then onceErr("traps", errt, "traps error: " .. tostring(errt)) end
+    if not okt then
+        onceErr("traps", errt, "traps error: " .. tostring(errt))
+    end
     PERF.stop("e7")
 end
 
@@ -190,15 +221,23 @@ local function coreTickBody()
     if ran then
         PERF.start("ctx")
         local okc, c = pcall(PLAYER.lookUpFrame)
-        if okc then frame = c else onceErr("context", c, "player lookup error: " .. tostring(c)) end
+        if okc then
+            frame = c
+        else
+            onceErr("context", c, "player lookup error: " .. tostring(c))
+        end
     end
     frame = frame or PLAYER.emptyFrame()
     PLAYER.setFrame(frame)
     PERF.frameBegin(frame, ran and PERF.stop("ctx") or nil)
     if ran then
         local ok, err = pcall(update, frame)
-        if not ok then onceErr("update", err, "update error: " .. tostring(err)) end
-        if PERF.legacy then pcall(PERF.replayOldCost, frame) end
+        if not ok then
+            onceErr("update", err, "update error: " .. tostring(err))
+        end
+        if PERF.legacy then
+            pcall(PERF.replayOldCost, frame)
+        end
         PERF.world(frame)
     end
     PLAYER.setFrame(nil)
@@ -229,7 +268,9 @@ local function coreTick()
     inTick = true
     local ok, err = pcall(coreTickBody)
     inTick = false
-    if not ok then onceErr("coreTick", err, "update error: " .. tostring(err)) end
+    if not ok then
+        onceErr("coreTick", err, "update error: " .. tostring(err))
+    end
 end
 ------------------------------------------------------------------------------------------------------------------------
 -- Start-up: each step in its own function, called in order by start() at the end of this file.
@@ -237,7 +278,8 @@ end
 -- Whether the APConnector C++ mod is there: without its AP_* functions nothing else can run.
 local function connectorInstalled()
     if type(AP_Connect) ~= "function" then
-        log("APConnector is not installed: no AP_* functions. Install ue4ss/Mods/APConnector and enable it in mods.txt.")
+        log("APConnector is not installed: no AP_* functions."
+            .. " Install ue4ss/Mods/APConnector and enable it in mods.txt.")
         return false
     end
     return true
@@ -245,10 +287,13 @@ end
 
 -- The performance probe (perf_log=1; perf.lua).
 local function installPerfProbe()
-    PERF.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
-                     mailOpen = function() return MAIL.viewOpen() end,
-                     oldCost = { mapShown = WALLS.mapShown, sweepWalls = WALLS.oldSweep, cards = SHOP_CARDS.lastCards,
-                                 relabel = SHOP_CARDS.relabel, writeSave = writeSave } })
+    PERF.install(cfg, {
+        wallsCount = function() return (WALLS.count()) end,
+        setWalls = function(mode) WALLS.perfMode(mode) end,
+        mailOpen = function() return MAIL.viewOpen() end,
+        oldCost = { mapShown = WALLS.mapShown, sweepWalls = WALLS.oldSweep, cards = SHOP_CARDS.lastCards,
+                    relabel = SHOP_CARDS.relabel, writeSave = writeSave },
+    })
 end
 
 -- The files that keep files next to the mod (the save, research.txt, mod_techs.txt, the icons) get its folder.
@@ -259,6 +304,30 @@ local function installCoreFiles()
     TECHSCAN.install({ version = VERSION, dir = modDir })
     AREA_LOCKS.configureWalls(modDir)
     SHOP_CARDS.install({ dir = modDir })
+end
+
+-- Opens the next crate for the Inventory page's Open button; an error is logged.
+local function openNextCrate()
+    local ok, err = pcall(openCrate)
+    if not ok then
+        log("crate error: " .. tostring(err))
+    end
+end
+
+-- Opens a crate of `kind` for the crate window. Returns the kind and the contents, or nil after logging an error.
+local function openCrateOfKind(kind)
+    local ok, opened, contents = pcall(openCrate, kind)
+    if not ok then
+        log("crate error: " .. tostring(opened))
+        return nil
+    end
+    return opened, contents
+end
+
+-- A trap's announcement: logged and shown in chat without the [Archipelago] prefix (the trap speaks for itself).
+local function announceTrap(text)
+    log(text)
+    RECORDS.notify(text, playerState())
 end
 
 -- The menus, the mailbox, the crate window and the traps get what main.lua hands them.
@@ -274,20 +343,14 @@ local function installWindows()
         disconnect = CONNECTION.disconnect,
         mailboxLabel = MAIL.label,
         crateLabel = CRATES.label,
-        openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
+        openCrate = openNextCrate,
         openMailbox = function() MAIL.open() end,
         guardedHook = guardedHook,
     })
-    MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end,
-                   guardedHook = guardedHook })
-    CWIN.install({ chestWidget = function() return MAIL.chestWidget() end,
-                   openCrate = function(kind)
-                       local ok, k, out = pcall(openCrate, kind)
-                       if not ok then log("crate error: " .. tostring(k)); return nil end
-                       return k, out
-                   end })
-    TRAPS.install({ notify = notify, save = writeSave,
-                    announce = function(text) log(text); RECORDS.notify(text, playerState()) end,
+    MAIL.install({ notify = notify, save = writeSave, cfg = cfg, guardedHook = guardedHook,
+                   connected = function() return ap.status == "connected" end })
+    CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, openCrate = openCrateOfKind })
+    TRAPS.install({ notify = notify, save = writeSave, announce = announceTrap,
                     sender = function(index) return ap.from[index] end,
                     home = function() return WALLS.home end, start = function() return WALLS.start end })
 end
@@ -314,7 +377,9 @@ end
 local function installTestTools()
     if cfg.test_tools == "1" then
         local okt, errt = pcall(TEST_TOOLS.install)
-        if not okt then log("test tools not loaded: " .. tostring(errt)) end
+        if not okt then
+            log("test tools not loaded: " .. tostring(errt))
+        end
     end
 end
 

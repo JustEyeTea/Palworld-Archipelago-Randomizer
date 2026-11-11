@@ -17,7 +17,7 @@ local ap = STATE.ap
 local cfg = CONFIG.cfg
 local log = UTIL.log
 local notify = PLAYER.notify
-local POPUP_LINE_CHARS = 60     -- the most of a hint sentence the pop-up's second line shows when it cannot be shortened
+local POPUP_LINE_CHARS = 60     -- characters of a hint sentence the pop-up's second line shows when it can't shorten it
 
 -- State: hints at walls. Forgotten: known, shown and offer on a new seed (resetHints); key never.
 local hints = {
@@ -55,7 +55,9 @@ function WALL_HINTS.onMessage(textField, kindOf)
         notify(text)
         -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
         local hint = parsePassHint(text)
-        if hint and hint.owner == (ap.slotName or cfg.slot) then hints.known[hint.area] = hint end
+        if hint and hint.owner == (ap.slotName or cfg.slot) then
+            hints.known[hint.area] = hint
+        end
     elseif kindOf == "CommandResult" and hints.asked and CLOCK.now() - hints.asked < WAIT.hintAnswer then
         notify(text)                               -- the server's answer to a hint the player asked for
     end
@@ -88,8 +90,9 @@ local function wallNotice(area)
     hints.offer, hints.offeredAt = area, CLOCK.now()
     -- Both cases say what the player has and what a hint costs, with the configured key.
     if points >= cost then
-        return text .. " Press " .. hints.key .. " for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
-            { title = area .. " is sealed", line = hints.key .. " for a hint: " .. points .. " points, a hint costs " .. cost,
+        local offer = hints.key .. " for a hint: "
+        return text .. " Press " .. offer .. "you have " .. points .. " points, a hint costs " .. cost .. ".",
+            { title = area .. " is sealed", line = offer .. points .. " points, a hint costs " .. cost,
               have = points, cost = cost, ready = true }
     end
     return text .. " Not enough points for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
@@ -113,7 +116,9 @@ end
 local function hintKey()
     if WORLD.takeYes() then return end
     local ok, err = pcall(askHint)
-    if not ok then log("hint error: " .. tostring(err)) end
+    if not ok then
+        log("hint error: " .. tostring(err))
+    end
 end
 -- Binds the hint key (start-up).
 function WALL_HINTS.bindKey()
@@ -135,7 +140,9 @@ function WALL_HINTS.noticeLockedWall(pawn)
     local line, info = wallNotice(area)
     notify(line)
     local okp, errp = pcall(POPUP.show, info, CLOCK.now())
-    if not okp then log("hint pop-up error: " .. tostring(errp)) end
+    if not okp then
+        log("hint pop-up error: " .. tostring(errp))
+    end
 end
 
 return WALL_HINTS

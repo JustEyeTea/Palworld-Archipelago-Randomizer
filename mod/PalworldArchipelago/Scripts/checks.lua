@@ -32,7 +32,9 @@ end
 -- What was done, as the goal's notice words it, once the records (`found`) say the seed's goal is reached; else nil.
 local function goalReached(found)
     local number = AP_SlotData("options.goal")
-    if number == nil or number == "" then number = "0" end      -- (a seed without the option: the default, towers)
+    if number == nil or number == "" then    -- (a seed without the option: the default, towers)
+        number = "0"
+    end
     local goal = GOALS[number]
     if not goal then
         once("goalunknown", "this seed's goal (" .. tostring(number) .. ") is not known to this version of the mod:"
@@ -73,7 +75,9 @@ end
 -- check it already has.
 function CHECKS.sendBoughtAgain()
     local again = {}
-    for loc in pairs(ap.bought) do again[#again + 1] = tostring(loc) end
+    for loc in pairs(ap.bought) do
+        again[#again + 1] = tostring(loc)
+    end
     if #again == 0 then return end
     table.sort(again)
     AP_Check(table.concat(again, ","))
@@ -100,7 +104,9 @@ local function showGoalOnce(done, tick)
     ap.goalShown = true
     notify("Goal complete: " .. done .. "!")
     local okb, errb = pcall(POPUP.banner, done, tick)
-    if not okb then log("goal banner error: " .. tostring(errb)) end
+    if not okb then
+        log("goal banner error: " .. tostring(errb))
+    end
 end
 
 -- Sends the goal once it is reached and the player is out of the boss's arena, or WAIT.goal after it was reached.
@@ -126,7 +132,10 @@ end
 -- The records phase's work: sends what the game's records say is done, and the goal once it is reached.
 function CHECKS.pollRecords(ps, tick)
     local okp, found = pcall(RECORDS.progress, ps, DATA, os.time())
-    if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
+    if not okp then
+        once("records", "records not readable yet (loading?): " .. tostring(found))
+        return
+    end
     CHECKS.sendChecks(found.locations)
     ap.level, ap.beaten = found.level, found.beaten
     sendGoalOnceOutOfArena(ps, found, tick)

@@ -48,7 +48,8 @@ local retarget = nil          -- the tech a tooltip is being set up again for (s
 -- The confirm box's question for buying a slot: what it sends and what it costs.
 local function confirmText(tech)
     local s = DATA.shop[tech]
-    return "Buy " .. rewardText(tech) .. " for " .. s.cost .. (s.ancient and " Ancient" or "") .. " Technology Point(s)?"
+    local points = (s.ancient and " Ancient" or "") .. " Technology Point(s)"
+    return "Buy " .. rewardText(tech) .. " for " .. s.cost .. points .. "?"
 end
 
 -- Blueprint hooks can only be registered once their class has loaded (when a menu first opens). UE4SS runs the FIRST
@@ -87,7 +88,10 @@ local function tooltipSetup(self, techName)
         if not info:IsValid() or hoveredTech ~= tech then return end
         retarget = mine
         local ok, err = pcall(function() info["Setup by Technology Name"](info, FName(mine), false, techIcon(mine)) end)
-        if not ok then retarget = nil; once("retarget", "could not show the tooltip of " .. mine .. ": " .. tostring(err)) end
+        if not ok then
+            retarget = nil
+            once("retarget", "could not show the tooltip of " .. mine .. ": " .. tostring(err))
+        end
     end)
 end
 -- Leaving a card forgets it, so a later dialog (Return to Title...) is not mistaken for a purchase.
@@ -99,14 +103,17 @@ end
 -- half second, as the five ExecuteWithDelay re-applies did, all on the game thread.
 local function confirmBoxSetup(self, dialogType, message)
     local tech = hoveredTech
-    once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
+    local gameText = safe(function() return message:get():ToString() end)
+    once("dialogmsg", "first confirm box message: '" .. tostring(gameText) .. "'")
     if not isShopSlot(tech) or bought(tech) then return end
     local dialog, text = self:get(), confirmText(tech)
     local function apply()
         if not dialog:IsValid() then return end
         local popup = dialog.WBP_CommonPopupWindow
         local msg = safe(function() return popup.BP_PalRichTextBlock_Message:GetText():ToString() end)
-        if msg ~= text then pcall(function() popup:SetMainText(FText(text)) end) end
+        if msg ~= text then
+            pcall(function() popup:SetMainText(FText(text)) end)
+        end
     end
     ExecuteInGameThread(apply)                      -- (from this hook, on the game thread: the next frame)
     later(1, apply)
@@ -136,7 +143,8 @@ local function buy(tech)
     end
     td[field] = before - s.cost
     safe(function() td[s.ancient and RECORDS.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
-    log(string.format("BOUGHT %s for %d %s: %d -> %d, sends %s", tech, s.cost, field, before, td[field], rewardText(tech)))
+    log(string.format("BOUGHT %s for %d %s: %d -> %d, sends %s", tech, s.cost, field, before, td[field],
+        rewardText(tech)))
     ap.bought[s.loc] = true
     sendChecks({ s.loc })
     ap.checked[s.loc] = true
@@ -151,10 +159,15 @@ local function researchRequested(self, name)
     name:set(FName("AP_ShopSlot"))
     -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
     -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
-    if PERF.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on"); return end
+    if PERF.bypass then
+        log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on")
+        return
+    end
     later(1, function()                             -- the next update (within 300 ms), on the game thread
         local ok, err = pcall(buy, tech)
-        if not ok then log("buy error: " .. tostring(err)) end
+        if not ok then
+            log("buy error: " .. tostring(err))
+        end
     end)
 end
 
@@ -169,7 +182,8 @@ local function slotUnlockable(td, tech)
     if (td[s.ancient and RECORDS.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
     local p = s.prereq
     -- A prerequisite the seed leaves as normal research is met once the player has researched it in the game.
-    if p and not (ap.techs[p] or DATA.starters[p] or (DATA.research[p] and TECH_LOCK.researchedNow(p))) then return false end
+    local prerequisiteMet = p and (ap.techs[p] or DATA.starters[p] or (DATA.research[p] and TECH_LOCK.researchedNow(p)))
+    if p and not prerequisiteMet then return false end
     if s.tower and not ap.beaten[s.tower] then return false end
     if s.research then
         local ok, yes = pcall(function() return td:IsLabResearchRequirementSatisfied(FName(s.research)) end)
@@ -290,7 +304,9 @@ local function loadHookClasses()
         if not hook.native and not hook.done then
             local class = hook.path:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
             local ok, err = pcall(LoadAsset, (class:gsub("_C$", "")))
-            if not ok then once("preload" .. class, "could not preload " .. class .. ": " .. tostring(err)) end
+            if not ok then
+                once("preload" .. class, "could not preload " .. class .. ": " .. tostring(err))
+            end
         end
     end
 end

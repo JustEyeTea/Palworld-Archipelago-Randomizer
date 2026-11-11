@@ -50,7 +50,11 @@ local function readSave(path)
     if not f then return nil end
     local lines, complete = {}, false
     for line in f:lines() do
-        if line == "end" then complete = true else lines[#lines + 1] = line end
+        if line == "end" then
+            complete = true
+        else
+            lines[#lines + 1] = line
+        end
     end
     f:close()
     return lines, complete
@@ -81,9 +85,13 @@ function SAVE.load()
         elseif d then
             ap.forgiven = tonumber(d)
         elseif v then
-            for area in v:gmatch("[^|]+") do ap.visited[area] = true end
+            for area in v:gmatch("[^|]+") do
+                ap.visited[area] = true
+            end
         elseif b then
-            for loc in b:gmatch("%d+") do ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true end
+            for loc in b:gmatch("%d+") do
+                ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true
+            end
         elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) and not MAIL.load(line) then
             local kind = line:match("^[^=]*") or line
             once("saveline " .. kind, "save " .. path .. ": a line no part of the mod reads, left out: " .. kind .. "=")
@@ -104,10 +112,14 @@ local saveWarned = false      -- the player was told the save file can't be writ
 -- what was applied, and the traps and mailbox items it left.
 local function saveText()
     local been = {}
-    for area in pairs(ap.visited) do been[#been + 1] = area end
+    for area in pairs(ap.visited) do
+        been[#been + 1] = area
+    end
     table.sort(been)
     local bought = {}
-    for loc in pairs(ap.bought) do bought[#bought + 1] = loc end
+    for loc in pairs(ap.bought) do
+        bought[#bought + 1] = loc
+    end
     table.sort(bought)
     return table.concat({
         "given=" .. ap.given .. "\n",

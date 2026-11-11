@@ -100,13 +100,17 @@ end
 local function techsToRelock(ps)
     local ok, names = pcall(function()
         local td = ps:GetTechnologyData()
-        if not td or not td:IsValid() then error("no tech data yet") end
+        if not td or not td:IsValid() then
+            error("no tech data yet")
+        end
         return TECH_LOCK.arrayNames(td.UnlockedTechnologyNameArray)
     end)
     if not ok then return nil end
     local relock = 0
     for _, n in ipairs(names) do
-        if DATA.shop[n] and not ap.techs[n] then relock = relock + 1 end
+        if DATA.shop[n] and not ap.techs[n] then
+            relock = relock + 1
+        end
     end
     return relock
 end

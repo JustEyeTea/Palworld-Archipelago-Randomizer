@@ -51,12 +51,17 @@ function AREA_LOCKS.configureWalls(dir)
         return u and { tonumber(u), tonumber(v) } or nil
     end
     settings.tiling, settings.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
-    -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall walls)
+    -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall
+    -- walls)
     local radius = tonumber(cfg.wall_radius or "")
-    if radius and radius >= 0 then settings.radius = radius * CM_PER_METRE end
+    if radius and radius >= 0 then
+        settings.radius = radius * CM_PER_METRE
+    end
     local fade = pair(cfg.wall_fade)
     local near, far = fade and fade[1], fade and fade[2]
-    if fade and far > near then settings.fade = { near * CM_PER_METRE, far * CM_PER_METRE } end
+    if fade and far > near then
+        settings.fade = { near * CM_PER_METRE, far * CM_PER_METRE }
+    end
     WALLS.install(settings)
     ART.install({ keepAlive = keepAlive, dir = dir })
     WALLS.setSkin(cfg.wall_skin)
@@ -107,13 +112,17 @@ function AREA_LOCKS.update(pawn)
     PERF.start("walls")
     if not held then
         local ok, err = pcall(WALLS.update, on, ap.passes, pawn)
-        if not ok then onceErr("walls", err, "walls error: " .. tostring(err)) end
+        if not ok then
+            onceErr("walls", err, "walls error: " .. tostring(err))
+        end
     end
     PERF.stop("walls")
     PERF.start("map")
     local ok, err = pcall(WALLS.updateMap, on, ap.passes, pawn)
     PERF.stop("map")
-    if not ok then onceErr("map", err, "map error: " .. tostring(err)) end
+    if not ok then
+        onceErr("map", err, "map error: " .. tostring(err))
+    end
     local up, all = WALLS.count()
     if up > 0 and not wallsLogged then
         wallsLogged = true
@@ -135,7 +144,9 @@ function AREA_LOCKS.phaseAreas(pawn)
     if not areaLocksApply(pawn) then return end
     rememberVisited(pawn)
     -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
-    if PERF.walls == "full" then sendHomeIfLocked(pawn) end
+    if PERF.walls == "full" then
+        sendHomeIfLocked(pawn)
+    end
 end
 
 -- The wall-notice phase: the chat notice and hint offer at a locked wall the player walks up to.

@@ -36,7 +36,9 @@ local sendBoughtAgain, resetGoal = CHECKS.sendBoughtAgain, CHECKS.resetGoal
 -- defined in cppmod/APConnector/src/ap_bridge.hpp (take_events); each handler below takes them by name, in that order.
 local function split(line)
     local f = {}
-    for part in (line .. "\t"):gmatch("([^\t]*)\t") do f[#f + 1] = part end
+    for part in (line .. "\t"):gmatch("([^\t]*)\t") do
+        f[#f + 1] = part
+    end
     return f
 end
 
@@ -91,10 +93,16 @@ local function applySeedOptions()
     -- in this seed. Locked, their walls stay up for good; open, they are open from the start.
     ap.beyond = {}
     local nBeyond = 0
-    for area in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do ap.beyond[area], nBeyond = true, nBeyond + 1 end
+    for area in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do
+        ap.beyond[area], nBeyond = true, nBeyond + 1
+    end
     local mode = AP_SlotData("options.beyond_goal")
     ap.beyondOpen = mode == "2" or mode == "open"
-    if ap.beyondOpen then for area in pairs(ap.beyond) do ap.passes[area] = true end end
+    if ap.beyondOpen then
+        for area in pairs(ap.beyond) do
+            ap.passes[area] = true
+        end
+    end
     WALLS.setBeyond(ap.beyondOpen and {} or ap.beyond)    -- sealed walls and stamps (open ones come down)
     if nBeyond > 0 then
         log("areas beyond the goal: " .. nBeyond .. (ap.beyondOpen and ", open from the start" or ", sealed for good"))
@@ -102,12 +110,16 @@ local function applySeedOptions()
     DEATH_LINK.applyOption()
     CHECKS.logSeedGoal()
     local style = SYNC.style(AP_SlotData)
-    if style ~= 0 then log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)") end
+    if style ~= 0 then
+        log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)")
+    end
     if SYNC.boost(AP_SlotData) then
         log("speed boost: on (this seed changes the world's EXP, work speed and gathering)")
     end
     local chance = slotNumber("options.trap_chance", 0)
-    if chance > 0 then log("traps: " .. chance .. "% of filler items are traps in this seed") end
+    if chance > 0 then
+        log("traps: " .. chance .. "% of filler items are traps in this seed")
+    end
 end
 
 -- Connected (again): the slot, the seed and its save, the techs left as research, what each shop slot holds, and the
@@ -118,7 +130,9 @@ local function onConnected(was)
     ap.me = tonumber(AP_SlotData("slot"))
     local seed = AP_SlotData("seed")
     if seed ~= "" and (seed ~= ap.seed or cfg.slot ~= ap.slotName) then
-        if ap.seed then resetSeed(seed, cfg.slot) end  -- another seed or slot: nothing of the last one carries over
+        if ap.seed then    -- another seed or slot: nothing of the last one carries over
+            resetSeed(seed, cfg.slot)
+        end
         ap.seed, ap.slotName = seed, cfg.slot
         loadSave()
     end
@@ -126,12 +140,16 @@ local function onConnected(was)
     TECH_LOCK.setResearch(research)
     TECH_LOCK.keepResearch(research)
     local locs = {}
-    for _, slot in pairs(DATA.shop) do locs[#locs + 1] = tostring(slot.loc) end
+    for _, slot in pairs(DATA.shop) do
+        locs[#locs + 1] = tostring(slot.loc)
+    end
     AP_Scout(table.concat(locs, ","))
     ap.sent = {}
     ap.goalSent = false                    -- a goal sent on a connection that was already dead goes again
     sendBoughtAgain()
-    if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
+    if was ~= "connected" then
+        notify("Connected to Archipelago as " .. cfg.slot)
+    end
     applySeedOptions()
 end
 
@@ -141,7 +159,9 @@ local function onStatus(state, detail)
     if state == "connected" then
         onConnected(ap.status)
     elseif state == "connecting" then
-        if ap.status ~= "connected" then STATE.setStatus("connecting") end
+        if ap.status ~= "connected" then
+            STATE.setStatus("connecting")
+        end
     elseif state == "refused" then
         STATE.setStatus("refused")
         notify("Archipelago refused the connection: " .. tostring(detail))
@@ -151,13 +171,15 @@ local function onStatus(state, detail)
     end
 end
 
-local EVENT_HANDLERS = { status = onStatus, item = ITEMS.onItem, scout = onScout, checked = onChecked, bounce = DEATH_LINK.onBounce,
-                         message = WALL_HINTS.onMessage }
+local EVENT_HANDLERS = { status = onStatus, item = ITEMS.onItem, scout = onScout, checked = onChecked,
+                         bounce = DEATH_LINK.onBounce, message = WALL_HINTS.onMessage }
 -- Hands one event line to its kind's handler, the fields after the kind as its arguments.
 local function onEvent(line)
     local fields = split(line)
     local handler = EVENT_HANDLERS[fields[1]]
-    if handler then handler(table.unpack(fields, 2)) end
+    if handler then
+        handler(table.unpack(fields, 2))
+    end
 end
 
 -- Connecting: at start from config.txt, and from the title menu's Archipelago menu (menu.lua), which saves it.
@@ -197,7 +219,9 @@ function CONNECTION.readEvents()
     PERF.start("poll")
     for line in AP_Poll():gmatch("[^\n]+") do
         local ok, err = pcall(onEvent, line)
-        if not ok then log("event error: " .. tostring(err) .. " in " .. line) end
+        if not ok then
+            log("event error: " .. tostring(err) .. " in " .. line)
+        end
     end
     PERF.stop("poll")
 end
@@ -208,7 +232,9 @@ function CONNECTION.markReady()
     ap.ready = true
     ap.shopOpen = true
     local n = 0
-    for _ in pairs(ap.items) do n = n + 1 end
+    for _ in pairs(ap.items) do
+        n = n + 1
+    end
     log("ready: " .. n .. " item(s) received, slot " .. tostring(ap.me))
 end
 

@@ -67,7 +67,8 @@ end
 -- A route that ran without error is checked at the next run (~2 s): still alive means it failed, and the next is tried.
 local function deathPenalty(ps)                       -- the world's EPalOptionWorldDeathPenalty (0 None), or nil
     local ok, v = pcall(function()
-        return tonumber(StaticFindObject("/Script/Pal.Default__PalUtility"):GetOptionSubsystem(ps).OptionWorldSettings.DeathPenalty)
+        local options = StaticFindObject("/Script/Pal.Default__PalUtility"):GetOptionSubsystem(ps)
+        return tonumber(options.OptionWorldSettings.DeathPenalty)
     end)
     return ok and v or nil
 end
@@ -110,7 +111,8 @@ local function faintNow(ps)
     while true do
         ok, err = pcall(faint, death.route, ps)
         if ok or death.route >= #ROUTES then break end
-        log("death link: " .. ROUTES[death.route].name .. " failed: " .. tostring(err) .. "; trying " .. ROUTES[death.route + 1].name)
+        log("death link: " .. ROUTES[death.route].name .. " failed: " .. tostring(err) .. "; trying "
+            .. ROUTES[death.route + 1].name)
         death.route = death.route + 1
     end
     return ok, err, ROUTES[death.route].name
@@ -130,7 +132,9 @@ local function checkLastFaint(ps, dead)
     death.route = death.route + 1
     death.caused = CLOCK.now()
     local ok, err, how = faintNow(ps)
-    if ok and death.route < #ROUTES then death.pending = cause end
+    if ok and death.route < #ROUTES then
+        death.pending = cause
+    end
     log("death link: the " .. failed .. " did not faint the player; used the " .. how .. ": " .. cause
         .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
     return true
@@ -150,9 +154,12 @@ local function applyIncomingDeath(ps, dead)
     elseif not dead then
         death.caused = CLOCK.now()
         local ok, err, how = faintNow(ps)
-        if ok and death.route < #ROUTES then death.pending = cause end
+        if ok and death.route < #ROUTES then
+            death.pending = cause
+        end
         notify("Death Link: " .. cause)
-        log("death link received: " .. cause .. " (" .. how .. ")" .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+        log("death link received: " .. cause .. " (" .. how .. ")"
+            .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
     end
 end
 

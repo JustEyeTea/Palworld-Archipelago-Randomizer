@@ -20,8 +20,8 @@ function TECH_LOCK.install(handedOver)
     env = handedOver
 end
 
--- Bumped whenever what TECH_LOCK.lockAndUnlockTechs compares against changes (the techs items unlocked, or which techs are the shop's),
--- so it can skip the comparison while neither that nor the game's list has changed.
+-- Bumped whenever what TECH_LOCK.lockAndUnlockTechs compares against changes (the techs items unlocked, or which
+-- techs are the shop's), so it can skip the comparison while neither that nor the game's list has changed.
 local techsVersion = 0
 
 -- Techs a seed leaves as normal research (slot data research_techs, e.g. décor with tech_checks no_decor): they leave
@@ -31,16 +31,24 @@ DATA.research = {}
 -- Moves the seed's normal-research techs (a comma list) from DATA.shop to DATA.research, after putting the last
 -- seed's back.
 function TECH_LOCK.setResearch(list)
-    for tech, s in pairs(DATA.research) do DATA.shop[tech] = s end
+    for tech, s in pairs(DATA.research) do
+        DATA.shop[tech] = s
+    end
     DATA.research = {}
     techsVersion = techsVersion + 1
     for tech in (list or ""):gmatch("[^,]+") do
         local s = DATA.shop[tech]
-        if s then DATA.research[tech], DATA.shop[tech] = s, nil end
+        if s then
+            DATA.research[tech], DATA.shop[tech] = s, nil
+        end
     end
     local n = 0
-    for _ in pairs(DATA.research) do n = n + 1 end
-    if n > 0 then log(n .. " tech(s) are normal research in this seed (not checks)") end
+    for _ in pairs(DATA.research) do
+        n = n + 1
+    end
+    if n > 0 then
+        log(n .. " tech(s) are normal research in this seed (not checks)")
+    end
 end
 -- The last seed's list is kept in research.txt, so its normal-research techs can be researched before the first
 -- connection of a session too (the server down, or playing before connecting).
@@ -115,7 +123,9 @@ end
 -- Writes the list into the game's TechnologyData and tells the game it changed.
 local function writeTechs(td, arr, keep)
     arr:Empty()
-    for i, n in ipairs(keep) do arr[i] = FName(n) end
+    for i, n in ipairs(keep) do
+        arr[i] = FName(n)
+    end
     safe(function() td:OnRep_UnlockedTechnologyNameArray() end)
 end
 
@@ -127,7 +137,9 @@ function TECH_LOCK.lockAndUnlockTechs(ps)
     local arr = td.UnlockedTechnologyNameArray
     techPolls = techPolls + 1
     local okNum, num = pcall(function() return arr:GetArrayNum() end)
-    if not okNum then num = nil end
+    if not okNum then
+        num = nil
+    end
     local addr = UTIL.addr(td)
     if techListUnchanged(num, addr) then return false end
     techsSeen = nil
@@ -143,7 +155,8 @@ function TECH_LOCK.lockAndUnlockTechs(ps)
     return changed
 end
 
--- Says that what TECH_LOCK.lockAndUnlockTechs compares against has changed: the techs items unlocked, or which techs are the shop's.
+-- Says that what TECH_LOCK.lockAndUnlockTechs compares against has changed: the techs items unlocked, or which techs
+-- are the shop's.
 function TECH_LOCK.techsChanged()
     techsVersion = techsVersion + 1
 end

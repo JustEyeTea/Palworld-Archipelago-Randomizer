@@ -11,7 +11,9 @@ local log = UTIL.log
 function PLAYER.findPlayerState()
     local all = FindAllOf("PalPlayerState")
     if not all then return nil end
-    for _, ps in ipairs(all) do if ps:IsValid() then return ps end end
+    for _, ps in ipairs(all) do
+        if ps:IsValid() then return ps end
+    end
 end
 -- The player for this update. Each FindAllOf walks the whole object array (UE4SS has no class index; an estimated
 -- 2-15 ms per walk, unmeasured), so there is one controller walk per update, and one player-state walk the first time
@@ -38,7 +40,10 @@ function PLAYER.lookUpFrame()
     local newFrame = {}
     for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
         local ok, key = pcall(liveControllerKey, pc)
-        if ok and key then newFrame.pc, newFrame.controllerKey = pc, key; break end
+        if ok and key then
+            newFrame.pc, newFrame.controllerKey = pc, key
+            break
+        end
     end
     if newFrame.pc then
         local ok, pawn = pcall(function() return newFrame.pc:K2_GetPawn() end)
@@ -48,7 +53,9 @@ function PLAYER.lookUpFrame()
     end
     local looked, ps = false, nil
     newFrame.playerState = function()
-        if not looked then looked, ps = true, PLAYER.findPlayerState() end
+        if not looked then
+            looked, ps = true, PLAYER.findPlayerState()
+        end
         return ps
     end
     return newFrame

@@ -25,7 +25,9 @@ local MOVED_CM = 300
 -- Holds a chat notice until the player can see it.
 function HELD.holdNotice(msg)
     local held = heldNotices
-    if held.world ~= WORLD.key() then held.list, held.world, held.from = {}, WORLD.key(), nil end
+    if held.world ~= WORLD.key() then
+        held.list, held.world, held.from = {}, WORLD.key(), nil
+    end
     held.list[#held.list + 1] = msg
 end
 -- Shows the held notices once the player has moved or WAIT.heldNotice has passed; drops them in another world.
@@ -39,12 +41,16 @@ function HELD.showHeldNotices(pawn)
     local x, y = PLAYER.pawnXY(pawn)
     local moved = false
     if x then
-        if not held.from then held.from = { X = x, Y = y } end
+        if not held.from then
+            held.from = { X = x, Y = y }
+        end
         local dx, dy = x - held.from.X, y - held.from.Y
         moved = dx * dx + dy * dy >= MOVED_CM * MOVED_CM
     end
     if moved or WORLD.age() >= WAIT.settle + WAIT.heldNotice then
-        for _, msg in ipairs(held.list) do notify(msg) end
+        for _, msg in ipairs(held.list) do
+            notify(msg)
+        end
         local why = moved and "the player moved"
             or string.format("%.0f s in the world", CLOCK.seconds(WAIT.settle + WAIT.heldNotice))
         log("held notice(s) shown (" .. why .. "): " .. #held.list)

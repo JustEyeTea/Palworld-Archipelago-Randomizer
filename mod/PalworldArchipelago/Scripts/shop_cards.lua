@@ -36,7 +36,10 @@ local function modIcon(kind, worldContext)
     if t == false then return nil end
     if t and t:IsValid() then return t end
     local lib = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    if not lib or not lib:IsValid() then once("nolib", "KismetRenderingLibrary not found"); return nil end
+    if not lib or not lib:IsValid() then
+        once("nolib", "KismetRenderingLibrary not found")
+        return nil
+    end
     local path = env.dir .. "\\icons\\" .. kind .. ".png"
     t = lib:ImportFileAsTexture2D(worldContext, path)
     if not (t and t:IsValid()) then
@@ -109,7 +112,10 @@ local categories = { structure = "Structures", item = "Items" }    -- state, for
 -- Reads a level-1 card's category text into categories. Returns whether it found one.
 local function readCategory(card, tech)
     local text = safe(function() return card.BP_PalTextBlock_Category:GetText():ToString() end)
-    if type(text) == "string" and text ~= "" then categories[STRUCTURES[tech] and "structure" or "item"] = text; return true end
+    if type(text) == "string" and text ~= "" then
+        categories[STRUCTURES[tech] and "structure" or "item"] = text
+        return true
+    end
     return false
 end
 
@@ -128,7 +134,8 @@ local readBack = {}           -- which read-backs worked (logged once each, for 
 local function logReadBackOnce(what, ok)
     if readBack[what] == nil then
         readBack[what] = ok
-        log("cards: reading back the " .. what .. (ok and " works" or " does not work (those cards are relabelled every update)"))
+        local result = ok and " works" or " does not work (those cards are relabelled every update)"
+        log("cards: reading back the " .. what .. result)
     end
 end
 -- Whether a card still shows what was last applied to it (seen), as its widgets read back.
@@ -199,7 +206,9 @@ end
 -- labelled again on a later pass, as its read-back no longer matches.
 local function writeCard(widget, write)
     local ok, err = pcall(write)
-    if not ok then once("cardwrite", "cards: could not set the " .. widget .. " (" .. tostring(err) .. ")") end
+    if not ok then
+        once("cardwrite", "cards: could not set the " .. widget .. " (" .. tostring(err) .. ")")
+    end
 end
 
 -- Sets a card's click state, name texts, category and icon to `label`.
@@ -246,7 +255,10 @@ local lastCards = nil         -- this update's cards (the Ctrl+0 old-load replay
 function SHOP_CARDS.refreshCards(full)
     local cards = FindAllOf("WBP_MainMenu_Technology_Content_C")
     lastCards = cards
-    if not cards then labelled = {}; return end
+    if not cards then
+        labelled = {}
+        return
+    end
     cardPasses = cardPasses + 1
     full = full or UTIL.isDue(cardPasses, FULL_RELABEL_EVERY)
     local current = {}
@@ -255,21 +267,27 @@ function SHOP_CARDS.refreshCards(full)
         if key then
             current[#current + 1] = key
             local ok, err = pcall(SHOP_CARDS.relabel, card, key, full)
-            if not ok then once("relabel", "relabel error: " .. tostring(err)) end
+            if not ok then
+                once("relabel", "relabel error: " .. tostring(err))
+            end
         elseif key == nil then
             -- Its entry could not be told from another card's, so it is left alone.
             once("cardaddress", "cards: a card whose address can't be read is left alone")
         end
     end
     local kept = {}           -- cards gone are forgotten
-    for _, key in ipairs(current) do kept[key] = labelled[key] end
+    for _, key in ipairs(current) do
+        kept[key] = labelled[key]
+    end
     labelled = kept
 end
 
 -- Asks the tech tree to refresh its buttons, then labels every card in full (after a purchase or a new tech list).
 function SHOP_CARDS.refreshTree()
     local tree = FindFirstOf("WBP_MainMenu_Technology_00_C")
-    if tree and tree:IsValid() then safe(function() tree:UpdateAllTechnologyButton() end) end
+    if tree and tree:IsValid() then
+        safe(function() tree:UpdateAllTechnologyButton() end)
+    end
     SHOP_CARDS.refreshCards(true)
 end
 

@@ -38,7 +38,9 @@ local function handOver(id, n, toBag)
         return n .. " x " .. name .. " (in the mailbox)"
     end
     local got = giveToBag(id, n)
-    if got < n then CRATES.holdForBag(id, n - got) end
+    if got < n then
+        CRATES.holdForBag(id, n - got)
+    end
     local count = n > 1 and (n .. " x ") or ""
     return count .. name .. (got < n and " (waits for room in your bag)" or " (in your bag)")
 end
@@ -46,7 +48,9 @@ end
 -- A Palworld Crate received: its kind is rolled from the seed's crate weights and the item's index (crates.lua).
 local function receiveCrate(index)
     local weights = {}
-    for _, k in ipairs(CRATES.KINDS) do weights[k] = slotNumber("options." .. CRATES.WEIGHT_KEYS[k]) end
+    for _, k in ipairs(CRATES.KINDS) do
+        weights[k] = slotNumber("options." .. CRATES.WEIGHT_KEYS[k])
+    end
     local kind = CRATES.receive(ap.seed, index, weights)
     notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
 end
@@ -61,7 +65,9 @@ local function giveBundle(_, it)
             -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
             local got = giveToBag(bundle.id, bundle.n)
             if got == 0 then return false end
-            if got < bundle.n then log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in") end
+            if got < bundle.n then
+                log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in")
+            end
         end
     end
     return true
@@ -114,7 +120,9 @@ function ITEMS.relicCount(upto)
     local n = 0
     for i, id in pairs(ap.items) do
         local it = DATA.items[id]
-        if it and it.kind == "relic" and (not upto or i <= upto) then n = n + 1 end
+        if it and it.kind == "relic" and (not upto or i <= upto) then
+            n = n + 1
+        end
     end
     return n
 end
@@ -139,7 +147,10 @@ end
 -- rolled from the player's level now. Returns the kind and the contents.
 function ITEMS.openCrate(kind)
     local ps = playerState()
-    if not (ps and ps:IsValid()) then notify("Open crates in your world."); return end
+    if not (ps and ps:IsValid()) then
+        notify("Open crates in your world.")
+        return
+    end
     local lv = RECORDS.level(ps) or ap.level or 1
     local out
     kind, out = CRATES.openNext(lv, kind)
@@ -170,13 +181,13 @@ local function giveTechGift(it)
 end
 
 -- What each kind of item does, and where. An item's kind is DATA.items[id].kind.
---   kind          on arrival, on every connection (ITEMS.onItem)     once per seed, in index order (ITEMS.applyItems)
---   tech          unlocks its tech (ap.techs)                        Nomad only: hands over what it makes (giveTechGift)
---   progressive   unlocks the techs of every sphere tier received    -
---   pass          opens its area or region (ap.passes)               -
---   trap          keeps who sent it (ap.from)                        queued for traps.lua to fire (TRAPS.add)
---   relic         -                                                  the "Palpagos Relic n/m found!" notice
---   filler        -                                                  its effect (giveFiller): a crate, points, a bundle
+--   kind         on arrival, on every connection (ITEMS.onItem)   once per seed, in index order (ITEMS.applyItems)
+--   tech         unlocks its tech (ap.techs)                      Nomad only: hands over what it makes (giveTechGift)
+--   progressive  unlocks the techs of every sphere tier received  -
+--   pass         opens its area or region (ap.passes)             -
+--   trap         keeps who sent it (ap.from)                      queued for traps.lua to fire (TRAPS.add)
+--   relic        -                                                the "Palpagos Relic n/m found!" notice
+--   filler       -                                                its effect (giveFiller): a crate, points, a bundle
 -- Every kind but a trap also says "Received ..." in chat when it is new (its index is past ap.given).
 -- Applies each received item's once-per-seed effect, in index order from ap.given + 1, after retrying what the bag
 -- refused; it stops at a bundle the bag has no room for.
@@ -193,9 +204,16 @@ function ITEMS.applyItems(ps)
             end
             break
         end
-        if waiting == i then waiting = nil; log("bundle " .. it.name .. " given, now the bag has room") end
-        if it and it.kind == "tech" then giveTechGift(it) end
-        if it and it.kind == "trap" then TRAPS.add(it.name, i) end      -- queued: traps.lua paces and fires them
+        if waiting == i then
+            waiting = nil
+            log("bundle " .. it.name .. " given, now the bag has room")
+        end
+        if it and it.kind == "tech" then
+            giveTechGift(it)
+        end
+        if it and it.kind == "trap" then    -- queued: traps.lua paces and fires them
+            TRAPS.add(it.name, i)
+        end
         if it and it.kind == "relic" then
             local need = slotNumber("relics_needed")
             notify("Palpagos Relic " .. ITEMS.relicCount(i) .. (need and ("/" .. need) or "") .. " found!")
@@ -221,8 +239,14 @@ function ITEMS.onItem(indexText, itemText, _locationText, playerText, _flagsText
         ap.techs[it.tech] = true
     elseif it.kind == "progressive" then
         local n = 0
-        for _, v in pairs(ap.items) do if v == id then n = n + 1 end end
-        for k = 1, math.min(n, #DATA.spheres) do ap.techs[DATA.spheres[k]] = true end
+        for _, v in pairs(ap.items) do
+            if v == id then
+                n = n + 1
+            end
+        end
+        for k = 1, math.min(n, #DATA.spheres) do
+            ap.techs[DATA.spheres[k]] = true
+        end
     elseif it.kind == "pass" then
         ap.passes[it.area] = true
     elseif it.kind == "trap" then

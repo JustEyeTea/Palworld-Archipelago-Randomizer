@@ -22,7 +22,9 @@ local function readConfig()
     if not f then return cfg end
     for line in f:lines() do
         local k, v = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
-        if k then cfg[k] = v end
+        if k then
+            cfg[k] = v
+        end
     end
     f:close()
     return cfg
@@ -62,7 +64,9 @@ function CONFIG.write()
         return
     end
     for _, k in ipairs(CONFIG_KEYS) do
-        if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
+        if cfg[k] then
+            f:write(k .. "=" .. cfg[k] .. "\n")
+        end
     end
     f:close()
 end
@@ -78,7 +82,10 @@ function CONFIG.servers()
     local list, seen = { DEFAULT_SERVER }, { [DEFAULT_SERVER] = true }
     for host in ((cfg.servers or "") .. "," .. hostOf(cfg.server)):gmatch("[^,%s]+") do
         host = host:lower()
-        if not seen[host] then seen[host] = true; list[#list + 1] = host end
+        if not seen[host] then
+            seen[host] = true
+            list[#list + 1] = host
+        end
     end
     return list
 end
@@ -86,7 +93,9 @@ end
 function CONFIG.rememberServer(server)
     local host = hostOf(server)
     if host == "" or host == DEFAULT_SERVER then return end
-    for saved in (cfg.servers or ""):gmatch("[^,%s]+") do if saved:lower() == host then return end end
+    for saved in (cfg.servers or ""):gmatch("[^,%s]+") do
+        if saved:lower() == host then return end
+    end
     cfg.servers = (cfg.servers and cfg.servers ~= "") and (cfg.servers .. "," .. host) or host
     CONFIG.write()
     log("servers: remembered " .. host)
