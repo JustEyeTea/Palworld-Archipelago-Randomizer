@@ -273,8 +273,8 @@ local function fogStampsAndRegions(key, passes)
     return fogParts.stamps, fogParts.regions
 end
 -- The explorer's-chart fog (the user, 2026-11-06: the black fog replaced by a basic map drawn like an explorer's chart,
--- with the locked-area stamps on it; art: the Art lane's ap-chart-*.png, the user's pick A). All drawn on the player's
--- machine by the C++ part from the game's own map (never shipped):
+-- with the locked-area stamps on it; art: the Art lane's ap-chart-*.png, the design the user chose). All drawn on the
+-- player's machine by the C++ part from the game's own map (never shipped):
 --   1. the chart, once a session, from the saved colour map (compose_chart);
 --   2. when the map opens (at most every EXPORT_GAP updates) the explored mask is exported and the fog picture made
 --      from it: the chart where unexplored, clear where explored, the stamps on it (compose_fog); which channel of the

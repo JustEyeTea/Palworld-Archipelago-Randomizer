@@ -1,7 +1,6 @@
 -- The Art & Assets lane's images (art\*.png in the mod folder: the title banner, the status dot, the mailbox emblem,
--- the map's stamps; wall_skins.lua loads the wall patterns itself). Each is loaded once a session through the game
--- instance and kept alive (main.lua sets A.keep): textures not kept are collected and come back as white placeholders
--- (ui.md).
+-- the map's stamps; wall_skins.lua loads the wall patterns itself), each loaded once a session through the game
+-- instance and kept alive (main.lua sets A.keep): a texture nothing keeps is collected and comes back white.
 -- Tests: mod/test/harness.lua, the block "the Art & Assets lane's round-1 art (art.lua)" in group "test tools: giving a
 -- Pal through the connector", and through the map's stamps and icons in group "the world map".
 local A = { dir = ".", keep = function() end }

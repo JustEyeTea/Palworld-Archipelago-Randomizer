@@ -37,7 +37,7 @@ local dressedAs = {}           -- piece -> the material it wears with the area s
 -- when the area it wore opens and the other side is still locked.
 -- paws (the default, WALL_SKINS.DEFAULT_SKIN; area without the pak): the Art lane's cream paws
 -- (walls/ap-wall-paws-layer.png, cooked into the pak as T_APWallPaws with mips) on M_APWall, over the same area colour
--- at 0.34 (the material's Back and BackAlpha; the user's pick C, 2026-11-05: "cream paws on the area colour"); sealed
+-- at 0.34 (the material's Back and BackAlpha; the user's choice, 2026-11-05: "cream paws on the area colour"); sealed
 -- areas over the slate grey.
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
                 "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }

@@ -38,8 +38,8 @@ end
 -- Forgotten: a screen's entry once the screen is no longer listed (forgetIconsOfGoneScreens), every entry once the
 -- icons fail. A screen is known by its address, which the engine reuses; a screen gone is never called again.
 local mapIcons = {}
--- A map point (0-1 across and down the 4096 map) as a world location (game-systems: pixel = ((Y + 724400) / 1448800,
--- (349400 - X) / 1448800) of the map's width).
+-- A map point (0-1 across and down the map square) as a world location. The numbers are the map's bounds
+-- (area_map.lua): world X runs from 349400 at the top down 1448800, world Y from -724400 at the left across 1448800.
 local function worldAt(u, v) return { X = 349400 - v * 1448800, Y = u * 1448800 - 724400, Z = 0 } end
 MAP_ICONS.worldAt = worldAt                                       -- (for the harness)
 -- Forgets the icons, without calling them, of every screen that is not among this update's live screens: they went

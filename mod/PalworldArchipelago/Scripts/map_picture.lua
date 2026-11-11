@@ -77,7 +77,7 @@ local function gameMapTexture()
     return tex and tex:IsValid() and tex or nil
 end
 
--- The locked-area stamps (Art & Assets lane: art/ap-map-stamp-<area>.png per area, round 2; art/ap-map-stamp.png when
+-- The locked-area stamps (the Art & Assets lane's art/ap-map-stamp-<area>.png per area; art/ap-map-stamp.png when
 -- an area has none), 256x256 tickets with a padlock, drawn on each locked area STAMP_PX across on the 4096 map, a whole
 -- stamp inside the area on its side nearest the starting area (area_centres.lua, from tools/area_centres.py). v0.13.5
 -- playtest: at each area's deepest point all 14 sat under the map's fog of war, which a locked area never clears.
@@ -275,13 +275,13 @@ local function colourMap(krl, tex, gi)
     log("map: saved the colour map " .. path)
     return path
 end
--- The "Territories" look (the user's direction 1, worked out with the Art & Assets lane, 2026-11-07; their lean, tweaks
--- may follow): the game's own map and fog underneath; every area tinted in its colour by its state, with a soft rim
--- inside its edge, over land and sea alike (areas take in their waters, and so do their walls); the standing walls as a
--- cream glow and core, drawn from their own positions. The C++ part composes it (AP_ComposeTerritories) from the
--- layout's labels, the areas' states and the standing walls: an overlay for the map picture (drawn over the game's map)
--- and the same over a dark fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the
--- explorer's chart and greyscale instead.
+-- The "Territories" look (the default; worked out by the user with the Art & Assets lane, 2026-11-07): the game's own
+-- map and fog underneath; every area tinted in its colour by its state, with a soft rim inside its edge, over land and
+-- sea alike (areas take in their waters, and so do their walls); the standing walls as a cream glow and core, drawn
+-- from their own positions. The C++ part composes it (AP_ComposeTerritories) from the layout's labels, the areas'
+-- states and the standing walls: an overlay for the map picture (drawn over the game's map) and the same over a dark
+-- fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the explorer's chart and
+-- greyscale instead.
 local TERR_SIZE = 2048        -- px: a Territories picture from the label map (an older DLL, without AP_ComposeField)
 local TERR_FOG_COLOUR = "0E1A24"
 local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"

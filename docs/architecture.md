@@ -62,6 +62,8 @@ data the other parts use (see [Generated files](#generated-files)).
 | **Area, in the logic** | In `__init__.py`'s logic (`PASS_AREAS`, the rules and the routes), "area" means whichever locked part the seed uses: a region or an area, by Lock Size. Code that means one kind only says "region" or "area" with Lock Size in view. |
 | **Piece** | The logic's smallest part of the map: an Archipelago `Region` in `__init__.py`. Each piece belongs to one region or area. |
 | **Archipelago Region** | Archipelago's own class for a node in the logic's map (`BaseClasses.Region`). This code makes one per piece. |
+| **The core** | In the Lua mod's comments: `main.lua` and its update loop, which hands the other modules their state and calls them. |
+| **Lane** | In comments: one Claude session with one job, such as the Art & Assets lane, which makes the project's art. Most of this code was written by Claude at JustEyeTea's direction. |
 
 **Older names in the code.** Much of the code still uses these two words the other way round: "area"
 (`AREA_LIST`, `PASS_AREAS`, the `areas` layout, `area_walls.lua`) means one of the 15 regions, and "region"
