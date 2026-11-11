@@ -7,8 +7,8 @@
 --                        each checked right after and 2 s later, and removed after 10 s
 -- The probes are candidates for the next traps: none of them is a trap item yet.
 -- Giving a Pal through the C++ connector's AP_GivePal (APConnector, pal_gift.cpp; UNTESTED IN GAME). One key per route
--- (Ctrl+Shift+F5 .. F9; v0.13.9 playtest: the number keys are the game's own, Ctrl+4 opened the emote menu), each with its own Pal, so the party or the Palbox shows which route
--- made which Pal even without the log:
+-- (Ctrl+Shift+F5 .. F9; not the number keys, which are the game's own: Ctrl+4 opens the emote menu), each with its own
+-- Pal, so the party or the Palbox shows which route made which Pal even without the log:
 --   Ctrl+Shift+F5  party_debug  SheepBall Lv 11   CreateIndividual + the party's debug callback (group, EXP, party)
 --   Ctrl+Shift+F6  party_plain  ChickenPal Lv 12  CreateIndividual + the plain callback (party only)
 --   Ctrl+Shift+F7  handle       PinkCat Lv 13     CreateIndividual with no callback, then AddOtomoHandleToFreeSlot (riskiest)
@@ -19,11 +19,11 @@
 -- While one is pending the connector answers "result: busy"; if this side wasn't polling it (a Lua mod restart), it
 -- starts. With an older connector (no AP_GivePal) nothing is bound and the log says so.
 -- What the earlier ones answered, for giving Pals from Lua (all failed; it needs the C++ connector or a LogicMod):
---  * RequestSpawnMonsterForPlayer: a stubbed cheat, spawns nothing (v0.10.x).
+--  * RequestSpawnMonsterForPlayer: a stubbed cheat, spawns nothing.
 --  * A1 drop and pick up, A5 CreateIndividual (Ctrl+F9, Ctrl+F8): crashed the game, UE4SS overruns its stack passing a
---    Pal's save parameter struct from Lua (v0.11.3). The C++ connector makes those calls with a block of the right size.
+--    Pal's save parameter struct from Lua. The C++ connector makes those calls with a block of the right size.
 --  * A2 captured cage (Ctrl+F7): SpawnPal makes a Pal handle but never a Pal in the world, so nothing can be captured;
---    CapturePal_ServerInternal removes the handle and gives nothing (v0.11.3, v0.11.4).
+--    CapturePal_ServerInternal removes the handle and gives nothing.
 -- Tests: mod/test/tests/test_tools.lua, mod/test/tests/tools_probe.lua; groups "test tools",
 --   "test tools: giving a Pal through the connector" (tools/lua_harness.sh, in CI).
 local T = {}
@@ -34,7 +34,7 @@ local function try(what, fn)
     log(what .. ": " .. (ok and ("ok " .. tostring(a)) or ("FAILED " .. tostring(a))))
     return ok and a or nil
 end
--- After `ms`, on the game thread (soon.lua; ExecuteWithDelay ran Lua off-thread, the 2026-11-08 crashes' race).
+-- After `ms`, on the game thread (soon.lua: ExecuteWithDelay runs Lua off-thread, which crashes the game).
 local function later(ms, fn)
     require("soon").after(ms, function()
         local ok, err = pcall(fn)
@@ -53,9 +53,9 @@ local function pawn()
 end
 local function fixed(v) return type(v) == "table" and tostring(v.Value) or tostring(v) end
 
--- Ctrl+F2: move faster for testing (the user, 2026-11-08: walls are minutes away on foot). The game's own named walk
--- speed multiplier, as the Slow Trap uses it (verified in game); on the player and on the Pal ridden, if any. Gone
--- with the world (it lives on the movement component).
+-- Ctrl+F2: move faster for testing (walls can be minutes away on foot). The game's own named walk speed multiplier, as
+-- the Slow Trap uses it (seen working in game); on the player and on the Pal ridden, if any. Gone with the world (it
+-- lives on the movement component).
 local SPEEDS, SPEED_KEY = { 1, 3, 6 }, "APTestSpeed"
 local speedAt = 1
 local function speedUp()
@@ -81,8 +81,8 @@ local function speedUp()
 end
 T.speedUp = speedUp
 
--- Ctrl+F1: a big chunk of EXP for testing (the user, 2026-11-08: a gifted Pal is synced down to the player's level, so
--- the tower goal test needs a higher player). The game's own PalUtility:GiveExpToAroundPlayerCharacter (what a boss's
+-- Ctrl+F1: a big chunk of EXP for testing (a gifted Pal is synced down to the player's level, so the tower goal test
+-- needs a higher player). The game's own PalUtility:GiveExpToAroundPlayerCharacter (what a boss's
 -- bonus EXP uses; not a Debug_ or cheat function, which are empty in shipping), around the player.
 local LEVEL_EXP = 200000
 local function levelUp()
@@ -223,7 +223,7 @@ local function poll()
     settle(route, logReport(route, report))
 end
 
--- Ctrl+F4, the HUD probe (round-2 art, 2026-11-04): can the mod draw on the in-game HUD, and animate what it draws?
+-- Ctrl+F4, the HUD probe: can the mod draw on the in-game HUD, and animate what it draws?
 -- The hint icon and the goal banner need both. It finds the HUD layout (WBP_PalHUDLayout_C), logs its root and the
 -- root's children, and if the root is a canvas puts the hint icon (art/ap-hint-icon-128.png) at the top right,
 -- spins it once around in 6 s (one SetRenderTransformAngle per core update, so in visible jumps) and takes it away,
@@ -257,7 +257,7 @@ local function hudProbeStart()
         if okk and k then kids[#kids + 1] = nameAndClass(k) end
     end
     log("HUD probe: root " .. nameAndClass(root) .. " with " .. tostring(okn and n or "?") .. " children: " .. table.concat(kids, ", "))
-    -- v0.13.5 playtest: the root is SafeZone_0:SafeZone holding one CanvasPanel; go down to the first canvas.
+    -- The root is SafeZone_0:SafeZone holding one CanvasPanel (seen in game); go down to the first canvas.
     for _ = 1, 3 do
         if nameAndClass(root):find(":CanvasPanel$") then break end
         local okk, k = pcall(function() return root:GetChildAt(0) end)
@@ -351,7 +351,7 @@ function T.install()
         { "F9", "exhaustion probe", exhaustion }, { "F10", "nightfall probe", nightfall }, { "F11", "status probe", status },
     }
     -- Every key bind hands ExecuteInGameThread a function made here, once: its callback runs off the game thread, where
-    -- making a new function each press is the Lua-state race of 2026-11-08.
+    -- making a new function each press races the game thread over the Lua state and crashes the game.
     for _, b in ipairs(binds) do
         local function onKey()
             log("--- " .. b[2])
@@ -365,7 +365,7 @@ function T.install()
     end
     log("test tools on: Ctrl+F5-F8 Slow/Hunger/Teleport/Fool Trap, Ctrl+F9 exhaustion, Ctrl+F10 nightfall, Ctrl+F11 status")
     -- Ctrl+F3: the next wall skin (red, a, b, a3d, b3d, a3d-dense, b3d-dense; walls.lua), put on at the next update.
-    -- On the game thread like every other key (v0.13.5 playtest: run straight from the key bind, it shared the Lua
+    -- On the game thread like every other key (run straight from the key bind, it shared the Lua
     -- state with the update; a walls error with a number for an actor, and UE4SS's "Ref was not function").
     local function skinKey()
         local name = require("walls").cycleSkin()
@@ -378,8 +378,8 @@ function T.install()
     end
     RegisterKeyBind(Key.F2, { ModifierKey.CONTROL }, function() ExecuteInGameThread(speedKey) end)
     log("test tools on: Ctrl+F2 move faster (x1, x3, x6)")
-    -- (Made once: a key bind's callback runs off the game thread, where making a new function each press is the
-    -- Lua-state race of 2026-11-08; it only hands this over.)
+    -- (Made once: a key bind's callback runs off the game thread, where making a new function each press
+    -- races the game thread over the Lua state and crashes the game; it only hands this over.)
     local function levelKey()
         local ok, before, after = pcall(levelUp)
         log("--- level up " .. (ok and ("(" .. LEVEL_EXP .. " EXP): level " .. tostring(before) .. " -> " .. tostring(after)

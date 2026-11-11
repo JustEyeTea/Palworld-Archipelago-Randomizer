@@ -119,7 +119,7 @@ local function sendGoalOnceOutOfArena(ps, found, tick)
     end
     if not goalWait then return end
     local okS, inStage = pcall(function() return ps:IsInStage() end)
-    local out = not (okS and inStage)                  -- (not readable: no waiting, as before)
+    local out = not (okS and inStage)                  -- (not readable: no waiting)
     if not (out or tick - goalWait.since >= WAIT.goal) then return end
     ap.goalSent, done = true, goalWait.done
     goalWait = nil

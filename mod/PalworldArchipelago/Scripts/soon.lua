@@ -1,6 +1,6 @@
 -- Work for the next few core updates (300 ms each), on the game thread; main.lua runs it at the start of each update.
 -- UE4SS's ExecuteWithDelay and LoopAsync run their callbacks on another thread over the same Lua state, and Lua there
--- corrupts it: on 2026-11-08 a run of tech purchases (each with five delayed confirm-box re-applies and a 300 ms
+-- corrupts it: a run of tech purchases (each with five delayed confirm-box re-applies and a 300 ms
 -- delayed purchase) crashed the game with the stack seen in every such crash (08E98397). Nothing here runs off-thread.
 -- Tests: mod/test/tests/core_loop.lua; group "buying a slot" (tools/lua_harness.sh, in CI).
 local S = {}

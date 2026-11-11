@@ -72,10 +72,10 @@ local HEIGHT_CM = 300000      -- 3 km tall: from 1 km below sea level to 2 km ab
 local MID_Z_CM = 50000        -- the piece's middle, 500 m above sea level: halfway between those two
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
 local SHRINK_S = 2.0          -- an opened wall (not a dissolving one) shrinks away over 2 s of the game's clock
--- Every piece is raised at world load, as before; only those near the player are shown (the user, 2026-11-08: fewer
--- walls drawn, more FPS, and "let the borders load in at the beginning"): shown within W.radius, hidden (the game's
--- own SetActorHiddenInGame; collision stays) past W.radius + HIDE_MARGIN, so a piece at the edge doesn't flicker.
--- dev.41-42 raised and destroyed pieces as the player moved; dev.42 crashed at a wall (a dead object called), and
+-- Every piece is raised at world load, so the borders are all there from the start; only those near the player are
+-- shown, so fewer walls are drawn and the frame rate stays up: shown within W.radius, hidden (the game's own
+-- SetActorHiddenInGame; collision stays) past W.radius + HIDE_MARGIN, so a piece at the edge doesn't flicker.
+-- Pieces are not raised and destroyed as the player moves: that crashed the game at a wall (a dead object called), and
 -- spawning and destroying all the time only makes more dead objects. 0: every piece shown.
 W.radius = 7500               -- 75 m (config wall_radius, in metres)
 local HIDE_MARGIN = 2500      -- 25 m
@@ -210,18 +210,17 @@ local function raise(i, pawn)
 end
 
 -- Opening a wall: it shrinks to nothing (top and bottom towards its middle), stops blocking halfway, and is then
--- removed. It used to sink with K2_SetActorLocation, whose out-parameter FHitResult (a struct of structs, left
--- unfilled without a sweep) UE4SS copies back into Lua: that crashed the game twice on 2026-11-05, both times within
--- 2 s of a Region Pass, in UE4SS's nested push_structproperty (reading 0x7b and 0x0a). SetActorScale3D has no
--- out-parameters.
+-- removed. It does not sink with K2_SetActorLocation, whose out-parameter FHitResult (a struct of structs, left
+-- unfilled without a sweep) UE4SS copies back into Lua: that crashed the game twice, both times within 2 s of a Region
+-- Pass, in UE4SS's nested push_structproperty (reading 0x7b and 0x0a). SetActorScale3D has no out-parameters.
 -- The red grid shows only around a wall that blocks, so a wall keeps blocking until it is halfway down. Stepped from
--- the core's 300 ms update, on the game thread: no loop of its own. dev.42-45 had a 33 ms LoopAsync for it and the
--- glow; LoopAsync's callback runs on another thread over the same Lua state, and with it running 30 times a second the
--- game crashed twice (stack 08E98397) and dev.45, its callback cut down to a flag and a prebuilt function, still logged
--- "Ref was not function" three times and a broken ipairs iterator: Lua's state corrupted.
--- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
--- at 80 to 85% dissolved; dev.46, its tail 0.8 s, still not quite through): blocking stops at DISSOLVE_S/2, the piece
--- goes at DISSOLVE_S + DISSOLVE_TAIL (the material's Time node may run behind GetTimeSeconds; the first one logs it).
+-- the core's 300 ms update, on the game thread: no loop of its own. A 33 ms LoopAsync for it and the glow runs its
+-- callback on another thread over the same Lua state: running 30 times a second, it crashed the game twice (stack
+-- 08E98397), and with its callback cut down to a flag and a prebuilt function it still logged "Ref was not function"
+-- three times and a broken ipairs iterator: Lua's state corrupted.
+-- A dissolving piece goes by the game's clock, the material's own, not by counting steps (counted, a piece went at
+-- 80 to 85% dissolved): blocking stops at DISSOLVE_S/2, the piece goes at DISSOLVE_S + DISSOLVE_TAIL (the material's
+-- Time node may run behind GetTimeSeconds, so a 0.8 s tail was not quite enough; the first one logs it).
 local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 2.4
 -- One step of an opening piece at the game's time `now`: shrunk (unless it dissolves), let through halfway, destroyed
 -- at the end. An opened piece stops blocking halfway through its time and is destroyed at the end: SHRINK_S for a
@@ -317,10 +316,10 @@ local function startOpening(i, pawn)
 end
 
 
--- Walls the game removed (back to the title, another world) are noticed by checking CHECK_PER_TICK pieces each
--- update: all of them every 14 updates (4 s) for the 818 pieces of the 15 regions, every 22 for the 1,294 of the 75
--- areas. 6dd356e checked all 818 every update (an estimated 0.3-0.5 ms, unmeasured). A new world is noticed at once
--- anyway: main.lua resets on a new pawn.
+-- Walls the game removed (back to the title, another world) are noticed by checking CHECK_PER_TICK pieces each update:
+-- all of them every 14 updates (4 s) for the 818 pieces of the 15 regions, every 22 for the 1,294 of the 75 areas.
+-- Checking all 818 every update costs an estimated 0.3-0.5 ms (unmeasured; W.oldSweep does it for the perf probe). A
+-- new world is noticed at once anyway: main.lua resets on a new pawn.
 local CHECK_PER_TICK = 60
 local function checkSome()
     local n = #layout.walls
@@ -330,7 +329,7 @@ local function checkSome()
         if actor and not actor:IsValid() then forget(checkAt) end
     end
 end
-function W.oldSweep()                 -- 6dd356e's check of every piece (only for the perf probe's Ctrl+0 replay)
+function W.oldSweep()                 -- every piece checked at once (only for the perf probe's Ctrl+0 replay)
     for _, actor in pairs(raised) do actor:IsValid() end
 end
 

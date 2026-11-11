@@ -1,15 +1,15 @@
--- Palworld Crates (the user, 2026-11-05): the default filler item. A Palworld Crate rolls, when it arrives, into one of
+-- Palworld Crates: the default filler item. A Palworld Crate rolls, when it arrives, into one of
 -- five crates (the slot's Crate Chance options; the roll is fixed by the seed and the item's index, so a reconnect or a
 -- replay agrees). Crates are kept in the per-seed save and opened when the player chooses (the Inventory page's Open
 -- button, menu.lua); the contents roll from the player's level at that moment:
 --   Sphere   spheres of the player's tier (70%; one tier lower 20%, one higher 10%), 10-20 early, rising to 25+
 --   Food     dishes of the player's tier, 5-10 rising to 15+
---   Common   Gold Coins (200 x level x 0.5-2.5, the user's formula), medicine, small Training Manuals, Copper Keys
+--   Common   Gold Coins (200 x level x 0.5-2.5), medicine, small Training Manuals, Copper Keys
 --   Rare     Skill Fruits, accessories, gear up to a tier above the player ("sometimes good stuff"), big manuals, keys
 --   Jackpot  stat fruits, Remedies and Elixirs, gear up to two tiers above, a big stack of high spheres
 -- Plain items go to the mailbox (or the bag with mailbox=0); gear and accessories, which carry per-item data the
 -- mailbox chest can't hold, go straight to the bag, and what the bag refuses waits in `pending` and is tried again.
--- Item ids from the 1.0.5 item table. Untested in game (2026-11-05).
+-- Item ids from the 1.0.5 item table. Untested in game: opening a crate and the items it gives.
 -- Tests: mod/test/tests/crates_run_style.lua; groups "Palworld Crates", "the crate window"
 --   (tools/lua_harness.sh, in CI).
 local C = { list = {}, pending = {} }

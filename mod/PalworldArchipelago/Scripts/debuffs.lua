@@ -1,9 +1,8 @@
--- Debuff icons for timed traps (the user, 2026-11-05: "debuff icons for traps that causes slow/other effects. They
--- should show up at the top and show the debuff timer"). A row at the top centre of the HUD, under the compass: one
--- ICON x ICON tile per running effect (art/ap-debuff-<name>.png from the Art & Assets lane; a tinted tile with the
+-- Debuff icons for timed traps, so the player sees each running effect and its time left. A row at the top centre of
+-- the HUD, under the compass: one ICON x ICON tile per running effect (art/ap-debuff-<name>.png; a tinted tile with the
 -- effect's short name until it arrives) with its time left under it (m:ss), in the order the effects started. Hosted
 -- on the HUD layout's canvas like the hint pop-up (hint_popup.lua; seen working in game), never taking a click.
--- Untested in game.
+-- Untested in game: the icon row and its timers.
 -- Tests: mod/test/tests/areas_hud.lua; group "debuff icons, the hint plate and the goal banner"
 --   (tools/lua_harness.sh, in CI).
 local D = {}

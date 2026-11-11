@@ -4,7 +4,7 @@
 --   (tools/lua_harness.sh, in CI).
 -- The shape of the shop: the update looks at the cards every 300 ms and relabels a card only when it changed (and every
 -- card on a full pass, every 3 s), and the hooks (shop.lua) only change what the game's functions answer. No widget
--- is labelled, made or added inside a Blueprint hook: earlier builds that did crashed the game. The one exception is
+-- is labelled, made or added inside a Blueprint hook: that crashed the game. The one exception is
 -- the tooltip hook (shop.lua's tooltipSetup), which sets the tooltip's opacity and its caution note's visibility as
 -- the game sets the tooltip up: deferred, the tooltip would show for a frame. Those two property sets make no widget,
 -- and they have run inside the hook in every release.
@@ -129,7 +129,7 @@ end
 -- State: the cards. Forgotten: a card's entry once the card is no longer found (refreshCards), all of them when no
 -- card is; readBack never (each is logged once a session).
 local labelled = {}           -- card address -> { tech, sig, name, category, tex address, clickable } as last applied
-local readBack = {}           -- which read-backs worked (logged once each, for the playtest)
+local readBack = {}           -- which read-backs worked (each logged once)
 -- Logs, once for each kind of read-back, whether reading it back from a card works.
 local function logReadBackOnce(what, ok)
     if readBack[what] == nil then

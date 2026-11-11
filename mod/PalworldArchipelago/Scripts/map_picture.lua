@@ -16,7 +16,7 @@ local PALETTE = nil           -- areas.lua's colours
 
 -- Render targets are owned by the game instance, never by something in the world: an object kept alive for the
 -- session that belongs to the world stops the world being freed when leaving it, and the game crashes on the way back
--- to the title (v0.4.0 to v0.4.5).
+-- to the title.
 local MAP_TEXTURE = "/Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
 -- Files this part writes into the mod folder: the game's own art, made on the player's machine and never shipped.
 --   GREY_FILE         the map in greyscale (drawn without the compositor); made once, then kept
@@ -96,14 +96,14 @@ local function gameMapTexture()
     return tex and tex:IsValid() and tex or nil
 end
 
--- The locked-area stamps (the Art & Assets lane's art/ap-map-stamp-<area>.png per area; art/ap-map-stamp.png when
--- an area has none), 256x256 tickets with a padlock, drawn on each locked area STAMP_PX across on the 4096 map, a whole
--- stamp inside the area on its side nearest the starting area (area_centres.lua, from tools/area_centres.py). v0.13.5
--- playtest: at each area's deepest point all 14 sat under the map's fog of war, which a locked area never clears.
+-- The locked-area stamps (art/ap-map-stamp-<area>.png per area; art/ap-map-stamp.png when an area has none), 256x256
+-- tickets with a padlock, drawn on each locked area STAMP_PX across on the 4096 map, a whole stamp inside the area on
+-- its side nearest the starting area (area_centres.lua, from tools/area_centres.py): at each area's deepest point all
+-- 14 sat under the map's fog of war, which a locked area never clears.
 local ART = require("art")
 local STAMP_PX = 88
 -- A region too small for the whole stamp gets a smaller one, about as wide as the region (its fifth field: how far the
--- stamp's point is from the region's edge), but never under STAMP_MIN_PX. 2026-11-06 run: the full 88 px padlock buried
+-- stamp's point is from the region's edge), but never under STAMP_MIN_PX: the full 88 px padlock buried
 -- Small Settlement's village. Data without the field (older area_centres files) keeps the full size.
 local STAMP_MIN_PX = 28
 local function stampSize(c)
@@ -309,7 +309,7 @@ local function colourMap(rendering, tex, gameInstance)
     log("map: saved the colour map " .. path)
     return path
 end
--- The "Territories" look (the default; worked out by the user with the Art & Assets lane, 2026-11-07): the game's own
+-- The "Territories" look (the default): the game's own
 -- map and fog underneath; every area tinted in its colour by its state, with a soft rim inside its edge, over land and
 -- sea alike (areas take in their waters, and so do their walls); the standing walls as a cream glow and core, drawn
 -- from their own positions. The C++ part composes it (AP_ComposeTerritories) from the layout's labels, the areas'
@@ -317,9 +317,8 @@ end
 -- fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the explorer's chart and
 -- greyscale instead.
 local TERR_SIZE = 2048        -- px: a Territories picture from the label map (an older DLL, without AP_ComposeField)
--- The walls' look. Format: image_tools.hpp, compose_territories, argument style. The Art lane's colours; see-through
--- (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the core was
--- solid, the glow 0.55).
+-- The walls' look. Format: image_tools.hpp, compose_territories, argument style. Bright but see-through, so the map
+-- shows through the walls.
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
 -- Each area's state and colour. Format: image_tools.hpp, compose_territories, argument areas.
@@ -341,7 +340,7 @@ local function areaSpec(passes)
 end
 -- The standing walls (up unless both sides are open; open sea counts as open), each as its two ends on the map square.
 -- Format: image_tools.hpp, compose_territories, argument walls. A piece runs along its yaw: (sin yaw, -cos yaw) in map
--- u, v (the Art lane's mock lined them up with the labels so).
+-- u, v (which lines them up with the labels).
 local function wallSpec(passes)
     local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local out = {}
@@ -402,8 +401,8 @@ local function finishTerritories(rendering, gameInstance, key)
     terr.failed = k
     return "failed"
 end
--- Whether the saved colour map is there to compose from (the player's own map, saved once; the user, dev.33: locked
--- areas' "interior should be the greyscale"), saving it from the game's map first if it is not.
+-- Whether the saved colour map is there to compose from (the player's own map, saved once, so locked
+-- areas show the map in greyscale), saving it from the game's map first if it is not.
 local function haveColourMap(rendering, gameInstance)
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local hasColour = UTIL.exists(colour)
@@ -416,9 +415,9 @@ local function haveColourMap(rendering, gameInstance)
     end
     return hasColour, colour
 end
--- Starts a Territories composition for `key` in the background. From the Art lane's distance field when the DLL has it
--- (dev.34: smooth at 4096, where the 2048 label map gave stairs and octagons; area_field*.png, made from the label maps
--- by tools/map_fields.py), else from the label map at 2048.
+-- Starts a Territories composition for `key` in the background. From the distance field when the DLL has it (smooth at
+-- 4096, where the 2048 label map gave stairs and octagons; area_field*.png, made from the label maps by
+-- tools/map_fields.py), else from the label map at 2048.
 local function startTerritories(rendering, gameInstance, passes, key)
     local field = W.dir .. "\\area_field" .. layout.suffix .. ".png"
     local hasField = AP_ComposeField and UTIL.exists(field)
@@ -532,9 +531,9 @@ local function startCompose(rendering, gameInstance, passes, key, open)
     end
 end
 -- Starts or finishes a composition: "ready" once the render target holds the picture for this look, "failed" once
--- composing it failed, else "busy". It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07:
--- the picture was only started once a map screen was found, so the first opening showed the game's map for a second or
--- two while it was made, and C++ had nothing to show yet). Until the map opens, the colour map saved in an earlier
+-- composing it failed, else "busy". It runs from the start, not when the map first opens:
+-- started once a map screen was found, the first opening showed the game's map for a second or two while the picture
+-- was made, and C++ had nothing to show yet. Until the map opens, the colour map saved in an earlier
 -- session is used as it is, without loading the game's 8192 px map; at the first opening the game's map is checked
 -- against it once (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
 local function composeMap(passes, key, open)
@@ -570,8 +569,8 @@ end
 -- sets its own picture again when it opens, so every one is checked each time and given the greyed map whenever it
 -- shows anything else.
 -- Only the main world's screen: the game also builds the World Tree's (MapName "Tree"), which shows T_WorldMap for a
--- moment as it is set up (dev.17 log, 2026-11-07); a screen whose name can't be read is kept, as before.
--- Not the last world's (dev.35 playtest: after Return to title and a second world load, the first world's screens
+-- moment as it is set up; a screen whose name can't be read is kept.
+-- Not the last world's (after Return to title and a second world load, the first world's screens
 -- were still about until collected, and the icons went on one of them): a screen whose owning player is gone is left
 -- alone; one whose owner can't be read is kept.
 local function mainMapScreens()
@@ -642,7 +641,7 @@ local function makePicture(passes, key, open, nLocked)
         end
     end
     if not compose and key ~= mapKey then
-        if not open then return false end          -- without the compositor the map is drawn when it opens, as before
+        if not open then return false end          -- without the compositor the map is drawn when it opens
         local ok, done = pcall(drawMap, passes)
         if not ok then
             log("map overlay error: " .. tostring(done))
@@ -724,7 +723,7 @@ function MAP_PICTURE.install(env)
     W.dir = "."
     W.iconsOff = false
     W.mapStyle = "territories"
-    W.cppOff = false             -- config.txt map_cpp=0 (main.lua): C++ leaves the screen alone; Lua alone, as before
+    W.cppOff = false             -- config.txt map_cpp=0 (main.lua): C++ leaves the screen alone; Lua swaps the picture
     W.testFogColour = false      -- config.txt test_tools=1 (main.lua): the chart look's parchment fog colour is sent
     W.chartOff = false
     W.regionsOff = false

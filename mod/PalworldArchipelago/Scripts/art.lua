@@ -1,4 +1,4 @@
--- The Art & Assets lane's images (art\*.png in the mod folder: the title banner, the status dot, the mailbox emblem,
+-- The mod's own images (art\*.png in the mod folder: the title banner, the status dot, the mailbox emblem,
 -- the map's stamps; wall_skins.lua loads the wall patterns itself), each loaded once a session through the game
 -- instance and kept alive (A.keepAlive, handed over by main.lua): a texture nothing keeps is collected and comes back
 -- white. Wired by area_locks.lua's configureWalls at start-up (A.install).

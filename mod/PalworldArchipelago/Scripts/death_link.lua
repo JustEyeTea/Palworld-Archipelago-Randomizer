@@ -58,7 +58,7 @@ end
 -- player. A death the link caused is not sent back, and neither counts towards nor resets the amnesty.
 -- How it faints. A linked death should drop what a normal death drops, but the game's self-kill
 -- (PalPlayerController:SelfKillPlayer) dies as EPalDeadType Sucide and skips the world's Death Penalty, and
--- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer does not faint the player at all (seen in a playtest).
+-- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer does not faint the player at all (seen in game).
 -- So, in order, each tried until one works, and the one that worked kept for the session (death.route):
 --   1. "poison": lethal slip damage through the player's own damage component (SlipDamage, EPalDeadType Poison 5,
 --      shield ignored and cleared), an ordinary death to the game, so its Death Penalty should apply. Untested in

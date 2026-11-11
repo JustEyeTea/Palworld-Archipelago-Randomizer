@@ -23,8 +23,8 @@ local CM_PER_METRE = 100        -- config.txt gives the walls' distances in metr
 
 local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
 local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
--- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
--- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
+-- The seed's area_locks option, read once a connection (slot data is fixed for a connection), not every update: each
+-- read parses the slot data's JSON in the connector and takes the connector's lock.
 local areaLocks = false       -- state: set each connection (AREA_LOCKS.setOn, from applySeedOptions)
 
 -- Sets whether this seed has area locks (each connection).
