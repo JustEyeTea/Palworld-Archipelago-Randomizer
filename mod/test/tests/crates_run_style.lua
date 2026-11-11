@@ -406,6 +406,28 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     runCycles(2)
     expect(newWarning() and logged("held notice%(s%) shown %(the player moved%)"), "and is shown once the player moves")
     pawnAddress, pawnAt = pawnWas, atWas
+    -- World settings that can be written but not read back: the change is still logged field by field, and the
+    -- world's own values still saved.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    util.GetOptionSubsystem = function()
+        local reads = 0
+        local sub = { IsValid = function() return true end }
+        setmetatable(sub, { __index = function(_, key)
+            if key ~= "OptionWorldSettings" then return nil end
+            reads = reads + 1
+            if reads > 1 then error("the world settings can't be read back") end
+            return ws
+        end })
+        return sub
+    end
+    local readBackAt = logMark()
+    h.switchSeed("70017", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
+    runSeconds(70)
+    util.GetOptionSubsystem = function() return optionSub end
+    expect(loggedSince(readBackAt, "sync: Speed Boost: ExpRate 1 %-> 3 .*reads back nil")
+           and not loggedSince(readBackAt, "sync error")
+           and h.saveText("70017", "Other"):find("syncbase=ExpRate:1,", 1, true),
+           "a read-back that fails is logged as nothing read, and the world's own values are saved")
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     inWorld(false)
 end)

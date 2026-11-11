@@ -125,10 +125,12 @@ function S.apply(ps, get, world, say)
         end
     end
     if #changed == 0 then return newBase end
+    -- What a field reads back as, or nil when it can't be read (an error's text is not a value).
     local function back(f)
-        return select(2, pcall(function()
+        local okBack, value = pcall(function()
             return tonumber(sub.OptionWorldSettings[f])
-        end))
+        end)
+        return okBack and value or nil
     end
     local missed = {}
     for _, c in ipairs(changed) do
