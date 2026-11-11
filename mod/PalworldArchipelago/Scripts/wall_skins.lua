@@ -9,8 +9,9 @@ local log = UTIL.log
 local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance          -- (materials belong to the game instance, as walls.lua's map pictures do)
 -- Handed over by install: W (settings: dir, keep, fade, tiling, scroll; data: beyond, layout), the areas part's layout,
--- isOpen and AREA_COLOURS, the pieces (raised(), isHidden(i), opening(), count(), statics()) and DISSOLVE_S.
-local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S = nil, nil, nil, nil, nil, nil
+-- isOpen, AREA_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(), passes(),
+-- pawn()) and DISSOLVE_S.
+local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
 local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
 
 -- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the Art &
@@ -231,7 +232,7 @@ function WALL_SKINS.glowing()
 end
 function WALL_SKINS.glowTick()
     if not WALL_SKINS.glowing() then return end
-    local pawn = W.lastContext
+    local pawn = pieces.pawn()
     if not (pawn and pawn:IsValid()) then return end
     local loc = pawn:K2_GetActorLocation()
     if not (loc and loc.X) then return end
@@ -370,7 +371,7 @@ end
 function WALL_SKINS.skinNew(a, i)
     local ok, err = true, nil
     if byArea(skin.now) then
-        if i then ok, err = pcall(areaDress, a, i, W.lastPasses, skin.now) end
+        if i then ok, err = pcall(areaDress, a, i, pieces.passes(), skin.now) end
     elseif skin.now ~= "red" then
         ok, err = pcall(dress, a, skin.mids[skin.now])
     end
@@ -386,7 +387,7 @@ function WALL_SKINS.recolour(passes)
     if not byArea(skin.now) then return end
     local n = 0
     for _ in pairs(passes) do n = n + 1 end
-    local sig = n .. "/" .. (W.beyondSig or "")
+    local sig = n .. "/" .. beyondSig()
     if sig ~= passSig then passSig, recolourAt = sig, 1 end
     if not recolourAt then return end
     local budget = RECOLOUR
@@ -428,7 +429,7 @@ end
 -- dressed; else false and the error, if there was one.
 local function dressOne(a, i, mid)
     if byArea(skin.want) then
-        local ok, err = pcall(areaDress, a, i, W.lastPasses, skin.want)
+        local ok, err = pcall(areaDress, a, i, pieces.passes(), skin.want)
         return ok and dressedAs[i] ~= nil, not ok and err or nil
     end
     local ok, done = pcall(dress, a, mid)
@@ -520,6 +521,7 @@ end
 function WALL_SKINS.install(env)
     W, pieces, DISSOLVE_S = env.W, env.pieces, env.DISSOLVE_S
     layout, isOpen, AREA_COLOURS = env.areas.layout, env.areas.isOpen, env.areas.AREA_COLOURS
+    beyondSig = env.areas.beyondSig
     W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
     -- M_APWall's fade (the user, 2026-11-08: dev.40's 9 to 15 m "loads in MUCH closer"): fully there within FADE[1] cm,
     -- gone at FADE[2] (config wall_fade=near,far in metres).

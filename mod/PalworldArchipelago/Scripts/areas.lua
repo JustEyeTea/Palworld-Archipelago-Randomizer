@@ -16,6 +16,7 @@ local SEA = "Open sea"
 -- (area_centres*.lua: where each part's stamp and icon go), shapes (area_shapes*.lua, loaded when first needed: only
 -- for a map drawn without the compositor) and suffix ("" or "_regions", in the data files' names).
 local layout = {}
+local beyondNames = ""         -- the areas beyond the goal, sorted and joined: changes when the set does (setBeyond)
 local decoded = {}             -- map row -> its runs, decoded when first used (areaIndexAt)
 local function useLayoutData(name)
     local suffix = name == "regions" and "_regions" or ""
@@ -100,7 +101,7 @@ function AREAS.setBeyond(set)
     local names = {}
     for a in pairs(W.beyond) do names[#names + 1] = a end
     table.sort(names)
-    W.beyondSig = table.concat(names, "|")
+    beyondNames = table.concat(names, "|")
 end
 
 local function slugOf(name) return (name:lower():gsub("[^%w]+", "-")) end
@@ -141,4 +142,8 @@ end
 AREAS.layout, AREAS.SEA, AREAS.AREA_COLOURS = layout, SEA, AREA_COLOURS
 AREAS.useLayoutData, AREAS.isOpen, AREAS.slugOf, AREAS.standing = useLayoutData, isOpen, slugOf, standing
 AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList = lockedList, lockedIndexes, openList
+-- The areas beyond the goal as one text, for the keys that must change when they do.
+function AREAS.beyondSig()
+    return beyondNames
+end
 return AREAS

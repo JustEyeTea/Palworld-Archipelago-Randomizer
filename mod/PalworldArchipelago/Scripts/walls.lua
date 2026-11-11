@@ -3,6 +3,14 @@
 -- This file keeps the pieces (raising, hiding, opening, forgetting) and is the table main.lua sees (W). Its parts:
 -- areas.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
 -- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
+-- W, the table main.lua sees. Its fields:
+--   set by main.lua (config.txt, slot data): keep, keepInPlace, dir, radius, fade, tiling, scroll, mapStyle, cppOff,
+--     testFogColour, chartOff, iconsOff, regionsOff, visited (main.lua's own set), and beyond (through setBeyond);
+--     each part sets its own defaults at install
+--   called by main.lua and its other modules: update, updateMap, reset, setLayout, setBeyond, setSkin, cycleSkin,
+--     perfMode, count, lockedNear, lockedAround, areaAt, passName, parentOf, slugOf, mapShown, mapOff, oldSweep;
+--     read: layout (the cut's name), start, home, SKINS
+--   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, AREA_COLOURS
 local W = {}
 W.layout = "areas"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
@@ -49,6 +57,8 @@ local VIS_PER_TICK = 120      -- pieces shown or hidden an update (a teleport ch
 local hiddenAt = {}           -- piece -> true while hidden by distance
 
 local raised = {}             -- piece index -> wall actor
+local lastPasses, lastPawn = nil, nil   -- what main.lua handed W.update last: new pieces are dressed for those
+                                        -- passes, and the glow follows that pawn
 local raisedAt = {}           -- piece index -> its actor's address, to tell it is still there without calling it
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
 local cls, gs = nil, nil
@@ -111,7 +121,7 @@ end
 -- are really gone are forgotten, opening ones too: the core's world key is the pawn, which also changes (or reads nil
 -- for a moment) in the same world, and a wall forgotten while still standing could never be taken down.
 function W.reset()
-    W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
+    lastPawn = nil                                             -- (the glow's pawn: the core hands the new one over)
     WALL_SKINS.dropCaches()
     MAP_FOG.resetMapShown()
     MAP_FOG.resetMaskReads()
@@ -271,7 +281,7 @@ end
 
 -- Shows the raised pieces near the player and hides the rest (W.radius; a few at a time; a dissolving piece has left
 -- raised already). Without the player's position, or with W.radius 0, every piece is shown.
-function W.showNear(pawn)
+local function showNear(pawn)
     local px, py = nil, nil
     if W.radius > 0 then
         local okL, loc = pcall(function() return pawn:K2_GetActorLocation() end)
@@ -298,7 +308,7 @@ end
 local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
 function W.update(enabled, passes, pawn)
     checkSome()
-    W.lastPasses, W.lastContext = passes, pawn
+    lastPasses, lastPawn = passes, pawn
     if not ready() then
         once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
         return
@@ -325,7 +335,7 @@ function W.update(enabled, passes, pawn)
             budget = budget - 1
         end
     end
-    W.showNear(pawn)
+    showNear(pawn)
     WALL_SKINS.skinTick()
     WALL_SKINS.recolour(passes)
     stepOpeningAndGlow()
@@ -416,6 +426,8 @@ local pieces = {
     opening = function() return opening end,
     count = function() return nRaised end,
     statics = function() return gs end,
+    passes = function() return lastPasses end,
+    pawn = function() return lastPawn end,
 }
 WALL_SKINS.install({ W = W, areas = AREAS, pieces = pieces, DISSOLVE_S = DISSOLVE_S })
 W.SKINS, W.setSkin, W.cycleSkin = WALL_SKINS.SKINS, WALL_SKINS.setSkin, WALL_SKINS.cycleSkin

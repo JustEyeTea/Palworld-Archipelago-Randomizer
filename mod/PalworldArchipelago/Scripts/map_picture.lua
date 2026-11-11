@@ -11,7 +11,7 @@ local log = UTIL.log
 local once = UTIL.onceIn("walls")
 -- Handed over by install: W, and the areas part's layout, isOpen, SEA, AREA_COLOURS and lists.
 local W, layout, isOpen, SEA, AREA_COLOURS = nil, nil, nil, nil, nil
-local slugOf, lockedList, lockedIndexes, openList, standing = nil, nil, nil, nil, nil
+local slugOf, lockedList, lockedIndexes, openList, standing, beyondSig = nil, nil, nil, nil, nil, nil
 
 -- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
 -- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from a greyscale copy of the map, darkening
@@ -565,7 +565,7 @@ local function pictureKey(passes)
     -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
     local been = {}
     if territories() then for area in pairs(W.visited) do been[#been + 1] = area end; table.sort(been) end
-    local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "") .. (iconsActive() and "#icons" or "#stamps")
+    local key = table.concat(locked, "|") .. "#" .. beyondSig() .. (iconsActive() and "#icons" or "#stamps")
         .. (territories() and ("#territories#" .. table.concat(been, "|")) or "")
     return key, #locked
 end
@@ -666,7 +666,7 @@ function MAP_PICTURE.install(env)
     local areas = env.areas
     layout, isOpen, SEA, AREA_COLOURS = areas.layout, areas.isOpen, areas.SEA, areas.AREA_COLOURS
     slugOf, lockedList, lockedIndexes, openList = areas.slugOf, areas.lockedList, areas.lockedIndexes, areas.openList
-    standing = areas.standing
+    standing, beyondSig = areas.standing, areas.beyondSig
     W.dir = "."
     W.iconsOff = false
     W.mapStyle = "territories"
