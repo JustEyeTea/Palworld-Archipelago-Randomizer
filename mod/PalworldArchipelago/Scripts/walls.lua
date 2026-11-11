@@ -264,9 +264,10 @@ local function startOpening(i, pawn)
 end
 
 
--- Walls the game removed (back to the title, another world) are noticed by checking a share of the pieces each
--- update, all of them every 14 updates (4 s): 6dd356e checked all 818 every update (an estimated 0.3-0.5 ms,
--- unmeasured). A new world is noticed at once anyway: main.lua resets on a new pawn.
+-- Walls the game removed (back to the title, another world) are noticed by checking CHECK_PER_TICK pieces each
+-- update: all of them every 14 updates (4 s) for the 818 pieces of the 15 regions, every 22 for the 1,294 of the 75
+-- areas. 6dd356e checked all 818 every update (an estimated 0.3-0.5 ms, unmeasured). A new world is noticed at once
+-- anyway: main.lua resets on a new pawn.
 local CHECK_PER_TICK = 60
 local checkAt = 0
 local function checkSome()
@@ -305,8 +306,9 @@ local function showNear(pawn)
     end
 end
 
--- Brings the walls in line with the passes held: raises missing pieces of locked borders, takes down pieces whose
--- areas are both open (a few per call).
+-- Each update (main.lua): checks a share of the pieces, raises missing pieces of locked borders and starts opening
+-- pieces whose areas are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
+-- pieces whose side opened and steps the opening pieces and the glow.
 local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
 function W.update(enabled, passes, pawn)
     checkSome()

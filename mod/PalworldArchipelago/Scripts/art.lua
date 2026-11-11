@@ -1,6 +1,7 @@
--- The Art & Assets lane's images (art\*.png in the mod folder: the title banner, the status dot, the mailbox emblem;
--- walls.lua loads the map stamp and wall patterns itself). Each is loaded once a session through the game instance and
--- kept alive (main.lua sets A.keep): textures not kept are collected and come back as white placeholders (ui.md).
+-- The Art & Assets lane's images (art\*.png in the mod folder: the title banner, the status dot, the mailbox emblem,
+-- the map's stamps; wall_skins.lua loads the wall patterns itself). Each is loaded once a session through the game
+-- instance and kept alive (main.lua sets A.keep): textures not kept are collected and come back as white placeholders
+-- (ui.md).
 local A = { dir = ".", keep = function() end }
 local textures, failed = {}, {}
 local log = require("util").log

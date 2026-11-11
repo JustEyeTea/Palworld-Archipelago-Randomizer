@@ -27,16 +27,18 @@ local dressedAs = {}           -- piece -> the material it wears with the area s
 -- PalworldArchipelagoArt pak (logicmod/make_wall_material.py; the user, 2026-11-05: the game's material can show one
 -- colour per piece, they want multicolour). Without the pak (or the file) such a skin is refused, logged, and skipped
 -- by Ctrl+F3. colour-<x>-flow: that tile drifting sideways (FLOW tiles a second; the user's rainbow, 2026-11-05).
--- area (the default): walls/ap-wall-pattern-pawholes.png (the user, 2026-11-05: "an area-coloured wall with see-through
--- paw-shaped holes"; the hex lattice, pattern a, until that file exists) in the colour of the locked area each piece
--- keeps you out of (the user: "the region/area colored walls make WAAAAY more sense"), the colour of that area's pass ticket
+-- area (paws without the pak): walls/ap-wall-pattern-pawholes.png (the user, 2026-11-05: "an area-coloured wall with
+-- see-through paw-shaped holes"; the hex lattice, pattern a, until that file exists) in the colour of the locked area
+-- each piece keeps you out of (the user: "the region/area colored walls make WAAAAY more sense"), the colour of that
+-- area's pass ticket
 -- (Art & Assets lane, area_shapes.COLOURS); a region wears its area's (area_parents_regions.lua). A piece between two
 -- locked areas wears the one that isn't beyond the goal. Areas beyond the seed's goal (sealed for good) wear
 -- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour
 -- when the area it wore opens and the other side is still locked.
--- paws (the default with the pak): the Art lane's cream paws (walls/ap-wall-paws-layer.png, cooked into the pak as
--- T_APWallPaws with mips) on M_APWall, over the same area colour at 0.34 (the material's Back and BackAlpha; the user's
--- pick C, 2026-11-05: "cream paws on the area colour"); sealed areas over the slate grey. Without the pak, area.
+-- paws (the default, WALL_SKINS.DEFAULT_SKIN; area without the pak): the Art lane's cream paws
+-- (walls/ap-wall-paws-layer.png, cooked into the pak as T_APWallPaws with mips) on M_APWall, over the same area colour
+-- at 0.34 (the material's Back and BackAlpha; the user's pick C, 2026-11-05: "cream paws on the area colour"); sealed
+-- areas over the slate grey.
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
                 "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
 local function byArea(name) return name == "area" or name == "paws" end
@@ -328,7 +330,7 @@ local function skinMaterial(name)
     local mid = skin.mids[name]
     if mid and mid:IsValid() then return mid end
     if skin.failed[name] then return nil end
-    skin.failed[name] = true                                   -- one try per skin per session; cleared on success
+    skin.failed[name] = true                                   -- one try per skin per world; cleared on success
     local gi, krl, kml = skinLibraries()
     if not gi then
         log("wall skin " .. name .. ": no game instance, wall material or material library yet")
@@ -416,7 +418,7 @@ function WALL_SKINS.setSkin(name)
     for _, s in ipairs(SKINS) do if s == name then skin.want = name; return end end
     log("wall skin " .. tostring(name) .. ": unknown (" .. table.concat(SKINS, ", ") .. ")")
 end
--- The next skin, skipping any refused this session (no pak, no file): it would be refused again and the cycle would
+-- The next skin, skipping any refused in this world (no pak, no file): it would be refused again and the cycle would
 -- stop there.
 function WALL_SKINS.cycleSkin()
     local at = nil
@@ -527,8 +529,8 @@ function WALL_SKINS.install(env)
     layout, isOpen, AREA_COLOURS = env.areas.layout, env.areas.isOpen, env.areas.AREA_COLOURS
     beyondSig = env.areas.beyondSig
     W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
-    -- M_APWall's fade (the user, 2026-11-08: dev.40's 9 to 15 m "loads in MUCH closer"): fully there within FADE[1] cm,
-    -- gone at FADE[2] (config wall_fade=near,far in metres).
+    -- M_APWall's fade (the user, 2026-11-08: dev.40's 9 to 15 m "loads in MUCH closer"): fully there within
+    -- W.fade[1] cm, gone at W.fade[2] (config wall_fade=near,far in metres).
     W.fade = { 1500, 2500 }
 end
 
