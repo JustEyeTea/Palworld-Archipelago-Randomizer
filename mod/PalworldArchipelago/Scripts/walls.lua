@@ -54,16 +54,25 @@ local SHRINK_S = 2.0          -- an opened wall (not a dissolving one) shrinks a
 W.radius = 7500               -- 75 m (config wall_radius, in metres)
 local HIDE_MARGIN = 2500      -- 25 m
 local VIS_PER_TICK = 120      -- pieces shown or hidden an update (a teleport changes many at once)
-local hiddenAt = {}           -- piece -> true while hidden by distance
 
+-- State: the pieces. Forgotten: a piece's entries when it is taken down or found gone (forget), those of a world that
+-- is gone at W.reset, and all at a change of cut (W.setLayout) or in the Ctrl+7 "none" test state.
 local raised = {}             -- piece index -> wall actor
-local lastPasses, lastPawn = nil, nil   -- what main.lua handed W.update last: new pieces are dressed for those
-                                        -- passes, and the glow follows that pawn
 local raisedAt = {}           -- piece index -> its actor's address, to tell it is still there without calling it
+local hiddenAt = {}           -- piece index -> true while hidden by distance
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
+-- The pieces opening, each { actor, scaleX, scaleY, startedAt (game s), addr = its address, dissolving, material (its
+-- dissolving one), collisionOff (it no longer blocks), steps (updates stepped) }. Forgotten: a piece when it is
+-- destroyed, those of a world that is gone at W.reset, all at a change of cut.
+local opening = {}
+-- State: what main.lua handed W.update last (new pieces are dressed for those passes; the glow follows that pawn).
+-- Replaced every update; the pawn is forgotten at W.reset.
+local lastPasses, lastPawn = nil, nil
+-- The wall class and GameplayStatics. Forgotten: never: they are not of a world, and ready() checks them with IsValid.
 local cls, gs = nil, nil
--- Each piece's direction, worked out once (lockedNear did it for every raised piece every 7th update).
-local trig = {}
+local trig = {}               -- piece index -> its direction { cos, sin }; made again for each cut (buildTrig)
+local checkAt = 0             -- the piece checkSome looks at next; forgotten: never (it wraps round)
+local catchingUp = false      -- back to full after a Ctrl+7 test state: log when every piece is up again
 local function buildTrig()
     trig = {}
     for i, w in ipairs(layout.walls) do
@@ -103,9 +112,6 @@ local function forget(i)
     WALL_SKINS.forget(i)
     hiddenAt[i] = nil
 end
--- The pieces opening, each { actor, scaleX, scaleY, startedAt (game s), addr = its address, dissolving, material (its
--- dissolving one), collisionOff (it no longer blocks), steps (updates stepped) }.
-local opening = {}
 -- The addresses of the walls the game still has. FindAllOf lists live objects only, so a wall of a world that is gone
 -- is told apart without calling it (IsValid included: its memory may be freed).
 local function liveWallAddresses()
@@ -273,7 +279,6 @@ end
 -- areas. 6dd356e checked all 818 every update (an estimated 0.3-0.5 ms, unmeasured). A new world is noticed at once
 -- anyway: main.lua resets on a new pawn.
 local CHECK_PER_TICK = 60
-local checkAt = 0
 local function checkSome()
     local n = #layout.walls
     for _ = 1, math.min(CHECK_PER_TICK, n) do
@@ -313,7 +318,6 @@ end
 -- Each update (main.lua): checks a share of the pieces, raises missing pieces of locked borders and starts opening
 -- pieces whose areas are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
 -- pieces whose side opened and steps the opening pieces and the glow.
-local catchingUp = false              -- back to full after a Ctrl+7 test state: log when every piece is up again
 function W.update(enabled, passes, pawn)
     checkSome()
     lastPasses, lastPawn = passes, pawn

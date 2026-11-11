@@ -7,12 +7,18 @@ local UTIL = require("util")
 local ART = require("art")
 local log = UTIL.log
 local HIT_TEST_INVISIBLE = 3  -- ESlateVisibility::HitTestInvisible: hovering would open the game's empty info box
--- Handed over by install: W (settings: iconsOff; data: beyond, visited), and the areas part's layout and lists.
-local W, layout, slugOf, lockedList, openList = nil, nil, nil, nil, nil
 
+-- State: the icons. Forgotten: iconsFailed never (after a failure the stamps are drawn for the session).
 -- The locked areas are shown as the map's own icons (placeIcons, below) unless config.txt has map_icons=0 or the icons
 -- failed; then the stamps are drawn into the picture and the chart fog, as before.
 local iconsFailed = false
+-- The icons on each live main-map screen: its address -> { key = the look they show, list = the icon widgets }.
+-- Forgotten: a screen's entry once the screen is no longer listed (forgetIconsOfGoneScreens), every entry once the
+-- icons fail. A screen is known by its address, which the engine reuses; a screen gone is never called again.
+local mapIcons = {}
+-- Handed over by install: W (settings: iconsOff; data: beyond, visited), and the areas part's layout and lists.
+local W, layout, slugOf, lockedList, openList = nil, nil, nil, nil, nil
+
 local function iconsActive() return not W.iconsOff and not iconsFailed end
 -- An area beyond the goal: the sealed stamp; a region: its area's; the shared one when there is none.
 local function stampTexture(k)
@@ -34,10 +40,6 @@ local function openTexture(k)
     if ART.file("ap-map-stamp-open") ~= "" then return ART.texture("ap-map-stamp-open") end
     return nil
 end
--- The icons on each live main-map screen: its address -> { key = the look they show, list = the icon widgets }.
--- Forgotten: a screen's entry once the screen is no longer listed (forgetIconsOfGoneScreens), every entry once the
--- icons fail. A screen is known by its address, which the engine reuses; a screen gone is never called again.
-local mapIcons = {}
 -- A map point (0-1 across and down the map square) as a world location. The numbers are the map's bounds
 -- (area_map.lua): world X runs from 349400 at the top down 1448800, world Y from -724400 at the left across 1448800.
 local function worldAt(u, v) return { X = 349400 - v * 1448800, Y = u * 1448800 - 724400, Z = 0 } end

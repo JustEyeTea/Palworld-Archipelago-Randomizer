@@ -16,7 +16,10 @@ local SEA = "Open sea"
 -- xMin, xMax, yMin, yMax in world units), centres (area_centres*.lua, by area index: deepU, deepV its deepest point,
 -- stampU, stampV its stamp's place on the map square, room how far that is from the edge), shapes (area_shapes*.lua,
 -- loaded when first needed: only for a map drawn without the compositor) and suffix ("" or "_regions").
+-- Forgotten: layout and decoded are made again at a change of cut (useLayoutData); beyondNames when the set beyond the
+-- goal arrives; parents never (a data file, the same for every seed).
 local layout = {}
+local parents = nil                                            -- region -> area (regions layout only; loaded once)
 local beyondNames = ""         -- the areas beyond the goal, sorted and joined: changes when the set does (setBeyond)
 local decoded = {}             -- map row -> its runs, decoded when first used (areaIndexAt)
 local function useLayoutData(name)
@@ -101,7 +104,6 @@ local AREA_COLOURS = {
     ["Astral Mountains"] = "A8E0F0", ["Sakurajima"] = "F28FB5", ["Feybreak"] = "B266D9",
     ["Sky Islands"] = "5B9BF0", ["World Tree"] = "2E8B57",
 }
-local parents = nil                                            -- region -> area (regions layout only; loaded once)
 -- The region (one of the 15) an area of the 75 belongs to; with the 15 regions' cut, the region itself.
 function AREAS.parentOf(area)
     if W.layout ~= "regions" then return area end

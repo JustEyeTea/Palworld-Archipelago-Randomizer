@@ -43,10 +43,27 @@ local BLEND_TRANSLUCENT = 2   -- EBlendMode::BLEND_Translucent
 -- The gamma (1 / 2.2) the C++ part applies to the PNGs the engine exports, which are in linear light.
 local GAMMA = "0.4545"
 local FIELD_SIZE = 4096       -- px: a Territories picture made from the distance field (area_field*.png is made for it)
-local mapRT, mapKey, mapShownOn, greyTex, greyTried = nil, nil, nil, nil, false
 local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint without a greyscale copy
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
 local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at all)
+
+-- State: the map picture. Forgotten at a change of cut (forgetPictures): mapKey, greyJob, the shapes' triangles and
+-- bands. Never: mapRT (owned by the game instance, which lives all session; checked with IsValid on use), greyTex and
+-- greyTried (the greyscale copy is the game's own map, the same in every world), terr (keyed by its look, which a new
+-- cut changes), the fingerprint (the game's map does not change while it runs), and mapShownOn (a once-a-session log).
+local mapRT, mapKey, mapShownOn, greyTex, greyTried = nil, nil, nil, nil, false
+local triangles = {}          -- area index .. tint -> FCanvasUVTri list, built when first needed
+local bands = {}              -- area index .. tint -> FCanvasUVTri list of its edge band
+-- The two picture jobs, one per look (greyJob for map_style=chart, terr for Territories), keep the same three keys:
+-- composing (the look being composed in the background), done (the look last drawn into the map picture) and failed
+-- (a look whose composition failed, not tried again). A job answers "ready" (the map picture holds the look asked
+-- for), "busy" (not yet) or "failed" (it will not: the map is drawn without the compositor).
+-- greyJob also keeps the composing look's locked area indexes, for the stamps (locked); terr the picture's size and
+-- whether it is the whole map (made from the colour map) or an overlay.
+local greyJob = { composing = nil, done = nil, failed = nil, locked = {} }
+local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }
+local printChecked, printNow = false, nil   -- the fingerprint was read this session, and what it read
+local colourSaved = false      -- colourMap saved the colour map again this session (the game's map changed)
 local owner = UTIL.gameInstance          -- (render targets and materials belong to it: see above)
 -- Draws into a render target: draw(canvas) between the engine's Begin and End. Begin's context comes back in
 -- contextOut, or (as UE4SS passes the out-parameters) in the table after it; End is given whichever holds it.
@@ -136,7 +153,6 @@ local function greyscaleMap(krl, tex)
     W.keep(greyTex)
     return greyTex
 end
-local triangles = {}          -- area index .. tint -> FCanvasUVTri list, built when first needed
 -- An area's shape as the canvas's triangles (area_shapes*.lua: 6 numbers a triangle, u, v of each of its 3 corners,
 -- on the map square), tinted.
 local function trianglesOf(k, tint)
@@ -157,7 +173,6 @@ local function trianglesOf(k, tint)
     triangles[key] = out
     return out
 end
-local bands = {}              -- area index .. tint -> FCanvasUVTri list of its edge band
 -- An area's edge band as triangles (area_shapes*.lua edges: 9 numbers a triangle, u, v and shade of each corner),
 -- darkened toward the edge by the shade.
 local function bandOf(k, tint)
@@ -219,19 +234,11 @@ end
 -- the colour map (saved once, map-colour-1.png) and area_labels.png, with soft anti-aliased boundaries and an inner
 -- shadow; when it is ready it is loaded and drawn into the render target. The picture is the game's own art: it stays
 -- in the mod folder and is never shipped.
--- The two picture jobs, one per look (greyJob for map_style=chart, terr for Territories), keep the same three keys:
--- composing (the look being composed in the background), done (the look last drawn into the map picture) and failed
--- (a look whose composition failed, not tried again). A job answers "ready" (the map picture holds the look asked
--- for), "busy" (not yet) or "failed" (it will not: the map is drawn without the compositor).
--- greyJob also keeps the composing look's locked area indexes, for the stamps (locked).
-local greyJob = { composing = nil, done = nil, failed = nil, locked = {} }
 -- A fingerprint of the map the game shows: PRINT_GRID x PRINT_GRID pixels of it drawn PRINT_PX across. A mod that
 -- replaces the map's art changes it, so the saved colour map is made again (once a session, cheaply, instead of
 -- exporting the whole map every time).
 local PRINT_PX = 16           -- the map drawn this small for its fingerprint
 local PRINT_GRID = 4          -- that many pixels a row and a column are read, each in the middle of its cell
-local printChecked, printNow = false, nil
-local colourSaved = false      -- colourMap saved the colour map again this session (the game's map changed)
 local function mapPrint(krl, tex, gi)
     local rt = krl:CreateRenderTarget2D(gi, PRINT_PX, PRINT_PX, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
     drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, PRINT_PX, PRINT_PX, BLEND_OPAQUE) end)
@@ -289,8 +296,6 @@ local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
 -- (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the core was
 -- solid, the glow 0.55).
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
-local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }   -- (and the picture's size, and
-                                                                                     -- whether it is the whole map)
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
 -- Each area's state and colour. Format: image_tools.hpp, compose_territories, argument areas.
 local function areaSpec(passes)

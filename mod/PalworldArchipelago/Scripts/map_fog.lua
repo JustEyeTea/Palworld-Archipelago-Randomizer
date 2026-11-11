@@ -27,7 +27,37 @@ local LOG_FIRST = 3           -- openings and pictures put back that are logged;
 local EDGE_UV = "0.02"
 local MIN_CHANNEL_GAP = 64
 
+-- State: what is on screen and what C++ was told. Forgotten: mapShownAt at a new world (resetMapShown), cpp.told and
+-- cpp.body when C++ is switched off (mapOff), and never the counts for the log. The chart and the fog picture, below.
 local mapShownAt = 0           -- map screens on screen at the last update (an opening is one coming on screen)
+-- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), told whether it was
+-- switched on and given the fog colour; opened and fixes count map openings and pictures Lua put back, for the log.
+local cpp = { body = nil, told = false, opened = 0, fixes = 0, maskDone = false }
+-- State: the chart and the fog picture. Forgotten: the mask reads at a new world (MAP_FOG.resetMaskReads); the rest
+-- never (the chart and the fog picture are files and textures kept for the session).
+--   state  none -> composing   AP_ComposeChart started (the chart look)
+--          composing -> ready  AP_ChartStatus says done
+--          none -> ready       the Territories look, as soon as its fog art exists
+--          any -> failed       the chart could not start or failed (failChart), for the rest of the session
+--   fog    idle -> composing   startFog started AP_ComposeFog
+--          composing -> idle   AP_FogStatus is no longer busy (done: the picture is loaded)
+local chart = {
+    state = "none",
+    fog = "idle",
+    spec = nil,         -- which channel of the explored mask means explored, and which way ("a-": alpha low)
+    ticks = 0,          -- chart updates counted (the clock of the mask reads)
+    exportedAt = nil,   -- the tick the explored mask was last read; nil before the first read in this world
+    want = false,       -- the map opened: read the mask at the next chance (at most every EXPORT_GAP)
+    early = nil,        -- reads of the mask before the map opened, in this world (at most EARLY_MASK_TRIES)
+    tex = nil,          -- the fog picture loaded last, handed to C++
+    stampKey = nil,     -- the stamps, borders and look the last fog picture was started with
+    old = false,        -- the last session's fog picture was loaded (until a new one)
+    keptAt = nil,       -- the fog picture's place in the kept objects (W.keepInPlace)
+}
+-- The stamps and area borders for the fog picture, made again only when the map's key changes: they test art files,
+-- which would otherwise be opened on every update while nothing changes.
+local fogParts = { key = nil, stamps = "", regions = "" }
+
 function MAP_FOG.mapShown() return mapShownAt > 0 end
 -- A new world: its map has not been on screen yet, so its first showing is an opening.
 function MAP_FOG.resetMapShown() mapShownAt = 0 end
@@ -54,9 +84,6 @@ end
 -- The chart look's parchment fog colour (linear light, alpha 0.6, to see whether the colour's alpha lets the map show
 -- through), sent only with the test tools (fogColour). Untested in game: how the screen shows it.
 local CHART_FOG_COLOUR = "0.815,0.693,0.434,0.6"
--- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), told whether it was
--- switched on and given the fog colour; opened and fixes count map openings and pictures Lua put back, for the log.
-local cpp = { body = nil, told = false, opened = 0, fixes = 0, maskDone = false }
 -- The fog colour C++ gives the screen until there is a fog picture: "" keeps the game's own dark fog.
 -- CHART_FOG_COLOUR only with the test tools, in the chart look with its fog on; config.txt says map_chart=0 keeps the
 -- game's fog.
@@ -145,27 +172,6 @@ local EXPORT_GAP = UTIL.updates(60)        -- a minute between exports of the ex
 -- EARLY_MASK_TRIES times (the map data may not be there yet just after a world loads).
 local EARLY_MASK_EVERY = UTIL.updates(6)
 local EARLY_MASK_TRIES = 10
--- State: the chart and the fog picture. Forgotten: the mask reads at a new world (MAP_FOG.resetMaskReads); the rest
--- never (the chart and the fog picture are files and textures kept for the session).
---   state  none -> composing   AP_ComposeChart started (the chart look)
---          composing -> ready  AP_ChartStatus says done
---          none -> ready       the Territories look, as soon as its fog art exists
---          any -> failed       the chart could not start or failed (failChart), for the rest of the session
---   fog    idle -> composing   startFog started AP_ComposeFog
---          composing -> idle   AP_FogStatus is no longer busy (done: the picture is loaded)
-local chart = {
-    state = "none",
-    fog = "idle",
-    spec = nil,         -- which channel of the explored mask means explored, and which way ("a-": alpha low)
-    ticks = 0,          -- chart updates counted (the clock of the mask reads)
-    exportedAt = nil,   -- the tick the explored mask was last read; nil before the first read in this world
-    want = false,       -- the map opened: read the mask at the next chance (at most every EXPORT_GAP)
-    early = nil,        -- reads of the mask before the map opened, in this world (at most EARLY_MASK_TRIES)
-    tex = nil,          -- the fog picture loaded last, handed to C++
-    stampKey = nil,     -- the stamps, borders and look the last fog picture was started with
-    old = false,        -- the last session's fog picture was loaded (until a new one)
-    keptAt = nil,       -- the fog picture's place in the kept objects (W.keepInPlace)
-}
 -- The chart cannot be made: the state is failed for the rest of the session, and why is logged.
 local function failChart(why)
     chart.state = "failed"
@@ -261,9 +267,6 @@ local function startFog(stamps, regions, tag)
     if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end
--- The stamps and area borders for the fog picture, made again only when the map's key changes: they test art files,
--- which would otherwise be opened on every update while nothing changes.
-local fogParts = { key = nil, stamps = "", regions = "" }
 local function fogStampsAndRegions(key, passes)
     if fogParts.key ~= key then
         local tagged = territories()

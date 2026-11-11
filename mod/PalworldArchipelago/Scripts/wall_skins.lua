@@ -12,7 +12,6 @@ local owner = UTIL.gameInstance          -- (materials belong to the game instan
 -- isOpen, AREA_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(), passes(),
 -- pawn()) and DISSOLVE_S.
 local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
-local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
 
 -- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the Art &
 -- Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
@@ -48,7 +47,6 @@ local linearOf = UTIL.linear
 WALL_SKINS.linearOf = linearOf                                    -- (for the harness's colour tests)
 local FLOW = 0.05
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
-local apWall = nil                                             -- M_APWall once loaded
 local DENSE = { 10, 6 }
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
 local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
@@ -60,9 +58,22 @@ local SCATTER_A, SCATTER_B = 12.9898, 43758.5453
 local OFFSET_U_RATE, OFFSET_V_RATE = 7.13, 3.71
 local BACK_SHADE, BACK_SHADE_RANGE = 0.88, 0.24
 local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
+
+-- State: the skins. Forgotten at a new world (WALL_SKINS.dropCaches, from W.reset): skin.mids and skin.failed (each
+-- skin's material, and those refused), apWall, pawLayer, the dissolve materials and glowAt, all of the world that went;
+-- skin.now goes back to red so the new world's pieces are dressed again. Never: skin.want and skin.base (the game's own
+-- red material, an asset), sealedFile and areaFile (whether a file exists), apWallProbed (a once-a-session log), and
+-- recolourAt and passSig (recolouring starts again when the passes or the areas beyond the goal change).
 local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
+local dressedAs = {}           -- piece -> the material it wears with the area skin; forgotten with the piece (forget)
 local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
 local areaFile = nil           -- "pawholes" when walls/ap-wall-pattern-pawholes.png exists, else "a" (checked once)
+local apWall = nil             -- M_APWall once loaded
+local apWallProbed = false     -- the wall material probe line was logged
+local pawLayer = nil           -- the cream-paw layer texture
+local dissolveMaterials, dissolveStarts = {}, {}   -- a look and second -> its dissolving material, and when it began
+local glowAt = nil             -- where the player was last told to the M_APWall materials (glowTick)
+local recolourAt, passSig = nil, nil   -- the next piece to recolour, and the trigger it was started for
 local function patternOr(name)
     if UTIL.exists(W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png") then return name end
     return "a"
@@ -106,7 +117,6 @@ local function fadeOn(mid)
     mid:SetScalarParameterValue(FName("FadeStart"), W.fade[1])
     mid:SetScalarParameterValue(FName("FadeEnd"), W.fade[2])
 end
-local apWallProbed = false
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
     local notes = {}
@@ -143,7 +153,6 @@ local function colourMaterial(name, gi, krl, kml)
     return mid
 end
 -- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every area.
-local pawLayer = nil
 local function pawLayerTexture(gi, krl)
     if pawLayer and pawLayer:IsValid() then return pawLayer end
     local notes = {}
@@ -202,8 +211,6 @@ end
 -- An opening piece's material: its paws, dissolving from now over DISSOLVE_S by the game's clock (M_APWall's
 -- DissolveStart and DissolveTime against its Time node; an edge glows as it goes). One per look per second, so the
 -- pieces an update opens share it; nil for any other skin (those shrink).
-local dissolveMaterials, dissolveStarts = {}, {}
-local glowAt = nil             -- where the player was last told to the M_APWall materials (W.glowTick, below)
 function WALL_SKINS.dissolving(name, pawn)
     if not (name and name:find("^paws:")) then return nil end
     local ok, now = pcall(function() return pieces.statics():GetTimeSeconds(pawn) end)
@@ -398,7 +405,6 @@ end
 -- beyond the goal arriving. A few pieces an update (RECOLOUR), only after something changed: the trigger is the number
 -- of passes held and the areas beyond the goal (passes are only ever added, so a new one changes the count).
 local RECOLOUR = 40
-local recolourAt, passSig = nil, nil
 function WALL_SKINS.recolour(passes)
     if not byArea(skin.now) then return end
     local n = 0
