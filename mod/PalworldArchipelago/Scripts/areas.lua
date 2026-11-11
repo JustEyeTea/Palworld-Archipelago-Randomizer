@@ -35,6 +35,11 @@ local function isOpen(area, passes)
     return area == SEA or area == layout.start or passes[area] == true
 end
 
+-- Whether a wall row stands: while either area it separates is locked.
+local function standing(row, passes)
+    return not (isOpen(layout.areas[row[5] + 1], passes) and isOpen(layout.areas[row[6] + 1], passes))
+end
+
 -- Which area a spot is in (nil off the main map: the World Tree's own map). The map's rows are decoded when first used.
 local function areaIndexAt(r, c)
     if r < 0 or c < 0 or r >= layout.map.size or c >= layout.map.size then return nil end
@@ -134,6 +139,6 @@ function AREAS.install(walls)
 end
 
 AREAS.layout, AREAS.SEA, AREAS.AREA_COLOURS = layout, SEA, AREA_COLOURS
-AREAS.useLayoutData, AREAS.isOpen, AREAS.slugOf = useLayoutData, isOpen, slugOf
+AREAS.useLayoutData, AREAS.isOpen, AREAS.slugOf, AREAS.standing = useLayoutData, isOpen, slugOf, standing
 AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList = lockedList, lockedIndexes, openList
 return AREAS

@@ -11,7 +11,7 @@ local log = UTIL.log
 local once = UTIL.onceIn("walls")
 -- Handed over by install: W, and the areas part's layout, isOpen, SEA, AREA_COLOURS and lists.
 local W, layout, isOpen, SEA, AREA_COLOURS = nil, nil, nil, nil, nil
-local slugOf, lockedList, lockedIndexes, openList = nil, nil, nil, nil
+local slugOf, lockedList, lockedIndexes, openList, standing = nil, nil, nil, nil, nil
 
 -- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
 -- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from a greyscale copy of the map, darkening
@@ -32,6 +32,34 @@ local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' t
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
 local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at all)
 local owner = UTIL.gameInstance          -- (render targets and materials belong to it: see above)
+-- Draws into a render target: draw(canvas) between the engine's Begin and End. Begin's context comes back in
+-- contextOut, or (as UE4SS passes the out-parameters) in the table after it; End is given whichever holds it.
+local function drawInto(krl, gi, target, draw)
+    local canvasOut, contextOut, extra = {}, {}, {}
+    krl:BeginDrawCanvasToRenderTarget(gi, target, canvasOut, contextOut, extra)
+    draw(canvasOut.Canvas)
+    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+end
+-- Draws a whole texture over a w x h canvas (blend: the engine's blend mode).
+local function drawWhole(canvas, tex, w, h, blend)
+    canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = w, Y = h }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, blend, 0,
+        { X = 0.5, Y = 0.5 })
+end
+-- The map picture's render target, made (and kept for the session) when there is none; nil if it cannot be made.
+local function mapTarget(krl, gi)
+    if not mapRT or not mapRT:IsValid() then
+        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8_SRGB
+        if not mapRT or not mapRT:IsValid() then return nil end
+        W.keep(mapRT)
+    end
+    return mapRT
+end
+-- The game's own world map (8192 px), loaded when needed; nil when it cannot be found.
+local function gameMapTexture()
+    pcall(LoadAsset, MAP_TEXTURE)                         -- LoadAsset wants the full Package.Object path
+    local tex = StaticFindObject(MAP_TEXTURE)
+    return tex and tex:IsValid() and tex or nil
+end
 
 -- The locked-area stamps (Art & Assets lane: art/ap-map-stamp-<area>.png per area, round 2; art/ap-map-stamp.png when
 -- an area has none), 256x256 tickets with a padlock, drawn on each locked area STAMP_PX across on the 4096 map, a whole
@@ -75,11 +103,7 @@ local function greyscaleMap(krl, tex)
     local path = W.dir .. "\\" .. GREY_FILE
     if not UTIL.exists(path) then
         local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
-        local canvasOut, contextOut, extra = {}, {}, {}
-        krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
-        canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-            { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-        krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+        drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0) end)
         krl:ExportRenderTarget(gi, rt, W.dir, "map-colour.png")
         local err = AP_GreyscalePNG(W.dir .. "\\map-colour.png", path, "0.4545")
         os.remove(W.dir .. "\\map-colour.png")
@@ -132,24 +156,19 @@ local function bandOf(k, tint)
 end
 local function drawMap(ctx, passes)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    pcall(LoadAsset, MAP_TEXTURE)                         -- LoadAsset wants the full Package.Object path
-    local tex = StaticFindObject(MAP_TEXTURE)
-    if not tex or not tex:IsValid() then return false end
+    local tex = gameMapTexture()
+    if not tex then return false end
     local gi = owner()
     if not gi then return false end
     local okg, grey = pcall(greyscaleMap, krl, tex)
     if not okg then log("map: greyscale copy failed: " .. tostring(grey)); grey = nil end
-    if not mapRT or not mapRT:IsValid() then
-        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8_SRGB
-        if not mapRT or not mapRT:IsValid() then return false end
-        W.keep(mapRT)
-    end
+    if not mapTarget(krl, gi) then return false end
+    -- (Not through drawInto: with no canvas this gives up before End, and the map is drawn at a later update.)
     local canvasOut, contextOut, extra = {}, {}, {}
     krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
     local canvas = canvasOut.Canvas
     if not canvas then return false end
-    canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 }, { X = 1, Y = 1 },
-        WHITE, 0, 0, { X = 0.5, Y = 0.5 })
+    drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0)
     for k, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then
             local tris = trianglesOf(k - 1, grey and WHITE or FADE)
@@ -180,11 +199,7 @@ local printChecked, printNow = false, nil
 local colourSaved = false      -- colourMap saved the colour map again this session (the game's map changed)
 local function mapPrint(krl, tex, gi)
     local rt = krl:CreateRenderTarget2D(gi, 16, 16, 2, { R = 0, G = 0, B = 0, A = 1 }, false)
-    local canvasOut, contextOut, extra = {}, {}, {}
-    krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
-    canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = 16, Y = 16 }, { X = 0, Y = 0 },
-        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, 16, 16, 0) end)
     local parts = {}
     for i = 0, 15 do
         local c = krl:ReadRenderTargetPixel(gi, rt, (i % 4) * 4 + 2, (i // 4) * 4 + 2)
@@ -213,11 +228,7 @@ local function colourMap(krl, tex, gi)
         else log("map: saving the colour map again with a fingerprint (made before map changes were checked)") end
     end
     local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
-    local canvasOut, contextOut, extra = {}, {}, {}
-    krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
-    canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0) end)
     krl:ExportRenderTarget(gi, rt, W.dir, COLOUR_FILE)
     colourSaved = true
     if printNow then
@@ -266,7 +277,7 @@ local function wallSpec(passes)
     local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
     local out = {}
     for _, w in ipairs(layout.walls) do
-        if not (isOpen(layout.areas[w[5] + 1], passes) and isOpen(layout.areas[w[6] + 1], passes)) then
+        if standing(w, passes) then
             local u, v = (w[2] - y0) / (y1 - y0), (x1 - w[1]) / (x1 - x0)
             local half = w[3] / 2 / (x1 - x0)
             local yaw = math.rad(w[4])
@@ -283,25 +294,17 @@ local function drawTerritories(krl, gi, k, key)
     local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
     local map = over                          -- the whole picture has the map in it; an overlay goes over the game's
     if not terr.whole then
-        pcall(LoadAsset, MAP_TEXTURE)
-        map = StaticFindObject(MAP_TEXTURE)
+        map = gameMapTexture()
     end
     if not (map and map:IsValid() and over and over:IsValid()) then
         log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
     end
-    if not mapRT or not mapRT:IsValid() then
-        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
-        W.keep(mapRT)
-    end
-    local canvasOut, contextOut, extra = {}, {}, {}
-    krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
-    canvasOut.Canvas:K2_DrawTexture(map, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-    if not terr.whole then
-        canvasOut.Canvas:K2_DrawTexture(over, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-            { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
-    end
-    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
+        drawWhole(canvas, map, RT_SIZE, RT_SIZE, 0)
+        if not terr.whole then
+            drawWhole(canvas, over, RT_SIZE, RT_SIZE, 2)
+        end
+    end)
     terr.done = k
     once("terrdrawn" .. tostring(terr.whole), terr.whole and "map territories: drawn (the player's map, locked areas greyscale)"
         or "map territories: drawn over the game's map")
@@ -334,9 +337,8 @@ local function haveColourMap(krl, gi)
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local hasColour = UTIL.exists(colour)
     if not hasColour then
-        pcall(LoadAsset, MAP_TEXTURE)
-        local tex = StaticFindObject(MAP_TEXTURE)
-        if tex and tex:IsValid() then
+        local tex = gameMapTexture()
+        if tex then
             local okc, path = pcall(colourMap, krl, tex, gi)
             hasColour = okc and path and UTIL.exists(path) or false
         end
@@ -391,10 +393,9 @@ local function colourMapRenewed()
     if printChecked then
         return false
     end
-    pcall(LoadAsset, MAP_TEXTURE)
-    local tex = StaticFindObject(MAP_TEXTURE)
+    local tex = gameMapTexture()
     local gi = owner()
-    if not (tex and tex:IsValid() and gi) then
+    if not (tex and gi) then
         return false
     end
     colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
@@ -405,17 +406,11 @@ end
 local function drawComposed(krl, gi, done)
     local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\map-composed.png")
     if not tex or not tex:IsValid() then log("map: could not load the composed map; drawing it without the compositor"); failedKey = done; return false end
-    if not mapRT or not mapRT:IsValid() then
-        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
-        W.keep(mapRT)
-    end
-    local canvasOut, contextOut, extra = {}, {}, {}
-    krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
-    canvasOut.Canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 },
-        { X = 1, Y = 1 }, WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-    local okS, errS = pcall(drawStamps, canvasOut.Canvas, krl, gi, composingList)
-    if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
-    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
+        drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0)
+        local okS, errS = pcall(drawStamps, canvas, krl, gi, composingList)
+        if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
+    end)
     composedKey = done
     return true
 end
@@ -446,9 +441,8 @@ local function startCompose(krl, gi, passes, key, open)
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local saved = UTIL.exists(colour)
     if open or printChecked or not saved then
-        pcall(LoadAsset, MAP_TEXTURE)
-        local tex = StaticFindObject(MAP_TEXTURE)
-        if not tex or not tex:IsValid() then return end
+        local tex = gameMapTexture()
+        if not tex then return end
         colour = colourMap(krl, tex, gi)
     end
     local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
@@ -623,6 +617,7 @@ function MAP_PICTURE.install(env)
     local areas = env.areas
     layout, isOpen, SEA, AREA_COLOURS = areas.layout, areas.isOpen, areas.SEA, areas.AREA_COLOURS
     slugOf, lockedList, lockedIndexes, openList = areas.slugOf, areas.lockedList, areas.lockedIndexes, areas.openList
+    standing = areas.standing
     W.dir = "."
     W.iconsOff = false
     W.mapStyle = "territories"
@@ -635,5 +630,5 @@ end
 -- What the fog part reads of the picture: the render target is replaced when it is made again, so it goes by function.
 MAP_PICTURE.target = function() return mapRT end
 MAP_PICTURE.territories, MAP_PICTURE.terr, MAP_PICTURE.TERR_FOG = territories, terr, TERR_FOG
-MAP_PICTURE.COLOUR_FILE, MAP_PICTURE.WHITE = COLOUR_FILE, WHITE
+MAP_PICTURE.COLOUR_FILE, MAP_PICTURE.drawInto, MAP_PICTURE.drawWhole = COLOUR_FILE, drawInto, drawWhole
 return MAP_PICTURE

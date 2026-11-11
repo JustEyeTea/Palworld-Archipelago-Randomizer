@@ -10,9 +10,9 @@ local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance
 -- Handed over by install: W (settings: dir, keepInPlace, cppOff, testFogColour, chartOff, regionsOff; data: beyond),
 -- the areas part's layout and lists, the icons part's active and the picture part (target(), territories(), terr,
--- TERR_FOG, COLOUR_FILE, WHITE, stampSize).
+-- TERR_FOG, COLOUR_FILE, stampSize, drawInto, drawWhole).
 local W, layout, slugOf, lockedList, lockedIndexes, iconsActive, picture = nil, nil, nil, nil, nil, nil, nil
-local territories, terr, TERR_FOG, COLOUR_FILE, WHITE, stampSize = nil, nil, nil, nil, nil, nil
+local territories, terr, TERR_FOG, COLOUR_FILE, stampSize = nil, nil, nil, nil, nil
 
 local mapShownAt = 0           -- map screens on screen at the last update (an opening is one coming on screen)
 function MAP_FOG.mapShown() return mapShownAt > 0 end
@@ -99,11 +99,7 @@ local function probeMask(screen)
             local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
             local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
             local drt = krl:CreateRenderTarget2D(gi, w, h, 2, { R = 0, G = 0, B = 0, A = 0 }, false)
-            local canvasOut, contextOut, extra = {}, {}, {}
-            krl:BeginDrawCanvasToRenderTarget(gi, drt, canvasOut, contextOut, extra)
-            canvasOut.Canvas:K2_DrawTexture(def, { X = 0, Y = 0 }, { X = w, Y = h }, { X = 0, Y = 0 }, { X = 1, Y = 1 },
-                WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-            krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+            picture.drawInto(krl, gi, drt, function(canvas) picture.drawWhole(canvas, def, w, h, 0) end)
             krl:ExportRenderTarget(gi, drt, W.dir, "fog-default-mask.png")
             return w .. "x" .. h
         end)
@@ -409,7 +405,7 @@ function MAP_FOG.install(env)
     local areas = env.areas
     layout, slugOf, lockedList, lockedIndexes = areas.layout, areas.slugOf, areas.lockedList, areas.lockedIndexes
     territories, terr, TERR_FOG = picture.territories, picture.terr, picture.TERR_FOG
-    COLOUR_FILE, WHITE, stampSize = picture.COLOUR_FILE, picture.WHITE, picture.stampSize
+    COLOUR_FILE, stampSize = picture.COLOUR_FILE, picture.stampSize
 end
 
 MAP_FOG.tellCpp = tellCpp

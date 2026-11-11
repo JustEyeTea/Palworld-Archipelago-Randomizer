@@ -65,6 +65,27 @@ local function place(over, w, left, top)
     return s
 end
 
+-- A w x h box on the HUD layout with an Overlay in it, for the layers (art, text, bar). Returns both.
+local function hudBox(layout, w, h)
+    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
+    box:SetWidthOverride(w)
+    box:SetHeightOverride(h)
+    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
+    box:AddChild(over)
+    return box, over
+end
+-- Puts the box on the HUD's canvas, centred across and `anchorY` of the way down the screen, over the HUD's own
+-- widgets, never taking a click.
+local function pinToCanvas(canvas, box, anchorY)
+    local slot = canvas:AddChildToCanvas(box)
+    pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = anchorY }, Maximum = { X = 0.5, Y = anchorY } }) end)
+    pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
+    pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
+    pcall(function() slot:SetAutoSize(true) end)
+    pcall(function() slot:SetZOrder(1000) end)
+    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
+end
+
 function H.hide()
     if shown then pcall(function() shown.box:RemoveFromParent() end) end
     shown = nil
@@ -81,11 +102,7 @@ function H.show(info, tick)
     if not canvas then once("popupnohud" .. why, "hint pop-up: " .. why .. "; chat only"); return false end
     local plateName = info.ready and "ap-hint-plate-ready" or "ap-hint-plate-short"
     local plate, plateImg = ART.box(layout, plateName, WIDTH, HEIGHT)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
-    box:SetWidthOverride(WIDTH)
-    box:SetHeightOverride(HEIGHT)
-    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
-    box:AddChild(over)
+    local box, over = hudBox(layout, WIDTH, HEIGHT)
     local bg = plate or fill(layout, WIDTH, HEIGHT, NAVY)
     local bs = over:AddChild(bg)
     pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
@@ -96,14 +113,8 @@ function H.show(info, tick)
         local f = math.max(0, math.min(1, (info.have or 0) / info.cost))
         if f > 0 then place(over, fill(layout, math.max(BAR[4], math.floor(BAR[3] * f)), BAR[4], info.ready and LTEAL or SAND), BAR[1], BAR[2]) end
     end
-    local slot = canvas:AddChildToCanvas(box)
-    pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0.5 }, Maximum = { X = 0.5, Y = 0.5 } }) end)
-    pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
-    pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
-    pcall(function() slot:SetAutoSize(true) end)
-    pcall(function() slot:SetZOrder(1000) end)
+    pinToCanvas(canvas, box, 0.5)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
-    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
     shown = { box = box, untilTick = tick + SHOW_TICKS, hud = UTIL.addr(layout) }
     once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen (" .. (plate and plateName or "plain box")
         .. ", opacity " .. OPACITY .. ")")
@@ -120,21 +131,11 @@ function H.banner(line, tick)
     if not canvas then log("goal banner: " .. why .. "; chat only"); return false end      -- (a goal: rare, so each time)
     local art = ART.box(layout, "ap-goal-banner", BANNER_W, BANNER_H)
     if not art then log("goal banner: no ap-goal-banner.png; chat only"); return false end
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
-    box:SetWidthOverride(BANNER_W)
-    box:SetHeightOverride(BANNER_H)
-    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
-    box:AddChild(over)
+    local box, over = hudBox(layout, BANNER_W, BANNER_H)
     local bs = over:AddChild(art)
     pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
     place(over, text(layout, line or "", 13, linear("CEE7E3")), BANNER_TEXT[1], BANNER_TEXT[2])
-    local slot = canvas:AddChildToCanvas(box)
-    pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0.3 }, Maximum = { X = 0.5, Y = 0.3 } }) end)
-    pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
-    pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
-    pcall(function() slot:SetAutoSize(true) end)
-    pcall(function() slot:SetZOrder(1000) end)
-    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
+    pinToCanvas(canvas, box, 0.3)
     shown = { box = box, untilTick = tick + BANNER_TICKS, hud = UTIL.addr(layout), banner = true }
     log("goal banner: shown (" .. tostring(line) .. ")")
     return true

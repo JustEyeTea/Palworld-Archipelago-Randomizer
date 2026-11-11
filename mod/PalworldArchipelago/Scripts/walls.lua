@@ -300,7 +300,7 @@ function W.update(enabled, passes, context)
     local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
     for i, w in ipairs(layout.walls) do
         if budget <= 0 then break end
-        local up = enabled and not (isOpen(layout.areas[w[5] + 1], passes) and isOpen(layout.areas[w[6] + 1], passes))
+        local up = enabled and AREAS.standing(w, passes)
         if up and not raised[i] and spawning then
             local ok, made = pcall(raise, i, context)
             -- One piece that fails does not hold up the others: the loop goes on (the try counts against the budget).
