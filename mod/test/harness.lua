@@ -771,7 +771,8 @@ expect(isResearched("Special_PalSphere_Grade_01") == nil, "owned slot, pointer e
 info["Setup by Technology Name"](info, FNameOf("Special_PalSphere_Grade_01"))
 expect(isResearched("Special_PalSphere_Grade_01") == false, "owned slot under the pointer: 'not researched yet', so it can be clicked")
 expect(isResearched("Product_Cooking_Grade_01") == nil, "another owned tech meanwhile: the game's answer")
-expect(logged("could not hook .*OnUnhoveredAnyTechnology_Internal yet") and logged("hooked .*OnUnhoveredAnyTechnology_Internal %(try"),
+expect(logged("could not hook .*OnUnhoveredAnyTechnology_Internal yet")
+       and logged("hooked .*OnUnhoveredAnyTechnology_Internal %(try"),
        "a Blueprint hook that failed to register is tried again and registered")
 hooks["/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00.WBP_MainMenu_Technology_00_C:OnUnhoveredAnyTechnology_Internal"]()
 expect(isResearched("Special_PalSphere_Grade_01") == nil, "pointer gone: the game's answer again")
@@ -1796,7 +1797,8 @@ end)()
     local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
     local text = f and f:read("*a") or ""
     if f then f:close() end
-    expect(text:find("bought=[%d,]*" .. loc), "the save file keeps the bought slot: " .. (text:match("bought=[^\n]*") or "none"))
+    expect(text:find("bought=[%d,]*" .. loc),
+           "the save file keeps the bought slot: " .. (text:match("bought=[^\n]*") or "none"))
 end)()
 
 print("still loading into the world")
@@ -2332,7 +2334,8 @@ mainMenuOpen = false
     run(1)
     mainMenuOpen = nil
     expect(whileOpen == false and isResearched(slot) == nil,
-           "the game's answer again, for crafting and building: " .. tostring(whileOpen) .. ", " .. tostring(isResearched(slot)))
+           "the game's answer again, for crafting and building: " .. tostring(whileOpen) .. ", "
+           .. tostring(isResearched(slot)))
 end)()
 -- The main menu on its Inventory tab.
 local page, barKids, editName = inventoryPage()

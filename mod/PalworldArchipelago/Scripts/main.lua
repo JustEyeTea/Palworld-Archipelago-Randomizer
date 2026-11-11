@@ -498,7 +498,8 @@ local function tieWorld(ps, id)
         if relock > 0 then
             if not (worldAsk and worldAsk.id == id) then
                 worldAsk = { id = id, yes = false }
-                log("world: " .. id .. " has " .. relock .. " researched shop tech(s); asking before tying the seed to it")
+                log("world: " .. id .. " has " .. relock .. " researched shop tech(s);"
+                    .. " asking before tying the seed to it")
                 notify("This world already has progress: " .. relock .. " researched tech(s) would be locked again"
                     .. " and its records sent as checks. Load a new world for this seed, or press " .. HINT_KEY
                     .. " to play the seed here anyway.")
@@ -2033,7 +2034,9 @@ end
 -- UPDATE_MS whether or not the last has run, so after a stall (a world loading) the queued ones arrive in one frame.
 local kismet = nil
 local function engineFrame()
-    if not (kismet and kismet:IsValid()) then kismet = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary") end
+    if not (kismet and kismet:IsValid()) then
+        kismet = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary")
+    end
     if not kismet then return nil end
     local ok, n = pcall(function() return kismet:GetFrameCount() end)
     return ok and tonumber(n) or nil
@@ -2042,7 +2045,10 @@ local lastFrame = nil         -- the engine frame the last update ran in
 -- Never inside a research hook, nor inside itself (see guarded(), above the research hooks), and at most once a frame:
 -- waits are counted in updates, and updates run back to back would use them up with no time passing.
 local function coreTick()
-    if inHook or inTick then once("nested", "update skipped: it came inside a hook or itself (UE4SS ran it nested)"); return end
+    if inHook or inTick then
+        once("nested", "update skipped: it came inside a hook or itself (UE4SS ran it nested)")
+        return
+    end
     local f = engineFrame()
     if f and f == lastFrame then return end
     lastFrame = f

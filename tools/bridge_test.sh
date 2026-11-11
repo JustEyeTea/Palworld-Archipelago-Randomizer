@@ -11,7 +11,12 @@ installed="$ap/custom_worlds/palworld.apworld"
 # The test installs this repo's world; whatever was installed before is put back afterwards.
 [ -f "$installed" ] && cp "$installed" "$work/installed.bak"
 server=                                                    # (set once the server starts; the clean-up checks it)
-trap '[ -n "$server" ] && kill "$server" 2>/dev/null || true; [ -f "$work/installed.bak" ] && cp "$work/installed.bak" "$installed"; rm -rf "$work"' EXIT
+restore() {
+  [ -n "$server" ] && kill "$server" 2>/dev/null || true
+  [ -f "$work/installed.bak" ] && cp "$work/installed.bak" "$installed"
+  rm -rf "$work"
+}
+trap restore EXIT
 s=$deps/ap-soeclient/subprojects
 g++ -std=c++17 -O1 -DASIO_STANDALONE -DAP_NO_SCHEMA -I"$deps/apclientpp" -I"$deps/wswrap/include" \
   -I"$s/asio/include" -I"$s/websocketpp" -I"$s/json/include" -w \
