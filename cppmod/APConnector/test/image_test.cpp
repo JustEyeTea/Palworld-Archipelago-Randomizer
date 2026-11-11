@@ -141,7 +141,7 @@ int main()
                 redness(34, 130), on);
     if (!regionsOk) return 1;
 
-    // Land only (the user, dev.30 test: borders and hatch ran out over the sea): a colour map with land (tan) on x 0-23
+    // Land only (borders and hatch must not run out over the sea): a colour map with land (tan) on x 0-23
     // of 64 and sea (teal) beyond. Area 2 (x 16-31) is land on 16-23 and sea on 24-31: the hatch only on its land part;
     // the border between areas 1 and 2 (both land) still drawn.
     std::vector<unsigned char> lm(64 * 64 * 4);
@@ -164,7 +164,7 @@ int main()
                 lerr.empty() ? "written" : lerr.c_str(), lg ? lg[(128 * 256 + 63) * 4] : -1, seaHatch);
     if (!landOk) return 1;
 
-    // compose_territories (the user's direction 1): labels 64x64, area 1 (locked, red) on the left half, area 2 (visited,
+    // compose_territories: labels 64x64, area 1 (locked, red) on the left half, area 2 (visited,
     // green) on the right, sea (0) on the bottom eighth; one standing wall between them at u 0.5, v 0.1-0.8.
     std::vector<unsigned char> tl(64 * 64);
     for (int i = 0; i < 64 * 64; ++i) { const int x = i % 64, y = i / 64; tl[i] = y >= 56 ? 0 : (x < 32 ? 1 : 2); }
@@ -189,7 +189,7 @@ int main()
                 tg ? tp(128, 100)[3] : -1, tg ? tp(60, 245)[3] : -1);
     if (!terrOk) return 1;
 
-    // compose_field (the Art lane's distance fields): 256x256, area 1 (locked, red) left of x = 128, area 2 (visited, green)
+    // compose_field (distance fields): 256x256, area 1 (locked, red) left of x = 128, area 2 (visited, green)
     // right, open sea below y = 224; G the area across the nearest border, B its distance in 1/8 px. One standing wall
     // piece on the top half of the land border only (v 0.05-0.45): the lower half of that border must show no wall. One
     // out at sea, away from every border (v 0.95): drawn where it stands.
@@ -232,8 +232,8 @@ int main()
                 fg ? fp(160, 250)[3] : -1, fg ? fp(76, 243)[3] : -1);
     if (!fieldOk) return 1;
 
-    // compose_field with the player's map (dev.33 playtest): the whole picture, opaque; the locked area greyscale with no
-    // fill, the visited one in colour; the wall in the locked side's red, lighter. The fog picture the duotone (combo C):
+    // compose_field with the player's map: the whole picture, opaque; the locked area greyscale with no
+    // fill, the visited one in colour; the wall in the locked side's red, lighter. The fog picture the duotone:
     // the map (lum 0.469) gives the locked red area dark red (~123,28,32), the visited green one brighter green (G ~163),
     // the open sea a blue grey (~59,69,78).
     std::vector<unsigned char> cmap(256 * 256 * 4);

@@ -358,7 +358,7 @@ auto compose_chart(const std::string& colour, const std::string& paper, const st
     blur(Yd, S, S, std::max(2, S / 250));
     Plane nearLand = land;
     blur(nearLand, S, S, std::max(2, S / 100));
-    // Paper: the Art lane's tile (two across the chart) or plain cream with mottling; darker toward the corners.
+    // Paper: the paper tile (two across the chart) or plain cream with mottling; darker toward the corners.
     Rgba paperTile, seaTile, compassArt;
     if (!paper.empty()) { paperTile = load_rgba(paper, S / 2, err); if (!err.empty()) return err; }
     if (!sea.empty()) { seaTile = load_rgba(sea, std::max(128, S / 4), err); if (!err.empty()) return err; }
@@ -807,7 +807,7 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
 {
     const int S = size;
     if (S < 64 || S > 4096) return "territories size " + std::to_string(S);
-    const float k = S / 4096.f;                                   // the Art lane's px are of a 4096 map
+    const float k = S / 4096.f;                                   // the style's px are of a 4096 map
     int lw = 0, lh = 0, ln = 0;
     std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(labels.c_str(), &lw, &lh, &ln, 1), stbi_image_free);
     if (!lab) return "could not read " + labels + ": " + stbi_failure_reason();
@@ -958,7 +958,7 @@ auto compose_field(const std::string& field, const std::string& areas, const std
     // along the field's borders only where a piece stands (some borders have none, and must show none). A piece away from
     // every border (the field's distance along it over 6 px: a few stand out at sea, as the box round an island) is drawn
     // where it stands instead, straight (free).
-    const float glowSd = t.glowW * 0.4f;                          // the glow across the border (4 px at the Art lane's 10)
+    const float glowSd = t.glowW * 0.4f;                          // the glow across the border (4 px at the default 10)
     const float reach = 3.f * glowSd + 10.f;
     auto fieldD = [&](float x, float y) {                         // (x, y in px at S)
         const int fx = std::min(fw - 1, std::max(0, static_cast<int>(x / S * fw)));
@@ -1002,8 +1002,8 @@ auto compose_field(const std::string& field, const std::string& areas, const std
             const int lab = R ? R : G;
             const char st = lab ? t.state[lab] : 0;
             const bool closed = R && (t.state[R] == 'l' || t.state[R] == 's');
-            // The walls' colour on the map picture: the closed side's own colour, lighter (the user, dev.33: "a more
-            // translucent version of the border edge"), where the fog picture keeps the cream.
+            // The walls' colour on the map picture: the closed side's own colour, lighter, like a see-through version
+            // of the area's border, where the fog picture keeps the cream.
             const int wallArea = closed ? R : G;
             float mapCore[3], mapGlow[3];
             for (int k2 = 0; k2 < 3; ++k2)
@@ -1028,7 +1028,7 @@ auto compose_field(const std::string& field, const std::string& areas, const std
                 {
                     float fill = 0, rimA = 0;
                     state_alpha(st, fill, rimA);
-                    if (col)                                      // (the duotone look, combo C: rims, no fills)
+                    if (col)                                      // (the duotone look: rims, no fills)
                     {
                         fill = 0.f;
                         rimA = st == 'v' ? 0.35f : st == 's' ? 0.65f : 0.80f;
@@ -1068,10 +1068,10 @@ auto compose_field(const std::string& field, const std::string& areas, const std
                 for (int k2 = 0; k2 < 3; ++k2) o[i * 4 + k2] = byte(c[k2]);
                 o[i * 4 + 3] = 255;
             }
-            // The fog's look. With the colour map, the duotone (the Art lane's combo C, the user's pick, 2026-11-08): the open
-            // sea the map's brightness over the fog colour; an area its own colour, dark to light with the map's brightness,
-            // dimmer while locked or sealed; then the rims and the cream walls. Without it, the fills and rims over the fog
-            // colour, and that is also the overlay (drawn over the game's map).
+            // The fog's look. With the colour map, the duotone: the open sea the map's brightness over the fog colour;
+            // an area its own colour, dark to light with the map's brightness, dimmer while locked or sealed; then the
+            // rims and the cream walls. Without it, the fills and rims over the fog colour, and that is also the
+            // overlay (drawn over the game's map).
             float c[3] = {0, 0, 0}, a = 0;
             if (col && !f.empty())
             {

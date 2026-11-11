@@ -3,7 +3,7 @@
 // Why C++: UE4SS's Lua calls a UFunction with a fixed 0x200-byte stack buffer (UE4SS/include/LuaType/LuaUFunction.hpp,
 // DynamicUnrealFunctionData) and writes each parameter at its offset with no bounds check (LuaType/LuaUObject.cpp,
 // call_ufunction_from_lua). PalUtility:GetInitializedCharacterSaveParemter's parameters reach 0x3A3, so the call from Lua
-// overran the stack and the game died with 0xc0000409 (/GS cookie, 2026-11-03 playtest). Here every call gets a heap
+// overran the stack and the game died with 0xc0000409 (/GS cookie). Here every call gets a heap
 // block of the function's own size, built and torn down through its reflection data, as UE4SS's own delegate Broadcast
 // does it (UE4SS/src/LuaType/LuaXDelegateProperty.cpp). Every parameter is found by name and checked to lie inside the
 // block; no offset is assumed.
