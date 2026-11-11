@@ -2211,12 +2211,10 @@ wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, t
 hookFailures.AP_Clicked = 1                                  -- its first opening: the button class still loading
 hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
-expect(logged("mailbox: could not hook the LogicMod's buttons yet"), "a failed hook of its buttons is logged")
-hudWindows["mail"] = nil                                     -- the player closes it with Esc
-run(1)
-hooks[ESC_CLICK]({ get = function() return mailBtn end })    -- the next opening tries again
-run(3)
 local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
+expect(logged("mailbox: could not hook AP_Clicked yet") and not hooks[ROW_CLICK], "a failed hook of its buttons is logged")
+run(10)
+expect(hooks[ROW_CLICK] and hudWindows["mail"], "tried again within 3 s, with the window still open: its buttons work")
 expect(#winRows == 2 and winRows[1].Label.text == "Wood  x1" and winRows[2].Label.text == "Stone  x50",
        "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
 expect(winRows[1].Btn.focused, "a controller starts on the first row")

@@ -193,7 +193,7 @@ local window = nil            -- the window: { id = its HUD id, hud = the HUD se
 -- State. Forgotten: at the next update, acted on or not, and with the window.
 local clickedAction = nil     -- the action of the button just clicked (noted in the click's hook, done after it)
 -- State. Forgotten: never.
-local rowHooked, rowTries = false, 0   -- the buttons' click is hooked; tries so far (each window opening tries again)
+local rowHook = nil           -- the buttons' click hook, made once (UTIL.hookWhenLoaded registers it)
 local iconsFailed = false     -- an icon could not be shown: the game's item data has none, so none are tried again
 
 local function setLabel(button, text)
@@ -305,18 +305,12 @@ local function onRowClick(self)
     end
 end
 
--- Hooks the buttons' click, tried on every window opening until it works.
-local function hookRows()
-    if rowHooked or not StaticFindObject(WINDOW_GAME.row) then return end
-    rowTries = rowTries + 1
-    local hook = env.guardedHook and env.guardedHook(WINDOW_GAME.rowClick, onRowClick) or onRowClick
-    local ok, err = pcall(RegisterHook, WINDOW_GAME.rowClick, hook)
-    if ok then
-        rowHooked = true
-        log("mailbox: hooked the LogicMod's buttons")
-    elseif rowTries == 1 then
-        log("mailbox: could not hook the LogicMod's buttons yet: " .. tostring(err):match("^[^\n]*"))
-    end
+-- Hooks the buttons' click once the LogicMod's button class is loaded. Called every update: UTIL.hookWhenLoaded
+-- tries again every 3 s until it works, so a window already open gets working buttons too.
+function WINDOW.hookButtons()
+    if UTIL.isHooked(WINDOW_GAME.rowClick) then return end
+    rowHook = rowHook or (env.guardedHook and env.guardedHook(WINDOW_GAME.rowClick, onRowClick) or onRowClick)
+    UTIL.hookWhenLoaded(WINDOW_GAME.rowClick, rowHook, "mailbox")
 end
 
 -- Whether the LogicMod's window can be shown (it is installed, and config.txt does not ask for the chest).
@@ -328,7 +322,7 @@ end
 -- Opens the window over `pawn`'s HUD and fills it. Raises an error when the HUD can't show it.
 function WINDOW.open(pawn)
     local hud = BAG.palUtility():GetHUDService(pawn)
-    hookRows()
+    WINDOW.hookButtons()                   -- (the first try: the button class has just loaded)
     local parameter
     pcall(function()
         local parameterClass = StaticFindObject(WINDOW_GAME.dispatchParameter)
@@ -1521,6 +1515,7 @@ end
 -- One update of the mailbox, as a list of steps in order.
 local function updateMailbox(ctx)
     forgetOnWorldChange(ctx)
+    WINDOW.hookButtons()
     WINDOW.runClick()
     -- While an open waits for the menu to close, nothing below runs.
     if openAsked and updatesToWait > 0 then
