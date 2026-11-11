@@ -64,6 +64,7 @@ local syncTechs = TECH_LOCK.sync
 local WORLD = require("world")
 local DEATH_LINK = require("death_link")
 local HELD = require("held_notices")
+local WALL_HINTS = require("wall_hints")
 
 local ITEMS = require("items")
 local applyItems, openCrate = ITEMS.applyItems, ITEMS.openCrate
@@ -107,21 +108,6 @@ local inTick = false          -- state: true only while an update runs
 SHOP.registerNativeHooks()
 
 ------------------------------------------------------------------------------------------------------------------------
--- State of the menus' preload, the hints at walls, Death Link, the area locks and the world.
--- State: hints at walls. Forgotten: known, shown and offer on a new seed (resetHints); key never.
-local hints = {
-    known = {},               -- area -> the server's hint sentence for that area's pass (onMessage)
-    shown = {},               -- area -> the update that area's wall notice was last shown on (noticeLockedWall)
-    offer = nil,              -- the area whose hint the player may ask for now (wallNotice; askHint takes it)
-    offeredAt = 0,            -- the update the offer was made on: it lasts WAIT.hintOffer
-    asked = nil,              -- the update the player last asked for a hint on: the server's answer is shown within
-                              -- WAIT.hintAnswer (onMessage)
-    key = HINT_KEY,           -- the key that asks (config.txt's hint_key)
-}
--- Forgets the last seed's hints, the times their notices were shown and an offer still open.
-local function resetHints()
-    hints.known, hints.shown, hints.offer = {}, {}, nil
-end
 local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
 local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
 -- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
@@ -147,19 +133,6 @@ local function onChecked(locationText)
     ap.checked[tonumber(locationText)] = true
 end
 
--- message <text> <type>: chat; hints are shown, and a hint for one of our passes is kept for its wall's notice.
-local function onMessage(textField, kindOf)
-    local text = tostring(textField)
-    log("AP: " .. text)
-    if kindOf == "Hint" then
-        notify(text)
-        -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
-        local who, pass = text:match("^%[Hint%]: (.-)'s %a+ Pass: (.-) is at ")       -- Area or Region Pass
-        if pass and who == (ap.slotName or cfg.slot) then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
-    elseif kindOf == "CommandResult" and hints.asked and CLOCK.now() - hints.asked < WAIT.hintAnswer then
-        notify(text)                               -- the server's answer to a hint the player asked for
-    end
-end
 
 -- State: other mods' techs (techscan.lua). Forgotten: report and tries never (other mods do not change while the game
 -- runs, so one scan a session is enough); sent on a new seed (resetTechScan), whose slots are other checks.
@@ -185,7 +158,7 @@ local function resetSeed()
     TECH_LOCK.techsChanged()
     resetGoal()
     WORLD.resetSeedWorld()
-    resetHints()
+    WALL_HINTS.resetHints()
     resetTechScan()
     log("a different seed or slot: progress of the last one forgotten")
 end
@@ -270,7 +243,7 @@ local function onStatus(state, detail)
 end
 
 local EVENT_HANDLERS = { status = onStatus, item = ITEMS.onItem, scout = onScout, checked = onChecked, bounce = DEATH_LINK.onBounce,
-                         message = onMessage }
+                         message = WALL_HINTS.onMessage }
 local function onEvent(line)
     local fields = split(line)
     local handler = EVENT_HANDLERS[fields[1]]
@@ -326,56 +299,7 @@ else
     log("not connected: click the Archipelago banner on the title menu (or set server and slot in config.txt)")
 end
 
--- Hints for Region and Area Passes, bought with the server's hint points (!hint), offered at the walls.
--- Returns the chat line, and what the hint pop-up shows (hint_popup.lua: two short lines and the points bar).
-local function wallNotice(area)
-    if ap.beyond and ap.beyond[area] then
-        return area .. " is beyond this seed's goal: its walls stay up.",
-            { title = area .. " is beyond the goal", line = "Its walls stay up for good." }
-    end
-    local pass = WALLS.passName(area)
-    if hints.known[area] then
-        local where, world = hints.known[area]:match(" is at (.-) in (.-)'s World")
-        return area .. " is sealed. " .. hints.known[area],
-            { title = area .. " is sealed", line = where and ("Its pass is at " .. where .. " (" .. world .. ")")
-                                                     or hints.known[area]:sub(1, 60), ready = true }
-    end
-    local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
-    local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
-    if not points then return text, { title = area .. " is sealed", line = "It needs " .. pass .. "." } end
-    points, cost = tonumber(points), tonumber(cost)
-    hints.offer, hints.offeredAt = area, CLOCK.now()
-    -- Both cases say what the player has and what a hint costs (the user, 2026-11-04), with the configured key.
-    if points >= cost then
-        return text .. " Press " .. hints.key .. " for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
-            { title = area .. " is sealed", line = hints.key .. " for a hint: " .. points .. " points, a hint costs " .. cost,
-              have = points, cost = cost, ready = true }
-    end
-    return text .. " Not enough points for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
-        { title = area .. " is sealed", line = "Not enough points for a hint: " .. points .. " of " .. cost,
-          have = points, cost = cost, ready = false }
-end
-local function askHint()
-    local area = hints.offer
-    if not area or CLOCK.now() - hints.offeredAt > WAIT.hintOffer then return end
-    local points, cost = (AP_HintPoints() or ""):match("^(%d+),(%d+)$")
-    if points and tonumber(points) < tonumber(cost) then
-        notify("Not enough hint points: you have " .. points .. ", a hint costs " .. cost .. ".")
-        return
-    end
-    hints.offer, hints.asked = nil, CLOCK.now()
-    AP_Say("!hint " .. WALLS.passName(area))
-    notify("Asking the Archipelago server where " .. WALLS.passName(area) .. " is...")
-end
--- Key binds run off the game thread: they only hand over a function made here, once (no new function there).
-local function hintKey()
-    if WORLD.takeYes() then return end
-    local ok, err = pcall(askHint)
-    if not ok then log("hint error: " .. tostring(err)) end
-end
-if RegisterKeyBind and Key and Key[hints.key] then
-    RegisterKeyBind(Key[hints.key], function() ExecuteInGameThread(hintKey) end)
-end
+WALL_HINTS.bindKey()
 
 -- Other mods' techs (techscan.lua): read once a session, as soon as the player's tech data is there. Their own techs stay
 -- normal research; the report goes to the log and mod_techs.txt.
@@ -483,20 +407,6 @@ local function phaseTechScan()
     sendRemovedSlots()                             -- (in the update the scan found them)
 end
 
--- Walking up to a wall: chat names the pass it needs and where it is if a hint said so, or offers to buy that hint
--- with the hint key (once per area every WAIT.wallNotice).
-local function noticeLockedWall(pawn)
-    local okn, area = pcall(function()
-        local loc = pawn:K2_GetActorLocation()
-        return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
-    end)
-    if not (okn and area) or (hints.shown[area] or -1e9) + WAIT.wallNotice > CLOCK.now() then return end
-    hints.shown[area] = CLOCK.now()
-    local line, info = wallNotice(area)
-    notify(line)
-    local okp, errp = pcall(POPUP.show, info, CLOCK.now())
-    if not okp then log("hint pop-up error: " .. tostring(errp)) end
-end
 
 -- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open stamp).
 local function rememberVisited(pawn)
@@ -577,7 +487,7 @@ end
 -- The wall-notice phase: the chat notice and hint offer at a locked wall the player walks up to.
 local function phaseWallNotice(pawn)
     if not areaLocksApply(pawn) then return end
-    noticeLockedWall(pawn)
+    WALL_HINTS.noticeLockedWall(pawn)
 end
 
 -- The records phase: trap timers, the seed's-world check, the game's records (checks and the goal).
