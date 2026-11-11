@@ -29,7 +29,7 @@ function PLAYER.context()
     local ctx = {}
     for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
         local ok, key = pcall(liveKey, pc)
-        if ok and key then ctx.pc, ctx.worldKey = pc, key; break end
+        if ok and key then ctx.pc, ctx.controllerKey = pc, key; break end
     end
     if ctx.pc then
         local ok, pawn = pcall(function() return ctx.pc:K2_GetPawn() end)

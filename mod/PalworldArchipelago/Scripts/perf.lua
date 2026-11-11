@@ -272,7 +272,7 @@ end
 -- them instead of two object-array walks per update, if they agree (untested: whether they take the GameInstance).
 local gettersFor = {}
 local function getters(ctx)
-    local key = ctx.worldKey or "title"
+    local key = ctx.controllerKey or "title"
     if gettersFor[key] then return end
     gettersFor[key] = true
     local u = util
@@ -284,7 +284,7 @@ local function getters(ctx)
     local pcA, psA = okc and addr(pc) or nil, oks and addr(ps) or nil
     local pawn = nil
     if pcA then pcall(function() pawn = pc:K2_GetPawn() end) end
-    log("getters world=" .. (ctx.worldKey and 1 or 0) .. " pc=" .. (pcA and "ok" or ("nil" .. (okc and "" or " (error)")))
+    log("getters world=" .. (ctx.controllerKey and 1 or 0) .. " pc=" .. (pcA and "ok" or ("nil" .. (okc and "" or " (error)")))
         .. " ps=" .. (psA and "ok" or ("nil" .. (oks and "" or " (error)"))) .. " pawn=" .. (addr(pawn) and "ok" or "nil")
         .. " same_pc=" .. ((pcA and pcA == addr(ctx.pc)) and 1 or 0) .. " same_ps=" .. ((psA and psA == addr(ctx.playerState and ctx.playerState())) and 1 or 0))
 end

@@ -231,7 +231,7 @@ end
 local function forgetOnWorldChange(ctx)
     local worldNow
     if ctx then
-        worldNow = ctx.worldKey
+        worldNow = ctx.controllerKey
     else
         worldNow = BAG.worldKey()
     end
@@ -321,7 +321,7 @@ local function updateMailbox(ctx)
     tryOpen()
 end
 
--- Called from the mod's update loop (game thread). ctx: this update's player from main.lua ({ pc, pawn, worldKey,
+-- Called from the mod's update loop (game thread). ctx: this update's player from main.lua ({ pc, pawn, controllerKey,
 -- playerState() }); used for this one update only.
 function M.update(ctx)
     BAG.useFrame(ctx)
