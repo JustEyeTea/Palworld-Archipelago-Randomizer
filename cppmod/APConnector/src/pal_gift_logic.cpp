@@ -1,7 +1,7 @@
 #include "pal_gift_logic.hpp"
+#include "lua_text.hpp"
 
 #include <cstdio>
-#include <sstream>
 
 namespace pal_gift
 {
@@ -52,10 +52,8 @@ namespace pal_gift
         else return "bad route '" + route + "'";
 
         out.rare = out.nopassive = false;
-        std::stringstream ss(options);
-        for (std::string opt; std::getline(ss, opt, ',');)
+        for (const auto& opt : lua_text::split_csv(options))
         {
-            if (opt.empty()) continue;
             if (opt == "rare") out.rare = true;
             else if (opt == "nopassive") out.nopassive = true;
             else return "bad option '" + opt + "'";

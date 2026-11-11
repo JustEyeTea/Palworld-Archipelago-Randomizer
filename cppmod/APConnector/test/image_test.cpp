@@ -1,5 +1,6 @@
 // Linux check of image_tools: a 2x1 PNG (pure red, pure green) comes back grey with the expected luminance.
-//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp -o /tmp/image_test && /tmp/image_test
+//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp src/lua_text.cpp
+//       -o /tmp/image_test && /tmp/image_test
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -26,10 +27,13 @@ int main()
     for (int i = 0; i < 200 * 100; ++i) { map[i * 4] = 255; map[i * 4 + 3] = 255; lab[i] = (i % 200) < 100 ? 1 : 2; }
     stbi_write_png("/tmp/compose_map.png", 200, 100, 4, map.data(), 800);
     stbi_write_png("/tmp/compose_lab.png", 200, 100, 1, lab.data(), 200);
-    if (compose_map_start("/tmp/compose_map.png", "/tmp/compose_lab.png", "1", "/tmp/compose_out.png", 1.0) != "")
+    const auto map_job = [] {
+        return compose_map("/tmp/compose_map.png", "/tmp/compose_lab.png", "1", "/tmp/compose_out.png", 1.0);
+    };
+    if (map_jobs().start(map_job) != "")
         { std::printf("FAIL could not start\n"); return 1; }
     std::string st;
-    while ((st = compose_map_status()) == "busy") {}
+    while ((st = map_jobs().status()) == "busy") {}
     unsigned char* o = stbi_load("/tmp/compose_out.png", &w, &h, &n, 4);
     auto at = [&](int x, int y) { return o + (y * 200 + x) * 4; };
     const bool grey = o && at(20, 50)[0] == at(20, 50)[1] && at(20, 50)[0] > 40 && at(20, 50)[0] < 60;   // deep inside: Y(red)=54

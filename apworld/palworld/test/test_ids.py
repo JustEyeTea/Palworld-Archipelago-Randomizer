@@ -1,30 +1,45 @@
-import hashlib
+"""Pins every item and location id (data.py's _items and _locations) to frozen_ids.tsv beside this file. Worlds
+already generated and the mod's saved state rely on the ids, so a game update may add ids but never move or drop one
+(tools/gen_apworld_data.py appends new rows). A failure lists the frozen lines that no longer hold.
+To freeze a deliberate rename that keeps every id, or a game update's new ids: python3 tools/freeze_ids.py, then read
+the file's git diff (no line may change its offset or disappear)."""
+import pathlib
 import unittest
 
 from ..data import BASE, ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID
 
-# The Palworld 1.0.5 ids. Each block of 1000 ids is one kind; a game update may add ids past a block's last 1.0.5 one
-# (tools/gen_apworld_data.py appends new rows), but must never move or drop one: worlds already generated and the mod's
-# saved state rely on them. Per table: {block: last 1.0.5 offset in it}, then the sha256 of "name<TAB>id" lines.
-FROZEN = {
-    "items": ({0: 957, 1: 587},
-              # 0.9.0: the 15 passes renamed "Area Pass: <name>" -> "Region Pass: <name>" (same ids; the old names
-              # gave c5576bb2...)
-              "e97c8c0064ae68efbfc3b7a10cb1f8b6239f2fa5abd019c5572f67da6be053a6"),
-    "locations": ({1: 587, 2: 285, 3: 89, 4: 173, 5: 80, 6: 7},
-                  # 0.7.1: tech-tree checks renamed "Shop: <tech>" -> "Tech Level N Slot M" (same ids; the old
-                  # names gave 498b936d...)
-                  "e38c1f44e9f3e507bb4edc7f09ff64cad0a46832777785a12f40456b59841c76"),
-}
+FROZEN_FILE = pathlib.Path(__file__).with_name("frozen_ids.tsv")
+SHOWN_PROBLEMS = 20             # enough to see a pattern (a whole block shifted) without flooding the test log
+
+
+def read_frozen() -> dict:
+    """The frozen file as {kind: [(offset, name), ...]}, skipping its comment lines."""
+    frozen = {"items": [], "locations": []}
+    for line in FROZEN_FILE.read_text(encoding="utf-8").splitlines():
+        if line.startswith("#"):
+            continue
+        kind, offset, name = line.split("\t")
+        frozen[kind].append((int(offset), name))
+    return frozen
+
+
+def problems(frozen_rows, table: dict) -> list:
+    """Each frozen row that no longer holds: its name is gone or has another id. (data.py's import-time checks make
+    sure no two names share an id, so a frozen id that still has its name has no other.)"""
+    out = []
+    for offset, name in frozen_rows:
+        if name not in table:
+            out.append(f"{name!r} (offset {offset}) is gone")
+        elif table[name] != BASE + offset:
+            out.append(f"{name!r} moved from offset {offset} to {table[name] - BASE}")
+    return out
 
 
 class TestIds(unittest.TestCase):
     def test_ids_never_move(self):
+        frozen = read_frozen()
         for kind, table in (("items", ITEM_NAME_TO_ID), ("locations", LOCATION_NAME_TO_ID)):
-            last, digest = FROZEN[kind]
             with self.subTest(kind):
-                kept = sorted(((n, i) for n, i in table.items()
-                               if (i - BASE) % 1000 <= last.get((i - BASE) // 1000, -1)), key=lambda kv: kv[1])
-                lines = "".join(f"{n}\t{i}\n" for n, i in kept)
-                self.assertEqual(hashlib.sha256(lines.encode()).hexdigest(), digest,
-                                 f"{kind}: a 1.0.5 id moved, was renamed or is gone")
+                self.assertTrue(frozen[kind], f"{FROZEN_FILE.name} has no {kind}")
+                found = problems(frozen[kind], table)
+                self.assertEqual(found[:SHOWN_PROBLEMS], [], f"{kind}: {len(found)} frozen ids no longer hold")

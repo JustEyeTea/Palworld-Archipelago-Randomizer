@@ -10,6 +10,7 @@ local ICON, GAP, TOP = 44, 10, 112
 local TICK_SECONDS = 0.3                 -- main.lua's update period
 local UTIL = require("util")
 local log, once = UTIL.log, UTIL.onceIn("debuffs")
+local WIDGETS = require("widgets")
 
 local CREAM, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("17324D", 0.9)
 
@@ -35,26 +36,12 @@ local function hudCanvas()
     return nil, nil, "no canvas in the HUD layout"
 end
 
+-- A line of text centred in its box, on one line (the timer under an icon).
 local function text(outer, s, size, colour)
-    local t = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), outer)
-    local sized = pcall(function() local f = t.Font; f.Size = size; t:SetFont(f) end)
-    if not sized then
-        pcall(function() t:SetRenderTransformPivot({ X = 0, Y = 0 }); t:SetRenderScale({ X = size / 24, Y = size / 24 }) end)
-    end
-    pcall(function() t:SetColorAndOpacity({ SpecifiedColor = colour, ColorUseRule = 0 }) end)
-    pcall(function() t:SetJustification(1) end)                           -- Center
-    t:SetText(FText(s))
-    return t
-end
--- A plain box w x h tinted `colour`, in a SizeBox.
-local function fill(outer, w, h, colour)
-    return (ART.sizedImage(outer, w, h, nil, colour))
-end
-local function place(over, w, left, top, width)
-    local s = over:AddChild(w)
-    pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)    -- Left, Top
-    pcall(function() s:SetPadding({ Left = left, Top = top, Right = 0, Bottom = 0 }) end)
-    return s
+    local block = WIDGETS.text(outer, s, size, colour)
+    pcall(function() block:SetAutoWrapText(false) end)
+    pcall(function() block:SetJustification(WIDGETS.JUSTIFY.center) end)
+    return block
 end
 
 -- m:ss left of an effect ending at `untilTick`, seen from `tick`.
@@ -85,20 +72,20 @@ local function build(tick)
         local x = (i - 1) * (ICON + GAP)
         local art = ART.box(layout, e.icon, ICON, ICON)
         if art then
-            place(over, art, x, 0)
+            WIDGETS.place(over, art, x, 0)
         else
             once("debuffnoart" .. e.icon, "debuffs: no " .. e.icon .. ".png yet; a plain tile instead")
-            place(over, fill(layout, ICON, ICON, e.tint or NAVY), x, 0)
+            WIDGETS.place(over, (WIDGETS.plain(layout, ICON, ICON, e.tint or NAVY)), x, 0)
             local label = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
             label:SetWidthOverride(ICON)
             label:AddChild(text(layout, e.short, 9, CREAM))
-            place(over, label, x, ICON / 2 - 7)
+            WIDGETS.place(over, label, x, ICON / 2 - 7)
         end
         local t = text(layout, (clock(e.untilTick, tick)), 11, CREAM)
         local tb = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
         tb:SetWidthOverride(ICON)
         tb:AddChild(t)
-        place(over, tb, x, ICON + 3)
+        WIDGETS.place(over, tb, x, ICON + 3)
         timers[e.key], left[e.key] = t, select(2, clock(e.untilTick, tick))
     end
     local slot = canvas:AddChildToCanvas(box)

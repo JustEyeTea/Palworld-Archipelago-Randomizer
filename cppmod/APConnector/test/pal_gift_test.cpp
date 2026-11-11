@@ -1,5 +1,6 @@
 // Linux check of pal_gift_logic (the Unreal-free half of AP_GivePal): arguments, route choice, report shape, polling.
-//   g++ -std=c++17 -Isrc test/pal_gift_test.cpp src/pal_gift_logic.cpp -o /tmp/pal_gift_test && /tmp/pal_gift_test
+//   g++ -std=c++17 -Isrc test/pal_gift_test.cpp src/pal_gift_logic.cpp src/lua_text.cpp -o /tmp/pal_gift_test
+//   /tmp/pal_gift_test
 #include <cstdio>
 #include <string>
 #include <vector>

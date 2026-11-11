@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from Options import Choice, DeathLink, DefaultOnToggle, OptionGroup, PerGameCommonOptions, Range, Toggle
 
+from .data import MAX_LEVEL
+
 
 class Goal(Choice):
     """What wins the game.
@@ -62,7 +64,7 @@ class CheckLevel(Range):
     register enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2."""
     display_name = "Check Level Cap"
     range_start = 0
-    range_end = 80
+    range_end = MAX_LEVEL
     default = 0
 
 
@@ -197,6 +199,8 @@ class LevelChecks(Choice):
     """A check for reaching player levels: every level (79 checks), every 5 (levels 5, 10, 15...), every 10 (levels
     10, 20, 30...), or none."""
     display_name = "Level Checks"
+    # Each choice's number is also its step: wanted() in __init__.py keeps the levels the number divides. A new choice
+    # needs a number that works as a step, or its own branch there.
     option_off = 0
     option_every_level = 1
     option_every_5 = 5
@@ -304,6 +308,8 @@ class FoolTrapWeight(Range):
     default = 25
 
 
+# The field order is the order Archipelago rolls option values from a YAML and prints them in the spoiler. Reordering
+# changes seeds (a YAML with random or weighted options rolls differently), so it is not a readability change.
 @dataclass
 class PalworldOptions(PerGameCommonOptions):
     goal: Goal
