@@ -1,8 +1,8 @@
 -- The menus' diagnostics: logs that let a playtest's log say what the client's menus are made of (a survey of
 -- the title screen, the layout around our buttons, which button has the focus, whether a heading sticks).
--- Used by menu.lua's parts. Tests: mod/test/harness.lua, groups "the title menu's Archipelago menu" and
--- "the Inventory page's mailbox button" (run by tools/lua_harness.sh).
--- Tests: mod/test/tests/title_menu.lua; group "the title menu's Archipelago menu" (tools/lua_harness.sh, in CI).
+-- Used by menu.lua's parts.
+-- Tests: mod/test/tests/title_menu.lua, mod/test/tests/inventory_page.lua; groups
+--   "the title menu's Archipelago menu", "the Inventory page's mailbox button" (tools/lua_harness.sh, in CI).
 local SURVEY = {}
 local UTIL = require("util")
 local WIDGETS = require("widgets")
