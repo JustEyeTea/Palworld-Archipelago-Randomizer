@@ -92,7 +92,10 @@ namespace
     void expect(bool ok, const std::string& what)
     {
         std::printf("== %s %s\n", ok ? "ok  " : "FAIL", what.c_str());
-        if (!ok) ++g_failures;
+        if (!ok)
+        {
+            ++g_failures;
+        }
     }
 
     // Before connect(), a check has nowhere to go: the bridge must say so with a status error line.

@@ -15,7 +15,10 @@ static int failures = 0;
 static void expect(bool ok, const std::string& what)
 {
     std::printf("%s %s\n", ok ? "ok  " : "FAIL", what.c_str());
-    if (!ok) ++failures;
+    if (!ok)
+    {
+        ++failures;
+    }
 }
 
 // A number too big for int64_t, so std::stoll throws out_of_range on it.
