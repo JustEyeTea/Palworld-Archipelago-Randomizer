@@ -1,4 +1,5 @@
 #include "image_tools.hpp"
+#include "lua_text.hpp"
 
 #include <algorithm>
 #include <array>
@@ -77,9 +78,10 @@ auto compose_map(const std::string& colour, const std::string& labels, const std
     if (!lab) return "could not read " + labels + ": " + stbi_failure_reason();
     if (lw != w || lh != h) return "the labels picture is not the size of the map";
     bool lockedArea[256] = {};
-    std::stringstream ss(locked);
-    for (std::string item; std::getline(ss, item, ',');)
-        if (!item.empty()) lockedArea[std::stoi(item) & 255] = true;
+    for (const auto& item : lua_text::split_csv(locked))
+    {
+        lockedArea[std::stoi(item) & 255] = true;
+    }
     const size_t count = static_cast<size_t>(w) * h;
     std::vector<uint8_t> hard(count), soft(count), shade(count);
     for (size_t i = 0; i < count; ++i) hard[i] = lockedArea[lab.get()[i]] ? 255 : 0;
@@ -467,8 +469,7 @@ static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::s
     if (!lab) return "could not read " + f[0] + ": " + stbi_failure_reason();
     bool locked[256] = {};
     {
-        std::stringstream ls(f[1]);
-        for (std::string p; std::getline(ls, p, ',');)
+        for (const auto& p : lua_text::split_csv(f[1]))
         {
             try { const int k = std::stoi(p); if (k >= 0 && k < 256) locked[k] = true; } catch (...) {}
         }
@@ -738,10 +739,8 @@ struct TerrLook
 
 static auto parse_look(const std::string& areas, const std::string& style, const std::string& fog, TerrLook& t) -> std::string
 {
-    std::stringstream ss(areas);
-    for (std::string item; std::getline(ss, item, ',');)
+    for (const auto& item : lua_text::split_csv(areas))
     {
-        if (item.empty()) continue;
         const size_t a = item.find(':'), b = item.find(':', a + 1);
         if (a == std::string::npos || b == std::string::npos || b != a + 2) return "areas item '" + item + "'";
         int idx = -1;

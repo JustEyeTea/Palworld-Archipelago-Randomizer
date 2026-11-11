@@ -1,5 +1,6 @@
 // Linux check of image_tools: a 2x1 PNG (pure red, pure green) comes back grey with the expected luminance.
-//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp -o /tmp/image_test && /tmp/image_test
+//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp src/lua_text.cpp
+//       -o /tmp/image_test && /tmp/image_test
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
