@@ -1,5 +1,5 @@
 -- The stand-ins for the map and the walls: the map screens (the main map's and the World Tree's), the canvas and the
--- libraries the map picture is drawn with, and the wall actors the area locks raise. Loaded by fakes.lua; the
+-- libraries the map picture is drawn with, and the wall actors Area Locks raise. Loaded by fakes.lua; the
 -- lookups there (FindAllOf, StaticFindObject) return these objects.
 
 -- The map and the walls ---------------------------------------------------------------------------------------------

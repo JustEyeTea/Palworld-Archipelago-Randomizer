@@ -1,4 +1,4 @@
--- Area locks: the walls on every locked border, sending the player home, the chat notice and hint offer at a
+-- Area Locks: the walls on every locked border, sending the player home, the chat notice and hint offer at a
 -- wall, the wall skins and how an opened wall goes. Tests area_locks.lua and walls.lua.
 
 group("area locks", function()
@@ -9,7 +9,7 @@ group("area locks", function()
         local n = 0
         for _, w in ipairs(WD.walls) do
             local row = h.wallRow(w, WD)
-            if not (open[row.areaA] and open[row.areaB]) then
+            if not (open[row.lockA] and open[row.lockB]) then
                 n = n + 1
             end
         end
@@ -70,7 +70,7 @@ group("area locks", function()
                "then b3d tiled 10x6")
         liveWalls.cycleSkin()
         run(1)
-        expect(logged("wall skin area: colours ") and a.Cube.mat ~= wallRed, "then the area colours")
+        expect(logged("wall skin area: colours ") and a.Cube.mat ~= wallRed, "then the region colours (the area skin)")
         liveWalls.cycleSkin()
         run(1)
         expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
@@ -93,7 +93,7 @@ group("area locks", function()
         expect(fm.textures.Pattern.path == "ap-wall-colour-rainbow" and fm.scalars.ScrollU == 0.05
                and fm.scalars.ScrollV == 0,
                "the -flow skin: the same tile, drifting sideways")
-        -- paws: the cream-paw layer (cooked in the pak) over each piece's area colour at 0.34, on M_APWall
+        -- paws: the cream-paw layer (cooked in the pak) over each piece's region colour at 0.34, on M_APWall
         liveWalls.setSkin("paws")
         run(1)
         local pm = a.Cube.mat
@@ -123,7 +123,7 @@ group("area locks", function()
                .. tostring(pm.textures.Pattern.path))
         expect(known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
                and logged("wall skin paws: colours paws:"),
-               "over each piece's area colour at 0.34, brightness 1.1 (" .. nBacks .. " colours)")
+               "over each piece's region colour at 0.34, brightness 1.1 (" .. nBacks .. " colours)")
         local notes, badLoadsBefore = {}, #badLoads
         local fresh = liveWalls.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
         expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry"
@@ -146,7 +146,7 @@ group("area locks", function()
         run(1)
     end
     expect(liveWalls.lockAt(-304485, 240071) == "Bamboo Groves" and liveWalls.lockAt(-342035, 236885) == WD.start,
-           "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: "
+           "region lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: "
            .. tostring(liveWalls.lockAt(-304485, 240071)))
     pawnAt = { X = -312819, Y = 84516, Z = -800 }                  -- deep in Bamboo Groves, still locked
     do
@@ -157,7 +157,7 @@ group("area locks", function()
         expect(teleported == nil, "a player in a stage is not sent home by where the stage sits on the map")
     end
     runCycles(3)
-    expect(teleported and teleported.X == liveWalls.home[1], "a player inside a locked area is sent home")
+    expect(teleported and teleported.X == liveWalls.home[1], "a player inside a locked region is sent home")
     local sent = false
     for _, t in ipairs(announced) do
         if t:find("Bamboo Groves is locked") then
@@ -172,15 +172,17 @@ group("area locks", function()
     pawnAt = { X = -312819, Y = 84516, Z = -800 }
     runCycles(3)
     expect(teleported == nil, "with its pass, nobody is sent away")
-    -- Walking up to a wall between the start and a locked area: chat names the pass.
-    local hintAt, hintArea = h.spotBesideStart(function(area) return area ~= "Open sea" and area ~= "Bamboo Groves" end)
-    shared.hintAt, shared.hintArea = hintAt, hintArea   -- a spot at a locked wall beside the start, and its area
+    -- Walking up to a wall between the start and a locked region: chat names the pass.
+    local hintAt, hintRegion = h.spotBesideStart(function(region)
+        return region ~= "Open sea" and region ~= "Bamboo Groves"
+    end)
+    shared.hintAt, shared.hintRegion = hintAt, hintRegion   -- a spot at a locked wall beside the start, and its region
     local noticesBefore = #announced
     pawnAt = hintAt
     runCycles(2)
     local offered
     for i = noticesBefore + 1, #announced do
-        if announced[i]:find("needs Region Pass: " .. hintArea, 1, true)
+        if announced[i]:find("needs Region Pass: " .. hintRegion, 1, true)
            and announced[i]:find("Press H for a hint: you have 200 points, a hint costs 121.", 1,
                                  true) then offered = true end
     end
@@ -190,28 +192,29 @@ group("area locks", function()
     runCycles(2)
     expect(#announced == count, "and not again straight away")
     keyBinds["key:H"]()
-    expect(said[#said] == "!hint Region Pass: " .. hintArea, "the hint key asks the server: " .. tostring(said[#said]))
-    push("message", "[Hint]: Tester's Region Pass: " .. hintArea
+    expect(said[#said] == "!hint Region Pass: " .. hintRegion,
+           "the hint key asks the server: " .. tostring(said[#said]))
+    push("message", "[Hint]: Tester's Region Pass: " .. hintRegion
          .. " is at Shop: Foo Stand in Tester's World. (not found)", "Hint")
     run(1)
     expect(announced[#announced]:find("is at Shop: Foo Stand", 1, true), "the server's answer shows in chat")
     runPast(WAIT.wallNotice)
     local remembered
     for i = count + 1, #announced do
-        if announced[i]:find(hintArea .. " is sealed. Tester's Region Pass: " .. hintArea .. " is at Shop: Foo Stand",
-                             1, true) then
+        local sealed = hintRegion .. " is sealed. Tester's Region Pass: " .. hintRegion .. " is at Shop: Foo Stand"
+        if announced[i]:find(sealed, 1, true) then
             remembered = true
         end
     end
     expect(remembered, "the wall then says where the pass is")
     -- The finder hears hints too: another player's Region Pass of the same name, sitting in our world, is not ours.
-    push("message", "[Hint]: Friend's Region Pass: " .. hintArea
+    push("message", "[Hint]: Friend's Region Pass: " .. hintRegion
          .. " is at Shop: Palbox in Tester's World. (not found)", "Hint")
     local count2 = #announced
     runPast(WAIT.wallNotice)
     local stillOurs, theirs = false, false
     for i = count2 + 1, #announced do
-        if announced[i]:find("sealed. Tester's Region Pass: " .. hintArea, 1, true) then
+        if announced[i]:find("sealed. Tester's Region Pass: " .. hintRegion, 1, true) then
             stillOurs = true
         end
         if announced[i]:find("sealed. Friend's", 1, true) then
@@ -221,16 +224,16 @@ group("area locks", function()
     expect(stillOurs and not theirs, "another player's pass hint is not shown at our wall as ours")
     game.hintPoints = "3,121"
     do
-        -- At a wall to another locked area (no hint known for it yet).
-        local at, area = h.spotBesideStart(function(other)
-            return other ~= "Open sea" and other ~= "Bamboo Groves" and other ~= hintArea
+        -- At a wall to another locked region (no hint known for it yet).
+        local at, region = h.spotBesideStart(function(other)
+            return other ~= "Open sea" and other ~= "Bamboo Groves" and other ~= hintRegion
         end)
         local n = #announced
         pawnAt = at
         runCycles(2)
         local short = false
         for i = n + 1, #announced do
-            if announced[i]:find("needs Region Pass: " .. tostring(area), 1, true)
+            if announced[i]:find("needs Region Pass: " .. tostring(region), 1, true)
                and announced[i]:find("Not enough points for a hint: you have 3 points, a hint costs 121.", 1,
                                      true) then short = true end
         end
@@ -244,7 +247,7 @@ group("area locks", function()
            "an opened wall shrinks to nothing (no K2_SetActorLocation: its FHitResult crashed UE4SS), stops "
            .. "blocking on the way, then goes: " .. tostring(lastGone and lastGone.shrunkTo))
     expect(wallCount() == expected(open) and wallCount() < expected({ ["Open sea"] = true, [WD.start] = true }),
-           "an Region Pass takes its area's walls down: " .. wallCount())
+           "a Region Pass takes its region's walls down: " .. wallCount())
     local sample = next(wallsUp)
     expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
     -- An opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
@@ -315,7 +318,7 @@ group("area locks", function()
         game.logicMod = hadPak
         liveWalls.setSkin("red")
         run(40)
-        expect(wallCount() == expected(open), "(the core's own passes put that area's walls back up: "
+        expect(wallCount() == expected(open), "(the core's own passes put that region's walls back up: "
                .. wallCount() .. ")")
     end
     do  -- a dead object called at a wall crashed the game after Return to title and a new world: after a world
@@ -370,10 +373,10 @@ group("area locks", function()
         local SHOWN_WITHIN, HIDDEN_PAST = 7500, 10000
         liveWalls.radius = SHOWN_WITHIN
         local spot
-        local function openHere(area) return open[area] or area == "Open sea" or area == WD.start end
+        local function openHere(region) return open[region] or region == "Open sea" or region == WD.start end
         for k, w in ipairs(WD.walls) do
             local row = h.wallRow(w, WD)
-            if not openHere(row.areaA) or not openHere(row.areaB) then
+            if not openHere(row.lockA) or not openHere(row.lockB) then
                 spot = k
                 break
             end

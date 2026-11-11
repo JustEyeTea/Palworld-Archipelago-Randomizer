@@ -14,7 +14,7 @@ group("traps", function()
            and h.saveText():find("\ntraps=\n", 1, true),
            "applied: the save has it given and nothing waiting: " .. h.saveText())
     expect(h.saveText():find("\nvisited=[^\n]*Windswept Island", 1) and logged("visited Windswept Island"),
-           "the open areas stood in are remembered in the save (the map's open stamps): the starting area")
+           "the open regions stood in are remembered in the save (the map's open stamps): the starting region")
     -- Two at once: both fire together, not one after the other.
     local hunger = trap("Hunger Trap", "Friend")
     local fool = trap("Fool Trap", "Friend")
@@ -47,7 +47,7 @@ group("traps", function()
     local liveWalls = require("walls")
     pawnAt = { X = -340000, Y = 236000, Z = -1500 }
     expect(liveWalls.lockAt(pawnAt.X, pawnAt.Y) == shared.WD.start,
-           "(the player stands in the starting area, away from its spot)")
+           "(the player stands in the starting region, away from its spot)")
     teleported = nil
     game.inStage = true
     local teleport = trap("Teleport Trap")

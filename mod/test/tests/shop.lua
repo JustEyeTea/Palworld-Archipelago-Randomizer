@@ -19,7 +19,7 @@ group("shop cards", function()
     shared.passCard = passCard       -- your Region Pass's card: the buying tests read it again
     cards[#cards + 1] = passCard
     run(1)
-    expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own area's ticket: "
+    expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own region's ticket: "
            .. tostring(passCard.shown.icon))
 
     do   -- a card whose address can't be read is skipped (its entry could not be told from another's)

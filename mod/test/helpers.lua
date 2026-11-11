@@ -168,23 +168,23 @@ function h.sameColour(c, d)
 end
 
 -- A row of a generated walls file (region_walls.lua, area_walls.lua), by name: its middle (x, y, game units),
--- its length, its yaw (degrees, along the wall), and the names of the areas on its two sides. `data` is the file's
+-- its length, its yaw (degrees, along the wall), and the names of the locks on its two sides. `data` is the file's
 -- table (shared.WD if none is given).
 function h.wallRow(w, data)
     data = data or shared.WD
-    return { x = w[1], y = w[2], length = w[3], yaw = w[4], areaA = data.locks[w[5] + 1], areaB = data.locks[w[6] + 1] }
+    return { x = w[1], y = w[2], length = w[3], yaw = w[4], lockA = data.locks[w[5] + 1], lockB = data.locks[w[6] + 1] }
 end
 
--- The area on the other side of a wall from the start, or nil if the wall does not touch the start.
+-- The lock on the other side of a wall from the start, or nil if the wall does not touch the start.
 function h.otherSideOfStart(row)
     local start = shared.WD.start
-    return (row.areaA == start and row.areaB) or (row.areaB == start and row.areaA) or nil
+    return (row.lockA == start and row.lockB) or (row.lockB == start and row.lockA) or nil
 end
 
 local SPOT_FROM_WALL = 1500                              -- game units: close enough for the wall's notice
 local LONG_WALL = 5000                                   -- game units: a spot beside its middle is beside it alone
--- A spot on the start's side of a long wall between the start and an area `wanted(area, row)` accepts (the first
--- such wall in the file). Returns the spot (a location), the area, and the wall's row as the file has it.
+-- A spot on the start's side of a long wall between the start and a lock `wanted(lock, row)` accepts (the first
+-- such wall in the file). Returns the spot (a location), the lock, and the wall's row as the file has it.
 function h.spotBesideStart(wanted)
     local start, liveWalls = shared.WD.start, require("walls")
     for _, w in ipairs(shared.WD.walls) do

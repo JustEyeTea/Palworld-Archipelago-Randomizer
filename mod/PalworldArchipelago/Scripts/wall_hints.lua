@@ -1,8 +1,8 @@
 -- Hints at walls: the chat notice at a locked wall names the pass it needs and where it is, if a hint said so, or
 -- offers to buy that hint with the server's hint points and the hint key; the server's chat is read for those hints.
 -- Wired by main.lua (WALL_HINTS.bindKey); its wall-notice phase and the server's message event call into it.
--- Tests: mod/test/tests/walls.lua, mod/test/tests/areas_hud.lua; groups "area locks",
---   "area-coloured walls and the hint pop-up" (tools/lua_harness.sh, in CI).
+-- Tests: mod/test/tests/walls.lua, mod/test/tests/locks_hud.lua; groups "area locks",
+--   "region-coloured walls and the hint pop-up" (tools/lua_harness.sh, in CI).
 local WALL_HINTS = {}
 local CLOCK = require("clock")
 local CONFIG = require("config")

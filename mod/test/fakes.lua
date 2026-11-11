@@ -143,7 +143,7 @@ record = {
     FastTravelPointUnlockFlag = FastArray({ { "6E03F8464BAD9E458B843AA30BE1CC8F", true } }),
 }
 -- The pawn: where it stands, a teleport, its address (a new pawn is a new world).
-pawnAt = { X = -342035, Y = 236885, Z = -1700 }            -- the starting area (FTPoint21)
+pawnAt = { X = -342035, Y = 236885, Z = -1700 }            -- the starting region (FTPoint21)
 teleported = nil                                           -- where the last teleport sent the pawn
 pawnAddress = 4096
 pawn = { IsValid = function() return true end, GetAddress = function() return pawnAddress end,
