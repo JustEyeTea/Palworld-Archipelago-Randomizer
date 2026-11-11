@@ -95,6 +95,16 @@ namespace
         if (!ok) ++g_failures;
     }
 
+    // Before connect(), a check has nowhere to go: the bridge must say so with a status error line.
+    void check_without_connection(ApBridge& bridge)
+    {
+        drain(bridge, 0);
+        bridge.send_checks({1});
+        drain(bridge, TAKE_EVENTS_EVERY_MS);
+        expect(exact_line_seen("status\terror\tchecks not sent: no connection"),
+               "a check with no connection is reported");
+    }
+
     // Waits until the slot joins or is refused; whether it joined.
     auto wait_for_slot(ApBridge& bridge) -> bool
     {
@@ -149,6 +159,7 @@ int main(int argc, char** argv)
     }
     const std::string slot_name = argv[2];
     ApBridge bridge("Palworld", "bridge-test-0001");
+    check_without_connection(bridge);
     bridge.connect(argv[1], slot_name, argc > 4 ? argv[4] : "");
     const bool joined = wait_for_slot(bridge);
     expect(joined, "the slot joined");

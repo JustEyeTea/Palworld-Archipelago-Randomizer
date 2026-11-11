@@ -55,8 +55,8 @@
 
 using namespace RC;
 using lua_text::double_or;
-using lua_text::ids;
 using lua_text::int_or;
+using lua_text::parse_ids;
 
 namespace
 {
@@ -122,6 +122,17 @@ namespace
         return lua.is_string() ? std::string(lua.get_string()) : std::string();
     }
 
+    // The location ids Lua sent, as numbers; each part that is not one is reported as a status error line.
+    auto location_ids(const std::string& csv) -> std::vector<int64_t>
+    {
+        const auto list = parse_ids(csv);
+        for (const auto& part : list.skipped)
+        {
+            bridge().report_error("not a location id: " + part);
+        }
+        return list.numbers;
+    }
+
     // The Archipelago connection (ap_bridge.hpp): connect, poll events, send checks, scouts, chat, the goal, bounces.
     // In this and every register_* below, no exception may leave a function Lua called: it can take the game down.
     void register_connection(LuaMadeSimple::Lua& lua)
@@ -140,11 +151,11 @@ namespace
             return 1;
         });
         lua.register_function("AP_Check", [](const LuaMadeSimple::Lua& l) -> int {
-            bridge().send_checks(ids(arg(l)));
+            bridge().send_checks(location_ids(arg(l)));
             return 0;
         });
         lua.register_function("AP_Scout", [](const LuaMadeSimple::Lua& l) -> int {
-            bridge().send_scouts(ids(arg(l)));
+            bridge().send_scouts(location_ids(arg(l)));
             return 0;
         });
         lua.register_function("AP_Say", [](const LuaMadeSimple::Lua& l) -> int {

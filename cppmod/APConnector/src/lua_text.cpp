@@ -19,24 +19,40 @@ namespace lua_text
         return parts;
     }
 
-    auto ids(std::string_view csv) -> std::vector<int64_t>
+    namespace
     {
-        std::vector<int64_t> out;
-        std::stringstream ss{std::string(csv)};
-        for (std::string part; std::getline(ss, part, ',');)
+        // Whether the whole text is one int64_t; if so, it is written to `number`.
+        auto read_int64(const std::string& text, int64_t& number) -> bool
         {
-            if (part.empty()) continue;
             try
             {
                 std::size_t used = 0;
-                const auto id = std::stoll(part, &used);
-                if (used == part.size()) out.push_back(id);
+                number = std::stoll(text, &used);
+                return used == text.size();
             }
             catch (...)
             {
+                return false;
             }
         }
-        return out;
+    } // namespace
+
+    auto parse_ids(std::string_view csv) -> IdList
+    {
+        IdList list;
+        for (const auto& part : split_csv(csv))
+        {
+            int64_t number = 0;
+            if (read_int64(part, number))
+            {
+                list.numbers.push_back(number);
+            }
+            else
+            {
+                list.skipped.push_back(part);
+            }
+        }
+        return list;
     }
 
     auto int_or(const std::string& text, int fallback) -> int

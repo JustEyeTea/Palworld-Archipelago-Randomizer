@@ -202,6 +202,12 @@ void ApBridge::wire_message_handlers()
     });
 }
 
+void ApBridge::report_error(const std::string& problem)
+{
+    std::lock_guard lock(m_mutex);
+    push(status_line("error", problem));
+}
+
 auto ApBridge::take_events() -> std::string
 {
     std::lock_guard lock(m_mutex);
@@ -217,53 +223,67 @@ auto ApBridge::take_events() -> std::string
 void ApBridge::send_checks(const std::vector<int64_t>& locations)
 {
     std::lock_guard lock(m_mutex);
-    if (m_client)
+    if (!m_client)
     {
-        m_client->LocationChecks({locations.begin(), locations.end()});
+        push(status_line("error", "checks not sent: no connection"));
+        return;
     }
+    m_client->LocationChecks({locations.begin(), locations.end()});
 }
 
 void ApBridge::send_scouts(const std::vector<int64_t>& locations)
 {
     std::lock_guard lock(m_mutex);
-    if (m_client)
+    if (!m_client)
     {
-        m_client->LocationScouts({locations.begin(), locations.end()}, /* create_as_hint */ 0);
+        push(status_line("error", "scouts not sent: no connection"));
+        return;
     }
+    m_client->LocationScouts({locations.begin(), locations.end()}, /* create_as_hint */ 0);
 }
 
 void ApBridge::say(const std::string& text)
 {
     std::lock_guard lock(m_mutex);
-    if (m_client)
+    if (!m_client)
     {
-        m_client->Say(text);
+        push(status_line("error", "chat not sent: no connection"));
+        return;
     }
+    m_client->Say(text);
 }
 
 void ApBridge::goal()
 {
     std::lock_guard lock(m_mutex);
-    if (m_client)
+    if (!m_client)
     {
-        m_client->StatusUpdate(APClient::ClientStatus::GOAL);
+        push(status_line("error", "goal not sent: no connection"));
+        return;
     }
+    m_client->StatusUpdate(APClient::ClientStatus::GOAL);
 }
 
 void ApBridge::set_tags(const std::string& tags_csv)
 {
     const auto tags = tag_list(tags_csv);
     std::lock_guard lock(m_mutex);
-    if (m_client)
+    if (!m_client)
     {
-        m_client->ConnectUpdate(/* send items_handling */ false, 0, /* send tags */ true, tags);
+        push(status_line("error", "tags not sent: no connection"));
+        return;
     }
+    m_client->ConnectUpdate(/* send items_handling */ false, 0, /* send tags */ true, tags);
 }
 
 void ApBridge::bounce(const std::string& json_data, const std::string& tags_csv)
 {
     std::lock_guard lock(m_mutex);
-    if (!m_client) return;
+    if (!m_client)
+    {
+        push(status_line("error", "bounce not sent: no connection"));
+        return;
+    }
     auto data = nlohmann::json::parse(json_data, nullptr, false);
     if (data.is_discarded())                 // not JSON: say so instead of sending an empty bounce
     {

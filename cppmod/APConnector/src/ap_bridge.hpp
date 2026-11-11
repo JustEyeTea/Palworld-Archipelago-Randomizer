@@ -38,12 +38,16 @@ class ApBridge
     // Tabs and line breaks inside a field become spaces; an empty field is kept (two tabs in a row).
     // A status's detail: connecting, the server address; connected, the slot name; refused, the server's reasons
     // ("InvalidSlot, InvalidPassword"); error, what went wrong. One error is normal on every connection to a server
-    // without TLS (wss is tried first); "... not sent: ..." errors are requests this bridge did not send.
+    // without TLS (wss is tried first); "... not sent: ..." and "not a location id: ..." are requests not passed on.
     // <player number> is the player's number in the multiworld, <player name> their alias; <flags> are
     // Archipelago's item flags (1 progression, 2 useful, 4 trap); <tags> are "A,B"; <json> is the bounce's data
     // object ("{}" if none).
     // Built in event_lines.cpp; read by main.lua's on<Kind> handlers (EVENT_HANDLERS).
     auto take_events() -> std::string;
+    // Pushes "status error <problem>", for a request the caller did not pass on (dllmain.cpp: a bad location id).
+    void report_error(const std::string& problem);
+
+    // Each sender below that has no connection to send on pushes "status error <what> not sent: no connection".
 
     // Sends location checks.
     void send_checks(const std::vector<int64_t>& locations);

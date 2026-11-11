@@ -29,15 +29,18 @@ static void check_split_csv()
     expect(split_csv(" A") == std::vector<std::string>{" A"}, "split_csv: spaces are kept");
 }
 
-static void check_ids()
+static void check_parse_ids()
 {
-    expect(ids("1,2,3") == std::vector<int64_t>{1, 2, 3}, "ids: three numbers");
-    expect(ids("12abc").empty(), "ids: \"12abc\" is skipped (the whole part must be a number)");
-    expect(ids("").empty(), "ids: \"\" gives none");
-    expect(ids(" 12") == std::vector<int64_t>{12}, "ids: a leading space is allowed");
-    expect(ids(TOO_BIG).empty(), "ids: a number too big to hold is skipped");
-    expect(ids("5,,x,6") == std::vector<int64_t>{5, 6}, "ids: empty and bad parts skipped, the rest kept");
-    expect(ids("1352729581") == std::vector<int64_t>{1352729581}, "ids: a Palworld location id");
+    expect(parse_ids("1,2,3").numbers == std::vector<int64_t>{1, 2, 3}, "parse_ids: three numbers");
+    expect(parse_ids("12abc").numbers.empty(), "parse_ids: \"12abc\" is skipped (the whole part must be a number)");
+    expect(parse_ids("").numbers.empty(), "parse_ids: \"\" gives none");
+    expect(parse_ids(" 12").numbers == std::vector<int64_t>{12}, "parse_ids: a leading space is allowed");
+    expect(parse_ids(TOO_BIG).numbers.empty(), "parse_ids: a number too big to hold is skipped");
+    expect(parse_ids("5,,x,6").numbers == std::vector<int64_t>{5, 6},
+           "parse_ids: empty and bad parts skipped, the rest kept");
+    expect(parse_ids("1352729581").numbers == std::vector<int64_t>{1352729581}, "parse_ids: a Palworld location id");
+    expect(parse_ids("5,,x,12abc,6").skipped == std::vector<std::string>{"x", "12abc"},
+           "parse_ids: the parts that are not numbers are reported, empty parts are not");
 }
 
 static void check_int_or()
@@ -63,7 +66,7 @@ static void check_double_or()
 int main()
 {
     check_split_csv();
-    check_ids();
+    check_parse_ids();
     check_int_or();
     check_double_or();
     std::printf("%s\n", failures ? "FAILED" : "all passed");

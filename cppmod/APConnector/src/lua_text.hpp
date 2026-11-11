@@ -16,8 +16,14 @@ namespace lua_text
     // The three number readers share one rule for "a number Lua sent as text": the whole text is the number (a
     // leading space is allowed, as std::stoll allows it). "12abc", "" and, for an int, "2048.7" are not numbers.
     //
-    // "id,id,..." as numbers. A part that isn't a number is skipped.
-    auto ids(std::string_view csv) -> std::vector<int64_t>;
+    // "id,id,..." read as numbers: the numbers in order, and the parts that were not numbers (empty parts are
+    // neither), so the caller can report them.
+    struct IdList
+    {
+        std::vector<int64_t> numbers;
+        std::vector<std::string> skipped;
+    };
+    auto parse_ids(std::string_view csv) -> IdList;
 
     // A number Lua sent as text, or `fallback` when the text isn't one.
     auto int_or(const std::string& text, int fallback) -> int;
