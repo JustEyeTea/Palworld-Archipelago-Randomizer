@@ -208,8 +208,14 @@ treeBody = { IsValid = function() return true end, GetAddress = function() retur
 treeBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
 treeBody["Update Map Icons"] = function() end
 lookups = {}                   -- global: class -> FindAllOf calls, "first:" .. class -> FindFirstOf calls
+local wallsUp = {}             -- the wall actors standing (spawned and not destroyed): wall actor -> true
 FindAllOf = function(class)
     lookups[class] = (lookups[class] or 0) + 1
+    if class == "BP_PalBlockingVolume_C" then                 -- live walls only, as FindAllOf lists live objects
+        local list = {}
+        for a in pairs(wallsUp) do list[#list + 1] = a end
+        return list
+    end
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     -- (the template the title screen's asset keeps comes first, as FindAllOf can give it: dev.25 log)
     if class == "WBP_TitleMenu_C" then return titleOpen and { titleTemplate, titleMenu } or {} end
@@ -266,14 +272,15 @@ systemLib = { IsValid = function() return true end, GetFrameCount = function() r
 -- UE4SS: NotifyOnNewObject (docs/lua-api: a full class path and a callback given the new object).
 notifies = {}
 NotifyOnNewObject = function(path, cb) notifies[path] = cb end
-local wallsUp = {}
 wallRed = { IsValid = function() return true end, name = "MI_AirBlock_v2" }   -- the walls' shared red material
 lastGone = nil
 mapArt = 40                                                  -- the map picture the game shows (its fingerprint)
 local gameplay = { IsValid = function() return true end,
                    BeginDeferredActorSpawnFromClass = function(_, _, _, t)
                        spawned = (spawned or 0) + 1
-                       local a = { IsValid = function(self) return not self.gone end, t = t }
+                       local address = 0x500000 + spawned
+                       local a = { IsValid = function(self) return not self.gone end, t = t,
+                                   GetAddress = function() return address end }
                        a.Cube = { IsValid = function() return true end, GetMaterial = function(self) return self.mat or wallRed end,
                                   SetMaterial = function(self, _, m) self.mat = m end }      -- the wall's mesh
                        function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
@@ -1582,6 +1589,314 @@ mapBody.MaskTextureMaterial = nil
 os.remove(MOD .. "/map-fog.png"); os.remove(MOD .. "/map-fog-territories.png")
 end)()
 
+print("walls and the map across a world change")
+;(function()   -- (a function of its own: the main chunk is at Lua's 200 locals)
+-- A walls module of its own, driven directly (no core update runs here). mine() lists the walls it raised: those
+-- standing now that were not standing when it was made.
+local function freshWalls()
+    local W = dofile(MOD .. "/Scripts/walls.lua")
+    W.dir, W.keep = MOD, function() end
+    local before = {}
+    for a in pairs(wallsUp) do before[a] = true end
+    local function mine()
+        local out = {}
+        for a in pairs(wallsUp) do if not before[a] then out[#out + 1] = a end end
+        return out
+    end
+    return W, mine
+end
+-- The world went: these walls went with it (the game destroyed them; nothing destroyed them through the mod).
+local function worldGoes(walls) for _, a in ipairs(walls) do a.gone = true; wallsUp[a] = nil end end
+local function hiddenOf(walls)
+    local n = 0
+    for _, a in ipairs(walls) do if a.hidden then n = n + 1 end end
+    return n
+end
+-- A player 20 km off the map: every piece is past the hiding radius.
+local offMap = { IsValid = function() return true end,
+                 K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
+local SETTLE_UPDATES = 60          -- enough updates to raise every piece of a cut (30 an update) and hide it (120)
+-- The C++ part's map functions for the Territories look, as the Territories tests above give them, with the fog's
+-- explored mask on the map screen. calls lists what Lua told AP_MapScreen. Returns a function that takes them away.
+local function territoriesStandIns(calls)
+    local function write(f) local h = io.open(f, "w"); h:write("png"); h:close() end
+    AP_ComposeTerritories = function() error("with AP_ComposeField the label map is not used") end
+    AP_TerritoriesStatus = function() return "done" end
+    AP_ComposeField = function(_, _, _, _, out, fogart)
+        write(out); write(fogart)
+        fieldJobs = (fieldJobs or 0) + 1                      -- (global) map pictures composed from the distance field
+        return ""
+    end
+    AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+    AP_ComposeFog = function(_, _, _, _, out) write(out); return "" end
+    AP_FogStatus = function() return "done" end
+    AP_ComposeChart = function() error("Territories draws no chart") end
+    AP_ChartStatus = function() return "done" end
+    AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
+    mapBody.MaskTextureMaterial = { IsValid = function() return true end,
+        GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_4" end,
+        K2_GetTextureParameterValue = function(_, name)
+            if name:ToString() ~= "TargetTexture" then return nil end
+            return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
+                     GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
+        end }
+    return function()
+        AP_ComposeTerritories, AP_TerritoriesStatus, AP_ComposeField, AP_MapScreen = nil, nil, nil, nil
+        AP_ComposeFog, AP_FogStatus, AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil, nil, nil
+        mapBody.MaskTextureMaterial = nil
+        os.remove(MOD .. "/map-fog-territories.png")
+    end
+end
+-- A colour map saved by an earlier session, with its fingerprint of the game's map art `art`. Returns a function that
+-- puts back what was there before.
+local colourFile = MOD .. "\\map-colour-1.png"                  -- (the mod's Windows path, as a file name here)
+local function savedColourMap(art)
+    local had = io.open(colourFile, "rb")
+    if had then had:close() end
+    local f = io.open(colourFile, "w"); f:write("png"); f:close()
+    local print16 = {}
+    for _ = 1, 16 do print16[#print16 + 1] = art .. ",90,60" end
+    f = io.open(colourFile .. ".txt", "w"); f:write(table.concat(print16, ";")); f:close()
+    return function()
+        os.remove(colourFile .. ".txt")
+        if not had then os.remove(colourFile) end
+    end
+end
+
+do  -- Return to title and a new world: the new world's far pieces are hidden again (no hidden flag kept from before)
+    local W, mine = freshWalls()
+    W.radius = 7500
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local first = mine()
+    local hidden1 = hiddenOf(first)
+    worldGoes(first)
+    W.reset()
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local second = mine()
+    local hidden2 = hiddenOf(second)
+    expect(#first > 100 and hidden1 == #first and #second == #first and hidden2 == #second,
+           "a new world hides its far pieces again: " .. hidden1 .. " of " .. #first .. " hidden in the first world, "
+           .. hidden2 .. " of " .. #second .. " in the second")
+    W.perfMode("none")                                          -- Ctrl+7 "none" removes every piece, then "full"
+    W.perfMode("full")
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local third = mine()
+    expect(#third == #first and hiddenOf(third) == #third,
+           "after the test state that removes every piece, the pieces raised again are hidden again: "
+           .. hiddenOf(third) .. " of " .. #third)
+    W.setLayout("regions")                                     -- the other cut: every piece taken down, others raised
+    for _ = 1, 2 * SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local regions = mine()
+    expect(#regions > #first and hiddenOf(regions) == #regions,
+           "after a change of cut the new cut's far pieces are hidden: " .. hiddenOf(regions) .. " of " .. #regions)
+    worldGoes(regions)
+do  -- Walls opening when the pawn reads nil for a moment (same world) still open; when the world goes, none of its
+    -- walls is called again (IsValid included), opening ones neither
+    local W, mine = freshWalls()
+    W.radius = 0
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local beside = {}                                         -- two areas next to the start
+    for _, w in ipairs(WD.walls) do
+        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
+        if other and other ~= "Open sea" and other ~= beside[1] then beside[#beside + 1] = other end
+        if #beside == 2 then break end
+    end
+    local passes = { [beside[1]] = true }
+    W.update(true, passes, offMap)                            -- a pass: its pieces begin to open
+    local opening = {}
+    for _, a in ipairs(mine()) do if a.shrunkTo then opening[#opening + 1] = a end end
+    W.reset()                                                 -- the core: the pawn read nil, then came back
+    for _ = 1, 20 do gameSeconds = gameSeconds + 0.3; W.update(true, passes, offMap) end
+    local stillUp = 0
+    for _, a in ipairs(opening) do if not a.gone then stillUp = stillUp + 1 end end
+    expect(#opening > 0 and stillUp == 0,
+           "a moment without a pawn: walls that were opening still go: " .. stillUp .. " of " .. #opening
+           .. " still up")
+    passes[beside[2]] = true
+    W.update(true, passes, offMap)                            -- another pass: more pieces begin to open
+    local calls, old, openingNow = 0, mine(), 0
+    for _, a in ipairs(old) do
+        if a.shrunkTo then openingNow = openingNow + 1 end
+        local function dead() calls = calls + 1; return false end
+        a.IsValid, a.SetActorScale3D, a.SetActorEnableCollision, a.K2_DestroyActor = dead, dead, dead, dead
+        a.SetActorHiddenInGame = dead
+    end
+    worldGoes(old)
+    W.reset()                                                 -- the core, on the new world's pawn
+    for _ = 1, 3 do gameSeconds = gameSeconds + 0.3; W.update(true, passes, offMap) end
+    expect(openingNow > 0 and calls == 0,
+           "after a world change no wall of the world that went is called: " .. calls .. " calls on " .. #old
+           .. " old walls, " .. openingNow .. " of them opening")
+    worldGoes(mine())
+end
+do  -- The locked-area icons on the map: a moment without a pawn (same world, same screen) adds none twice; a new
+    -- world's screen gets new ones, and the last world's are forgotten without a call (IsValid included)
+    mapBody.icons, mapBody.iconUpdates = {}, 0
+    local W = freshWalls()
+    mapOpen = false
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    mapOpen = true
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    local placed = #mapBody.icons
+    W.reset()
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    expect(placed >= 10 and #mapBody.icons == placed,
+           "a moment without a pawn: the map icons stay, none added twice: " .. #mapBody.icons .. " for " .. placed)
+    local old, deadCalls = mapBody.icons, 0
+    for _, icon in ipairs(old) do
+        icon.IsValid = function() deadCalls = deadCalls + 1; return false end
+        icon.GetParent = function() deadCalls = deadCalls + 1; return nil end
+        icon.RemoveFromParent = function() deadCalls = deadCalls + 1 end
+    end
+    mapBody.icons = {}
+    local screenAddress = mapBody.GetAddress
+    mapBody.GetAddress = function() return 177 end            -- the new world's map screen
+    W.reset()
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    expect(deadCalls == 0 and #mapBody.icons == placed,
+           "a new world: its map screen gets the icons and the last world's are never called: " .. deadCalls
+           .. " calls on " .. #old .. " old icons, " .. #mapBody.icons .. " new")
+    mapBody.GetAddress, mapBody.icons, mapOpen = screenAddress, {}, false
+end
+do  -- Ten passes in one session: no map overlay is kept (it is drawn into the map picture and done with), and the fog
+    -- pictures keep one place among the kept objects, not one more each
+    local calls = {}
+    local takeAway = territoriesStandIns(calls)
+    local putBack = savedColourMap(mapArt)
+    local W = freshWalls()
+    local core = require("walls")                             -- (the core gave its keep and keepInPlace to this one)
+    W.keep, W.keepInPlace = core.keep, core.keepInPlace
+    local function keptOf(path)
+        local n = 0
+        for _, obj in pairs(kept) do if type(obj) == "table" and obj.path == path then n = n + 1 end end
+        return n
+    end
+    local overlays0, fogs0 = keptOf("map-territories"), keptOf("map-fog-territories")
+    mapOpen = true
+    local passes = {}
+    for _ = 1, 45 do W.updateMap(true, passes, pawn) end
+    local fogsFirst = keptOf("map-fog-territories") - fogs0
+    local made = fieldJobs or 0
+    for n = 3, 12 do                                           -- ten passes, one at a time
+        passes[WD.areas[n]] = true
+        for _ = 1, 8 do W.updateMap(true, passes, pawn) end
+    end
+    local overlays, fogs = keptOf("map-territories") - overlays0, keptOf("map-fog-territories") - fogs0
+    expect(fogsFirst == 1 and (fieldJobs or 0) - made >= 10 and overlays == 0 and fogs == 1,
+           "ten passes make the map ten times, and keep no overlay and one fog picture: " .. overlays
+           .. " overlay(s) and " .. fogs .. " fog picture(s) kept after " .. ((fieldJobs or 0) - made)
+           .. " pictures made")
+    mapOpen = false
+    takeAway()
+    putBack()
+end
+do  -- The Territories look, as the chart look above: a map mod (or a game update) changed the game's map art since the
+    -- colour map was saved; at the first opening it is saved again and the picture made again from it
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    local artBefore = mapArt
+    mapArt = mapArt + 7
+    local W = freshWalls()
+    mapOpen = false
+    for _ = 1, 5 do W.updateMap(true, {}, pawn) end
+    local made = fieldJobs or 0
+    mapOpen = true
+    for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    local f = io.open(colourFile .. ".txt", "rb")
+    local savedPrint = f and f:read("*a") or ""
+    if f then f:close() end
+    local madeAgain = (fieldJobs or 0) - made
+    expect(savedPrint:find("^" .. mapArt .. ",90,60;") and madeAgain > 0,
+           "Territories: a changed map art found at the first opening: the colour map is saved again and the picture "
+           .. "made again: saved print " .. savedPrint:sub(1, 12) .. ".., " .. madeAgain .. " made again")
+    mapArt, mapOpen = artBefore, false
+    takeAway()
+    putBack()
+end
+do  -- The map screen stays listed from its first opening until Return to title: an opening is the screen coming on
+    -- screen, so each later opening reads the explored mask again (the fog picture follows what the player explored)
+    local calls = {}
+    local takeAway = territoriesStandIns(calls)
+    local putBack = savedColourMap(mapArt)
+    local maskExports = 0
+    local realExport = renderLib.ExportRenderTarget
+    renderLib.ExportRenderTarget = function(lib, gi, rt, dir, name)
+        if name == "fog-mask.png" then maskExports = maskExports + 1 end
+        return realExport(lib, gi, rt, dir, name)
+    end
+    local onScreen = true
+    mapBody.IsVisible = function() return onScreen end
+    local W = freshWalls()
+    mapOpen = true                                            -- the first opening: the screen is built
+    for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    local first = maskExports
+    for _ = 1, 3 do                                           -- closed for 3 minutes of exploring, opened again
+        onScreen = false
+        for _ = 1, 600 do W.updateMap(true, {}, pawn) end
+        onScreen = true
+        for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    end
+    expect(first == 1 and maskExports == first + 3,
+           "the explored mask is read again at each later opening of the same map screen: " .. first
+           .. " by the first opening, " .. maskExports .. " after three more")
+    local statuses, callsBefore = 0, #calls
+    local W2 = freshWalls()
+    for _ = 1, 2 do W2.updateMap(true, {}, pawn) end         -- the map on screen as the world goes
+    W2.reset()
+    for _ = 1, 2 do W2.updateMap(true, {}, pawn) end         -- the next world's map, opened at once
+    for i = callsBefore + 1, #calls do if calls[i]:find("^status=") then statuses = statuses + 1 end end
+    expect(statuses == 2, "a map on screen in the first update of a new world is an opening too: C++'s status"
+           .. " logged at " .. statuses .. " of 2 openings")
+    renderLib.ExportRenderTarget, mapBody.IsVisible, mapOpen = realExport, nil, false
+    takeAway()
+    putBack()
+end
+do  -- A seed with area locks, then one without in the same session: C++ is told to leave the map screen alone, once,
+    -- and switched on again with the picture when area locks are back
+    local calls = {}
+    local takeAway = territoriesStandIns(calls)
+    local putBack = savedColourMap(mapArt)
+    local W = freshWalls()
+    for _ = 1, 6 do W.updateMap(true, {}, pawn) end
+    local n = #calls
+    for _ = 1, 6 do W.updateMap(false, {}, pawn) end
+    local after = table.concat(calls, " | ", n + 1)
+    for _ = 1, 6 do W.updateMap(true, {}, pawn) end
+    local again = table.concat(calls, " | ", n + 1)
+    local onAgain = again:find("enable=0 | enable=1", 1, true) and again:find("body=", 1, true)
+    expect(n >= 2 and after == "enable=0" and onAgain,
+           "with area locks off C++ is told once to leave the map screen alone, and on again after: " .. again)
+    takeAway()
+    putBack()
+end
+do  -- Walls that cannot be made are reported: a spawn that gives no actor (logged once, and no more spawns tried in
+    -- that update), and a wall class that cannot be found (a game update renamed it)
+    local tries = 0
+    local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
+    gameplay.BeginDeferredActorSpawnFromClass = function()
+        tries = tries + 1
+        return { IsValid = function() return false end }
+    end
+    local W = freshWalls()
+    for _ = 1, 20 do W.update(true, {}, offMap) end
+    gameplay.BeginDeferredActorSpawnFromClass = realSpawn
+    expect(logged("could not raise wall %d+: the spawn gave no actor") and tries == 20,
+           "a spawn that gives no actor is logged, and only one is tried an update: " .. tries .. " in 20 updates")
+    local realFind = StaticFindObject
+    StaticFindObject = function(path)
+        if path:find("BP_PalBlockingVolume", 1, true) then return nil end
+        return realFind(path)
+    end
+    local W2, mine = freshWalls()
+    for _ = 1, 40 do W2.update(true, {}, offMap) end
+    StaticFindObject = realFind
+    expect(#mine() == 0 and logged("area locks: no walls: the wall class .*BP_PalBlockingVolume_C was not found"),
+           "a wall class that cannot be found is logged")
+end
+end
+end)()
+
 print("a new world")
 -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
 run(10)                                                       -- (walls opened above finish shrinking: 2 s of updates)
@@ -1603,6 +1918,9 @@ expect(spawned > before, "then its walls go up: " .. (spawned - before))
 print("another world")
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("world=AP_WORLD\n", 1, true), "the seed keeps the world it is played in")
 -- A world this seed is not played in (config.txt connects at every start): nothing is locked, sent or given there.
+mapScreenCalls = {}                                            -- (global) what the core's walls told C++'s map screen
+AP_MapScreen = function(cmd, v) mapScreenCalls[#mapScreenCalls + 1] = cmd .. "=" .. tostring(v); return "" end
+run(3)                                                         -- (the seed's world: C++ switched on)
 worldDir, pawnAddress = "VANILLA", 12288
 leaveWorld()
 unlocked.list[#unlocked.list + 1] = FNameOf("PalBox")          -- researched in that world
@@ -1614,12 +1932,16 @@ unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
 expect(have.PalBox and not checks[D.captures.sheepball] and spawned == before, "another world: no tech relocked, no check sent, no walls")
 expect(logged("world: VANILLA is not this seed's world %(AP_WORLD%)") and table.concat(announced, "|"):find("not the world this Archipelago seed", 1, true),
        "and the player is told")
+expect(table.concat(mapScreenCalls, " | "):find("enable=1 | .*enable=0$"),
+       "and C++ is told to leave its map screen alone: " .. table.concat(mapScreenCalls, " | "))
 worldDir, pawnAddress = "AP_WORLD", 16384
 leaveWorld()
 run(80)
 have = {}
 unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
 expect(not have.PalBox and checks[D.captures.sheepball] and spawned > before, "back in the seed's world, all as before")
+expect(table.concat(mapScreenCalls, " | "):find("enable=0 | enable=1", 1, true), "C++'s map screen switched on again")
+AP_MapScreen = nil
 record.PalCaptureCount.Items.list[2].Value = 0
 
 print("death link")
@@ -3718,6 +4040,20 @@ end)()
     FindAllOf = liveFAO
     local okT2 = pcall(POP.tick, 3)
     expect(bannerBox and okT and okT2 and not touched, "the world gone (Return to title), the banner is forgotten without touching it")
+    -- A faint just after a wall hint: the pawn reads nil for a moment in the same world, with the same HUD.
+    local now
+    local realTick = POP.tick
+    POP.tick = function(t) now = t; return realTick(t) end   -- (the core's update count, as it hands it over)
+    run(1)
+    POP.show({ title = "Bamboo Groves is sealed", line = "It needs Region Pass: Bamboo Groves" }, now)
+    local plate = hudKids[#hudKids]
+    pawnGone = true
+    run(2)
+    pawnGone = false
+    run(3 * POP.SHOW_TICKS)
+    POP.tick = realTick
+    expect(plate and plate.removed,
+           "a hint plate on screen when the pawn reads nil for a moment (same world, same HUD) still comes down")
     FindAllOf = savedFAO
 end)()
 ;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time

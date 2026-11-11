@@ -19,6 +19,7 @@ local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
 
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
+local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
 local START = DATA.start
 local SEA = "Open sea"
 local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km above
@@ -37,6 +38,7 @@ local VIS_PER_TICK = 120      -- pieces shown or hidden an update (a teleport ch
 local hiddenAt = {}           -- piece -> true while hidden by distance
 
 local raised = {}             -- piece index -> wall actor
+local raisedAt = {}           -- piece index -> its actor's address, to tell it is still there without calling it
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
 local cls, gs = nil, nil
 -- Each piece's direction, worked out once (lockedNear did it for every raised piece every 7th update).
@@ -63,6 +65,8 @@ end
 -- left alone, the game frees them on the way back to the title, and reloading them while a world loads in was the
 -- likely cause of a crash on re-entering a world.
 W.keep = function() end
+-- The core's keepInPlace(place, obj): keeps obj in place of what was kept at that place; returns the place.
+W.keepInPlace = function(place) return place end
 local function ready()
     if cls and cls:IsValid() and gs and gs:IsValid() then return true end
     pcall(LoadAsset, (WALL:gsub("_C$", "")))
@@ -71,17 +75,55 @@ local function ready()
     if cls and cls:IsValid() then W.keep(cls) end
     return cls ~= nil and cls:IsValid() and gs ~= nil and gs:IsValid()
 end
+-- What ready() did not find, for the log: the wall class (a game update could rename it) or the spawning library.
+local function missingForWalls()
+    if not (cls and cls:IsValid()) then
+        return "the wall class " .. WALL
+    end
+    return "GameplayStatics"
+end
 
+local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
+-- Forgets piece i was raised, with its look: a new actor raised for it starts shown and undressed.
+local function forget(i)
+    if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
+    raisedAt[i] = nil
+    dressedAs[i] = nil
+    hiddenAt[i] = nil
+end
+local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), addr = its address, dissolving }
+-- The addresses of the walls the game still has. FindAllOf lists live objects only, so a wall of a world that is gone
+-- is told apart without calling it (IsValid included: its memory may be freed).
+local function liveWallAddresses()
+    local live = {}
+    for _, a in ipairs(FindAllOf(WALL_CLASS) or {}) do
+        local ok, addr = pcall(function() return tostring(a:GetAddress()) end)
+        if ok then
+            live[addr] = true
+        end
+    end
+    return live
+end
 -- A new world (another save, back from the title): its walls are gone with the old one; start over. Only walls that
--- are really gone are forgotten: the core's world key is the pawn, which also changes (or reads nil for a moment) in
--- the same world, and a wall forgotten while still standing could never be taken down.
+-- are really gone are forgotten, opening ones too: the core's world key is the pawn, which also changes (or reads nil
+-- for a moment) in the same world, and a wall forgotten while still standing could never be taken down.
 function W.reset()
     W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
     W.dropCaches()
-    for i, a in pairs(raised) do
-        local ok, valid = pcall(function() return a:IsValid() end)
-        if not (ok and valid) then raised[i], nRaised = nil, nRaised - 1 end
+    W.resetMapShown()
+    local live = liveWallAddresses()
+    for i in pairs(raised) do
+        if not live[raisedAt[i]] then
+            forget(i)
+        end
     end
+    local still = {}
+    for _, s in ipairs(sinking) do
+        if live[s.addr] then
+            still[#still + 1] = s
+        end
+    end
+    sinking = still
 end
 
 -- How far a spot is from piece i (a segment: its middle, its direction, its length), in the plane.
@@ -106,6 +148,7 @@ local function raise(i, context)
     gs:FinishSpawningActor(a, t)
     W.skinNew(a, i)
     raised[i] = a
+    raisedAt[i] = tostring(a:GetAddress())
     nRaised = nRaised + 1
     return true
 end
@@ -120,7 +163,6 @@ end
 -- LoopAsync's callback runs on another thread over the same Lua state, and with it running 30 times a second the game
 -- crashed twice (stack 08E98397) and dev.45, its callback cut down to a flag and a prebuilt function, still logged
 -- "Ref was not function" three times and a broken ipairs iterator: Lua's state corrupted.
-local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), dissolving = true or nil }
 -- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
 -- at 80 to 85% dissolved; dev.46, its tail 0.8 s, still not quite through): blocking stops at DISSOLVE_S/2, the piece
 -- goes at DISSOLVE_S + DISSOLVE_TAIL (the material's Time node may run behind GetTimeSeconds; the first one logs it).
@@ -164,18 +206,12 @@ local function stepOpening()
     local ok, err = pcall(W.glowTick)
     if not ok then once("glow", "wall glow error: " .. tostring(err)) end
 end
-local dressedAs = {}           -- piece -> the material it wears with the area skin ("area:<colour>", "sealed", "a")
-local function forget(i)
-    if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
-    dressedAs[i] = nil
-    hiddenAt[i] = nil
-end
 -- Opening: with the paws skin the piece dissolves (W.dissolving, below: its material eats it away over 2 s by the
 -- game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway and then goes.
 W.dissolving = function() return nil end
 W.glowing, W.glowTick, W.dropCaches = function() return false end, function() end, function() end
 local function lower(i, context)
-    local a, wore = raised[i], dressedAs[i]
+    local a, wore, addr = raised[i], dressedAs[i], raisedAt[i]
     forget(i)
     if not (a and a:IsValid()) then return end
     local ok, mid, start = pcall(W.dissolving, wore, context)
@@ -183,7 +219,8 @@ local function lower(i, context)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
     now = (m and start) or (okT and type(now) == "number" and now) or 0
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, now, dissolving = m and true or nil, mid = m and mid or nil }
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, now, addr = addr, dissolving = m and true or nil,
+                              mid = m and mid or nil }
 end
 
 
@@ -234,17 +271,26 @@ local catchingUp = false              -- back to full after a Ctrl+7 test state:
 function W.update(enabled, passes, context)
     checkSome()
     W.lastPasses, W.lastContext = passes, context
-    if not ready() then return end
+    if not ready() then
+        once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
+        return
+    end
     local budget = PER_TICK
+    local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
     for i, w in ipairs(DATA.walls) do
         if budget <= 0 then break end
         local up = enabled and not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes))
-        if up and not raised[i] then
-            local ok, err = pcall(raise, i, context)
+        if up and not raised[i] and spawning then
+            local ok, made = pcall(raise, i, context)
             if not ok then
+                local err = tostring(made)
                 -- Once per kind of error: a raise that fails fails again on every update (three lines a second).
-                once("raise" .. tostring(err):gsub("0x%x+", ""):gsub("%d+", "#"), "could not raise wall " .. i .. ": " .. tostring(err))
+                once("raise" .. err:gsub("0x%x+", ""):gsub("%d+", "#"), "could not raise wall " .. i .. ": " .. err)
                 return
+            end
+            if not made then
+                once("raisenil", "could not raise wall " .. i .. ": the spawn gave no actor")
+                spawning = false
             end
             budget = budget - 1
         elseif not up and raised[i] then
@@ -270,7 +316,7 @@ function W.perfMode(mode)
         for _, a in pairs(raised) do
             if a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
         end
-        raised, nRaised = {}, 0
+        raised, nRaised, raisedAt, hiddenAt = {}, 0, {}, {}
         return
     end
     for _, a in pairs(raised) do
@@ -1140,7 +1186,6 @@ local function composeTerritories(ctx, passes, key)
         if not (map and map:IsValid() and over and over:IsValid()) then
             log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
         end
-        W.keep(over)
         if not mapRT or not mapRT:IsValid() then
             mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)
             W.keep(mapRT)
@@ -1195,6 +1240,21 @@ local function composeTerritories(ctx, passes, key)
     return false
 end
 
+-- At the first opening, once: the game's map checked against the saved colour map's fingerprint, and saved again if it
+-- changed. True when that saved it, so the picture is made again from the new colour map.
+local function colourMapRenewed()
+    if printChecked then
+        return false
+    end
+    pcall(LoadAsset, MAP_TEXTURE)
+    local tex = StaticFindObject(MAP_TEXTURE)
+    local gi = owner()
+    if not (tex and tex:IsValid() and gi) then
+        return false
+    end
+    colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
+    return colourSaved
+end
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
 -- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
 -- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
@@ -1202,17 +1262,18 @@ end
 -- as it is, without loading the game's 8192 px map; at the first opening the game's map is checked against it once
 -- (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
 local function composeMap(ctx, passes, key, open)
-    if territories() then return composeTerritories(ctx, passes, key) end
+    if territories() then
+        -- (Only a picture made from the colour map: the overlay alone is drawn over the game's own map each time.)
+        if open and terr.whole and not terr.composing and colourMapRenewed() then
+            terr.done = nil
+        end
+        return composeTerritories(ctx, passes, key)
+    end
     if not composing then                    -- the usual case: nothing to do, nothing to look up
         if composedKey == key then
-            if open and not printChecked then
-                pcall(LoadAsset, MAP_TEXTURE)
-                local tex = StaticFindObject(MAP_TEXTURE)
-                local gi = owner()
-                if tex and tex:IsValid() and gi then
-                    colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
-                    if colourSaved then composedKey = nil; return false end     -- made again from the new colour map
-                end
+            if open and colourMapRenewed() then
+                composedKey = nil                    -- made again from the new colour map
+                return false
             end
             return true
         end
@@ -1260,8 +1321,23 @@ local function composeMap(ctx, passes, key, open)
     return false
 end
 
-local mapShownAt = 0           -- map screens with a map image found on the last update (for the perf probe's replay)
+local mapShownAt = 0           -- map screens on screen at the last update (an opening is one coming on screen)
 function W.mapShown() return mapShownAt > 0 end
+-- A new world: its map has not been on screen yet, so its first showing is an opening.
+function W.resetMapShown() mapShownAt = 0 end
+-- How many of the live map screens are on screen. A screen lasts from its first opening until Return to title, so
+-- being listed is not being open. One whose visibility cannot be read counts as on screen. Untested in game: that
+-- IsVisible reads false while the map is closed (if it reads true, an opening is seen once per world, as before).
+local function screensOnScreen(screens)
+    local n = 0
+    for _, b in ipairs(screens) do
+        local ok, visible = pcall(function() return b:IsVisible() end)
+        if not ok or visible then
+            n = n + 1
+        end
+    end
+    return n
+end
 
 -- The map screen from C++ (APConnector's AP_MapScreen, map_screen.cpp; the user, 2026-11-06: Lua's swaps show, do the
 -- map in C++). It changes the screen inside the game's own Setup, before the screen draws; Lua hands it the picture and
@@ -1285,6 +1361,16 @@ local function tellCpp()
         local path = full:match("^%S+%s+(.+)$") or full            -- "Class /Path.Object" -> "/Path.Object"
         if path ~= cpp.body then cpp.body = path; AP_MapScreen("body", path) end
     end
+end
+-- Switches the C++ map screen off where the mod's map does not belong (a seed without area locks, a world that is
+-- not the seed's): C++ would otherwise show the seed's picture and fog there. Told once; tellCpp switches it on again.
+function W.mapOff()
+    if not (AP_MapScreen and cpp.fog) then
+        return
+    end
+    cpp.fog, cpp.body = false, nil
+    AP_MapScreen("enable", "0")
+    log("map screen (C++): switched off, the game's own map here")
 end
 -- What the fog is made of, and its explored mask exported (once a session).
 local function probeMask(screen)
@@ -1344,7 +1430,7 @@ local function fogFile() return territories() and "map-fog-territories.png" or F
 local EXPORT_GAP = 200                     -- updates (about a minute) between exports of the explored mask
 W.chartOff = false
 local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
-                old = false }
+                old = false, keptAt = nil }            -- keptAt: the fog picture's place in the kept objects
 local function exists(path) local f = io.open(path, "rb"); if f then f:close(); return true end return false end
 local function artFile(name)
     local path = ART.dir .. "\\art\\" .. name .. ".png"
@@ -1508,7 +1594,7 @@ local function chartTick(ctx, screens, opening, passes)
     if load then                                                             -- 3. shown from the next opening
         local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. fogFile())
         if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
-        W.keep(tex)
+        chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
         chart.tex = tex
         local full = tex:GetFullName()
         AP_MapScreen("fogpic", full:match("^%S+%s+(.+)$") or full)
@@ -1551,11 +1637,37 @@ local mapIcons = { screen = nil, key = nil, list = {} }
 -- (349400 - X) / 1448800) of the map's width).
 local function worldAt(u, v) return { X = 349400 - v * 1448800, Y = u * 1448800 - 724400, Z = 0 } end
 W.worldAt = worldAt
+-- Forgets the icons, without calling them, once the screen they are on is not among this update's live screens: they
+-- went with the last world (Return to title). Not on the core's reset: that also runs when the pawn reads nil for a
+-- moment in the same world, where the icons are still on the screen and would be added twice.
+local function forgetIconsOfGoneScreen(screens)
+    if not mapIcons.screen then
+        return
+    end
+    for _, b in ipairs(screens) do
+        if tostring(b:GetAddress()) == mapIcons.screen then
+            return
+        end
+    end
+    mapIcons = { screen = nil, key = nil, list = {} }
+end
+-- Whether the icons on this screen are for this key and still on it (the game can drop them).
+local function iconsStillShown(addr, key)
+    if mapIcons.screen ~= addr or mapIcons.key ~= key then
+        return false
+    end
+    local first = mapIcons.list[1]
+    if not first then
+        return true
+    end
+    local ok, still = pcall(function() return first:IsValid() and first:GetParent():IsValid() end)
+    return ok and still
+end
 local function placeIcons(screen, passes, key)
     local addr = tostring(screen:GetAddress())
-    local first = mapIcons.list[1]
-    local okp, still = pcall(function() return first:IsValid() and first:GetParent():IsValid() end)
-    if mapIcons.screen == addr and mapIcons.key == key and (not first or (okp and still)) then return end
+    if iconsStillShown(addr, key) then
+        return
+    end
     for _, icon in ipairs(mapIcons.list) do pcall(function() if icon:IsValid() then icon:RemoveFromParent() end end) end
     mapIcons.list, mapIcons.screen, mapIcons.key = {}, addr, key
     local cls = StaticFindObject(ICON_ASSET .. "_C")
@@ -1599,9 +1711,12 @@ local function placeIcons(screen, passes, key)
 end
 
 function W.updateMap(enabled, passes, ctx)
-    local wasShown = mapShownAt > 0                  -- whether the map was open at the last update
+    local wasShown = mapShownAt > 0                  -- whether the map was on screen at the last update
     mapShownAt = 0
-    if not enabled then return end
+    if not enabled then
+        W.mapOff()
+        return
+    end
     -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
     -- more than one real one (different menus), and a map screen sets its own picture again when it opens, so every
     -- one is checked each time and given the greyed map whenever it shows anything else.
@@ -1620,15 +1735,16 @@ function W.updateMap(enabled, passes, ctx)
         if gone then once("stalescreen", "map: a map screen of the last world left alone (its player is gone)") end
         if b:IsValid() and ok and img and main and not gone then images[#images + 1] = img; screens[#screens + 1] = b end
     end
-    mapShownAt = #images
+    mapShownAt = screensOnScreen(screens)
+    local opening = mapShownAt > 0 and not wasShown
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
-    local okt, errt = pcall(chartTick, ctx, screens, #images > 0 and not wasShown, passes)
+    local okt, errt = pcall(chartTick, ctx, screens, opening, passes)
     if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
     -- C++ is switched on from the start, not once the picture is ready (dev.16 playtest, 2026-11-07: the map opened
     -- 3 s before the picture was, and C++ logged "OFF; Setup ran 0x" though its hook saw Setup run).
     local okc0, errc0 = pcall(tellCpp)
     if not okc0 then once("cpperr", "map screen (C++): " .. tostring(errc0)) end
-    if AP_MapScreen and #images > 0 and not wasShown then
+    if AP_MapScreen and opening then
         cpp.opened = cpp.opened + 1
         if cpp.opened <= 3 then
             log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back " .. cpp.fixes .. "x")
@@ -1677,6 +1793,7 @@ function W.updateMap(enabled, passes, ctx)
     if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
     if #images == 0 then return end
     if iconsActive() then
+        forgetIconsOfGoneScreen(screens)
         local oki, erri = pcall(placeIcons, screens[#screens], passes, key .. "#open:" .. table.concat(openList(passes), ","))
         if not oki then
             iconsFailed = true
@@ -1723,7 +1840,7 @@ function W.setLayout(name)
     name = name == "regions" and "regions" or "areas"
     if name == W.layout then return false end
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
-    raised, nRaised, sinking, dressedAs = {}, 0, {}, {}
+    raised, nRaised, raisedAt, sinking, dressedAs, hiddenAt = {}, 0, {}, {}, {}, {}
     SUFFIX = name == "regions" and "_regions" or ""
     DATA, MAP, SHAPES = require("area_walls" .. SUFFIX), require("area_map" .. SUFFIX), nil
     CENTRES = require("area_centres" .. SUFFIX)

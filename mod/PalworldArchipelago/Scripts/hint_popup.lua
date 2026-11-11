@@ -164,8 +164,15 @@ function H.tick(tick)
     if not hudLive(shown.hud) then shown = nil; return end
     if tick >= shown.untilTick then H.hide() end
 end
--- The world went (a new pawn, the title): forget what is shown, without touching it.
-function H.forget() shown = nil end
+-- The core saw a new pawn, or none: the world may have gone (the title), or the pawn read nil for a moment in the same
+-- world (a faint, a respawn). Taken down while its HUD is still there, else forgotten without touching it.
+function H.forget()
+    if shown and hudLive(shown.hud) then
+        H.hide()
+    else
+        shown = nil
+    end
+end
 
 H.SHOW_TICKS = SHOW_TICKS
 return H
