@@ -368,7 +368,11 @@ function CONNECT.refreshRows(m)
             WIDGETS.show(row.box, show)
         end
         if show and row.button then
-            setLabel(row.button, kind.label(m, row))
+            local text = kind.label(m, row)
+            if row.labelNow ~= text then           -- (written when it changes, not on every update)
+                row.labelNow = text
+                setLabel(row.button, text)
+            end
         end
     end
     if m.pickPanel then

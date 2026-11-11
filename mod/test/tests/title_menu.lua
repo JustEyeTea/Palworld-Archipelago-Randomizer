@@ -592,4 +592,32 @@ group("the title menu's Archipelago menu", function()
         expect(onCanvas and onCanvas.removed and inList and not loggedSince(placedAt, "title banner error"),
                "a banner that can't be placed is taken off the canvas and put in the button list, not left there")
     end
+    do   -- a row's label is written when it changes, not on every update the menu shows
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        local label = btn(R.go) and btn(R.go).Test_Content
+        local writes = 0
+        if label then
+            local realSetText = label.SetText
+            label.SetText = function(...)
+                writes = writes + 1
+                return realSetText(...)
+            end
+        end
+        run(5)
+        local goText = label and label.text
+        click(btn(R.back))
+        run(1)
+        game.titleOpen = false
+        run(1)
+        expect(label and writes == 0 and goText and goText:find("onnect", 1, true),
+               "an unchanged label is not written again: " .. writes .. " write(s) in 5 updates")
+    end
 end)
