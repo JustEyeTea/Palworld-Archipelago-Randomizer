@@ -10,7 +10,7 @@ function A.texture(name)
     if t and t:IsValid() then return t end
     if failed[name] then return nil end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
+    local gi = require("util").gameInstance()
     if not (krl and krl:IsValid() and gi and gi:IsValid()) then return nil end
     local path = A.dir .. "\\art\\" .. name .. ".png"
     t = krl:ImportFileAsTexture2D(gi, path)
@@ -20,18 +20,29 @@ function A.texture(name)
     return t
 end
 
--- An image of art `name` in a w x h SizeBox (outer: the widget that owns them), or nil without the file.
-function A.box(outer, name, w, h)
-    local tex = A.texture(name)
-    if not tex then return nil end
+-- An Image in a w x h SizeBox (outer: the widget that owns them), and the Image: showing tex, or with no texture a
+-- plain box tinted `colour` (an Image with no texture draws white).
+function A.sizedImage(outer, w, h, tex, colour)
     local img = StaticConstructObject(StaticFindObject("/Script/UMG.Image"), outer)
-    img:SetBrushFromTexture(tex, false)
+    if tex then
+        img:SetBrushFromTexture(tex, false)
+    end
+    if colour then
+        pcall(function() img:SetColorAndOpacity(colour) end)
+    end
     local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
     box:SetWidthOverride(w)
     box:SetHeightOverride(h)
     local s = box:AddChild(img)
     pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)   -- Fill: an image keeps its brush's 32x32 otherwise
     return box, img
+end
+
+-- An image of art `name` in a w x h SizeBox (outer: the widget that owns them), or nil without the file.
+function A.box(outer, name, w, h)
+    local tex = A.texture(name)
+    if not tex then return nil end
+    return A.sizedImage(outer, w, h, tex)
 end
 
 return A

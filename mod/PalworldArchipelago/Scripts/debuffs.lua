@@ -11,15 +11,7 @@ local TICK_SECONDS = 0.3                 -- main.lua's update period
 local UTIL = require("util")
 local log, once = UTIL.log, UTIL.onceIn("debuffs")
 
-local function linear(hex, a)
-    local c = { A = a or 1 }
-    for k, at in pairs({ R = 1, G = 3, B = 5 }) do
-        local v = tonumber(hex:sub(at, at + 1), 16) / 255
-        c[k] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
-    end
-    return c
-end
-local CREAM, NAVY = linear("FFF4DC"), linear("17324D", 0.9)
+local CREAM, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("17324D", 0.9)
 
 local list = {}                          -- { { key, icon, short, tint, untilTick } } in the order they started
 local shown = nil                        -- { box, layout, sig, timers = { key -> TextBlock }, left = { key -> seconds shown } }
@@ -54,15 +46,9 @@ local function text(outer, s, size, colour)
     t:SetText(FText(s))
     return t
 end
+-- A plain box w x h tinted `colour`, in a SizeBox.
 local function fill(outer, w, h, colour)
-    local img = StaticConstructObject(StaticFindObject("/Script/UMG.Image"), outer)
-    pcall(function() img:SetColorAndOpacity(colour) end)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
-    box:SetWidthOverride(w)
-    box:SetHeightOverride(h)
-    local s = box:AddChild(img)
-    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)
-    return box
+    return (ART.sizedImage(outer, w, h, nil, colour))
 end
 local function place(over, w, left, top, width)
     local s = over:AddChild(w)

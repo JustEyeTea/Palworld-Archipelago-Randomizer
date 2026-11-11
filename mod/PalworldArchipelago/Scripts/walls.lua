@@ -430,15 +430,7 @@ local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' t
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
 local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at all)
 W.dir = "."
--- The game instance lives all session (skill: GameInstance-owned objects); kept, and looked up again only if it is
--- no longer valid. 6dd356e looked it up on every update while a map screen existed.
-local ownerGi = nil
-local function owner()
-    if ownerGi and ownerGi:IsValid() then return ownerGi end
-    local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
-    ownerGi = gi and gi:IsValid() and gi or nil
-    return ownerGi
-end
+local owner = UTIL.gameInstance          -- (render targets and materials belong to it: see above)
 
 -- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the Art &
 -- Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
@@ -482,17 +474,8 @@ function W.parentOf(area)
     PARENTS = PARENTS or require("area_parents_regions")
     return PARENTS[area] or area
 end
--- An sRGB #RRGGBB as the linear colour the material's tint parameters take.
-local function linearOf(hex)
-    local c = {}
-    for k, at in pairs({ R = 1, G = 3, B = 5 }) do
-        local v = tonumber(hex:sub(at, at + 1), 16) / 255
-        c[k] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
-    end
-    c.A = 1
-    return c
-end
-W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS
+local linearOf = UTIL.linear
+W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS                 -- (for the harness's colour tests)
 local FLOW = 0.05
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
 local apWall = nil                                             -- M_APWall once loaded
@@ -503,8 +486,7 @@ local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
 local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
 local areaFile = nil           -- "pawholes" when walls/ap-wall-pattern-pawholes.png exists, else "a" (checked once)
 local function patternOr(name)
-    local f = io.open(W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png", "rb")
-    if f then f:close(); return name end
+    if UTIL.exists(W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png") then return name end
     return "a"
 end
 W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
@@ -980,10 +962,7 @@ local function greyscaleMap(krl, tex)
     local gi = owner()
     if not gi then greyTried = false; return nil end
     local path = W.dir .. "\\" .. GREY_FILE
-    local f = io.open(path, "rb")
-    if f then
-        f:close()
-    else
+    if not UTIL.exists(path) then
         local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
         local canvasOut, contextOut, extra = {}, {}, {}
         krl:BeginDrawCanvasToRenderTarget(gi, rt, canvasOut, contextOut, extra)
@@ -1117,9 +1096,7 @@ local function colourMap(krl, tex, gi)
         if ok then printNow = fp else log("map: no fingerprint (" .. tostring(fp) .. "): keeping the saved colour map") end
     end
     local saved = readFile(path .. ".txt")
-    local f = io.open(path, "rb")
-    if f then
-        f:close()
+    if UTIL.exists(path) then
         if not printNow or saved == printNow then return path end
         if saved then log("map: the game's map picture changed (another mod?): saving it again")
         else log("map: saving the colour map again with a fingerprint (made before map changes were checked)") end
@@ -1253,25 +1230,22 @@ local function composeTerritories(ctx, passes, key)
     -- From the Art lane's distance field when the DLL has it (dev.34: smooth at 4096, where the 2048 label map gave stairs
     -- and octagons; area_field*.png, made from the label maps by tools/map_fields.py), else from the label map at 2048.
     local field = W.dir .. "\\area_field" .. SUFFIX .. ".png"
-    local fh = AP_ComposeField and io.open(field, "rb")
-    if fh then fh:close() end
+    local hasField = AP_ComposeField and UTIL.exists(field)
     local err, size, whole
-    if fh then
+    if hasField then
         -- With the colour map (the player's own map, saved once; the user, dev.33: locked areas' "interior should be the
         -- greyscale"): the whole map picture, greyscale where locked, the walls there in the area's colour.
         local colour = W.dir .. "\\" .. COLOUR_FILE
-        local ch = io.open(colour, "rb")
-        if ch then ch:close()
-        else
+        local hasColour = UTIL.exists(colour)
+        if not hasColour then
             pcall(LoadAsset, MAP_TEXTURE)
             local tex = StaticFindObject(MAP_TEXTURE)
             if tex and tex:IsValid() then
                 local okc, path = pcall(colourMap, krl, tex, gi)
-                ch = okc and path and io.open(path, "rb")
-                if ch then ch:close() end
+                hasColour = okc and path and UTIL.exists(path) or false
             end
         end
-        size, whole = 4096, ch and true or false
+        size, whole = 4096, hasColour
         err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
             W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", "0.4545")
     else
@@ -1281,7 +1255,8 @@ local function composeTerritories(ctx, passes, key)
     end
     if err == "" then
         terr.composing, terr.size, terr.whole = key, size, whole or false
-        once("terrfrom" .. size, "map territories: composing " .. (fh and "from the distance field" or "from the label map") .. " at " .. size)
+        once("terrfrom" .. size, "map territories: composing "
+            .. (hasField and "from the distance field" or "from the label map") .. " at " .. size)
     elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
     return false
 end
@@ -1364,8 +1339,7 @@ local function composeMap(ctx, passes, key, open)
         return drawn and done == key
     end
     local colour = W.dir .. "\\" .. COLOUR_FILE
-    local saved = io.open(colour, "rb")
-    if saved then saved:close() end
+    local saved = UTIL.exists(colour)
     if open or printChecked or not saved then
         pcall(LoadAsset, MAP_TEXTURE)
         local tex = StaticFindObject(MAP_TEXTURE)
@@ -1423,8 +1397,7 @@ local function tellCpp()
         AP_MapScreen("fog", fogColour())
     end
     if mapRT and mapRT:IsValid() then
-        local full = mapRT:GetFullName()
-        local path = full:match("^%S+%s+(.+)$") or full            -- "Class /Path.Object" -> "/Path.Object"
+        local path = UTIL.objectPath(mapRT)
         if path ~= cpp.body then cpp.body = path; AP_MapScreen("body", path) end
     end
 end
@@ -1501,7 +1474,7 @@ local EARLY_MASK_TRIES = 10
 W.chartOff = false
 local chart = { state = "none", fog = "idle", spec = nil, ticks = 0, exportedAt = nil, tex = nil, stampKey = nil,
                 old = false, keptAt = nil }            -- keptAt: the fog picture's place in the kept objects
-local function exists(path) local f = io.open(path, "rb"); if f then f:close(); return true end return false end
+local exists = UTIL.exists
 local function artFile(name)
     local path = ART.dir .. "\\art\\" .. name .. ".png"
     return exists(path) and path or ""
@@ -1682,8 +1655,7 @@ local function chartTick(ctx, screens, opening, passes, key)
         if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
         chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
         chart.tex = tex
-        local full = tex:GetFullName()
-        AP_MapScreen("fogpic", full:match("^%S+%s+(.+)$") or full)
+        AP_MapScreen("fogpic", UTIL.objectPath(tex))
         log("map chart: the fog picture is ready (" .. (chart.old and chart.fog == "idle" and not chart.stampKey and "last session's" or "new") .. ")")
     end
 end

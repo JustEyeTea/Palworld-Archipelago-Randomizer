@@ -84,6 +84,44 @@ function UTIL.addr(obj)
     end)
 end
 
+-- The game instance, or nil. It lives all session (objects it owns are kept alive), so it is kept here and looked up
+-- again only when it is no longer valid.
+local gameInstanceKept = nil
+function UTIL.gameInstance()
+    if gameInstanceKept and gameInstanceKept:IsValid() then
+        return gameInstanceKept
+    end
+    local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
+    gameInstanceKept = gi and gi:IsValid() and gi or nil
+    return gameInstanceKept
+end
+
+-- An object's path without its class: GetFullName gives "Class /Path.Object", the engine's lookups take "/Path.Object".
+function UTIL.objectPath(obj)
+    local full = obj:GetFullName()
+    return full:match("^%S+%s+(.+)$") or full
+end
+
+-- Whether a file can be opened for reading.
+function UTIL.exists(path)
+    local f = io.open(path, "rb")
+    if not f then
+        return false
+    end
+    f:close()
+    return true
+end
+
+-- An sRGB colour "RRGGBB" as the linear-light colour UMG and materials take, with alpha (1 when left out).
+function UTIL.linear(hex, alpha)
+    local colour = { A = alpha or 1 }
+    for channel, at in pairs({ R = 1, G = 3, B = 5 }) do
+        local v = tonumber(hex:sub(at, at + 1), 16) / 255
+        colour[channel] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
+    end
+    return colour
+end
+
 -- Whether a widget belongs to a player who is gone: after Return to title and another world load, FindAllOf still
 -- lists the last world's widgets for a while. A widget whose owner cannot be read counts as not gone.
 function UTIL.ownerGone(widget)

@@ -17,15 +17,8 @@ local BAR = { 86, 60, 280, 9 }
 local log = UTIL.log
 local once = UTIL.onceIn("hint_popup")
 
--- sRGB #RRGGBB (the brand palette, art-assets src/brand.py) as UMG's linear colour.
-local function linear(hex, a)
-    local c = { A = a or 1 }
-    for k, at in pairs({ R = 1, G = 3, B = 5 }) do
-        local v = tonumber(hex:sub(at, at + 1), 16) / 255
-        c[k] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
-    end
-    return c
-end
+-- The brand palette's sRGB colours (the project's art), as UMG's linear colour.
+local linear = UTIL.linear
 local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECBE6E"), linear("17324D", 0.94)
 
 local shown = nil                        -- { box, untilTick, hud = the HUD layout's address when shown }
@@ -59,16 +52,9 @@ local function text(outer, s, size, colour)
     t:SetText(FText(s))
     return t
 end
--- A plain filled box (an Image with no texture draws white; its colour tints it) w x h, in a SizeBox.
+-- A plain box w x h tinted `colour`, in a SizeBox.
 local function fill(outer, w, h, colour)
-    local img = StaticConstructObject(StaticFindObject("/Script/UMG.Image"), outer)
-    pcall(function() img:SetColorAndOpacity(colour) end)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
-    box:SetWidthOverride(w)
-    box:SetHeightOverride(h)
-    local s = box:AddChild(img)
-    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)
-    return box
+    return (ART.sizedImage(outer, w, h, nil, colour))
 end
 local function place(over, w, left, top)
     local s = over:AddChild(w)
