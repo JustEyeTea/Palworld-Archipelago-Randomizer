@@ -45,6 +45,33 @@ class TestRelicHuntRoom(PalworldTestBase):
             self.world_setup()
 
 
+class TestTooFewFillerForTheFillerOnlySlots(PalworldTestBase):
+    """The World Tree with captures, alphas and fast travel off: enough checks for every item, but too few left over
+    for the tech slots that hold only filler (unaffordable_slots)."""
+    auto_construct = False
+    options = {"goal": "world_tree", "capture_checks": False, "alpha_checks": False, "fast_travel_checks": False}
+
+    def test_refused(self):
+        with self.assertRaises(OptionError):
+            self.world_setup()
+
+
+class TestRelicHuntCheckLevelTwo(PalworldTestBase):
+    """A Relic Hunt under the lowest cap: the relics take only the room the filler-only tech slots leave, so the seed
+    fills (WorldTestBase's own tests)."""
+    options = {"goal": "relic_hunt", "check_level": 2}
+
+    def test_fewer_relics(self):
+        from BaseClasses import LocationProgressType
+        from ..options import RelicCount
+        filler_only = [l for l in self.multiworld.get_locations(self.player)
+                       if l.progress_type == LocationProgressType.EXCLUDED]
+        self.assertTrue(filler_only, "a level-2 tech slot a player can't be sure to afford")
+        self.assertLess(self.world.relics, RelicCount.default)
+        relics = sum(1 for i in self.multiworld.itempool if i.name == "Palpagos Relic")
+        self.assertEqual(relics, self.world.relics)
+
+
 class TestRunStyleNomad(PalworldTestBase):
     """Nomad and Speed Boost change nothing in the seed itself; the mod reads them from the slot data."""
     options = {"run_style": "nomad", "speed_boost": True, "boost_exp_rate": 5}

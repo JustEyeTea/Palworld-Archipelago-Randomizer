@@ -290,20 +290,24 @@ class PalworldWorld(World):
         self.unaffordable = self.unaffordable_slots()
 
     def check_counts(self) -> None:
-        """Stops a seed the options can't fill: a Paldeck goal above the cap, or more items than checks."""
+        """Stops a seed the options can't fill: a Paldeck goal above the cap, or more items and filler-only slots than
+        checks."""
         o = self.options
         if self.goal_rules().pals:              # the goal must fit under the cap, as the map has lowered it
             reachable = sum(1 for level in self.capture_levels.values() if level <= self.cap)
             if reachable < o.paldeck_count.value:
                 raise OptionError(f"Palworld ({self.player_name}): only {reachable} Pals can be registered by level "
                                 f"{self.cap}; lower Pals to Register or raise the Check Level Cap.")
-        # Every item needs a location: the passes and techs alone can outnumber the checks when most kinds are off.
+        # Every item needs a location, and every unaffordable tech slot a filler item or trap, since Archipelago puts
+        # nothing else there: the passes and techs alone can outnumber the checks when most kinds are off.
         relic_hunt = self.goal_rules().relics
         locations = sum(1 for loc in LOCATIONS if self.wanted(loc))
         items = len(self.pool_names())
-        if locations - items < relic_hunt:
-            raise OptionError(f"Palworld ({self.player_name}): {locations} checks for {items} items"
-                              + (" and at least one relic" if relic_hunt else "")
+        filler_only = len(self.unaffordable)
+        if locations - items - filler_only < relic_hunt:
+            raise OptionError(f"Palworld ({self.player_name}): {locations} checks for {items} items, "
+                              f"{filler_only} tech slots that hold only filler (the ones a player can't be sure to "
+                              f"afford)" + (" and at least one relic" if relic_hunt else "")
                               + "; turn on more checks (capture, alpha, fast-travel or level checks) or raise the "
                                 "Check Level Cap.")
         if o.trap_chance and not any(self.trap_weights()):
@@ -774,9 +778,12 @@ class PalworldWorld(World):
         """The item pool: passes, techs (or Progressive Spheres), relics, and filler or traps for every other check."""
         pool = [self.create_item(name) for name in self.pool_names()]
         self.place_first_sphere(pool)
-        slots = sum(1 for loc in self.multiworld.get_unfilled_locations(self.player))
+        unfilled = self.multiworld.get_unfilled_locations(self.player)
+        slots = len(unfilled)
         if self.goal_rules().relics:
-            room = slots - len(pool)
+            # Relics are progression, so they can't go in the excluded slots: those keep their filler.
+            filler_only = sum(1 for loc in unfilled if loc.progress_type == LocationProgressType.EXCLUDED)
+            room = slots - len(pool) - filler_only
             if room < self.relics:              # a small seed: fewer relics, the same share needed
                 logging.warning(f"Palworld ({self.player_name}): room for only {room} of {self.relics} relics")
                 self.relics = room                  # at least one: generate_early made sure of it
