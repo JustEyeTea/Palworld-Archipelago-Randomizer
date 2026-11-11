@@ -1,0 +1,141 @@
+-- Area locks: walls on the borders of areas whose pass has not arrived, the map that shows them, the open areas the
+-- player has visited, and sending the player home from inside a locked area. The walls themselves are walls.lua's;
+-- this file decides when they act. Wired by main.lua (AREA_LOCKS.configureWalls); its update calls AREA_LOCKS.update.
+-- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "area locks", "a new world" and "another world".
+local AREA_LOCKS = {}
+local CONFIG = require("config")
+local P = require("perf")
+local PLAYER = require("player")
+local STATE = require("ap_state")
+local UTIL = require("util")
+local WALL_HINTS = require("wall_hints")
+local WALLS = require("walls")
+local WORLD = require("world")
+local ap = STATE.ap
+local cfg = CONFIG.cfg
+local keep, keepInPlace = UTIL.keep, UTIL.keepInPlace
+local log, onceErr = UTIL.log, UTIL.onceErr
+local notify, playerState = PLAYER.notify, PLAYER.playerState
+local SENT_HOME_AFTER = 2       -- looks in a row (one per cycle) inside a locked area before the player is sent home
+
+local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
+local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
+-- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
+-- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
+local areaLocks = false       -- state: set each connection (AREA_LOCKS.setOn, from applySeedOptions)
+
+-- Sets whether this seed has area locks (each connection).
+function AREA_LOCKS.setOn(on)
+    areaLocks = on
+end
+
+-- Hands the walls, the map and the wall skins their settings from config.txt, and the walls and the art what keeps
+-- their textures alive (start-up). `dir` is the mod's folder.
+function AREA_LOCKS.configureWalls(dir)
+    WALLS.keep, WALLS.keepInPlace = keep, keepInPlace
+    WALLS.dir = dir
+    WALLS.cppOff = cfg.map_cpp == "0"
+    WALLS.chartOff = cfg.map_chart == "0"
+    WALLS.iconsOff = cfg.map_icons == "0"
+    WALLS.regionsOff = cfg.map_regions == "0"
+    WALLS.mapStyle = cfg.map_style == "chart" and "chart" or "territories"
+    WALLS.testFogColour = cfg.test_tools == "1"
+    do local ART = require("art"); ART.keep, ART.dir = keep, dir end
+    do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|b3d-dense, wall_tiling=U,V and wall_scroll=U,V in config.txt
+        local function pair(s)
+            local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
+            return u and { tonumber(u), tonumber(v) } or nil
+        end
+        WALLS.tiling, WALLS.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
+        -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall walls)
+        local radius = tonumber(cfg.wall_radius or "")
+        if radius and radius >= 0 then WALLS.radius = radius * 100 end
+        local fade = pair(cfg.wall_fade)
+        if fade and fade[2] > fade[1] then WALLS.fade = { fade[1] * 100, fade[2] * 100 } end
+        WALLS.setSkin(cfg.wall_skin)
+    end
+end
+
+-- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open stamp).
+local function rememberVisited(pawn)
+    local okv, here = pcall(function()
+        local loc = pawn:K2_GetActorLocation()
+        return WALLS.areaAt(loc.X, loc.Y)
+    end)
+    if not (okv and here) or ap.visited[here] or here == "Open sea" then return end
+    if here == WALLS.start or ap.passes[here] then
+        ap.visited[here] = true
+        log("visited " .. here)
+    end
+end
+
+-- A player inside a locked area (loaded there, or past a wall) for SENT_HOME_AFTER looks in a row goes back to the
+-- starting area.
+local function sendHomeIfLocked(pawn)
+    local okl, where = pcall(function()
+        local loc = pawn:K2_GetActorLocation()
+        return WALLS.lockedAround(loc.X, loc.Y, ap.passes)
+    end)
+    lockedTicks = (okl and where) and lockedTicks + 1 or 0
+    if lockedTicks < SENT_HOME_AFTER then return end
+    lockedTicks = 0
+    local h = WALLS.home
+    local okt, errt = pcall(function()
+        pawn:K2_TeleportTo({ X = h[1], Y = h[2], Z = h[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
+    end)
+    log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
+    notify(tostring(where) .. ((ap.beyond and ap.beyond[where]) and " is beyond this seed's goal."
+        or " is locked until its pass arrives.") .. " Back to " .. WALLS.start .. ".")
+end
+
+-- Area locks: walls on the borders of areas whose pass has not arrived (only in a seed with area locks on), and the
+-- map. Nothing happens for WAIT.settle after a world loads: spawning into a world still loading can crash the game.
+function AREA_LOCKS.update(pawn)
+    if WORLD.key() and WORLD.seedWorld() == false then
+        pcall(WALLS.mapOff)                        -- (C++ would show the seed's map here)
+    end
+    if not (WORLD.settled() and WORLD.seedWorld()) then return end
+    local on = areaLocks
+    -- Ctrl+7 (perf test tools) can hold the walls in a test state: nothing is raised, lowered or checked then.
+    local held = P.walls ~= "full"
+    P.start("walls")
+    if not held then
+        local ok, err = pcall(WALLS.update, on, ap.passes, pawn)
+        if not ok then onceErr("walls", err, "walls error: " .. tostring(err)) end
+    end
+    P.stop("walls")
+    P.start("map")
+    local ok, err = pcall(WALLS.updateMap, on, ap.passes, pawn)
+    P.stop("map")
+    if not ok then onceErr("map", err, "map error: " .. tostring(err)) end
+    local up, all = WALLS.count()
+    if up > 0 and not wallsLogged then
+        wallsLogged = true
+        log("area locks: raising walls (" .. all .. " border pieces)")
+    end
+end
+
+-- Whether the area locks act on the player this update: ready (a pawn was read), in the seed's world once it has
+-- settled, and with area locks on. Inside a stage (a dungeon, a tower's arena) the map position says nothing about
+-- the area the player entered it from: no notice, no visit and no sending home there.
+local function areaLocksApply(pawn)
+    if not (pawn and WORLD.settled() and WORLD.seedWorld() and areaLocks) then return false end
+    local okS, inStage = pcall(function() return playerState():IsInStage() end)
+    return not (okS and inStage)
+end
+
+-- The areas phase: the open areas the player stands in, and sending the player home from inside a locked one.
+function AREA_LOCKS.phaseAreas(pawn)
+    if not areaLocksApply(pawn) then return end
+    rememberVisited(pawn)
+    -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
+    if P.walls == "full" then sendHomeIfLocked(pawn) end
+end
+
+-- The wall-notice phase: the chat notice and hint offer at a locked wall the player walks up to.
+function AREA_LOCKS.phaseWallNotice(pawn)
+    if not areaLocksApply(pawn) then return end
+    WALL_HINTS.noticeLockedWall(pawn)
+end
+
+return AREA_LOCKS
