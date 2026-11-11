@@ -72,6 +72,15 @@ class TestRelicHuntCheckLevelTwo(PalworldTestBase):
         self.assertEqual(relics, self.world.relics)
 
 
+class TestNoRelicsWithoutARelicGoal(PalworldTestBase):
+    """The default goal (Towers) puts no relic in the pool, and slot data says so, whatever Relic Count says."""
+
+    def test_slot_data_counts_no_relics(self):
+        data = self.world.fill_slot_data()
+        self.assertEqual((data["relics"], data["relics_needed"]), (0, 0))
+        self.assertFalse(any(i.name == "Palpagos Relic" for i in self.multiworld.itempool))
+
+
 class TestRunStyleNomad(PalworldTestBase):
     """Nomad and Speed Boost change nothing in the seed itself; the mod reads them from the slot data."""
     options = {"run_style": "nomad", "speed_boost": True, "boost_exp_rate": 5}

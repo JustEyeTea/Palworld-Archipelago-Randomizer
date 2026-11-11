@@ -148,7 +148,8 @@ class PalworldWorld(World):
     #   generate_early  layout          the cut of the map (Lock Size): pieces, borders, passes, sources
     #                   levels          the levels that cut gives (Levels): towers, techs, each Pal
     #                   gear            Gear Logic is on
-    #   plan_relics     relics          Palpagos Relics in the pool (create_items lowers it in a small seed)
+    #   plan_relics     relics          Palpagos Relics in the pool, 0 without a relic goal (create_items lowers it
+    #                                   in a small seed)
     #                   relics_needed   how many of them win (lowered with relics)
     #   plan_cap        asked_cap       the Check Level Cap the options ask for: the player's, or the goal's auto cap
     #   plan_map        goal_towers     the towers the goal needs, in the game's order
@@ -181,8 +182,9 @@ class PalworldWorld(World):
         self.check_counts()
 
     def plan_relics(self) -> None:
-        """The relics in the pool (Relic Count) and how many of them win (Relics Needed)."""
-        self.relics = self.options.relic_count.value
+        """The relics in the pool (Relic Count, for a goal with relics; none otherwise) and how many of them win
+        (Relics Needed)."""
+        self.relics = self.options.relic_count.value if self.goal_rules().relics else 0
         self.relics_needed = self.relics_to_win(self.relics)
 
     def plan_cap(self) -> None:
