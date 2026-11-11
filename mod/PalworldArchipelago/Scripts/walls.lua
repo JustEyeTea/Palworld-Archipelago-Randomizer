@@ -4,11 +4,13 @@
 -- areas.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
 -- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
 -- W, the table main.lua sees. Its fields:
---   set by main.lua (config.txt, slot data): keep, keepInPlace, dir, radius, fade, tiling, scroll, mapStyle, cppOff,
---     testFogColour, chartOff, iconsOff, regionsOff, visited (main.lua's own set), and beyond (through setBeyond);
---     each part sets its own defaults at install
---   called by main.lua and its other modules: update, updateMap, reset, setLayout, setBeyond, setSkin, cycleSkin,
---     perfMode, count, lockedNear, lockedAround, areaAt, passName, parentOf, slugOf, mapShown, mapOff, oldSweep;
+--   handed over by main.lua (W.install, from config.txt): keep, keepInPlace, dir, radius, fade, tiling, scroll,
+--     mapStyle, cppOff, testFogColour, chartOff, iconsOff, regionsOff, visited (main.lua's own set, again through
+--     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
+--     install. The harness sets them on its copies directly
+--   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
+--     setSkin, cycleSkin, perfMode, count, lockedNear, lockedAround, areaAt, passName, parentOf, slugOf, mapShown,
+--     mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS
 --   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, AREA_COLOURS
 local W = {}
@@ -20,6 +22,29 @@ local function freshPart(name)
     package.loaded[name] = nil
     return require(name)
 end
+-- The fields W.install takes: what main.lua hands over (the header's list).
+local HANDED_OVER = {
+    keep = true, keepInPlace = true, dir = true, visited = true, radius = true, fade = true, tiling = true,
+    scroll = true, mapStyle = true, cppOff = true, testFogColour = true, chartOff = true, iconsOff = true,
+    regionsOff = true,
+}
+
+-- Takes what main.lua hands over, each as the field of its name that the parts read. A name not in the list is an
+-- error; a setting left out keeps its default.
+function W.install(env)
+    for name, value in pairs(env) do
+        if not HANDED_OVER[name] then
+            error("walls: W.install was handed an unknown field: " .. tostring(name))
+        end
+        W[name] = value
+    end
+end
+
+-- The areas the player has stood in: main.lua's own set (in its save), handed over again when a new seed replaces it.
+function W.setVisited(set)
+    W.visited = set
+end
+
 local AREAS = freshPart("areas")
 AREAS.install(W)
 local WALL_SKINS = freshPart("wall_skins")

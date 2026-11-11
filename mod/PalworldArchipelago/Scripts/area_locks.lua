@@ -3,6 +3,7 @@
 -- this file decides when they act. Wired by main.lua (AREA_LOCKS.configureWalls); its update calls AREA_LOCKS.update.
 -- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "area locks", "a new world" and "another world".
 local AREA_LOCKS = {}
+local ART = require("art")
 local CONFIG = require("config")
 local P = require("perf")
 local PLAYER = require("player")
@@ -32,28 +33,31 @@ end
 -- Hands the walls, the map and the wall skins their settings from config.txt, and the walls and the art what keeps
 -- their textures alive (start-up). `dir` is the mod's folder.
 function AREA_LOCKS.configureWalls(dir)
-    WALLS.keep, WALLS.keepInPlace = keep, keepInPlace
-    WALLS.dir = dir
-    WALLS.cppOff = cfg.map_cpp == "0"
-    WALLS.chartOff = cfg.map_chart == "0"
-    WALLS.iconsOff = cfg.map_icons == "0"
-    WALLS.regionsOff = cfg.map_regions == "0"
-    WALLS.mapStyle = cfg.map_style == "chart" and "chart" or "territories"
-    WALLS.testFogColour = cfg.test_tools == "1"
-    do local ART = require("art"); ART.keep, ART.dir = keep, dir end
-    do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|b3d-dense, wall_tiling=U,V and wall_scroll=U,V in config.txt
-        local function pair(s)
-            local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
-            return u and { tonumber(u), tonumber(v) } or nil
-        end
-        WALLS.tiling, WALLS.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
-        -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall walls)
-        local radius = tonumber(cfg.wall_radius or "")
-        if radius and radius >= 0 then WALLS.radius = radius * 100 end
-        local fade = pair(cfg.wall_fade)
-        if fade and fade[2] > fade[1] then WALLS.fade = { fade[1] * 100, fade[2] * 100 } end
-        WALLS.setSkin(cfg.wall_skin)
+    local settings = {
+        keep = keep, keepInPlace = keepInPlace, dir = dir,
+        visited = ap.visited,                 -- (the same table: the map reads it)
+        cppOff = cfg.map_cpp == "0",
+        chartOff = cfg.map_chart == "0",
+        iconsOff = cfg.map_icons == "0",
+        regionsOff = cfg.map_regions == "0",
+        mapStyle = cfg.map_style == "chart" and "chart" or "territories",
+        testFogColour = cfg.test_tools == "1",
+    }
+    -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|b3d-dense, wall_tiling=U,V and
+    -- wall_scroll=U,V in config.txt
+    local function pair(s)
+        local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
+        return u and { tonumber(u), tonumber(v) } or nil
     end
+    settings.tiling, settings.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
+    -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall walls)
+    local radius = tonumber(cfg.wall_radius or "")
+    if radius and radius >= 0 then settings.radius = radius * 100 end
+    local fade = pair(cfg.wall_fade)
+    if fade and fade[2] > fade[1] then settings.fade = { fade[1] * 100, fade[2] * 100 } end
+    WALLS.install(settings)
+    ART.install({ keep = keep, dir = dir })
+    WALLS.setSkin(cfg.wall_skin)
 end
 
 -- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open stamp).

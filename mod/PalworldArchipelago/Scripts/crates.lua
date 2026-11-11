@@ -180,6 +180,23 @@ function C.load(line)
 end
 function C.reset() C.list, C.pending = {}, {} end
 
+-- Holds n of item `id` that the bag refused (crate gear, a Nomad gift), to be tried again by C.retryBag.
+function C.holdForBag(id, n)
+    C.pending[#C.pending + 1] = { id, n }
+end
+
+-- Tries the held items again, oldest first. give(id, n) puts up to n in the bag and returns how many went in; the
+-- first item that gets none stops the round, so the order is kept.
+function C.retryBag(give)
+    while C.pending[1] do
+        local e = C.pending[1]
+        local got = give(e[1], e[2])
+        if got <= 0 then return end
+        e[2] = e[2] - got
+        if e[2] <= 0 then table.remove(C.pending, 1) end
+    end
+end
+
 -- The player's tier: the best sphere unlocked by `level` (1-based index into SPHERES); rank 1-5 for gear and food.
 local function sphereTier(level)
     local t = 1

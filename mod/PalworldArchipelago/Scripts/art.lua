@@ -1,6 +1,7 @@
 -- The Art & Assets lane's images (art\*.png in the mod folder: the title banner, the status dot, the mailbox emblem,
 -- the map's stamps; wall_skins.lua loads the wall patterns itself), each loaded once a session through the game
--- instance and kept alive (main.lua sets A.keep): a texture nothing keeps is collected and comes back white.
+-- instance and kept alive (A.keep, handed over by main.lua): a texture nothing keeps is collected and comes back white.
+-- Wired by area_locks.lua's configureWalls at start-up (A.install).
 -- Tests: mod/test/harness.lua, the block "the Art & Assets lane's round-1 art (art.lua)" in group "test tools: giving a
 -- Pal through the connector", and through the map's stamps and icons in group "the world map".
 local A = { dir = ".", keep = function() end }
@@ -8,6 +9,11 @@ local textures, failed = {}, {}
 local UTIL = require("util")
 local WIDGETS = require("widgets")
 local log = UTIL.log
+
+-- Takes what main.lua hands over: keep(texture), which keeps a texture alive, and dir, the mod's folder.
+function A.install(env)
+    A.keep, A.dir = env.keep, env.dir
+end
 
 -- The texture of art `name`, kept alive, or nil; a file that could not be loaded is not tried again this session.
 function A.texture(name)

@@ -72,15 +72,14 @@ local waiting = nil           -- the index of a bundle the bag had no room for (
 -- Gear and accessories from a crate go straight to the bag (the mailbox chest can't hold per-item data); what the
 -- bag refused is tried again here, every applying update.
 local function givePending()
-    while CRATES.pending[1] do
-        local e = CRATES.pending[1]
-        local okg, got = pcall(BAG.give, e[1], e[2])
+    CRATES.retryBag(function(id, n)
+        local okg, got = pcall(BAG.give, id, n)
         got = okg and got or 0
-        if got <= 0 then return end
-        e[2] = e[2] - got
-        if e[2] <= 0 then table.remove(CRATES.pending, 1) end
-        notify("Your bag had room: " .. BAG.nameOf(e[1]) .. " from a crate is in it now.")
-    end
+        if got > 0 then
+            notify("Your bag had room: " .. BAG.nameOf(id) .. " from a crate is in it now.")
+        end
+        return got
+    end)
 end
 
 -- Opening a crate (the Inventory page's Open button: the next one; the crate window's: one of `kind`), its contents
@@ -98,7 +97,7 @@ function ITEMS.openCrate(kind)
         if r.bag or not MAIL.on() then
             local okg, got = pcall(BAG.give, r.id, r.n)
             got = okg and got or 0
-            if got < r.n then CRATES.pending[#CRATES.pending + 1] = { r.id, r.n - got } end
+            if got < r.n then CRATES.holdForBag(r.id, r.n - got) end
             parts[#parts + 1] = (r.n > 1 and (r.n .. " x ") or "") .. name .. (got < r.n and " (waits for room in your bag)" or " (in your bag)")
         else
             MAIL.add(r.id, r.n)
@@ -124,7 +123,7 @@ local function giveTechGift(it)
         if g.bag or not MAIL.on() then
             local okg, got = pcall(BAG.give, id, n)
             got = okg and got or 0
-            if got < n then CRATES.pending[#CRATES.pending + 1] = { id, n - got } end
+            if got < n then CRATES.holdForBag(id, n - got) end
             parts[#parts + 1] = (n > 1 and (n .. " x ") or "") .. name .. (got < n and " (waits for room in your bag)" or " (in your bag)")
         else
             MAIL.add(id, n)

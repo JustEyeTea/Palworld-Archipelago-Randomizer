@@ -57,7 +57,7 @@ end
 -- is written at its state.
 local function resetSeed()
     STATE.forgetSeed()
-    WALLS.visited = ap.visited                -- (the new table: the map reads it)
+    WALLS.setVisited(ap.visited)              -- (the new table: the map reads it)
     CRATES.reset()
     SYNC.reset()
     MAIL.reset()

@@ -254,7 +254,6 @@ end
 
 -- The files that keep files next to the mod (the save, research.txt, mod_techs.txt, the icons) get its folder.
 local function installCoreFiles()
-    WALLS.visited = ap.visited                -- (the same table: the map reads it)
     SAVE.install({ dir = modDir })
     TECH_LOCK.install({ dir = modDir })
     TECH_LOCK.readLastResearch()
