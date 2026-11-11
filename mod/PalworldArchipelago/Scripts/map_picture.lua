@@ -102,7 +102,7 @@ local function stampSize(c)
 end
 MAP_PICTURE.stampSize = stampSize                                 -- (for the harness)
 local iconsActive, stampTexture = nil, nil   -- (the icons part's: install)
-local function drawStamps(canvas, krl, gi, locked)
+local function drawStamps(canvas, locked)
     if iconsActive() then once("stampsicons", "map: locked areas are shown as map icons, not drawn on the picture"); return end
     local n = 0
     for _, k in ipairs(locked) do
@@ -179,7 +179,7 @@ local function bandOf(k, tint)
     bands[key] = out
     return out
 end
-local function drawMap(pawn, passes)
+local function drawMap(passes)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local tex = gameMapTexture()
     if not tex then return false end
@@ -206,7 +206,7 @@ local function drawMap(pawn, passes)
             if #band > 0 then canvas:K2_DrawTriangle(grey or tex, band) end
         end
     end
-    local okS, errS = pcall(drawStamps, canvas, krl, gi, lockedList(passes))
+    local okS, errS = pcall(drawStamps, canvas, lockedList(passes))
     if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
     krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
     return true
@@ -321,7 +321,6 @@ local function wallSpec(passes)
     end
     return table.concat(out, ";")
 end
-MAP_PICTURE.areaSpec, MAP_PICTURE.wallSpec = areaSpec, wallSpec
 -- Draws the finished Territories picture into the map picture: "ready" when it is the look for `key` ("busy" when
 -- another is wanted by now), "failed" when a file could not be loaded.
 local function drawTerritories(krl, gi, k, key)
@@ -406,7 +405,7 @@ local function startTerritories(krl, gi, passes, key)
     elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
 end
 -- The Territories job: "ready", "busy" or "failed" (see greyJob).
-local function composeTerritories(pawn, passes, key)
+local function composeTerritories(passes, key)
     if not terr.composing then
         if terr.done == key then return "ready" end
         if terr.failed == key then return "failed" end
@@ -447,7 +446,7 @@ local function drawComposed(krl, gi, done)
     end
     drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
         drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
-        local okS, errS = pcall(drawStamps, canvas, krl, gi, greyJob.locked)
+        local okS, errS = pcall(drawStamps, canvas, greyJob.locked)
         if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
     end)
     greyJob.done = done
@@ -497,13 +496,13 @@ end
 -- two while it was made, and C++ had nothing to show yet). Until the map opens, the colour map saved in an earlier
 -- session is used as it is, without loading the game's 8192 px map; at the first opening the game's map is checked
 -- against it once (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
-local function composeMap(pawn, passes, key, open)
+local function composeMap(passes, key, open)
     if territories() then
         -- (Only a picture made from the colour map: the overlay alone is drawn over the game's own map each time.)
         if open and terr.whole and not terr.composing and colourMapRenewed() then
             terr.done = nil
         end
-        return composeTerritories(pawn, passes, key)
+        return composeTerritories(passes, key)
     end
     if not greyJob.composing then            -- the usual case: nothing to do, nothing to look up
         if greyJob.done == key then
@@ -573,11 +572,11 @@ end
 -- Makes the picture for `key` if it is not made yet: composed by the C++ part in the background, or (without it, or
 -- after it failed) drawn here once a map screen is open. Returns whether there is a picture, and whether it was made
 -- just now.
-local function makePicture(pawn, passes, key, open, nLocked)
+local function makePicture(passes, key, open, nLocked)
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then
-        local ok, pictureReady = pcall(composeMap, pawn, passes, key, open)
+        local ok, pictureReady = pcall(composeMap, passes, key, open)
         if not ok then
             once("composeerr" .. tostring(pictureReady), "map error: " .. tostring(pictureReady))
             pictureReady = "busy"
@@ -594,7 +593,7 @@ local function makePicture(pawn, passes, key, open, nLocked)
     end
     if not compose and key ~= mapKey then
         if not open then return false end          -- without the compositor the map is drawn when it opens, as before
-        local ok, done = pcall(drawMap, pawn, passes)
+        local ok, done = pcall(drawMap, passes)
         if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return false end
         if not done then return false end
         mapKey, redrawn = key, true
@@ -642,7 +641,7 @@ function MAP_PICTURE.updateMap(enabled, passes, pawn)
     local opening = MAP_FOG.noteShown(screens) > 0 and not wasShown
     local key, nLocked = pictureKey(passes)
     MAP_FOG.step(pawn, screens, opening, passes, key)
-    local made, redrawn = makePicture(pawn, passes, key, #images > 0, nLocked)
+    local made, redrawn = makePicture(passes, key, #images > 0, nLocked)
     if not made or not mapRT or not mapRT:IsValid() then return end
     local okc, errc = pcall(MAP_FOG.tellCpp)
     if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end

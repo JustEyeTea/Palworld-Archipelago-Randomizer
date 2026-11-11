@@ -259,7 +259,7 @@ end
 -- called again (dev.42 crash: the world before's materials, dead, called 30 times a second); made again when needed.
 function WALL_SKINS.dropCaches()
     skin.mids, skin.failed = {}, {}                             -- (skin.base: the game's own red, an asset, kept)
-    if skin.now ~= "red" then skin.now = "red" end           -- so skinTick dresses the new world's pieces again
+    skin.now = "red"                                           -- so skinTick dresses the new world's pieces again
     dissolveMaterials, dissolveStarts, glowAt, apWall, pawLayer = {}, {}, nil, nil, nil
 end
 -- The game instance and the rendering and material libraries a skin's material is made with, once the walls' own

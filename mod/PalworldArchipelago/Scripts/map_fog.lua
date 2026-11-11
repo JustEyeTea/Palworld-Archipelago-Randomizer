@@ -256,7 +256,6 @@ local function regionSpec(passes)
         REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH),
         exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", GAMMA }, "|")
 end
-MAP_FOG.regionSpec = regionSpec
 local function startFog(stamps, regions, tag)
     local def = W.dir .. "\\" .. DEFAULT_MASK_FILE
     local art = territories() and TERR_FOG or CHART_FILE
@@ -404,7 +403,6 @@ local function chartTick(pawn, screens, opening, passes, key)
         loadFogPicture(krl, gi)
     end
 end
-MAP_FOG.chartStatus = function() return chart end
 -- A new world: its explored mask is read again before its map opens; what the last world's reads found says nothing
 -- of this one. (chart.spec, which channel of the mask means explored, holds for every world and is kept.)
 function MAP_FOG.resetMaskReads()

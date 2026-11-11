@@ -110,7 +110,7 @@ function H.show(info, tick)
     local canvas, layout, why = hudCanvas()
     if not canvas then once("popupnohud" .. why, "hint pop-up: " .. why .. "; chat only"); return false end
     local plateName = info.ready and "ap-hint-plate-ready" or "ap-hint-plate-short"
-    local plate, plateImg = ART.box(layout, plateName, WIDTH, HEIGHT)
+    local plate = ART.box(layout, plateName, WIDTH, HEIGHT)
     local box, over = hudBox(layout, WIDTH, HEIGHT)
     local bg = plate or fill(layout, WIDTH, HEIGHT, NAVY)
     local bs = over:AddChild(bg)
@@ -175,5 +175,5 @@ function H.forget()
     end
 end
 
-H.SHOW_TICKS = SHOW_TICKS
+H.SHOW_TICKS = SHOW_TICKS                -- (for the harness: how long a plate stays)
 return H
