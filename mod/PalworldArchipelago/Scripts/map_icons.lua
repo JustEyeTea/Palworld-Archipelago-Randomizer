@@ -89,15 +89,18 @@ local function iconsStillShown(icons, key)
 end
 -- The game's plain map icon class, loaded when first needed; raises an error when it cannot be found.
 local function iconClass()
-    local cls = StaticFindObject(ICON_ASSET .. "_C")
-    if not (cls and cls:IsValid()) then pcall(LoadAsset, ICON_ASSET); cls = StaticFindObject(ICON_ASSET .. "_C") end
-    if not (cls and cls:IsValid()) then error("no icon class " .. ICON_ASSET .. "_C") end
-    return cls
+    local class = StaticFindObject(ICON_ASSET .. "_C")
+    if not (class and class:IsValid()) then
+        pcall(LoadAsset, ICON_ASSET)
+        class = StaticFindObject(ICON_ASSET .. "_C")
+    end
+    if not (class and class:IsValid()) then error("no icon class " .. ICON_ASSET .. "_C") end
+    return class
 end
 -- Adds an icon showing `tex` at the point c (an area's centre row) to the screen and to icons.list; true when the
 -- screen says it is shown. Raises an error when the icon cannot be made.
-local function addIcon(screen, icons, cls, wbl, c, tex)
-    local icon = wbl:Create(screen, cls, nil)
+local function addIcon(screen, icons, class, wbl, c, tex)
+    local icon = wbl:Create(screen, class, nil)
     if not (icon and icon:IsValid()) then error("could not make a map icon") end
     icon:ChangeTexture(tex)
     local out = {}
@@ -119,13 +122,13 @@ local function placeIcons(screen, passes, key)
     end
     icons = { key = key, list = {} }
     mapIcons[addr] = icons
-    local cls = iconClass()
+    local class = iconClass()
     local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
     local added, shown = 0, 0
     for _, k in ipairs(lockedList(passes)) do
         local c, tex = layout.centres[k], stampTexture(k)
         if c and tex then
-            if addIcon(screen, icons, cls, wbl, c, tex) then shown = shown + 1 end
+            if addIcon(screen, icons, class, wbl, c, tex) then shown = shown + 1 end
             added = added + 1
         end
     end
@@ -133,7 +136,7 @@ local function placeIcons(screen, passes, key)
     for _, k in ipairs(openList(passes)) do
         local c, tex = layout.centres[k], openTexture(k)
         if c and tex then
-            addIcon(screen, icons, cls, wbl, c, tex)
+            addIcon(screen, icons, class, wbl, c, tex)
             opened = opened + 1
         end
     end
