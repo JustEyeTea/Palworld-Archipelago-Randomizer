@@ -208,8 +208,14 @@ treeBody = { IsValid = function() return true end, GetAddress = function() retur
 treeBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
 treeBody["Update Map Icons"] = function() end
 lookups = {}                   -- global: class -> FindAllOf calls, "first:" .. class -> FindFirstOf calls
+local wallsUp = {}             -- the wall actors standing (spawned and not destroyed): wall actor -> true
 FindAllOf = function(class)
     lookups[class] = (lookups[class] or 0) + 1
+    if class == "BP_PalBlockingVolume_C" then                 -- live walls only, as FindAllOf lists live objects
+        local list = {}
+        for a in pairs(wallsUp) do list[#list + 1] = a end
+        return list
+    end
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     -- (the template the title screen's asset keeps comes first, as FindAllOf can give it: dev.25 log)
     if class == "WBP_TitleMenu_C" then return titleOpen and { titleTemplate, titleMenu } or {} end
@@ -266,14 +272,15 @@ systemLib = { IsValid = function() return true end, GetFrameCount = function() r
 -- UE4SS: NotifyOnNewObject (docs/lua-api: a full class path and a callback given the new object).
 notifies = {}
 NotifyOnNewObject = function(path, cb) notifies[path] = cb end
-local wallsUp = {}
 wallRed = { IsValid = function() return true end, name = "MI_AirBlock_v2" }   -- the walls' shared red material
 lastGone = nil
 mapArt = 40                                                  -- the map picture the game shows (its fingerprint)
 local gameplay = { IsValid = function() return true end,
                    BeginDeferredActorSpawnFromClass = function(_, _, _, t)
                        spawned = (spawned or 0) + 1
-                       local a = { IsValid = function(self) return not self.gone end, t = t }
+                       local address = 0x500000 + spawned
+                       local a = { IsValid = function(self) return not self.gone end, t = t,
+                                   GetAddress = function() return address end }
                        a.Cube = { IsValid = function() return true end, GetMaterial = function(self) return self.mat or wallRed end,
                                   SetMaterial = function(self, _, m) self.mat = m end }      -- the wall's mesh
                        function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
@@ -1629,6 +1636,46 @@ do  -- Return to title and a new world: the new world's far pieces are hidden ag
     expect(#regions > #first and hiddenOf(regions) == #regions,
            "after a change of cut the new cut's far pieces are hidden: " .. hiddenOf(regions) .. " of " .. #regions)
     worldGoes(regions)
+do  -- Walls opening when the pawn reads nil for a moment (same world) still open; when the world goes, none of its
+    -- walls is called again (IsValid included), opening ones neither
+    local W, mine = freshWalls()
+    W.radius = 0
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local beside = {}                                         -- two areas next to the start
+    for _, w in ipairs(WD.walls) do
+        local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
+        local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
+        if other and other ~= "Open sea" and other ~= beside[1] then beside[#beside + 1] = other end
+        if #beside == 2 then break end
+    end
+    local passes = { [beside[1]] = true }
+    W.update(true, passes, offMap)                            -- a pass: its pieces begin to open
+    local opening = {}
+    for _, a in ipairs(mine()) do if a.shrunkTo then opening[#opening + 1] = a end end
+    W.reset()                                                 -- the core: the pawn read nil, then came back
+    for _ = 1, 20 do gameSeconds = gameSeconds + 0.3; W.update(true, passes, offMap) end
+    local stillUp = 0
+    for _, a in ipairs(opening) do if not a.gone then stillUp = stillUp + 1 end end
+    expect(#opening > 0 and stillUp == 0,
+           "a moment without a pawn: walls that were opening still go: " .. stillUp .. " of " .. #opening
+           .. " still up")
+    passes[beside[2]] = true
+    W.update(true, passes, offMap)                            -- another pass: more pieces begin to open
+    local calls, old, openingNow = 0, mine(), 0
+    for _, a in ipairs(old) do
+        if a.shrunkTo then openingNow = openingNow + 1 end
+        local function dead() calls = calls + 1; return false end
+        a.IsValid, a.SetActorScale3D, a.SetActorEnableCollision, a.K2_DestroyActor = dead, dead, dead, dead
+        a.SetActorHiddenInGame = dead
+    end
+    worldGoes(old)
+    W.reset()                                                 -- the core, on the new world's pawn
+    for _ = 1, 3 do gameSeconds = gameSeconds + 0.3; W.update(true, passes, offMap) end
+    expect(openingNow > 0 and calls == 0,
+           "after a world change no wall of the world that went is called: " .. calls .. " calls on " .. #old
+           .. " old walls, " .. openingNow .. " of them opening")
+    worldGoes(mine())
+end
 end
 end)()
 

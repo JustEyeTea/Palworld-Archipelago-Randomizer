@@ -19,6 +19,7 @@ local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
 
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
+local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
 local START = DATA.start
 local SEA = "Open sea"
 local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km above
@@ -37,6 +38,7 @@ local VIS_PER_TICK = 120      -- pieces shown or hidden an update (a teleport ch
 local hiddenAt = {}           -- piece -> true while hidden by distance
 
 local raised = {}             -- piece index -> wall actor
+local raisedAt = {}           -- piece index -> its actor's address, to tell it is still there without calling it
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
 local cls, gs = nil, nil
 -- Each piece's direction, worked out once (lockedNear did it for every raised piece every 7th update).
@@ -76,19 +78,42 @@ local dressedAs = {}           -- piece -> the material it wears with the area s
 -- Forgets piece i was raised, with its look: a new actor raised for it starts shown and undressed.
 local function forget(i)
     if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
+    raisedAt[i] = nil
     dressedAs[i] = nil
     hiddenAt[i] = nil
 end
+local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), addr = its address, dissolving }
+-- The addresses of the walls the game still has. FindAllOf lists live objects only, so a wall of a world that is gone
+-- is told apart without calling it (IsValid included: its memory may be freed).
+local function liveWallAddresses()
+    local live = {}
+    for _, a in ipairs(FindAllOf(WALL_CLASS) or {}) do
+        local ok, addr = pcall(function() return tostring(a:GetAddress()) end)
+        if ok then
+            live[addr] = true
+        end
+    end
+    return live
+end
 -- A new world (another save, back from the title): its walls are gone with the old one; start over. Only walls that
--- are really gone are forgotten: the core's world key is the pawn, which also changes (or reads nil for a moment) in
--- the same world, and a wall forgotten while still standing could never be taken down.
+-- are really gone are forgotten, opening ones too: the core's world key is the pawn, which also changes (or reads nil
+-- for a moment) in the same world, and a wall forgotten while still standing could never be taken down.
 function W.reset()
     W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
     W.dropCaches()
-    for i, a in pairs(raised) do
-        local ok, valid = pcall(function() return a:IsValid() end)
-        if not (ok and valid) then forget(i) end
+    local live = liveWallAddresses()
+    for i in pairs(raised) do
+        if not live[raisedAt[i]] then
+            forget(i)
+        end
     end
+    local still = {}
+    for _, s in ipairs(sinking) do
+        if live[s.addr] then
+            still[#still + 1] = s
+        end
+    end
+    sinking = still
 end
 
 -- How far a spot is from piece i (a segment: its middle, its direction, its length), in the plane.
@@ -113,6 +138,7 @@ local function raise(i, context)
     gs:FinishSpawningActor(a, t)
     W.skinNew(a, i)
     raised[i] = a
+    raisedAt[i] = tostring(a:GetAddress())
     nRaised = nRaised + 1
     return true
 end
@@ -127,7 +153,6 @@ end
 -- LoopAsync's callback runs on another thread over the same Lua state, and with it running 30 times a second the game
 -- crashed twice (stack 08E98397) and dev.45, its callback cut down to a flag and a prebuilt function, still logged
 -- "Ref was not function" three times and a broken ipairs iterator: Lua's state corrupted.
-local sinking = {}            -- list of { actor, scale X, scale Y, started (game s), dissolving = true or nil }
 -- A dissolving piece goes by the game's clock, the material's own, not by counting steps (dev.41 playtest: removed
 -- at 80 to 85% dissolved; dev.46, its tail 0.8 s, still not quite through): blocking stops at DISSOLVE_S/2, the piece
 -- goes at DISSOLVE_S + DISSOLVE_TAIL (the material's Time node may run behind GetTimeSeconds; the first one logs it).
@@ -176,7 +201,7 @@ end
 W.dissolving = function() return nil end
 W.glowing, W.glowTick, W.dropCaches = function() return false end, function() end, function() end
 local function lower(i, context)
-    local a, wore = raised[i], dressedAs[i]
+    local a, wore, addr = raised[i], dressedAs[i], raisedAt[i]
     forget(i)
     if not (a and a:IsValid()) then return end
     local ok, mid, start = pcall(W.dissolving, wore, context)
@@ -184,7 +209,8 @@ local function lower(i, context)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
     now = (m and start) or (okT and type(now) == "number" and now) or 0
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, now, dissolving = m and true or nil, mid = m and mid or nil }
+    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, now, addr = addr, dissolving = m and true or nil,
+                              mid = m and mid or nil }
 end
 
 
@@ -271,7 +297,7 @@ function W.perfMode(mode)
         for _, a in pairs(raised) do
             if a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
         end
-        raised, nRaised, hiddenAt = {}, 0, {}
+        raised, nRaised, raisedAt, hiddenAt = {}, 0, {}, {}
         return
     end
     for _, a in pairs(raised) do
@@ -1724,7 +1750,7 @@ function W.setLayout(name)
     name = name == "regions" and "regions" or "areas"
     if name == W.layout then return false end
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
-    raised, nRaised, sinking, dressedAs, hiddenAt = {}, 0, {}, {}, {}
+    raised, nRaised, raisedAt, sinking, dressedAs, hiddenAt = {}, 0, {}, {}, {}, {}
     SUFFIX = name == "regions" and "_regions" or ""
     DATA, MAP, SHAPES = require("area_walls" .. SUFFIX), require("area_map" .. SUFFIX), nil
     CENTRES = require("area_centres" .. SUFFIX)
