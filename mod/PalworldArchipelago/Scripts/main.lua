@@ -971,16 +971,25 @@ local lazyHooks = {
         later(2, apply)
     end },
 }
+-- RegisterHook can fail ("UFunction::Func: 0x0") while a Blueprint class is still loading, so a hook is done only once
+-- it registered. A failed one is tried again every HOOK_RETRY_EVERY updates; only the first failure is logged.
+local HOOK_RETRY_EVERY = 10                -- updates (3 s): soon enough for a menu, without retrying every update
+local function registerLazyHook(h)
+    local cls = StaticFindObject(h.class)
+    if not cls or not cls:IsValid() then return end
+    h.tries = (h.tries or 0) + 1
+    if h.tries > 1 and h.tries % HOOK_RETRY_EVERY ~= 1 then return end
+    local ok, err = pcall(RegisterHook, h.fn, h.cb)
+    if ok then
+        h.done = true
+        log("hooked " .. h.fn .. (h.tries > 1 and (" (try " .. h.tries .. ")") or ""))
+    elseif h.tries == 1 then
+        log("could not hook " .. h.fn .. " yet (will retry): " .. tostring(err):match("^[^\n]*"))
+    end
+end
 local function registerLazyHooks()
     for _, h in ipairs(lazyHooks) do
-        if not h.done then
-            local cls = StaticFindObject(h.class)
-            if cls and cls:IsValid() then
-                h.done = true
-                local ok, err = pcall(RegisterHook, h.fn, h.cb)
-                log((ok and "hooked " or "could not hook ") .. h.fn .. (ok and "" or (": " .. tostring(err))))
-            end
-        end
+        if not h.done then registerLazyHook(h) end
     end
 end
 

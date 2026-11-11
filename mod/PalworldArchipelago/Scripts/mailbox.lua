@@ -309,8 +309,7 @@ end
 
 local function hookRows()
     if rowHooked or not StaticFindObject(ROW) then return end
-    rowTries = rowTries + 1
-    if rowTries > 1 and rowTries % 10 ~= 1 then return end
+    rowTries = rowTries + 1                -- (tried on every window opening, the only time this runs)
     -- Only note which button it was: the list is rebuilt on the next update, not inside the click (that would remove
     -- the very button whose click is still running).
     local ok, err = pcall(RegisterHook, ROW_CLICK, function(self)

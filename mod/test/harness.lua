@@ -316,7 +316,15 @@ StaticFindObject = function(path)
     return nil
 end
 okHookFails = 1        -- as on the client (v0.10.3 playtest): the text window's OK hook fails while its class loads
+-- (global) plain text in a hook's path -> how many more registrations of it fail, as a Blueprint class still loading
+hookFailures = { OnUnhoveredAnyTechnology_Internal = 1 }
 RegisterHook = function(path, fn, post)
+    for text, n in pairs(hookFailures) do
+        if n > 0 and path:find(text, 1, true) then
+            hookFailures[text] = n - 1
+            error("Was unable to register a hook with Lua function 'RegisterHook', information:\nUFunction::Func: 0x0")
+        end
+    end
     if path:find("NameWindow", 1, true) and okHookFails > 0 then
         okHookFails = okHookFails - 1
         error("Was unable to register a hook with Lua function 'RegisterHook', information:\nUFunction::Func: 0x0")
@@ -749,6 +757,8 @@ expect(isResearched("Special_PalSphere_Grade_01") == nil, "owned slot, pointer e
 info["Setup by Technology Name"](info, FNameOf("Special_PalSphere_Grade_01"))
 expect(isResearched("Special_PalSphere_Grade_01") == false, "owned slot under the pointer: 'not researched yet', so it can be clicked")
 expect(isResearched("Product_Cooking_Grade_01") == nil, "another owned tech meanwhile: the game's answer")
+expect(logged("could not hook .*OnUnhoveredAnyTechnology_Internal yet") and logged("hooked .*OnUnhoveredAnyTechnology_Internal %(try"),
+       "a Blueprint hook that failed to register is tried again and registered")
 hooks["/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_00.WBP_MainMenu_Technology_00_C:OnUnhoveredAnyTechnology_Internal"]()
 expect(isResearched("Special_PalSphere_Grade_01") == nil, "pointer gone: the game's answer again")
 td.TechnologyPoint = 0
@@ -2120,7 +2130,13 @@ hud.Push = function(self, cls, param)
 end
 local wblCreate = wbl.Create
 wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end return wblCreate() end
+hookFailures.AP_Clicked = 1                                  -- its first opening: the button class still loading
 hooks[ESC_CLICK]({ get = function() return mailBtn end })
+run(3)
+expect(logged("mailbox: could not hook the LogicMod's buttons yet"), "a failed hook of its buttons is logged")
+hudWindows["mail"] = nil                                     -- the player closes it with Esc
+run(1)
+hooks[ESC_CLICK]({ get = function() return mailBtn end })    -- the next opening tries again
 run(3)
 local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
 expect(#winRows == 2 and winRows[1].Label.text == "Wood  x1" and winRows[2].Label.text == "Stone  x50",
@@ -3255,7 +3271,7 @@ if PERF then
     run(1)
     expect(logged("%[perf%] notify WBP_MenuESC_C first fire %(seeded 0 by FindAllOf%)"), "its first fire is logged")
     notifies[ESC_PATH](Widget({ GetFullName = function() return "WBP_MenuESC_C /Engine/Transient.WBP_MenuESC_C_2" end }))
-    run(100)
+    run(100 + 5)          -- a check round starts within 100 updates and takes one update per watched class (5)
     expect(logged("WBP_MenuESC_C=1/0/2") and logged("MISMATCH"), "an object in the set that FindAllOf does not find is a mismatch")
 
     keyBinds["key:SIX"]()
