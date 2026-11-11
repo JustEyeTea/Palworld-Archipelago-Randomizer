@@ -1821,6 +1821,9 @@ local function updateAreaLocks()
     local world = pawn and pawn:IsValid() and safe(function() return tostring(pawn:GetAddress()) end)
     if world ~= wallsWorld then noteWorldChange(world) end
     worldTicks = worldTicks + 1
+    if world and seedWorld == false then
+        pcall(WALLS.mapOff)                        -- (C++ would show the seed's map here)
+    end
     if not (world and worldTicks >= WAIT.settle and seedWorld) then return end
     local on = areaLocks
     -- Ctrl+7 (perf test tools) can hold the walls in a test state: nothing is raised, lowered or checked then.

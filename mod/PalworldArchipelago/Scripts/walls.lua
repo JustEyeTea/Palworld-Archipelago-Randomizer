@@ -1346,6 +1346,16 @@ local function tellCpp()
         if path ~= cpp.body then cpp.body = path; AP_MapScreen("body", path) end
     end
 end
+-- Switches the C++ map screen off where the mod's map does not belong (a seed without area locks, a world that is
+-- not the seed's): C++ would otherwise show the seed's picture and fog there. Told once; tellCpp switches it on again.
+function W.mapOff()
+    if not (AP_MapScreen and cpp.fog) then
+        return
+    end
+    cpp.fog, cpp.body = false, nil
+    AP_MapScreen("enable", "0")
+    log("map screen (C++): switched off, the game's own map here")
+end
 -- What the fog is made of, and its explored mask exported (once a session).
 local function probeMask(screen)
     local dmi = screen.MaskTextureMaterial
@@ -1687,7 +1697,10 @@ end
 function W.updateMap(enabled, passes, ctx)
     local wasShown = mapShownAt > 0                  -- whether the map was on screen at the last update
     mapShownAt = 0
-    if not enabled then return end
+    if not enabled then
+        W.mapOff()
+        return
+    end
     -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
     -- more than one real one (different menus), and a map screen sets its own picture again when it opens, so every
     -- one is checked each time and given the greyed map whenever it shows anything else.

@@ -1844,6 +1844,24 @@ do  -- The map screen stays listed from its first opening until Return to title:
     takeAway()
     putBack()
 end
+do  -- A seed with area locks, then one without in the same session: C++ is told to leave the map screen alone, once,
+    -- and switched on again with the picture when area locks are back
+    local calls = {}
+    local takeAway = territoriesStandIns(calls)
+    local putBack = savedColourMap(mapArt)
+    local W = freshWalls()
+    for _ = 1, 6 do W.updateMap(true, {}, pawn) end
+    local n = #calls
+    for _ = 1, 6 do W.updateMap(false, {}, pawn) end
+    local after = table.concat(calls, " | ", n + 1)
+    for _ = 1, 6 do W.updateMap(true, {}, pawn) end
+    local again = table.concat(calls, " | ", n + 1)
+    local onAgain = again:find("enable=0 | enable=1", 1, true) and again:find("body=", 1, true)
+    expect(n >= 2 and after == "enable=0" and onAgain,
+           "with area locks off C++ is told once to leave the map screen alone, and on again after: " .. again)
+    takeAway()
+    putBack()
+end
 end
 end)()
 
@@ -1868,6 +1886,9 @@ expect(spawned > before, "then its walls go up: " .. (spawned - before))
 print("another world")
 expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("world=AP_WORLD\n", 1, true), "the seed keeps the world it is played in")
 -- A world this seed is not played in (config.txt connects at every start): nothing is locked, sent or given there.
+mapScreenCalls = {}                                            -- (global) what the core's walls told C++'s map screen
+AP_MapScreen = function(cmd, v) mapScreenCalls[#mapScreenCalls + 1] = cmd .. "=" .. tostring(v); return "" end
+run(3)                                                         -- (the seed's world: C++ switched on)
 worldDir, pawnAddress = "VANILLA", 12288
 leaveWorld()
 unlocked.list[#unlocked.list + 1] = FNameOf("PalBox")          -- researched in that world
@@ -1879,12 +1900,16 @@ unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
 expect(have.PalBox and not checks[D.captures.sheepball] and spawned == before, "another world: no tech relocked, no check sent, no walls")
 expect(logged("world: VANILLA is not this seed's world %(AP_WORLD%)") and table.concat(announced, "|"):find("not the world this Archipelago seed", 1, true),
        "and the player is told")
+expect(table.concat(mapScreenCalls, " | "):find("enable=1 | .*enable=0$"),
+       "and C++ is told to leave its map screen alone: " .. table.concat(mapScreenCalls, " | "))
 worldDir, pawnAddress = "AP_WORLD", 16384
 leaveWorld()
 run(80)
 have = {}
 unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
 expect(not have.PalBox and checks[D.captures.sheepball] and spawned > before, "back in the seed's world, all as before")
+expect(table.concat(mapScreenCalls, " | "):find("enable=0 | enable=1", 1, true), "C++'s map screen switched on again")
+AP_MapScreen = nil
 record.PalCaptureCount.Items.list[2].Value = 0
 
 print("death link")
