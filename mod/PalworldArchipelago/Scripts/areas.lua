@@ -1,0 +1,135 @@
+-- The areas of the map and whether each is open: the seed's cut of the map (its walls, names and grid), which area a
+-- spot is in, the areas beyond the goal, and the lists of locked and open areas the walls and the map draw from. A part
+-- of walls.lua, which loads it (fresh for each copy of walls.lua) and hands it W, the table main.lua sees, by install.
+-- Two cuts (the seed's Lock Size, W.setLayout): "areas" is the 15 regions, "regions" the 75 areas (see walls.lua).
+-- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
+local AREAS = {}
+local W = nil                 -- walls.lua's public table (install): settings and data main.lua sets there
+local SEA = "Open sea"
+
+-- The seed's cut of the map, as data. Its fields change when the seed's Lock Size arrives (W.setLayout), so they are
+-- read through this table, never kept elsewhere: walls (the border pieces, area_walls*.lua), areas (the parts' names
+-- by index), start (the starting part), map (area_map*.lua: which part each spot of the map is in), centres
+-- (area_centres*.lua: where each part's stamp and icon go), shapes (area_shapes*.lua, loaded when first needed: only
+-- for a map drawn without the compositor) and suffix ("" or "_regions", in the data files' names).
+local layout = {}
+local decoded = {}             -- map row -> its runs, decoded when first used (areaIndexAt)
+local function useLayoutData(name)
+    local suffix = name == "regions" and "_regions" or ""
+    local walls = require("area_walls" .. suffix)
+    layout.suffix, layout.walls, layout.areas, layout.start = suffix, walls.walls, walls.areas, walls.start
+    layout.map, layout.centres, layout.shapes = require("area_map" .. suffix), require("area_centres" .. suffix), nil
+    decoded = {}
+end
+
+-- The item that opens a locked part: a Region Pass for one of the 15 regions, an Area Pass for one of the 75 areas.
+function AREAS.passName(area)
+    return (W.layout == "regions" and "Area Pass: " or "Region Pass: ") .. area
+end
+
+local function isOpen(area, passes)
+    return area == SEA or area == layout.start or passes[area] == true
+end
+
+-- Which area a spot is in (nil off the main map: the World Tree's own map). The map's rows are decoded when first used.
+local function areaIndexAt(r, c)
+    if r < 0 or c < 0 or r >= layout.map.size or c >= layout.map.size then return nil end
+    local runs = decoded[r]
+    if not runs then
+        runs = {}
+        for a, n in layout.map.rows[r + 1]:gmatch("(%d+),(%d+)") do runs[#runs + 1] = { tonumber(a), tonumber(n) } end
+        decoded[r] = runs
+    end
+    local col = 0
+    for _, run in ipairs(runs) do
+        col = col + run[2]
+        if c < col then return run[1] end
+    end
+end
+local function cellOf(x, y)
+    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
+    local size = (x1 - x0) / layout.map.size
+    return math.floor((x1 - x) / size), math.floor((y - y0) / size)
+end
+function AREAS.areaAt(x, y)
+    local k = areaIndexAt(cellOf(x, y))
+    return k and layout.areas[k + 1]
+end
+
+-- The locked area a player stands well inside (every cell around them in it), or nil. Near a border, the player is
+-- given the benefit of the doubt: the walls are there.
+function AREAS.lockedAround(x, y, passes)
+    local r, c = cellOf(x, y)
+    local here = areaIndexAt(r, c)
+    if not here then return nil end
+    local name = layout.areas[here + 1]
+    if isOpen(name, passes) then return nil end
+    for dr = -1, 1 do
+        for dc = -1, 1 do
+            if areaIndexAt(r + dr, c + dc) ~= here then return nil end
+        end
+    end
+    return name
+end
+
+local AREA_COLOURS = {
+    ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
+    ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
+    ["Mount Obsidian"] = "D2453F", ["Verdant Stream"] = "2FB3A0", ["Desiccated Dunes"] = "E3B860",
+    ["Astral Mountains"] = "A8E0F0", ["Sakurajima"] = "F28FB5", ["Feybreak"] = "B266D9",
+    ["Sky Islands"] = "5B9BF0", ["World Tree"] = "2E8B57",
+}
+local parents = nil                                            -- region -> area (regions layout only; loaded once)
+function AREAS.parentOf(area)
+    if W.layout ~= "regions" then return area end
+    parents = parents or require("area_parents_regions")
+    return parents[area] or area
+end
+-- Areas beyond the seed's goal (a set of names; main.lua at connect): their walls wear the sealed look.
+function AREAS.setBeyond(set)
+    W.beyond = set or {}
+    local names = {}
+    for a in pairs(W.beyond) do names[#names + 1] = a end
+    table.sort(names)
+    W.beyondSig = table.concat(names, "|")
+end
+
+local function slugOf(name) return (name:lower():gsub("[^%w]+", "-")) end
+local function lockedList(passes)
+    local out = {}
+    for k, name in ipairs(layout.areas) do
+        if not isOpen(name, passes) then out[#out + 1] = k - 1 end
+    end
+    return out
+end
+local function lockedIndexes(passes)
+    local out = {}
+    for k, name in ipairs(layout.areas) do
+        if not isOpen(name, passes) then out[#out + 1] = tostring(k - 1) end
+    end
+    return table.concat(out, ",")
+end
+-- Unlocked areas not stood in yet (W.visited, main.lua's set of areas stood in, kept in its save), by index.
+local function openList(passes)
+    local out = {}
+    for k, name in ipairs(layout.areas) do
+        local waiting = passes[name] and not W.beyond[name] and not W.visited[name]
+        if name ~= SEA and name ~= layout.start and waiting then
+            out[#out + 1] = k - 1
+        end
+    end
+    return out
+end
+
+-- Hands over walls.lua's public table, and loads the 15 regions' cut, the one in use until the seed says otherwise.
+function AREAS.install(walls)
+    W = walls
+    W.beyond, W.visited = {}, {}
+    W.AREA_COLOURS = AREA_COLOURS                                    -- (for the harness's colour tests)
+    useLayoutData("areas")
+end
+
+AREAS.layout, AREAS.SEA, AREAS.AREA_COLOURS = layout, SEA, AREA_COLOURS
+AREAS.useLayoutData, AREAS.isOpen, AREAS.slugOf = useLayoutData, isOpen, slugOf
+AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList = lockedList, lockedIndexes, openList
+return AREAS

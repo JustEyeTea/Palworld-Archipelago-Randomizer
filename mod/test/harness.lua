@@ -4538,7 +4538,8 @@ end)()
     -- reads a flag and hands a function made beforehand to ExecuteInGameThread; no other Lua runs there
     local bad = {}
     for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates",
-                         "perf", "soon", "sync", "records", "art", "crate_window", "tech_gifts", "techscan", "tech_icons" }) do
+                         "perf", "soon", "sync", "records", "art", "crate_window", "tech_gifts", "techscan",
+                         "tech_icons", "areas" }) do
         local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
         local src = fh and fh:read("a") or ""
         if fh then fh:close() end

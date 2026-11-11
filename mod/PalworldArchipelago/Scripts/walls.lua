@@ -8,20 +8,20 @@
 -- _regions). In this file "area" means a locked part of either cut. The 15 regions' walls are loaded at start.
 local W = {}
 W.layout = "areas"
--- The seed's cut of the map, as data. Its fields change when the seed's Lock Size arrives (W.setLayout), so they are
--- read through this table, never kept elsewhere: walls (the border pieces, area_walls*.lua), areas (the parts' names
--- by index), start (the starting part), map (area_map*.lua: which part each spot of the map is in), centres
--- (area_centres*.lua: where each part's stamp and icon go), shapes (area_shapes*.lua, loaded when first needed: only
--- for a map drawn without the compositor) and suffix ("" or "_regions", in the data files' names).
-local layout = {}
-local function useLayoutData(name)
-    local suffix = name == "regions" and "_regions" or ""
-    local walls = require("area_walls" .. suffix)
-    layout.suffix, layout.walls, layout.areas, layout.start = suffix, walls.walls, walls.areas, walls.start
-    layout.map, layout.centres, layout.shapes = require("area_map" .. suffix), require("area_centres" .. suffix), nil
-    W.start, W.home = layout.start, layout.map.home
+-- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
+-- once, and the harness loads it again (dofile) for each test that wants a fresh start, so each part is loaded afresh
+-- with it (require alone would hand back the copy already loaded).
+local function freshPart(name)
+    package.loaded[name] = nil
+    return require(name)
 end
-useLayoutData("areas")
+local AREAS = freshPart("areas")
+AREAS.install(W)
+local layout, isOpen, SEA, AREA_COLOURS = AREAS.layout, AREAS.isOpen, AREAS.SEA, AREAS.AREA_COLOURS
+local slugOf, lockedList, lockedIndexes, openList = AREAS.slugOf, AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList
+W.passName, W.areaAt, W.lockedAround, W.parentOf = AREAS.passName, AREAS.areaAt, AREAS.lockedAround, AREAS.parentOf
+W.setBeyond, W.slugOf = AREAS.setBeyond, AREAS.slugOf
+W.start, W.home = layout.start, layout.map.home
 local P = require("perf")
 local UTIL = require("util")
 local log = UTIL.log
@@ -29,7 +29,6 @@ local once = UTIL.onceIn("walls")
 
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
-local SEA = "Open sea"
 local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km above
 local MID_Z = 50000
 local THICK = 4               -- 4 m, so nothing fast slips through
@@ -60,14 +59,6 @@ local function buildTrig()
 end
 buildTrig()
 
--- The item that opens a locked part: a Region Pass for one of the 15 regions, an Area Pass for one of the 75 areas.
-function W.passName(area)
-    return (W.layout == "regions" and "Area Pass: " or "Region Pass: ") .. area
-end
-
-local function isOpen(area, passes)
-    return area == SEA or area == layout.start or passes[area] == true
-end
 
 -- The wall class (and the walls' material) are kept loaded for the whole session through W.keep (set by the core):
 -- left alone, the game frees them on the way back to the title, and reloading them while a world loads in was the
@@ -351,47 +342,6 @@ function W.perfMode(mode)
     if mode == "full" then catchingUp = true end
 end
 
--- Which area a spot is in (nil off the main map: the World Tree's own map). The map's rows are decoded when first used.
-local decoded = {}
-local function areaIndexAt(r, c)
-    if r < 0 or c < 0 or r >= layout.map.size or c >= layout.map.size then return nil end
-    local runs = decoded[r]
-    if not runs then
-        runs = {}
-        for a, n in layout.map.rows[r + 1]:gmatch("(%d+),(%d+)") do runs[#runs + 1] = { tonumber(a), tonumber(n) } end
-        decoded[r] = runs
-    end
-    local col = 0
-    for _, run in ipairs(runs) do
-        col = col + run[2]
-        if c < col then return run[1] end
-    end
-end
-local function cellOf(x, y)
-    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
-    local size = (x1 - x0) / layout.map.size
-    return math.floor((x1 - x) / size), math.floor((y - y0) / size)
-end
-function W.areaAt(x, y)
-    local k = areaIndexAt(cellOf(x, y))
-    return k and layout.areas[k + 1]
-end
-
--- The locked area a player stands well inside (every cell around them in it), or nil. Near a border, the player is
--- given the benefit of the doubt: the walls are there.
-function W.lockedAround(x, y, passes)
-    local r, c = cellOf(x, y)
-    local here = areaIndexAt(r, c)
-    if not here then return nil end
-    local name = layout.areas[here + 1]
-    if isOpen(name, passes) then return nil end
-    for dr = -1, 1 do
-        for dc = -1, 1 do
-            if areaIndexAt(r + dr, c + dc) ~= here then return nil end
-        end
-    end
-    return name
-end
 
 -- The locked area across a wall within NEAR of a spot (a player walking up to it), or nil. A wall between two locked
 -- areas names the one the player is not in.
@@ -465,21 +415,7 @@ local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "
                 "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
 local function byArea(name) return name == "area" or name == "paws" end
 W.SKINS = SKINS
-local AREA_COLOURS = {
-    ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
-    ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
-    ["Mount Obsidian"] = "D2453F", ["Verdant Stream"] = "2FB3A0", ["Desiccated Dunes"] = "E3B860",
-    ["Astral Mountains"] = "A8E0F0", ["Sakurajima"] = "F28FB5", ["Feybreak"] = "B266D9",
-    ["Sky Islands"] = "5B9BF0", ["World Tree"] = "2E8B57",
-}
 local SEALED = { R = 0.3231, G = 0.3663, B = 0.4564, A = 1 }  -- slate grey #9AA3B5 (Art lane's suggestion; the user may pick)
-W.beyond = {}                                                  -- areas beyond the seed's goal (main.lua, slot data)
-local parents = nil                                            -- region -> area (regions layout only; loaded once)
-function W.parentOf(area)
-    if W.layout ~= "regions" then return area end
-    parents = parents or require("area_parents_regions")
-    return parents[area] or area
-end
 local linearOf = UTIL.linear
 W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS                 -- (for the harness's colour tests)
 local FLOW = 0.05
@@ -818,14 +754,6 @@ function W.recolour(passes)
     end
     if recolourAt > #layout.walls then recolourAt = nil end
 end
--- Areas beyond the seed's goal (a set of names; main.lua at connect): their walls wear the sealed look.
-function W.setBeyond(set)
-    W.beyond = set or {}
-    local names = {}
-    for a in pairs(W.beyond) do names[#names + 1] = a end
-    table.sort(names)
-    W.beyondSig = table.concat(names, "|")
-end
 -- Empty or unset: paws (area without the pak); wall_skin=red for the game's own red grid.
 W.DEFAULT_SKIN = "paws"
 function W.setSkin(name)
@@ -922,15 +850,6 @@ local function stampSize(c)
     return math.max(STAMP_MIN_PX, math.min(STAMP_PX, math.floor(2 * room)))
 end
 W.stampSize = stampSize
-local function slugOf(name) return (name:lower():gsub("[^%w]+", "-")) end
-W.slugOf = slugOf
-local function lockedList(passes)
-    local out = {}
-    for k, name in ipairs(layout.areas) do
-        if not isOpen(name, passes) then out[#out + 1] = k - 1 end
-    end
-    return out
-end
 -- The locked areas are shown as the map's own icons (placeIcons, below) unless config.txt has map_icons=0 or the icons
 -- failed; then the stamps are drawn into the picture and the chart fog, as before.
 W.iconsOff = false
@@ -1120,13 +1039,6 @@ local function colourMap(krl, tex, gi)
     end
     log("map: saved the colour map " .. path)
     return path
-end
-local function lockedIndexes(passes)
-    local out = {}
-    for k, name in ipairs(layout.areas) do
-        if not isOpen(name, passes) then out[#out + 1] = tostring(k - 1) end
-    end
-    return table.concat(out, ",")
 end
 -- The "Territories" look (the user's direction 1, worked out with the Art & Assets lane, 2026-11-07; their lean, tweaks
 -- may follow): the game's own map and fog underneath; every area tinted in its colour by its state, with a soft rim
@@ -1690,17 +1602,6 @@ local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_Ico
 -- Unlocked areas the player has not stood in yet get an open stamp (the user, 2026-11-07: "some other image type ... to
 -- show that a region has been unlocked, even when it is unexplored"; go): the Art lane's ap-map-stamp-open-<area>.png
 -- (or ap-map-stamp-open.png), none until there is one. W.visited: the core's set of areas stood in (in its save).
-W.visited = {}
-local function openList(passes)
-    local out = {}
-    for k, name in ipairs(layout.areas) do
-        local waiting = passes[name] and not W.beyond[name] and not W.visited[name]
-        if name ~= SEA and name ~= layout.start and waiting then
-            out[#out + 1] = k - 1
-        end
-    end
-    return out
-end
 local function openTexture(k)
     local name = layout.areas[k + 1]
     local own = name and ("ap-map-stamp-open-" .. slugOf(W.parentOf(name)))
@@ -1944,10 +1845,11 @@ function W.setLayout(name)
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
     destroyOpening()
     raised, nRaised, raisedAt, dressedAs, hiddenAt = {}, 0, {}, {}, {}
-    useLayoutData(name)
+    AREAS.useLayoutData(name)
+    W.start, W.home = layout.start, layout.map.home
     W.layout = name
     buildTrig()
-    decoded, triangles, bands = {}, {}, {}
+    triangles, bands = {}, {}
     mapKey, composing, composedKey, failedKey, composingList = nil, nil, nil, nil, {}
     local parts = name == "regions" and " areas" or " regions"         -- in the players' words
     log("area locks: " .. (#layout.areas - 1) .. parts .. " (" .. #layout.walls .. " border pieces)")
