@@ -22,12 +22,12 @@ local heldNotices = {
     from = nil,               -- { X, Y }: where the player's character first stood in that world
 }
 local MOVED_CM = 300
-function HELD.noticeLater(msg)
+function HELD.holdNotice(msg)
     local held = heldNotices
     if held.world ~= WORLD.key() then held.list, held.world, held.from = {}, WORLD.key(), nil end
     held.list[#held.list + 1] = msg
 end
-function HELD.showLater(pawn)
+function HELD.showHeldNotices(pawn)
     local held = heldNotices
     if #held.list == 0 then return end
     if held.world ~= WORLD.key() then

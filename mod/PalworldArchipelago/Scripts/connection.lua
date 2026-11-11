@@ -9,11 +9,11 @@ local CHECKS = require("checks")
 local CLOCK = require("clock")
 local CONFIG = require("config")
 local CRATES = require("crates")
-local D = require("ap_data")
+local DATA = require("ap_data")
 local DEATH_LINK = require("death_link")
 local ITEMS = require("items")
 local MAIL = require("mailbox")
-local P = require("perf")
+local PERF = require("perf")
 local PLAYER = require("player")
 local SAVE = require("save")
 local STATE = require("ap_state")
@@ -124,7 +124,7 @@ local function onConnected(was)
     TECH_LOCK.setResearch(research)
     TECH_LOCK.keepResearch(research)
     local locs = {}
-    for _, slot in pairs(D.shop) do locs[#locs + 1] = tostring(slot.loc) end
+    for _, slot in pairs(DATA.shop) do locs[#locs + 1] = tostring(slot.loc) end
     AP_Scout(table.concat(locs, ","))
     ap.sent = {}
     ap.goalSent = false                    -- a goal sent on a connection that was already dead goes again
@@ -186,12 +186,12 @@ end
 
 -- Everything the server sent since the last update, one event line at a time (onEvent).
 function CONNECTION.readEvents()
-    P.start("poll")
+    PERF.start("poll")
     for line in AP_Poll():gmatch("[^\n]+") do
         local ok, err = pcall(onEvent, line)
         if not ok then log("event error: " .. tostring(err) .. " in " .. line) end
     end
-    P.stop("poll")
+    PERF.stop("poll")
 end
 
 -- Ready once the first batch of items is in, a moment after connecting: only then is anything locked.

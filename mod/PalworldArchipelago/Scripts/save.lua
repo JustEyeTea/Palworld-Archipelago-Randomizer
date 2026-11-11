@@ -6,7 +6,7 @@
 local SAVE = {}
 local CRATES = require("crates")
 local MAIL = require("mailbox")
-local P = require("perf")
+local PERF = require("perf")
 local PLAYER = require("player")
 local STATE = require("ap_state")
 local SYNC = require("sync")
@@ -119,10 +119,10 @@ function SAVE.write(always)
         "end\n",
     })
     if not always and lastSave == path .. "\n" .. text then return end
-    P.start("save")
+    PERF.start("save")
     local f, errOpen = io.open(path .. ".tmp", "w")
     if not f then
-        P.stop("save")
+        PERF.stop("save")
         if not saveWarned then
             saveWarned = true
             log("could not write " .. path .. ".tmp: " .. tostring(errOpen))
@@ -133,13 +133,13 @@ function SAVE.write(always)
     end
     local okw = f:write(text)
     f:close()
-    if not okw then P.stop("save"); once("savewrite", "could not write " .. path .. ".tmp"); return end
+    if not okw then PERF.stop("save"); once("savewrite", "could not write " .. path .. ".tmp"); return end
     os.remove(path)                                   -- (Windows will not rename over a file)
     local okr, err = os.rename(path .. ".tmp", path)
-    P.stop("save")
+    PERF.stop("save")
     if not okr then once("saverename", "could not put the save in place: " .. tostring(err)); return end
     lastSave = path .. "\n" .. text
-    P.count("save")
+    PERF.count("save")
 end
 
 return SAVE

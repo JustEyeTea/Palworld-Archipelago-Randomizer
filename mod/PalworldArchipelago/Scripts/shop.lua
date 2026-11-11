@@ -5,10 +5,10 @@
 -- "buying a slot".
 local SHOP = {}
 local CHECKS = require("checks")
-local D = require("ap_data")
-local P = require("perf")
+local DATA = require("ap_data")
+local PERF = require("perf")
 local PLAYER = require("player")
-local R = require("records")
+local RECORDS = require("records")
 local SHOP_CARDS = require("shop_cards")
 local STATE = require("ap_state")
 local UTIL = require("util")
@@ -17,8 +17,8 @@ local ap = STATE.ap
 local log, once, safe, guardedHook = UTIL.log, UTIL.once, UTIL.safe, UTIL.guardedHook
 local notify, playerState = PLAYER.notify, PLAYER.playerState
 local sendChecks = CHECKS.sendChecks
-local shopCard, bought, ownTech, rewardText, techIcon, refreshTree =
-    SHOP_CARDS.shopCard, SHOP_CARDS.bought, SHOP_CARDS.ownTech, SHOP_CARDS.rewardText, SHOP_CARDS.techIcon,
+local isShopSlot, bought, ownTech, rewardText, techIcon, refreshTree =
+    SHOP_CARDS.isShopSlot, SHOP_CARDS.bought, SHOP_CARDS.ownTech, SHOP_CARDS.rewardText, SHOP_CARDS.techIcon,
     SHOP_CARDS.refreshTree
 
 
@@ -46,7 +46,7 @@ local hoveredTech = nil       -- the tech whose tooltip was set up last: a confi
 local retarget = nil          -- the tech a tooltip is being set up again for (step 2), until step 3 uses it
 
 local function confirmText(tech)
-    local s = D.shop[tech]
+    local s = DATA.shop[tech]
     return "Buy " .. rewardText(tech) .. " for " .. s.cost .. (s.ancient and " Ancient" or "") .. " Technology Point(s)?"
 end
 
@@ -59,9 +59,9 @@ local later = SOON.later
 
 -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
 local function cardLooksResearched(self, out)
-    if not ap.shopOpen then return end     -- no shop card yet (shopCard is false for all): the game's answer
+    if not ap.shopOpen then return end     -- no shop card yet (isShopSlot is false for all): the game's answer
     local tech = self:get().BindedTechnologyName:ToString()
-    if not shopCard(tech) then return end
+    if not isShopSlot(tech) then return end
     pcall(function() out:set(bought(tech)) end)
     return bought(tech)
 end
@@ -79,8 +79,8 @@ local function tooltipSetup(self, techName)
         return
     end
     hoveredTech = tech
-    local mine = shopCard(tech) and ownTech(tech)
-    pcall(function() info:SetRenderOpacity((shopCard(tech) or mine) and 0.0 or 1.0) end)
+    local mine = isShopSlot(tech) and ownTech(tech)
+    pcall(function() info:SetRenderOpacity((isShopSlot(tech) or mine) and 0.0 or 1.0) end)
     if not mine then return end
     ExecuteInGameThread(function()
         if not info:IsValid() or hoveredTech ~= tech then return end
@@ -99,7 +99,7 @@ end
 local function confirmBoxSetup(self, dialogType, message)
     local tech = hoveredTech
     once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
-    if not shopCard(tech) or bought(tech) then return end
+    if not isShopSlot(tech) or bought(tech) then return end
     local dialog, text = self:get(), confirmText(tech)
     local function apply()
         if not dialog:IsValid() then return end
@@ -114,7 +114,7 @@ end
 
 -- Buying: the request is rewritten so the game unlocks nothing; the mod charges the points and sends the check.
 local function buy(tech)
-    local s = D.shop[tech]
+    local s = DATA.shop[tech]
     local ps = playerState()
     if not ps then return end
     if ap.status ~= "connected" or not ap.ready then
@@ -127,14 +127,14 @@ local function buy(tech)
     end
     if bought(tech) then return end
     local td = ps:GetTechnologyData()
-    local field = s.ancient and R.ANCIENT_POINTS or "TechnologyPoint"
+    local field = s.ancient and RECORDS.ANCIENT_POINTS or "TechnologyPoint"
     local before = td[field]
     if before < s.cost then
         log("buy " .. tech .. ": not enough points (" .. before .. " < " .. s.cost .. ")")
         return
     end
     td[field] = before - s.cost
-    safe(function() td[s.ancient and R.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
+    safe(function() td[s.ancient and RECORDS.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
     log(string.format("BOUGHT %s for %d %s: %d -> %d, sends %s", tech, s.cost, field, before, td[field], rewardText(tech)))
     ap.bought[s.loc] = true
     sendChecks({ s.loc })
@@ -146,11 +146,11 @@ end
 -- update, outside this hook.
 local function researchRequested(self, name)
     local tech = name:get():ToString()
-    if not D.shop[tech] then return end
+    if not DATA.shop[tech] then return end
     name:set(FName("AP_ShopSlot"))
     -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
     -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
-    if P.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on"); return end
+    if PERF.bypass then log("[perf] purchase of " .. tech .. " ignored while the hook bypass (Ctrl+9) is on"); return end
     later(1, function()                             -- the next update (within 300 ms), on the game thread
         local ok, err = pcall(buy, tech)
         if not ok then log("buy error: " .. tostring(err)) end
@@ -161,14 +161,14 @@ end
 -- whose tech you already own (from its item) is judged here, as the game refuses anything already unlocked: your
 -- level, points, and the slot's own prerequisite / tower / lab research. Otherwise the game's answer stands (nil).
 local function slotUnlockable(td, tech)
-    local s = D.shop[tech]
+    local s = DATA.shop[tech]
     if bought(tech) then return false end
     if not ap.techs[tech] then return nil end
     if ap.level < s.level then return false end
-    if (td[s.ancient and R.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
+    if (td[s.ancient and RECORDS.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
     local p = s.prereq
     -- A prerequisite the seed leaves as normal research is met once the player has researched it in the game.
-    if p and not (ap.techs[p] or D.starters[p] or (D.research[p] and TECH_LOCK.researchedNow(p))) then return false end
+    if p and not (ap.techs[p] or DATA.starters[p] or (DATA.research[p] and TECH_LOCK.researchedNow(p))) then return false end
     if s.tower and not ap.beaten[s.tower] then return false end
     if s.research then
         local ok, yes = pcall(function() return td:IsLabResearchRequirementSatisfied(FName(s.research)) end)
@@ -195,17 +195,17 @@ end
 local function canResearch(self, ...)
     if not ap.shopOpen then return nil end
     local tech = techArg(...)
-    if not tech or not shopCard(tech) then return nil end
-    local r = slotUnlockable(self:get(), tech)
-    if r ~= nil and not UTIL.said("unlockable") then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
+    if not tech or not isShopSlot(tech) then return nil end
+    local answer = slotUnlockable(self:get(), tech)
+    if answer ~= nil and not UTIL.said("unlockable") then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(answer) .. ")") end
     if tech == hoveredTech and not UTIL.said("ask1" .. tech) then
         -- Left to the game (nil): its own answer too, the first plain boolean UE4SS hands the after-callback, so a slot
         -- the game greys out with no gate in our data or the game's table can be traced.
         local game
-        if r == nil then for i = 1, select("#", ...) do if type((select(i, ...))) == "boolean" then game = select(i, ...); break end end end
-        once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r) .. (r == nil and (" (the game says " .. tostring(game) .. ")") or ""))
+        if answer == nil then for i = 1, select("#", ...) do if type((select(i, ...))) == "boolean" then game = select(i, ...); break end end end
+        once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(answer) .. (answer == nil and (" (the game says " .. tostring(game) .. ")") or ""))
     end
-    return r
+    return answer
 end
 
 -- Whether a tech is already researched (the after-callback of IsUnlockRecipeTechnology). The click also asks this,
@@ -214,7 +214,7 @@ end
 local function isResearched(self, ...)
     if hoveredTech == nil then return nil end      -- answers only for the card under the pointer
     local tech = techArg(...)
-    if not tech or tech ~= hoveredTech or not shopCard(tech) then return nil end
+    if not tech or tech ~= hoveredTech or not isShopSlot(tech) then return nil end
     if bought(tech) or not ap.techs[tech] then return nil end
     once("ask2" .. tech, "click check on " .. tech .. ": already researched -> answered not yet")
     return false
@@ -239,33 +239,33 @@ local SHOP_HOOKS = {
       after = true },
 }
 -- A hook's function name, the part of its path after the colon: what its log lines and error keys name.
-local function hookName(h)
-    return h.path:match("[^:]+$")
+local function hookName(hook)
+    return hook.path:match("[^:]+$")
 end
 -- Each Blueprint hook is registered once its class has loaded (UTIL.hookWhenLoaded retries while it loads).
 function SHOP.registerLazyHooks()
-    for _, h in ipairs(SHOP_HOOKS) do
-        if not h.native and not h.done then
-            h.guarded = h.guarded or guardedHook(hookName(h), h.cb)
-            h.done = UTIL.hookWhenLoaded(h.path, h.guarded, "shop")
+    for _, hook in ipairs(SHOP_HOOKS) do
+        if not hook.native and not hook.done then
+            hook.guarded = hook.guarded or guardedHook(hookName(hook), hook.cb)
+            hook.done = UTIL.hookWhenLoaded(hook.path, hook.guarded, "shop")
         end
     end
 end
 -- The native hooks, registered once at start-up, each logged as UTIL.hookWhenLoaded logs a Blueprint hook.
 function SHOP.registerNativeHooks()
-    for _, h in ipairs(SHOP_HOOKS) do
-        if h.native then
-            local callback = guardedHook(hookName(h), h.cb)
+    for _, hook in ipairs(SHOP_HOOKS) do
+        if hook.native then
+            local callback = guardedHook(hookName(hook), hook.cb)
             local ok, err
-            if h.after then
-                ok, err = pcall(RegisterHook, h.path, function() end, callback)
+            if hook.after then
+                ok, err = pcall(RegisterHook, hook.path, function() end, callback)
             else
-                ok, err = pcall(RegisterHook, h.path, callback)
+                ok, err = pcall(RegisterHook, hook.path, callback)
             end
             if ok then
-                log("shop: hooked " .. hookName(h))
+                log("shop: hooked " .. hookName(hook))
             else
-                log("shop: could not hook " .. hookName(h) .. ": " .. tostring(err))
+                log("shop: could not hook " .. hookName(hook) .. ": " .. tostring(err))
             end
         end
     end
@@ -278,9 +278,9 @@ function SHOP.preloadMenuClasses()
     if not ap.ready or preloaded then return end
     preloaded = true
     ExecuteInGameThread(function()
-        for _, h in ipairs(SHOP_HOOKS) do
-            if not h.native and not h.done then
-                local class = h.path:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
+        for _, hook in ipairs(SHOP_HOOKS) do
+            if not hook.native and not hook.done then
+                local class = hook.path:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
                 local ok, err = pcall(LoadAsset, (class:gsub("_C$", "")))
                 if not ok then once("preload" .. class, "could not preload " .. class .. ": " .. tostring(err)) end
             end

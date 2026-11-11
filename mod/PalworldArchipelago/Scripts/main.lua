@@ -23,10 +23,10 @@ local HELD = require("held_notices")
 local ITEMS = require("items")
 local MAIL = require("mailbox")
 local MENU = require("menu")
-local P = require("perf")
+local PERF = require("perf")
 local PLAYER = require("player")
 local POPUP = require("hint_popup")
-local R = require("records")
+local RECORDS = require("records")
 local SAVE = require("save")
 local SHOP = require("shop")
 local SHOP_CARDS = require("shop_cards")
@@ -44,12 +44,11 @@ local WAIT, PHASE = CLOCK.WAIT, CLOCK.PHASE
 local ap = STATE.ap
 local cfg = CONFIG.cfg
 local guardedHook = UTIL.guardedHook
-local playerContext, findPlayerState, playerState, notify =
-    PLAYER.context, PLAYER.findPlayerState, PLAYER.playerState, PLAYER.notify
+local playerState, notify = PLAYER.playerState, PLAYER.notify
 local writeSave = SAVE.write
 local applyItems, openCrate = ITEMS.applyItems, ITEMS.openCrate
 local pollRecords = CHECKS.pollRecords
-local syncTechs = TECH_LOCK.sync
+local lockAndUnlockTechs = TECH_LOCK.lockAndUnlockTechs
 local refreshTree = SHOP_CARDS.refreshTree
 
 local inTick = false          -- state: true only while an update runs
@@ -58,7 +57,7 @@ local inTick = false          -- state: true only while an update runs
 -- The update loop: one core update every UPDATE_MS. Its parts, in the order update() runs them.
 
 -- The modules that keep their own timers: the test tools' probes, the hint pop-up, the debuff icons.
-local function stepSmallModules()
+local function stepTimers()
     local oktt, errtt = pcall(TEST_TOOLS.update)
     if not oktt then onceErr("testtools", errtt, "test tools error: " .. tostring(errtt)) end
     local okp, errp = pcall(POPUP.tick, CLOCK.now())
@@ -69,24 +68,24 @@ end
 
 
 -- The title and Esc menus, the mailbox and the crate window.
-local function updateWindows(ctx)
-    P.start("menu")
-    local okm, errm = pcall(MENU.update, ctx)
+local function updateWindows(frame)
+    PERF.start("menu")
+    local okm, errm = pcall(MENU.update, frame)
     -- The un-hover event may not come when the menu closes under the pointer: a card can't be hovered with no menu.
     if SHOP.hovered() and MENU.mainMenuUp() == false then SHOP.forgetHover() end
-    P.stop("menu")
+    PERF.stop("menu")
     if not okm then onceErr("menu", errm, "menu error: " .. tostring(errm)) end
-    P.start("mail")
-    local okx, errx = pcall(MAIL.update, ctx)
+    PERF.start("mail")
+    local okx, errx = pcall(MAIL.update, frame)
     local okw, errw = pcall(CWIN.update)
     if not okw then once("cwin" .. tostring(errw), "crate window error: " .. tostring(errw)) end
-    P.stop("mail")
+    PERF.stop("mail")
     if not okx then onceErr("mail", errx, "mailbox error: " .. tostring(errx)) end
 end
 
 -- The records phase: trap timers, the seed's-world check, the game's records (checks and the goal).
 local function phaseRecords()
-    P.start("e7")
+    PERF.start("e7")
     local ps = playerState()
     local pawn = ps and safe(function() return ps:GetPawn() end)
     -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
@@ -94,12 +93,12 @@ local function phaseRecords()
     if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
     if ps and ap.ready then WORLD.checkWorld(ps) end
     if ps and ap.ready and WORLD.seedWorld() then
-        P.start("rec")
+        PERF.start("rec")
         pollRecords(ps, CLOCK.now())
-        P.stop("rec")
+        PERF.stop("rec")
     end
-    P.stop("e7")
-    if ps and ap.ready then P.records(ps) end
+    PERF.stop("e7")
+    if ps and ap.ready then PERF.records(ps) end
 end
 
 -- The items phase, in the seed's world only: techs and items; once the world has settled, the run style's sync and the
@@ -108,22 +107,22 @@ local function phaseItems()
     if not (ap.ready and WORLD.seedWorld()) then return end
     local ps = playerState()
     if not ps then return end
-    P.start("e7")
-    P.start("techs")
-    local changed = syncTechs(ps)
-    P.stop("techs")
+    PERF.start("e7")
+    PERF.start("techs")
+    local changed = lockAndUnlockTechs(ps)
+    PERF.stop("techs")
     if changed then refreshTree() end
     local td = safe(function() return ps:GetTechnologyData() end)
     if td and td:IsValid() then applyItems(ps) end    -- (items wait while the tech data is still loading)
     if WORLD.settled() then
-        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.noticeLater)
+        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.holdNotice)
         if not oks then
             onceErr("sync", news, "sync error: " .. tostring(news))
         elseif news then
             writeSave()
         end
-        local okl, errl = pcall(HELD.showLater, safe(function() return ps:GetPawn() end))
-        if not okl then onceErr("later", errl, "notice error: " .. tostring(errl)) end
+        local okl, errl = pcall(HELD.showHeldNotices, safe(function() return ps:GetPawn() end))
+        if not okl then onceErr("heldNotices", errl, "notice error: " .. tostring(errl)) end
     end
     local okdl, errdl = pcall(DEATH_LINK.step, ps)
     if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
@@ -136,7 +135,7 @@ local function phaseItems()
                        dead = not okd or dead, busy = MAIL.busy() })
     end)
     if not okt then onceErr("traps", errt, "traps error: " .. tostring(errt)) end
-    P.stop("e7")
+    PERF.stop("e7")
 end
 
 -- Which function runs in which phase of the cycle. This table is the whole schedule: to add timed work, add a phase to
@@ -159,18 +158,18 @@ local function runPhase(pawn)
 end
 
 -- One core update (coreTick, every UPDATE_MS on the game thread): what runs every time, then this update's phase.
-local function update(ctx)
+local function update(frame)
     CLOCK.advance()
     SOON.run()
-    stepSmallModules()
+    stepTimers()
     CONNECTION.readEvents()
     SHOP.registerLazyHooks()
-    updateWindows(ctx)
+    updateWindows(frame)
     CONNECTION.markReady()
     SHOP.preloadMenuClasses()
-    P.start("cards")
+    PERF.start("cards")
     SHOP_CARDS.refreshCards()
-    P.stop("cards")
+    PERF.stop("cards")
     TECHSCAN.sendRemovedSlots()
     local pawn = nil
     if ap.ready then
@@ -186,24 +185,24 @@ end
 local function coreTickBody()
     -- Ctrl+8 (perf test tools) pauses the whole update, the controller walk included, so the pause takes away
     -- all of the mod's per-update work. That walk is timed as "ctx" and counted in the update's "lua" time.
-    local ran = not P.paused
-    local ctx = nil
+    local ran = not PERF.paused
+    local frame = nil
     if ran then
-        P.start("ctx")
-        local okc, c = pcall(playerContext)
-        if okc then ctx = c else onceErr("context", c, "player lookup error: " .. tostring(c)) end
+        PERF.start("ctx")
+        local okc, c = pcall(PLAYER.lookUpFrame)
+        if okc then frame = c else onceErr("context", c, "player lookup error: " .. tostring(c)) end
     end
-    ctx = ctx or { playerState = findPlayerState }
-    PLAYER.setFrame(ctx)
-    P.frameBegin(ctx, ran and P.stop("ctx") or nil)
+    frame = frame or PLAYER.emptyFrame()
+    PLAYER.setFrame(frame)
+    PERF.frameBegin(frame, ran and PERF.stop("ctx") or nil)
     if ran then
-        local ok, err = pcall(update, ctx)
+        local ok, err = pcall(update, frame)
         if not ok then onceErr("update", err, "update error: " .. tostring(err)) end
-        if P.legacy then pcall(P.replayOldCost, ctx) end
-        P.world(ctx)
+        if PERF.legacy then pcall(PERF.replayOldCost, frame) end
+        PERF.world(frame)
     end
     PLAYER.setFrame(nil)
-    P.frameEnd(ran)
+    PERF.frameEnd(ran)
 end
 -- The engine's frame number, or nil when it can't be read. The timer hands one update to the game thread every
 -- UPDATE_MS whether or not the last has run, so after a stall (a world loading) the queued ones arrive in one frame.
@@ -217,7 +216,7 @@ local function engineFrame()
     return ok and tonumber(n) or nil
 end
 local lastFrame = nil         -- the engine frame the last update ran in
--- Never inside a research hook, nor inside itself (see UTIL.guarded), and at most once a frame:
+-- Never inside a research hook, nor inside itself (see UTIL.runInsideHook), and at most once a frame:
 -- waits are counted in updates, and updates run back to back would use them up with no time passing.
 local function coreTick()
     if UTIL.insideHook() or inTick then
@@ -246,7 +245,7 @@ end
 
 -- The performance probe (perf_log=1; perf.lua).
 local function installPerfProbe()
-    P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
+    PERF.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
                      mailOpen = function() return MAIL.viewOpen() end,
                      oldCost = { mapShown = WALLS.mapShown, sweepWalls = WALLS.oldSweep, cards = SHOP_CARDS.lastCards,
                                  relabel = SHOP_CARDS.relabel, writeSave = writeSave } })
@@ -288,7 +287,7 @@ local function installWindows()
                        return k, out
                    end })
     TRAPS.install({ notify = notify, save = writeSave,
-                    announce = function(text) log(text); R.notify(text, playerState()) end,
+                    announce = function(text) log(text); RECORDS.notify(text, playerState()) end,
                     sender = function(index) return ap.from[index] end,
                     home = function() return WALLS.home end, start = function() return WALLS.start end })
 end

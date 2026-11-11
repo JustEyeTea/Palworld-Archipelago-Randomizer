@@ -6,8 +6,8 @@
 -- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): group "other mods' techs".
 local S = {}
 local CHECKS = require("checks")
-local D = require("ap_data")
-local P = require("perf")
+local DATA = require("ap_data")
+local PERF = require("perf")
 local PLAYER = require("player")
 local STATE = require("ap_state")
 local UTIL = require("util")
@@ -154,9 +154,9 @@ end
 
 -- Other mods' techs: read once a session, as soon as the player's tech data is there. Their own techs stay
 -- normal research; the report goes to the log and mod_techs.txt.
-local function scanTechs(td)
+local function tryTechScan(td)
     techScan.tries = techScan.tries + 1
-    local ok, report, why = pcall(S.scan, td, D)
+    local ok, report, why = pcall(S.scan, td, DATA)
     if not ok then
         techScan.tries = math.huge
         log("tech scan error: " .. tostring(report))
@@ -188,7 +188,7 @@ function S.sendRemovedSlots()
     techScan.sent = true
     local locs = {}
     for _, id in ipairs(techScan.report.removed) do
-        local loc = D.shop[id] and D.shop[id].loc            -- (a tech this seed leaves as research has no check)
+        local loc = DATA.shop[id] and DATA.shop[id].loc            -- (a tech this seed leaves as research has no check)
         if loc and not ap.checked[loc] then
             locs[#locs + 1] = loc
             ap.bought[loc] = true
@@ -203,10 +203,10 @@ end
 -- The tech-scan phase: other mods' techs, once per cycle until the player's tech data is there.
 function S.phase()
     if techScan.report or techScan.tries >= TECH_SCAN_TRIES then return end
-    P.start("scan")
+    PERF.start("scan")
     local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
-    if td and safe(function() return td:IsValid() end) then scanTechs(td) end
-    P.stop("scan")
+    if td and safe(function() return td:IsValid() end) then tryTechScan(td) end
+    PERF.stop("scan")
     S.sendRemovedSlots()                           -- (in the update the scan found them)
 end
 

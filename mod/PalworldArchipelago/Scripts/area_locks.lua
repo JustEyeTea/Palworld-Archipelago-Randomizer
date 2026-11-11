@@ -5,7 +5,7 @@
 local AREA_LOCKS = {}
 local ART = require("art")
 local CONFIG = require("config")
-local P = require("perf")
+local PERF = require("perf")
 local PLAYER = require("player")
 local STATE = require("ap_state")
 local UTIL = require("util")
@@ -14,7 +14,7 @@ local WALLS = require("walls")
 local WORLD = require("world")
 local ap = STATE.ap
 local cfg = CONFIG.cfg
-local keep, keepInPlace = UTIL.keep, UTIL.keepInPlace
+local keepAlive, keepInPlace = UTIL.keepAlive, UTIL.keepInPlace
 local log, onceErr = UTIL.log, UTIL.onceErr
 local notify, playerState = PLAYER.notify, PLAYER.playerState
 local SENT_HOME_AFTER = 2       -- looks in a row (one per cycle) inside a locked area before the player is sent home
@@ -34,7 +34,7 @@ end
 -- their textures alive (start-up). `dir` is the mod's folder.
 function AREA_LOCKS.configureWalls(dir)
     local settings = {
-        keep = keep, keepInPlace = keepInPlace, dir = dir,
+        keepAlive = keepAlive, keepInPlace = keepInPlace, dir = dir,
         visited = ap.visited,                 -- (the same table: the map reads it)
         cppOff = cfg.map_cpp == "0",
         chartOff = cfg.map_chart == "0",
@@ -56,7 +56,7 @@ function AREA_LOCKS.configureWalls(dir)
     local fade = pair(cfg.wall_fade)
     if fade and fade[2] > fade[1] then settings.fade = { fade[1] * 100, fade[2] * 100 } end
     WALLS.install(settings)
-    ART.install({ keep = keep, dir = dir })
+    ART.install({ keepAlive = keepAlive, dir = dir })
     WALLS.setSkin(cfg.wall_skin)
 end
 
@@ -83,9 +83,9 @@ local function sendHomeIfLocked(pawn)
     lockedTicks = (okl and where) and lockedTicks + 1 or 0
     if lockedTicks < SENT_HOME_AFTER then return end
     lockedTicks = 0
-    local h = WALLS.home
+    local home = WALLS.home
     local okt, errt = pcall(function()
-        pawn:K2_TeleportTo({ X = h[1], Y = h[2], Z = h[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
+        pawn:K2_TeleportTo({ X = home[1], Y = home[2], Z = home[3] }, { Pitch = 0, Yaw = 0, Roll = 0 })
     end)
     log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
     notify(tostring(where) .. ((ap.beyond and ap.beyond[where]) and " is beyond this seed's goal."
@@ -101,16 +101,16 @@ function AREA_LOCKS.update(pawn)
     if not (WORLD.settled() and WORLD.seedWorld()) then return end
     local on = areaLocks
     -- Ctrl+7 (perf test tools) can hold the walls in a test state: nothing is raised, lowered or checked then.
-    local held = P.walls ~= "full"
-    P.start("walls")
+    local held = PERF.walls ~= "full"
+    PERF.start("walls")
     if not held then
         local ok, err = pcall(WALLS.update, on, ap.passes, pawn)
         if not ok then onceErr("walls", err, "walls error: " .. tostring(err)) end
     end
-    P.stop("walls")
-    P.start("map")
+    PERF.stop("walls")
+    PERF.start("map")
     local ok, err = pcall(WALLS.updateMap, on, ap.passes, pawn)
-    P.stop("map")
+    PERF.stop("map")
     if not ok then onceErr("map", err, "map error: " .. tostring(err)) end
     local up, all = WALLS.count()
     if up > 0 and not wallsLogged then
@@ -133,7 +133,7 @@ function AREA_LOCKS.phaseAreas(pawn)
     if not areaLocksApply(pawn) then return end
     rememberVisited(pawn)
     -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
-    if P.walls == "full" then sendHomeIfLocked(pawn) end
+    if PERF.walls == "full" then sendHomeIfLocked(pawn) end
 end
 
 -- The wall-notice phase: the chat notice and hint offer at a locked wall the player walks up to.

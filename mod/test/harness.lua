@@ -1188,7 +1188,7 @@ expect(not mapBody.Image_MapBody.Brush.ResourceObject.rt, "the World Tree's own 
 -- A later session: the same map picture keeps the saved colour map; a mod that replaces the map art gets it saved again.
 local function nextSession()
     local W2 = dofile(MOD .. "/Scripts/walls.lua")
-    W2.dir, W2.keep = MOD, function() end
+    W2.dir, W2.keepAlive = MOD, function() end
     for _ = 1, 3 do W2.updateMap(true, {}, pawn) end
 end
 nextSession()
@@ -1203,7 +1203,7 @@ composeFails = true
 mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 11 end,
                                                GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end }
 local W3 = dofile(MOD .. "/Scripts/walls.lua")
-W3.dir, W3.keep = MOD, function() end
+W3.dir, W3.keepAlive = MOD, function() end
 local drawn = greyBoxes
 for _ = 1, 4 do W3.updateMap(true, {}, pawn) end
 composeFails = false
@@ -1230,7 +1230,7 @@ do
             end
         end }
     local W5 = dofile(MOD .. "/Scripts/walls.lua")
-    W5.dir, W5.keep = MOD, function() end
+    W5.dir, W5.keepAlive = MOD, function() end
     local before = exports
     for _ = 1, 4 do W5.updateMap(true, {}, pawn) end
     local said = table.concat(calls, " | ")
@@ -1284,7 +1284,7 @@ do
             end
         end }
     local W6 = dofile(MOD .. "/Scripts/walls.lua")
-    W6.dir, W6.keep = MOD, function() end
+    W6.dir, W6.keepAlive = MOD, function() end
     W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
     mapOpen = false
     W6.updateMap(true, {}, pawn)                                 -- closed: the chart is drawn in the background
@@ -1349,7 +1349,7 @@ do
     loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
     local jobsBefore = #composeJobs
     local W7 = dofile(MOD .. "/Scripts/walls.lua")
-    W7.dir, W7.keep = MOD, function() end
+    W7.dir, W7.keepAlive = MOD, function() end
     W7.updateMap(true, {}, pawn)
     local said = table.concat(calls, " | ")
     expect(said:find("enable=1", 1, true), "C++ is switched on at the first update, before any picture or map: " .. said)
@@ -1367,7 +1367,7 @@ do
     mapOpen = false
     mapArt = mapArt + 1                                            -- another session, another mod's map art
     local W8 = dofile(MOD .. "/Scripts/walls.lua")
-    W8.dir, W8.keep = MOD, function() end
+    W8.dir, W8.keepAlive = MOD, function() end
     for _ = 1, 3 do W8.updateMap(true, {}, pawn) end
     local early = #composeJobs
     mapOpen = true
@@ -1390,7 +1390,7 @@ do
     local stampsBefore = {}
     for k, v in pairs(stampAt) do stampsBefore[k] = v end
     local W9 = dofile(MOD .. "/Scripts/walls.lua")
-    W9.dir, W9.keep = MOD, function() end
+    W9.dir, W9.keepAlive = MOD, function() end
     for _ = 1, 3 do W9.updateMap(true, {}, pawn) end           -- the map not built yet: the picture is made, no icons
     expect(#mapBody.icons == 0, "no icons before the map screen exists")
     -- dev.35 playtest: after Return to title and a second world load, the first world's screen was still about (last in
@@ -1451,7 +1451,7 @@ do
     local add = mapBody["Add Icon By Location"]
     mapBody["Add Icon By Location"] = nil
     local W10 = dofile(MOD .. "/Scripts/walls.lua")
-    W10.dir, W10.keep = MOD, function() end
+    W10.dir, W10.keepAlive = MOD, function() end
     local jobs = #composeJobs
     for _ = 1, 4 do W10.updateMap(true, {}, pawn) end
     expect(logged("map icons: could not add them") and #composeJobs > jobs and composeJobs[#composeJobs].locked ~= nil,
@@ -1494,7 +1494,7 @@ mapBody.MaskTextureMaterial = { IsValid = function() return true end,      -- (t
 local AW = require("area_walls")
 local area4, sealedArea = AW.areas[4], AW.areas[16]
 local T = dofile(MOD .. "/Scripts/walls.lua")
-T.dir, T.keep = MOD, function() end
+T.dir, T.keepAlive = MOD, function() end
 T.beyond = { [sealedArea] = true }
 T.visited = {}
 local passes = { [area4] = true }
@@ -1557,7 +1557,7 @@ local askedMap
 util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
     GetRenderTargetByMapName = function(_, name) askedMap = name:ToString(); return { IsValid = function() return true end } end } end
 local F = dofile(MOD .. "/Scripts/walls.lua")
-F.dir, F.keep = MOD, function() end
+F.dir, F.keepAlive = MOD, function() end
 F.beyond, F.visited = { [sealedArea] = true }, {}
 n = #jobs
 drawLog = {}
@@ -1586,7 +1586,7 @@ expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096
 -- No colour map (and no game map to save one from): the overlay, drawn over the game's map as before.
 os.remove(colourFile)
 local G2 = dofile(MOD .. "/Scripts/walls.lua")
-G2.dir, G2.keep = MOD, function() end
+G2.dir, G2.keepAlive = MOD, function() end
 G2.beyond, G2.visited = { [sealedArea] = true }, {}
 local savedLoad = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
 mapOpen, drawLog = false, {}
@@ -1603,7 +1603,7 @@ if hadColour then cf = io.open(colourFile, "w"); cf:write("png"); cf:close() els
 AP_ComposeField = nil
 mapOpen = false
 local C = dofile(MOD .. "/Scripts/walls.lua")
-C.dir, C.keep, C.mapStyle = MOD, function() end, "chart"
+C.dir, C.keepAlive, C.mapStyle = MOD, function() end, "chart"
 n = #jobs
 for _ = 1, 3 do C.updateMap(true, {}, pawn) end
 expect(#jobs == n, "map_style=chart: no territories")
@@ -1619,7 +1619,7 @@ print("walls and the map, on fresh copies of walls.lua")
 -- standing now that were not standing when it was made.
 local function freshWalls()
     local W = dofile(MOD .. "/Scripts/walls.lua")
-    W.dir, W.keep = MOD, function() end
+    W.dir, W.keepAlive = MOD, function() end
     local before = {}
     for a in pairs(wallsUp) do before[a] = true end
     local function mine()
@@ -1793,8 +1793,8 @@ do  -- Ten passes in one session: no map overlay is kept (it is drawn into the m
     local takeAway = territoriesStandIns(calls)
     local putBack = savedColourMap(mapArt)
     local W = freshWalls()
-    local core = require("walls")                             -- (the core gave its keep and keepInPlace to this one)
-    W.keep, W.keepInPlace = core.keep, core.keepInPlace
+    local core = require("walls")                        -- (the core gave its keepAlive and keepInPlace to this one)
+    W.keepAlive, W.keepInPlace = core.keepAlive, core.keepInPlace
     local function keptOf(path)
         local n = 0
         for _, obj in pairs(kept) do if type(obj) == "table" and obj.path == path then n = n + 1 end end

@@ -5,7 +5,7 @@
 local WORLD = {}
 local CLOCK = require("clock")
 local CONFIG = require("config")
-local D = require("ap_data")
+local DATA = require("ap_data")
 local PLAYER = require("player")
 local SAVE = require("save")
 local STATE = require("ap_state")
@@ -103,7 +103,7 @@ local function techsToRelock(ps)
     if not ok then return nil end
     local relock = 0
     for _, n in ipairs(names) do
-        if D.shop[n] and not ap.techs[n] then relock = relock + 1 end
+        if DATA.shop[n] and not ap.techs[n] then relock = relock + 1 end
     end
     return relock
 end

@@ -3,7 +3,7 @@
 -- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): the lookup counts in group "the mailbox", and every
 -- group that reads a notice.
 local PLAYER = {}
-local R = require("records")
+local RECORDS = require("records")
 local UTIL = require("util")
 local log = UTIL.log
 
@@ -19,30 +19,37 @@ end
 -- state.
 -- It lives for one update only (frame is cleared after it), so nothing kept goes stale across a world change.
 local frame = nil
-local function liveKey(pc)
+local function liveControllerKey(pc)
     if not pc:IsValid() then return nil end
     local okn, n = pcall(function() return pc:GetFullName() end)
     if okn and tostring(n):find("Default__", 1, true) then return nil end
     return tostring(pc:GetAddress())
 end
-function PLAYER.context()
-    local ctx = {}
+-- Looks up this update's player: the frame record every part of the update reads. Its fields:
+--   pc              the first live, non-default player controller, or nil (at the title screen)
+--   controllerKey   that controller's address, or nil (the mailbox and the perf probe tell controllers apart by it)
+--   hasPawn         whether its K2_GetPawn answered with an object (UE4SS hands one back, valid or not: menu.lua's
+--                   test for "in a world")
+--   pawn            that pawn when it is valid, or nil
+--   playerState()   the first valid player state, looked up the first time it is asked for, or nil
+function PLAYER.lookUpFrame()
+    local newFrame = {}
     for _, pc in ipairs(FindAllOf("PalPlayerController") or {}) do
-        local ok, key = pcall(liveKey, pc)
-        if ok and key then ctx.pc, ctx.controllerKey = pc, key; break end
+        local ok, key = pcall(liveControllerKey, pc)
+        if ok and key then newFrame.pc, newFrame.controllerKey = pc, key; break end
     end
-    if ctx.pc then
-        local ok, pawn = pcall(function() return ctx.pc:K2_GetPawn() end)
-        ctx.hasPawn = ok and pawn ~= nil              -- menu.lua's old in-world test (UE4SS hands back an object, valid or not)
+    if newFrame.pc then
+        local ok, pawn = pcall(function() return newFrame.pc:K2_GetPawn() end)
+        newFrame.hasPawn = ok and pawn ~= nil
         local okv, valid = pcall(function() return pawn:IsValid() end)
-        ctx.pawn = ok and okv and valid and pawn or nil
+        newFrame.pawn = ok and okv and valid and pawn or nil
     end
     local looked, ps = false, nil
-    ctx.playerState = function()
+    newFrame.playerState = function()
         if not looked then looked, ps = true, PLAYER.findPlayerState() end
         return ps
     end
-    return ctx
+    return newFrame
 end
 function PLAYER.playerState()
     if frame then return frame.playerState() end
@@ -55,13 +62,19 @@ function PLAYER.frame()
 end
 
 -- Sets the frame record for the update about to run (main.lua), or clears it (nil) once the update is done.
-function PLAYER.setFrame(ctx)
-    frame = ctx
+function PLAYER.setFrame(record)
+    frame = record
+end
+
+-- The frame record for an update whose lookup failed: the same fields, none found, and the player state looked up on
+-- each ask.
+function PLAYER.emptyFrame()
+    return { pc = nil, controllerKey = nil, hasPawn = false, pawn = nil, playerState = PLAYER.findPlayerState }
 end
 
 function PLAYER.notify(text)
     log(text)
-    R.notify("[Archipelago] " .. text, PLAYER.playerState())
+    RECORDS.notify("[Archipelago] " .. text, PLAYER.playerState())
 end
 
 return PLAYER

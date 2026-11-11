@@ -9,15 +9,15 @@
 -- the game sets the tooltip up: deferred, the tooltip would show for a frame. Those two property sets make no widget,
 -- and they have run inside the hook in every release.
 local SHOP_CARDS = {}
-local D = require("ap_data")
-local P = require("perf")
+local DATA = require("ap_data")
+local PERF = require("perf")
 local STATE = require("ap_state")
 local TECHS = require("tech_icons")
 local UTIL = require("util")
 local WALLS = require("walls")
 local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local ap = STATE.ap
-local keep, log, once, safe = UTIL.keep, UTIL.log, UTIL.once, UTIL.safe
+local keepAlive, log, once, safe = UTIL.keepAlive, UTIL.log, UTIL.once, UTIL.safe
 
 -- What main.lua hands over (SHOP_CARDS.install).
 --   dir     the mod's folder, where the icons are (icons\<kind>.png)
@@ -31,21 +31,21 @@ end
 -- State: forgotten never (each is kept alive in the game instance; one no longer valid is loaded again).
 local textures = {}           -- icon kind -> its texture, or false when loading it failed
 -- A failed load is remembered as false for the session, so it is not loaded again for every card on every update.
-local function icon(kind, ctx)
+local function modIcon(kind, worldContext)
     local t = textures[kind]
     if t == false then return nil end
     if t and t:IsValid() then return t end
     local lib = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     if not lib or not lib:IsValid() then once("nolib", "KismetRenderingLibrary not found"); return nil end
     local path = env.dir .. "\\icons\\" .. kind .. ".png"
-    t = lib:ImportFileAsTexture2D(ctx, path)
+    t = lib:ImportFileAsTexture2D(worldContext, path)
     if not (t and t:IsValid()) then
         textures[kind] = false
         log("could not load icon " .. path)
         return nil
     end
     textures[kind] = t
-    keep(t)
+    keepAlive(t)
     return t
 end
 
@@ -53,7 +53,7 @@ end
 local techTextures = {}       -- tech id -> its icon's texture, or false when loading it failed (state, as textures)
 function SHOP_CARDS.techIcon(tech)
     local t = techTextures[tech]
-    if t == false then return nil end                 -- (failed before: see icon)
+    if t == false then return nil end                 -- (failed before: see modIcon)
     if t and t:IsValid() then return t end
     local path = ICONS[tech]
     if not path then return nil end
@@ -68,7 +68,7 @@ function SHOP_CARDS.techIcon(tech)
         return nil
     end
     techTextures[tech] = t
-    keep(t)
+    keepAlive(t)
     return t
 end
 
@@ -80,23 +80,23 @@ end
 
 -- The tech a slot holds when it holds one of your own techs (such cards show that tech as itself).
 function SHOP_CARDS.ownTech(tech)
-    local r = ap.scouted[D.shop[tech].loc]
-    local it = r and r.own and D.items[r.id]
+    local scouted = ap.scouted[DATA.shop[tech].loc]
+    local it = scouted and scouted.own and DATA.items[scouted.id]
     return it and it.kind == "tech" and it.tech or nil
 end
 
 -- What a slot sends, as the card names it.
 function SHOP_CARDS.rewardText(tech)
-    local r = ap.scouted[D.shop[tech].loc]
-    if not r then return "Archipelago item" end
+    local scouted = ap.scouted[DATA.shop[tech].loc]
+    if not scouted then return "Archipelago item" end
     local mine = SHOP_CARDS.ownTech(tech)
-    if mine then return D.shop[mine].name end
-    if r.own then return "Your " .. r.item end
-    return r.player .. "'s " .. r.item .. " (" .. r.game .. ")"
+    if mine then return DATA.shop[mine].name end
+    if scouted.own then return "Your " .. scouted.item end
+    return scouted.player .. "'s " .. scouted.item .. " (" .. scouted.game .. ")"
 end
 
-function SHOP_CARDS.shopCard(tech) return ap.shopOpen and D.shop[tech] ~= nil end
-function SHOP_CARDS.bought(tech) return ap.checked[D.shop[tech].loc] == true end
+function SHOP_CARDS.isShopSlot(tech) return ap.shopOpen and DATA.shop[tech] ~= nil end
+function SHOP_CARDS.bought(tech) return ap.checked[DATA.shop[tech].loc] == true end
 
 -- The game's own card categories, read off the level-1 cards (never relabelled) so they follow the game's language.
 local categories = { structure = "Structures", item = "Items" }    -- state, forgotten never (the game's language)
@@ -117,7 +117,7 @@ end
 -- card is; readBack never (each is logged once a session).
 local labelled = {}           -- card address -> { tech, sig, name, category, tex address, clickable } as last applied
 local readBack = {}           -- which read-backs worked (logged once each, for the playtest)
-local function noteRead(what, ok)
+local function logReadBackOnce(what, ok)
     if readBack[what] == nil then
         readBack[what] = ok
         log("cards: reading back the " .. what .. (ok and " works" or " does not work (those cards are relabelled every update)"))
@@ -125,21 +125,21 @@ local function noteRead(what, ok)
 end
 local function stillShows(card, seen)
     local okt, text = pcall(function() return card.RichText_TechnologyName_Lock:GetText():ToString() end)
-    noteRead("name", okt)
+    logReadBackOnce("name", okt)
     if not okt or text ~= seen.name then return false end
     local oku, unlock = pcall(function() return card.RichText_TechnologyName_Unlock:GetText():ToString() end)
-    noteRead("unlocked name", oku)
+    logReadBackOnce("unlocked name", oku)
     if not oku or unlock ~= seen.name then return false end
     local okg, cat = pcall(function() return card.BP_PalTextBlock_Category:GetText():ToString() end)
-    noteRead("category", okg)
+    logReadBackOnce("category", okg)
     if not okg or cat ~= seen.category then return false end
     if seen.tex then
         local oki, res = pcall(function() return tostring(card.Image_Icon.Brush.ResourceObject:GetAddress()) end)
-        noteRead("icon", oki)
+        logReadBackOnce("icon", oki)
         if not oki or res ~= seen.tex then return false end
     end
     local okc, on = pcall(function() return card.WBP_PalInvisibleButton:IsInteractionEnabled() end)
-    noteRead("click state", okc)
+    logReadBackOnce("click state", okc)
     return okc and on == seen.clickable
 end
 
@@ -149,19 +149,19 @@ function SHOP_CARDS.relabel(card, key, full)
     local tech = card.BindedTechnologyName:ToString()
     -- A level-1 card's category is read until the game has filled it in (it can still be empty as the card is built),
     -- then again only on a full pass or when the card shows another tech.
-    if D.starters[tech] and (full or not labelled[key] or labelled[key].tech ~= tech) then
+    if DATA.starters[tech] and (full or not labelled[key] or labelled[key].tech ~= tech) then
         labelled[key] = readCategory(card, tech) and { tech = tech } or nil
     end
-    if not SHOP_CARDS.shopCard(tech) then return end
+    if not SHOP_CARDS.isShopSlot(tech) then return end
     local sent, mine = SHOP_CARDS.bought(tech), SHOP_CARDS.ownTech(tech)
-    local r = ap.scouted[D.shop[tech].loc]
-    local own = r and r.own
+    local scouted = ap.scouted[DATA.shop[tech].loc]
+    local own = scouted and scouted.own
     local category = mine and categories[STRUCTURES[mine] and "structure" or "item"]
         or (sent and (own and "Received" or "Sent") or "Archipelago")
     local name = ((sent and not own) and "Sent: " or "") .. SHOP_CARDS.rewardText(tech)
     local clickable = not sent or mine ~= nil
-    local it = own and D.items[r.id]
-    local kind = (it and it.kind == "pass") and "area-pass" or (r and iconKind(r.flags) or "filler")
+    local it = own and DATA.items[scouted.id]
+    local kind = (it and it.kind == "pass") and "area-pass" or (scouted and iconKind(scouted.flags) or "filler")
     -- A Region Pass shows its own region's ticket (art/ap-pass-<region>.png); an Area Pass (Lock Size: areas) its
     -- region's, else the small-pass ticket (ap-pass-region.png, named before the rename); else the shared one.
     local ART = require("art")
@@ -169,15 +169,15 @@ function SHOP_CARDS.relabel(card, key, full)
         or (it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld"))
         or (kind == "area-pass" and (ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
                                      or (it.name:find("^Area Pass") and ART.texture("ap-pass-region"))))
-        or icon(kind, card)
+        or modIcon(kind, card)
     local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
     local sig = name .. "\0" .. category .. "\0" .. tostring(clickable) .. "\0" .. tostring(texAddr)
     local seen = labelled[key]
     if not full and seen and seen.tech == tech and seen.sig == sig and stillShows(card, seen) then
-        P.count("cardsSkipped")
+        PERF.count("cardsSkipped")
         return
     end
-    P.count("cards")
+    PERF.count("cards")
     -- A bought card does nothing when clicked (the game is told it cannot be researched). One showing your own tech
     -- stays interactive so its tooltip still works; the others are switched off outright.
     safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(clickable) end)

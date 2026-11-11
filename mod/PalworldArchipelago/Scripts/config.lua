@@ -81,7 +81,7 @@ end
 function CONFIG.rememberServer(server)
     local host = hostOf(server)
     if host == "" or host == DEFAULT_SERVER then return end
-    for h in (cfg.servers or ""):gmatch("[^,%s]+") do if h:lower() == host then return end end
+    for saved in (cfg.servers or ""):gmatch("[^,%s]+") do if saved:lower() == host then return end end
     cfg.servers = (cfg.servers and cfg.servers ~= "") and (cfg.servers .. "," .. host) or host
     CONFIG.write()
     log("servers: remembered " .. host)

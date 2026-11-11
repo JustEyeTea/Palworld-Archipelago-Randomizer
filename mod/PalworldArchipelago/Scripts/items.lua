@@ -6,10 +6,10 @@
 local ITEMS = {}
 local BAG = require("bag")
 local CRATES = require("crates")
-local D = require("ap_data")
+local DATA = require("ap_data")
 local MAIL = require("mailbox")
 local PLAYER = require("player")
-local R = require("records")
+local RECORDS = require("records")
 local SAVE = require("save")
 local STATE = require("ap_state")
 local SYNC = require("sync")
@@ -23,7 +23,7 @@ local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.w
 -- One-off effects of items, in index order; each is applied once per seed. False when it could not be applied yet (a
 -- bundle the bag refused, with the mailbox off): it is tried again later.
 local function giveOneOff(ps, id, index)
-    local it = D.items[id]
+    local it = DATA.items[id]
     if not it then return true end
     if it.name == "Palworld Crate" then
         local weights = {}
@@ -37,10 +37,10 @@ local function giveOneOff(ps, id, index)
         td.TechnologyPoint = td.TechnologyPoint + 2
         safe(function() td:OnRep_TechnologyPoint() end)
     elseif it.name == "Ancient Tech Points +1" then
-        td[R.ANCIENT_POINTS] = td[R.ANCIENT_POINTS] + 1
-        safe(function() td[R.ANCIENT_ONREP](td) end)
-    elseif R.BUNDLES[it.name] then
-        for _, b in ipairs(R.BUNDLES[it.name]) do
+        td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
+        safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
+    elseif RECORDS.BUNDLES[it.name] then
+        for _, b in ipairs(RECORDS.BUNDLES[it.name]) do
             if MAIL.on() then
                 MAIL.add(b[1], b[2])
             else
@@ -59,7 +59,7 @@ end
 function ITEMS.relicCount(upto)
     local n = 0
     for i, id in pairs(ap.items) do
-        local it = D.items[id]
+        local it = DATA.items[id]
         if it and it.kind == "relic" and (not upto or i <= upto) then n = n + 1 end
     end
     return n
@@ -87,21 +87,21 @@ end
 function ITEMS.openCrate(kind)
     local ps = playerState()
     if not (ps and ps:IsValid()) then notify("Open crates in your world."); return end
-    local lv = R.level(ps) or ap.level or 1
+    local lv = RECORDS.level(ps) or ap.level or 1
     local out
     kind, out = CRATES.openNext(lv, kind)
     if not kind then return end
     local parts = {}
-    for _, r in ipairs(out) do
-        local name = BAG.nameOf(r.id)
-        if r.bag or not MAIL.on() then
-            local okg, got = pcall(BAG.give, r.id, r.n)
+    for _, row in ipairs(out) do
+        local name = BAG.nameOf(row.id)
+        if row.bag or not MAIL.on() then
+            local okg, got = pcall(BAG.give, row.id, row.n)
             got = okg and got or 0
-            if got < r.n then CRATES.holdForBag(r.id, r.n - got) end
-            parts[#parts + 1] = (r.n > 1 and (r.n .. " x ") or "") .. name .. (got < r.n and " (waits for room in your bag)" or " (in your bag)")
+            if got < row.n then CRATES.holdForBag(row.id, row.n - got) end
+            parts[#parts + 1] = (row.n > 1 and (row.n .. " x ") or "") .. name .. (got < row.n and " (waits for room in your bag)" or " (in your bag)")
         else
-            MAIL.add(r.id, r.n)
-            parts[#parts + 1] = r.n .. " x " .. name
+            MAIL.add(row.id, row.n)
+            parts[#parts + 1] = row.n .. " x " .. name
         end
     end
     log("crate: opened a " .. CRATES.NAMES[kind] .. " at level " .. lv .. ": " .. table.concat(parts, ", ")
@@ -139,7 +139,7 @@ function ITEMS.applyItems(ps)
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
-        local it = D.items[id]
+        local it = DATA.items[id]
         if it and it.kind == "filler" and not giveOneOff(ps, id, i) then
             if waiting ~= i then
                 waiting = i
@@ -166,7 +166,7 @@ function ITEMS.onItem(indexText, itemText, _locationText, playerText, _flagsText
     if ap.items[index] == id then return end
     ap.items[index] = id
     TECH_LOCK.techsChanged()
-    local it = D.items[id]
+    local it = DATA.items[id]
     if not it then
         log("unknown item " .. id .. " (" .. tostring(name) .. ")")
         return
@@ -176,7 +176,7 @@ function ITEMS.onItem(indexText, itemText, _locationText, playerText, _flagsText
     elseif it.kind == "progressive" then
         local n = 0
         for _, v in pairs(ap.items) do if v == id then n = n + 1 end end
-        for k = 1, math.min(n, #D.spheres) do ap.techs[D.spheres[k]] = true end
+        for k = 1, math.min(n, #DATA.spheres) do ap.techs[DATA.spheres[k]] = true end
     elseif it.kind == "pass" then
         ap.passes[it.area] = true
     elseif it.kind == "trap" then

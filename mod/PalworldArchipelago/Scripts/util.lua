@@ -154,7 +154,7 @@ function UTIL.keepInPlace(index, obj)
     end
     return at
 end
-function UTIL.keep(obj) UTIL.keepInPlace(nil, obj) end
+function UTIL.keepAlive(obj) UTIL.keepInPlace(nil, obj) end
 
 -- An object's path without its class: GetFullName gives "Class /Path.Object", the engine's lookups take "/Path.Object".
 function UTIL.objectPath(obj)
@@ -229,22 +229,22 @@ end
 -- The core update never runs inside a hook. UE4SS can run its game-thread queue from inside a hook (a log showed the
 -- update's player lookup nested inside IsUnlockRecipeTechnology's hook, under a:get(); FindAllOf then got a bad
 -- argument and UE4SS logged "Ref was not function"), and an update inside a Blueprint hook would do widget work there,
--- which crashes the game. So every hook callback runs through UTIL.guarded(), and an update that finds itself inside
+-- which crashes the game. So every hook callback runs through UTIL.runInsideHook(), and an update that finds itself inside
 -- one skips its turn. (The other way round is ordinary: the update refreshing the tech tree asks these hooks.)
 -- State: true only while a hook callback runs.
 local inHook = false
-function UTIL.guarded(fn, ...)
+function UTIL.runInsideHook(fn, ...)
     local was = inHook
     inHook = true
     local ok, v = pcall(fn, ...)
     inHook = was
     return ok, v
 end
--- A hook callback run through UTIL.guarded(). An error is logged once under the hook's name, and the game's own
+-- A hook callback run through UTIL.runInsideHook(). An error is logged once under the hook's name, and the game's own
 -- result stands. main.lua hands it to menu.lua and mailbox.lua for their hooks too.
 function UTIL.guardedHook(name, cb)
     return function(...)
-        local ok, v = UTIL.guarded(cb, ...)
+        local ok, v = UTIL.runInsideHook(cb, ...)
         if ok then return v end
         UTIL.once("hookerr" .. name, "hook " .. name .. " error: " .. tostring(v))
     end

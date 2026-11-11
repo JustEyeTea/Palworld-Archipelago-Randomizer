@@ -71,7 +71,7 @@ local function deathPenalty(ps)                       -- the world's EPalOptionW
 end
 local function faint(route, ps)
     local frame = PLAYER.frame()
-    local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")   -- this update's controller (playerContext)
+    local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")   -- this update's controller (the frame)
     if route == 1 then
         local pawn = pc:K2_GetPawn()
         pawn.DamageReactionComponent:SlipDamage(999999, true, 5, true)

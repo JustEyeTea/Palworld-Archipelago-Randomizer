@@ -4,7 +4,7 @@
 -- areas.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
 -- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
 -- W, the table main.lua sees. Its fields:
---   handed over by main.lua (W.install, from config.txt): keep, keepInPlace, dir, radius, fade, tiling, scroll,
+--   handed over by main.lua (W.install, from config.txt): keepAlive, keepInPlace, dir, radius, fade, tiling, scroll,
 --     mapStyle, cppOff, testFogColour, chartOff, iconsOff, regionsOff, visited (main.lua's own set, again through
 --     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
 --     install. The harness sets them on its copies directly
@@ -24,7 +24,7 @@ local function freshPart(name)
 end
 -- The fields W.install takes: what main.lua hands over (the header's list).
 local HANDED_OVER = {
-    keep = true, keepInPlace = true, dir = true, visited = true, radius = true, fade = true, tiling = true,
+    keepAlive = true, keepInPlace = true, dir = true, visited = true, radius = true, fade = true, tiling = true,
     scroll = true, mapStyle = true, cppOff = true, testFogColour = true, chartOff = true, iconsOff = true,
     regionsOff = true,
 }
@@ -108,10 +108,10 @@ end
 buildTrig()
 
 
--- The wall class (and the walls' material) are kept loaded for the whole session through W.keep (set by the core):
+-- The wall class (and the walls' material) are kept loaded for the whole session through W.keepAlive (set by the core):
 -- left alone, the game frees them on the way back to the title, and reloading them while a world loads in was the
 -- likely cause of a crash on re-entering a world.
-W.keep = function() end
+W.keepAlive = function() end
 -- The core's keepInPlace(place, obj): keeps obj in place of what was kept at that place; returns the place.
 W.keepInPlace = function(place) return place end
 local function ready()
@@ -119,7 +119,7 @@ local function ready()
     pcall(LoadAsset, (WALL:gsub("_C$", "")))
     cls = StaticFindObject(WALL)
     statics = StaticFindObject("/Script/Engine.Default__GameplayStatics")
-    if cls and cls:IsValid() then W.keep(cls) end
+    if cls and cls:IsValid() then W.keepAlive(cls) end
     return cls ~= nil and cls:IsValid() and statics ~= nil and statics:IsValid()
 end
 -- What ready() did not find, for the log: the wall class (a game update could rename it) or the spawning library.

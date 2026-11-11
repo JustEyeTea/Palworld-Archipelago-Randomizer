@@ -4,11 +4,11 @@
 -- "buying a slot".
 local CHECKS = {}
 local CLOCK = require("clock")
-local D = require("ap_data")
+local DATA = require("ap_data")
 local ITEMS = require("items")
 local PLAYER = require("player")
 local POPUP = require("hint_popup")
-local R = require("records")
+local RECORDS = require("records")
 local STATE = require("ap_state")
 local UTIL = require("util")
 local WAIT = CLOCK.WAIT
@@ -79,7 +79,7 @@ function CHECKS.resetGoal()
     goalWait = nil
 end
 function CHECKS.pollRecords(ps, tick)
-    local okp, found = pcall(R.progress, ps, D, os.time())
+    local okp, found = pcall(RECORDS.progress, ps, DATA, os.time())
     if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
     CHECKS.sendChecks(found.locations)
     ap.level, ap.beaten = found.level, found.beaten

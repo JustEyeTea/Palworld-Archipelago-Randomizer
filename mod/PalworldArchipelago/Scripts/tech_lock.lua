@@ -1,11 +1,11 @@
 -- The tech lock: the game's list of researched techs holds the techs items have unlocked and no other shop tech, and
 -- the techs a seed leaves as normal research leave the shop (research.txt keeps the last seed's list).
--- Wired by main.lua (TECH_LOCK.install); its items phase calls TECH_LOCK.sync.
+-- Wired by main.lua (TECH_LOCK.install); its items phase calls TECH_LOCK.lockAndUnlockTechs.
 -- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "connect and receive", "techs the seed leaves as
 -- research (tech_checks no_decor)" and "the tech list is compared only when it may have changed".
 local TECH_LOCK = {}
-local D = require("ap_data")
-local P = require("perf")
+local DATA = require("ap_data")
+local PERF = require("perf")
 local STATE = require("ap_state")
 local UTIL = require("util")
 local ap = STATE.ap
@@ -20,24 +20,24 @@ function TECH_LOCK.install(handedOver)
     env = handedOver
 end
 
--- Bumped whenever what syncTechs compares against changes (the techs items unlocked, or which techs are the shop's),
+-- Bumped whenever what TECH_LOCK.lockAndUnlockTechs compares against changes (the techs items unlocked, or which techs are the shop's),
 -- so it can skip the comparison while neither that nor the game's list has changed.
 local techsVersion = 0
 
 -- Techs a seed leaves as normal research (slot data research_techs, e.g. décor with tech_checks no_decor): they leave
--- D.shop for D.research, so nothing locks, labels or sends them. Set again on every connection. D is the generated
--- table (ap_data.lua); research is a field the mod adds to it, and techscan.lua reads it too.
-D.research = {}
+-- DATA.shop for DATA.research, so nothing locks, labels or sends them. Set again on every connection. DATA is the
+-- generated table (ap_data.lua); research is a field the mod adds to it, and techscan.lua reads it too.
+DATA.research = {}
 function TECH_LOCK.setResearch(list)
-    for tech, s in pairs(D.research) do D.shop[tech] = s end
-    D.research = {}
+    for tech, s in pairs(DATA.research) do DATA.shop[tech] = s end
+    DATA.research = {}
     techsVersion = techsVersion + 1
     for tech in (list or ""):gmatch("[^,]+") do
-        local s = D.shop[tech]
-        if s then D.research[tech], D.shop[tech] = s, nil end
+        local s = DATA.shop[tech]
+        if s then DATA.research[tech], DATA.shop[tech] = s, nil end
     end
     local n = 0
-    for _ in pairs(D.research) do n = n + 1 end
+    for _ in pairs(DATA.research) do n = n + 1 end
     if n > 0 then log(n .. " tech(s) are normal research in this seed (not checks)") end
 end
 -- The last seed's list is kept in research.txt, so its normal-research techs can be researched before the first
@@ -73,7 +73,7 @@ end
 -- list must be compared at once, within one cycle), and it is forgotten on a world change as well.
 local techsSeen, techPolls = nil, 0
 local researchedNow = {}      -- tech -> true: the world's researched list at the last full read (prerequisites)
-function TECH_LOCK.sync(ps)
+function TECH_LOCK.lockAndUnlockTechs(ps)
     local td = ps:GetTechnologyData()
     if not td or not td:IsValid() then return end   -- still loading into the world
     local arr = td.UnlockedTechnologyNameArray
@@ -89,11 +89,11 @@ function TECH_LOCK.sync(ps)
     techsSeen = nil
     local okNames, names = pcall(TECH_LOCK.arrayNames, arr)
     if not okNames then return end                    -- not readable this moment (seen as the menu first opens)
-    P.count("techs", #names)
+    PERF.count("techs", #names)
     local keep, have, changed = {}, {}, false
     for _, n in ipairs(names) do
         have[n] = true
-        if D.shop[n] and not ap.techs[n] then
+        if DATA.shop[n] and not ap.techs[n] then
             changed = true
             log("locked " .. n .. " (its item has not arrived)")
         else
@@ -118,7 +118,7 @@ function TECH_LOCK.sync(ps)
     return changed
 end
 
--- Says that what TECH_LOCK.sync compares against has changed: the techs items unlocked, or which techs are the shop's.
+-- Says that what TECH_LOCK.lockAndUnlockTechs compares against has changed: the techs items unlocked, or which techs are the shop's.
 function TECH_LOCK.techsChanged()
     techsVersion = techsVersion + 1
 end
