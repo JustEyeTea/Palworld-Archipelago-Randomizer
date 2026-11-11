@@ -159,7 +159,7 @@ class TestPointsBudget(PalworldTestBase):
         kept = [by_name[l.name] for l in slots if l.progress_type != LocationProgressType.EXCLUDED]
         excluded = [l for l in slots if l.progress_type == LocationProgressType.EXCLUDED]
         self.assertTrue(excluded, "a two-tower seed has more slots than levelling pays for")
-        normal = sorted((self.world.lv.tech(t), t.cost) for t in kept if not t.ancient)
+        normal = sorted((self.world.levels.tech(t), t.cost) for t in kept if not t.ancient)
         spent = 0
         for level, cost in normal:
             spent += cost

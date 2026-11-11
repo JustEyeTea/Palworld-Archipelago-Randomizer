@@ -311,7 +311,7 @@ class Layout(NamedTuple):
     passes: Dict[str, str]         # area or region -> its pass item
     pieces: Dict[str, str]         # piece (the logic's region) -> its area or region; "Open sea" needs no pass
     borders: List[Tuple[str, str]]
-    levels: Dict[str, float]       # piece -> typical Pal level (pieces with no Pals of their own have none)
+    piece_levels: Dict[str, float]  # piece -> typical Pal level (pieces with no Pals of their own have none)
     sources: Dict[str, Tuple[PalSource, ...]]  # Paldeck entry -> its sources
     location_piece: Dict[str, Optional[str]]   # location name -> the piece it sits in (None: anywhere)
     towers: Dict[str, str]         # tower name -> its piece
@@ -339,13 +339,13 @@ def _regions_location_piece() -> Dict[str, Optional[str]]:
 # Keyed by the older words (see "regions and areas" above): "areas" is the 15 regions, "regions" the 75 areas.
 LAYOUTS = {
     "areas": Layout(start=START_AREA, passes={a: region_pass(a) for a in PASS_AREAS}, pieces=PIECES,
-                    borders=BORDERS, levels=AREAS,
+                    borders=BORDERS, piece_levels=AREAS,
                     sources={e: pal.sources for e, pal in PALDECK_ENTRIES.items()},
                     location_piece={l.name: l.piece for l in LOCATIONS},
                     towers={tower.name: tower.piece for tower in TOWERS},
                     sky=frozenset({"Sky Islands"}), world_tree="World Tree"),
     "regions": Layout(start=REGION_MODE["START"], passes={r: area_pass(r) for r in REGION_PASS_AREAS},
-                      pieces=REGION_MODE["PIECES"], borders=REGION_MODE["BORDERS"], levels=REGION_MODE["AREAS"],
+                      pieces=REGION_MODE["PIECES"], borders=REGION_MODE["BORDERS"], piece_levels=REGION_MODE["AREAS"],
                       sources={e: pal_sources(rows) for e, rows in REGION_MODE["SOURCES"].items()},
                       location_piece=_regions_location_piece(), towers=REGION_MODE["TOWERS"],
                       sky=frozenset(REGION_MODE["SKY"]), world_tree=REGION_MODE["WORLD_TREE"]),
