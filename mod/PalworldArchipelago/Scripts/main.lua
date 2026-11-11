@@ -1837,6 +1837,10 @@ local function updateAreaLocks()
         log("area locks: raising walls (" .. all .. " border pieces)")
     end
     if not on then return end
+    -- Inside a stage (a dungeon, a tower's arena) the map position says nothing about the area the player entered it
+    -- from: no notice, no visit and no sending home there.
+    local okS, inStage = pcall(function() return playerState():IsInStage() end)
+    if okS and inStage then return end
     if isPhase(PHASE.wallNotice) then noticeLockedWall(pawn) end
     if isPhase(PHASE.areas) then
         rememberVisited(pawn)

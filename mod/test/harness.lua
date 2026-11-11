@@ -890,6 +890,13 @@ local WALLS = dofile(MOD .. "/Scripts/walls.lua")
 expect(WALLS.areaAt(-304485, 240071) == "Bamboo Groves" and WALLS.areaAt(-342035, 236885) == WD.start,
        "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: " .. tostring(WALLS.areaAt(-304485, 240071)))
 pawnAt = { X = -312819, Y = 84516, Z = -800 }                  -- deep in Bamboo Groves, still locked
+;(function()
+    local stageWas = ps.IsInStage
+    ps.IsInStage = function() return true end                  -- a dungeon whose stage sits under that spot
+    run(21)
+    ps.IsInStage = stageWas
+    expect(teleported == nil, "a player in a stage is not sent home by where the stage sits on the map")
+end)()
 run(21)
 expect(teleported and teleported.X == WALLS.home[1], "a player inside a locked area is sent home")
 local sent = false
