@@ -70,7 +70,7 @@ end
 -- game's list has the same length and techsVersion is unchanged since a comparison that changed nothing: the game adds
 -- techs to the list, so a new one changes its length. Every 15th poll (about 30 s) compares in full regardless. The
 -- skip is tied to the TechnologyData it was taken from (another world loaded with the same seed and an equally long
--- list must be compared at once, as 6dd356e did within 2.1 s), and it is forgotten on a world change as well.
+-- list must be compared at once, within one cycle), and it is forgotten on a world change as well.
 local techsSeen, techPolls = nil, 0
 local researchedNow = {}      -- tech -> true: the world's researched list at the last full read (prerequisites)
 function TECH_LOCK.sync(ps)

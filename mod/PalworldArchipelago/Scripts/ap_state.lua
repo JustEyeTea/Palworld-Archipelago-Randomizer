@@ -4,9 +4,9 @@
 local STATE = {}
 
 -- Archipelago state. The server is the truth: on every connection it sends all items received so far and every
--- location already checked, so most of this is rebuilt each time. Only one-off effects (points, bundles, traps) need
--- memory: the index of the last item applied, the mailbox's contents, the traps still to fire and the Death Link amnesty
--- count, kept per seed and slot in a save file next to the mod.
+-- location already checked, so most of this is rebuilt each time. What it cannot send again (which one-off effects
+-- were applied, the mailbox, the traps still to fire, the crates, the Death Link amnesty count, the seed's world and
+-- more) is kept per seed and slot in a save file next to the mod; save.lua lists its lines.
 --
 -- State: the connection, ap.status. Forgotten: never (a new seed and a new world keep the connection).
 --   disconnected -> connecting    the mod asked the connector to connect (the menu's connect), or the connector

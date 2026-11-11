@@ -199,8 +199,8 @@ local function canResearch(self, ...)
     local r = slotUnlockable(self:get(), tech)
     if r ~= nil and not UTIL.said("unlockable") then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
     if tech == hoveredTech and not UTIL.said("ask1" .. tech) then
-        -- Left to the game (nil): its own answer too, the first plain boolean UE4SS hands the after-callback (2026-11-05:
-        -- Direhowl's Saddled Harness stayed greyed with no gate in our data or the game's table).
+        -- Left to the game (nil): its own answer too, the first plain boolean UE4SS hands the after-callback, so a slot
+        -- the game greys out with no gate in our data or the game's table can be traced.
         local game
         if r == nil then for i = 1, select("#", ...) do if type((select(i, ...))) == "boolean" then game = select(i, ...); break end end end
         once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(r) .. (r == nil and (" (the game says " .. tostring(game) .. ")") or ""))

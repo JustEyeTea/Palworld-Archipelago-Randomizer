@@ -65,9 +65,9 @@ function CONFIG.write()
     f:close()
 end
 
--- The servers the title menu's Archipelago menu offers (the user, 2026-11-07: archipelago.gg always, and any server
--- connected to before; host names only, since an archipelago.gg room's port changes with every room). Kept in
--- config.txt as servers=host,host.
+-- The servers the title menu's Archipelago menu offers: archipelago.gg always, and any server connected to before
+-- (host names only, since an archipelago.gg room's port changes with every room). Kept in config.txt as
+-- servers=host,host.
 local DEFAULT_SERVER = "archipelago.gg"
 local function hostOf(server) return ((server or ""):match("^%s*([^:%s]+)") or ""):lower() end
 function CONFIG.servers()

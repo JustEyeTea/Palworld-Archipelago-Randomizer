@@ -67,9 +67,9 @@ end
 
 -- Everything the game's records say is done: levels, captures, alphas, fast travel, towers. The server ignores
 -- locations this seed doesn't have (options turned off), so the mod doesn't need to know which are in play.
--- The goal waits for the player to leave the boss's arena (a stage, as for the Teleport Trap): the user, 2026-11-08,
--- beat the tower goal and the release flooded chat mid-arena, the goal line lost in it, before the game took them out
--- of the tower. Sent once a check finds them out of any stage, or WAIT.goal after (never stuck); with the banner.
+-- The goal waits for the player to leave the boss's arena (a stage, as for the Teleport Trap): the release that follows
+-- the goal floods chat, and in the arena the goal's own line was lost in it before the game took the player out of
+-- the tower. Sent once a check finds them out of any stage, or WAIT.goal after (never stuck); with the banner.
 -- State: the goal. Three flags, in the order they are set: goalWait (reached, waiting for the player to leave the
 -- boss's arena), ap.goalSent (sent this connection) and ap.goalShown (banner shown, in the save file). Forgotten:
 -- goalWait on a new seed (resetGoal); the two ap flags as ap_state.lua says.
@@ -97,7 +97,7 @@ function CHECKS.pollRecords(ps, tick)
     goalWait = nil
     AP_Goal()                                          -- (sent again on each connection: the server takes it once)
     log("goal sent: " .. done .. (out and "" or " (still in a stage after 2 minutes)"))
-    -- The banner and notice once per seed (kept in the save as goal=shown): 2026-11-08, loading a won world showed the
+    -- The banner and notice once per seed (kept in the save as goal=shown), so loading a won world does not show the
     -- banner again.
     if ap.goalShown then return end
     ap.goalShown = true

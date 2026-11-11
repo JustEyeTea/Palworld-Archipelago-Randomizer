@@ -11,8 +11,8 @@ local WAIT = CLOCK.WAIT
 local log = UTIL.log
 local notify = PLAYER.notify
 
--- Notices that would come while the loading screen is still up (Speed Boost's, 2026-11-07 test: sent 2 s after the world
--- loaded, before the player could see it; they found it later in chat): held until the player's character has moved
+-- Notices that would come while the loading screen is still up (Speed Boost's, sent 2 s after the world loads, before
+-- the player can see it, and found later in chat): held until the player's character has moved
 -- MOVED_CM from where it first stood in this world, or WAIT.heldNotice has passed, then shown. Dropped if the world
 -- changes first.
 -- State: forgotten when the world changes (the held notices are dropped, not shown).

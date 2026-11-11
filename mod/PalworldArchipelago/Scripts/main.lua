@@ -181,8 +181,8 @@ local function update(ctx)
 end
 
 -- The core update, on the game thread. LoopAsync's callback runs on another thread over the same Lua state, so it does
--- nothing there but hand over this function, made once (2026-11-08: two crashes with the 08E98397 stack came from a
--- 33 ms loop that ran Lua on that thread; building a new closure there every time is the same risk, smaller).
+-- nothing there but hand over this function, made once: a fast loop that ran Lua on that thread crashed the game
+-- (the 08E98397 stack), and building a new closure there every time is the same risk, smaller.
 local function coreTickBody()
     -- Ctrl+8 (perf test tools) pauses the whole update, the controller walk included, so the pause takes away
     -- all of the mod's per-update work. That walk is timed as "ctx" and counted in the update's "lua" time.

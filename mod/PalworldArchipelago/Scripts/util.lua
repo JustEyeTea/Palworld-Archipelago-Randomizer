@@ -130,7 +130,7 @@ end
 -- ReferencedObjects for the whole session: otherwise nothing references them once the menu rebuilds its cards, the
 -- engine frees them, and the cards go blank grey.
 -- State: forgotten never; looked up again when it is no longer valid.
-local keptBy = nil         -- the game instance lives all session (skill: GameInstance-owned objects); checked on use
+local keptBy = nil         -- the game instance: objects in its ReferencedObjects are not freed while the game runs
 -- Keeps obj alive in place `index` of ReferencedObjects, in place of what was kept there, so a picture that is made
 -- again and again keeps one place, not one more each time. Nothing is removed from the list: that is untested from
 -- Lua. With no place yet (nil, past the list's end, or in the list of a game instance found before) obj goes at the

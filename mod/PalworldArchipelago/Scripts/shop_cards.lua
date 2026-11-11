@@ -2,8 +2,12 @@
 -- its icon and whether it can still be bought. main.lua's update relabels the cards each update, when needed.
 -- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "shop cards", "cards are labelled again only when
 -- needed" and "tooltips".
--- The shop: cards relabelled every 300 ms (kit 9's shape: timer relabel plus two post-hooks, never widget work inside
--- Blueprint hooks, which crashed kits 5 and 6).
+-- The shape of the shop: the update looks at the cards every 300 ms and relabels a card only when it changed (and every
+-- card on a full pass, every 3 s), and the hooks (shop.lua) only change what the game's functions answer. No widget
+-- is labelled, made or added inside a Blueprint hook: earlier builds that did crashed the game. The one exception is
+-- the tooltip hook (shop.lua's tooltipSetup), which sets the tooltip's opacity and its caution note's visibility as
+-- the game sets the tooltip up: deferred, the tooltip would show for a frame. Those two property sets make no widget,
+-- and they have run inside the hook in every release.
 local SHOP_CARDS = {}
 local D = require("ap_data")
 local P = require("perf")
@@ -102,12 +106,12 @@ local function readCategory(card, tech)
     return false
 end
 
--- A card the mod labelled is labelled again only when something says it needs it. 6dd356e set every card's texts,
--- icon and click state on every update (about 11 UE4SS calls a card, an estimated 1-3 ms an update with the menu's
--- 30-80 cards, unmeasured). Now a card is skipped when its tech and what it should show are as last applied AND the
+-- A card the mod labelled is labelled again only when something says it needs it: setting every card's texts, icon
+-- and click state on every update costs about 11 UE4SS calls a card (an estimated 1-3 ms an update with the menu's
+-- 30-80 cards, unmeasured). So a card is skipped when its tech and what it should show are as last applied AND the
 -- card itself still shows it: its name texts, its category, its icon and its click state are read back (cheap reads),
 -- which catches the game setting a pooled card up again, or a text block re-applying its own text-table row on a
--- rebuild (issues-log: PalTextBlockBase). Anything that can't be read back counts as changed. Every 10th pass (3 s)
+-- rebuild (a PalTextBlockBase does that). Anything that can't be read back counts as changed. Every 10th pass (3 s)
 -- relabels every card anyway, as a safety net for anything those reads miss.
 -- State: the cards. Forgotten: a card's entry once the card is no longer found (refreshCards), all of them when no
 -- card is; readBack never (each is logged once a session).

@@ -66,7 +66,7 @@ local function wallNotice(area)
     if not points then return text, { title = area .. " is sealed", line = "It needs " .. pass .. "." } end
     points, cost = tonumber(points), tonumber(cost)
     hints.offer, hints.offeredAt = area, CLOCK.now()
-    -- Both cases say what the player has and what a hint costs (the user, 2026-11-04), with the configured key.
+    -- Both cases say what the player has and what a hint costs, with the configured key.
     if points >= cost then
         return text .. " Press " .. hints.key .. " for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
             { title = area .. " is sealed", line = hints.key .. " for a hint: " .. points .. " points, a hint costs " .. cost,

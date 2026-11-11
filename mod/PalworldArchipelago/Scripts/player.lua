@@ -13,10 +13,10 @@ function PLAYER.findPlayerState()
     for _, ps in ipairs(all) do if ps:IsValid() then return ps end end
 end
 -- The player for this update. Each FindAllOf walks the whole object array (UE4SS has no class index; an estimated
--- 2-15 ms per walk, unmeasured), and 6dd356e made one to four for the same player in one update (menu, mailbox, walls,
--- every 7th update). Now: one controller walk per update, and one player-state walk the first time something asks.
--- The choice is the one each lookup made before: the first live, non-default controller (FindFirstOf skips the class
--- default object; FindAllOf does not, hence the name test, as mailbox.lua's world key did), the first valid state.
+-- 2-15 ms per walk, unmeasured), so there is one controller walk per update, and one player-state walk the first time
+-- something asks, shared by the menu, the mailbox, the walls and the phases. The choice: the first live, non-default
+-- controller (FindFirstOf skips the class default object; FindAllOf does not, hence the name test), the first valid
+-- state.
 -- It lives for one update only (frame is cleared after it), so nothing kept goes stale across a world change.
 local frame = nil
 local function liveKey(pc)
