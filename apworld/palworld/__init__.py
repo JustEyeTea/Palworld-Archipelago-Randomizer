@@ -154,6 +154,7 @@ class PalworldWorld(World):
     #                   scope           the locks with passes and checks
     #                   live            the pieces in play (scope's, or every piece when the map beyond stays open)
     #                   sea_needed      whether a mount for the open sea counts; sky_needed the same for the sky
+    #                                   (without the sea, live and scope lose what only the sea reaches)
     #                   prog_techs      the techs the logic counts on (progression items)
     #                   capture_levels  each Pal's level as a capture check (only pieces with checks)
     #                   cap             the cap every later step reads: asked_cap, held to what the map allows
@@ -258,7 +259,7 @@ class PalworldWorld(World):
         land = self.reach_by_land(self.live)
         self.sea_needed = self.gear or any(p not in land for p in self.goal_pieces())
         if not self.sea_needed:
-            self.live = frozenset(p for p in self.live if p in land)
+            self.leave_out_sea_only_pieces(land)
         self.sky_needed = any(lock in self.layout.sky for p, lock in self.layout.pieces.items() if p in self.live)
         self.prog_techs = self.progression_techs()
         # A Pal is a capture check only where this seed has checks: not in locks beyond the goal, open or not.
@@ -271,6 +272,17 @@ class PalworldWorld(World):
         if o.check_level.value and self.cap < o.check_level.value:      # on auto, lowering it is routine
             logging.warning(f"Palworld ({self.player_name}): the Check Level Cap is {o.check_level.value}, but the "
                             f"regions in this seed let a player level only to {self.cap}; checks stop there")
+
+    def leave_out_sea_only_pieces(self, land: FrozenSet[str]) -> None:
+        """Takes the pieces only the open sea reaches out of play. Where the seed has locks beyond the goal (Area Locks,
+        and Regions Beyond the Goal locked or open), a lock left with no piece in play (the Sky Islands and the World
+        Tree, say) becomes one of them: its pass would open nothing the logic knows, so it leaves the pool, and the mod
+        seals or opens its walls like any other lock beyond the goal. With passes, every pass stays, as promised."""
+        o = self.options
+        self.live = frozenset(p for p in self.live if p in land)
+        if o.area_locks and o.beyond_goal != o.beyond_goal.option_passes:
+            locks_in_play = {self.layout.pieces[p] for p in self.live}
+            self.scope = frozenset(lock for lock in self.scope if lock in locks_in_play)
 
     def plan_checks(self) -> None:
         """Which techs stay normal research, and which shop slots hold only filler: both need the final cap."""
@@ -300,10 +312,12 @@ class PalworldWorld(World):
 
     def normal_research(self) -> FrozenSet[str]:
         """Techs that stay normal research in this seed (no check, no item): décor with Tech Checks: no décor; techs
-        above the Check Level Cap; techs behind a tower outside this seed; and, without Gear Logic, every card that
-        needs another tech or Lab research first (gated)."""
+        above the Check Level Cap; techs behind a tower outside this seed (its lock beyond the goal, or its piece out
+        of play, so the logic never has it beaten); and, without Gear Logic, every card that needs another tech or Lab
+        research first (gated)."""
         decor = DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
-        beyond = {t for t in self.layout.towers if self.layout.pieces[self.layout.towers[t]] not in self.scope}
+        beyond = {t for t, piece in self.layout.towers.items()
+                  if self.layout.pieces[piece] not in self.scope or piece not in self.live}
         return decor | {t.id for t in SHOP_TECHS if self.levels.tech(t) > self.cap or t.tower in beyond
                         or (not self.gear and self.gated(t))}
 
