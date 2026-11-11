@@ -11,6 +11,7 @@ local VERSION = "0.14.1-dev.8"
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
 local UTIL = require("util")
+local CONFIG = require("config")
 local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
 log("loaded " .. VERSION)
 local D = require("ap_data")
@@ -57,30 +58,12 @@ local function jsonField(data, key)
     return nil
 end
 
--- config.txt: server=archipelago.gg:12345 / slot=YourName / password=
-local function readConfig()
-    local cfg = {}
-    local f = io.open(modDir .. "\\config.txt", "r")
-    if not f then return cfg end
-    for line in f:lines() do
-        local k, v = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
-        if k then cfg[k] = v end
-    end
-    f:close()
-    return cfg
-end
-
 if type(AP_Connect) ~= "function" then
     log("APConnector is not installed: no AP_* functions. Install ue4ss/Mods/APConnector and enable it in mods.txt.")
     return
 end
-local cfg = readConfig()
--- The key that asks for a hint at a sealed wall, and says yes to tying a seed to a world with progress.
-local HINT_KEY = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper()
-if Key and Key[HINT_KEY] == nil then
-    log("hint_key=" .. HINT_KEY .. " is not a key UE4SS knows: using H")
-    HINT_KEY = "H"
-end
+CONFIG.install({ dir = modDir })
+local cfg, HINT_KEY, writeConfig = CONFIG.cfg, CONFIG.hintKey, CONFIG.write
 -- The performance probe (perf_log=1; perf.lua). Installed before any hook is registered, so it counts them all.
 local P = require("perf")
 P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
@@ -88,28 +71,6 @@ P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = 
 -- The test tools (test_tools.lua). update() steps their probes every update; they stay idle unless installed, which
 -- only test_tools=1 in config.txt does (at the end of this file).
 local TEST_TOOLS = require("test_tools")
--- Every key config.txt can hold. The title menu rewrites the file with these keys only (comments are not kept), so a
--- new setting must be listed here or it is lost the next time the player connects from the menu. The harness checks
--- that every cfg.<key> the mod reads is listed.
-local CONFIG_KEYS = {
-    "server", "slot", "password", "servers", "hint_key",
-    "mailbox", "mailbox_key", "mailbox_view", "mailbox_slots",
-    "test_tools", "perf_log", "perf_no_bp_hooks",
-    "wall_skin", "wall_tiling", "wall_scroll", "wall_radius", "wall_fade",
-    "map_cpp", "map_chart", "map_icons", "map_regions", "map_style",
-}
-local function writeConfig()
-    local f = io.open(modDir .. "\\config.txt", "w")
-    if not f then
-        log("could not write config.txt")
-        return
-    end
-    for _, k in ipairs(CONFIG_KEYS) do
-        if cfg[k] then f:write(k .. "=" .. cfg[k] .. "\n") end
-    end
-    f:close()
-end
-
 -- tech id <-> shop slot
 local SLOT_TECH = {}
 for tech, s in pairs(D.shop) do SLOT_TECH[s.loc] = tech end
@@ -1417,31 +1378,10 @@ local function connectTo(server, slot, password)
     ap.status = "connecting"
     AP_Connect(server, slot, password or "")
 end
--- The servers the title menu's Archipelago menu offers (the user, 2026-11-07: archipelago.gg always, and any server
--- connected to before; host names only, since an archipelago.gg room's port changes with every room). Kept in
--- config.txt as servers=host,host.
-local DEFAULT_SERVER = "archipelago.gg"
-local function hostOf(server) return ((server or ""):match("^%s*([^:%s]+)") or ""):lower() end
-local function servers()
-    local list, seen = { DEFAULT_SERVER }, { [DEFAULT_SERVER] = true }
-    for host in ((cfg.servers or "") .. "," .. hostOf(cfg.server)):gmatch("[^,%s]+") do
-        host = host:lower()
-        if not seen[host] then seen[host] = true; list[#list + 1] = host end
-    end
-    return list
-end
-local function rememberServer(server)
-    local host = hostOf(server)
-    if host == "" or host == DEFAULT_SERVER then return end
-    for h in (cfg.servers or ""):gmatch("[^,%s]+") do if h:lower() == host then return end end
-    cfg.servers = (cfg.servers and cfg.servers ~= "") and (cfg.servers .. "," .. host) or host
-    writeConfig()
-    log("servers: remembered " .. host)
-end
 MENU.install({
     status = function() return ap.status end,
-    servers = servers,
-    rememberServer = rememberServer,
+    servers = CONFIG.servers,
+    rememberServer = CONFIG.rememberServer,
     server = function() return cfg.server or "" end,
     slot = function() return cfg.slot or "" end,
     password = function() return cfg.password or "" end,

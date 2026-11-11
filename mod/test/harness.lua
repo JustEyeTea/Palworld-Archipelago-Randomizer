@@ -4872,7 +4872,7 @@ end)()
         .. table.concat(bad, " | "))
 end)()
 ;(function()  -- every config.txt key the mod reads is one the title menu keeps when it rewrites the file (CONFIG_KEYS)
-    local fh = io.open(MOD .. "/Scripts/main.lua")
+    local fh = io.open(MOD .. "/Scripts/config.lua")
     local src = fh and fh:read("a") or ""
     if fh then fh:close() end
     local listed = {}
