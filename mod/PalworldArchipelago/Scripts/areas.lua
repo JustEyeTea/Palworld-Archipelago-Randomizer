@@ -102,6 +102,7 @@ local AREA_COLOURS = {
     ["Sky Islands"] = "5B9BF0", ["World Tree"] = "2E8B57",
 }
 local parents = nil                                            -- region -> area (regions layout only; loaded once)
+-- The region (one of the 15) an area of the 75 belongs to; with the 15 regions' cut, the region itself.
 function AREAS.parentOf(area)
     if W.layout ~= "regions" then return area end
     parents = parents or require("area_parents_regions")

@@ -400,6 +400,7 @@ function W.lockedNear(x, y, passes)
     return best
 end
 
+-- How many pieces are raised, and how many the cut has in all.
 function W.count()
     return nRaised, #layout.walls
 end

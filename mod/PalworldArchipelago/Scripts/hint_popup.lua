@@ -1,11 +1,13 @@
--- The hint pop-up at a locked wall (the user, 2026-11-05: "Centered and a little transparent so that it doesn't block
--- your view in a major way"). The Art & Assets lane's plate (art/ap-hint-plate-ready.png when the player has the points
--- for a hint, -short.png when not; 760x168, drawn at half size) in the middle of the screen at OPACITY for SHOW_TICKS,
--- with two lines of text and the hint points bar filled to have/cost (the plate's own empty track; hint_prompt.py's
--- SLOTS, halved). Without a plate file, a navy box in its place. The host is the HUD layout's canvas
--- (WBP_PalHUDLayout_C: SafeZone_0 > CanvasPanel, found by the Ctrl+F4 probe and seen working in the v0.13.9 playtest).
--- The chat line is sent as before; this only shows it better.
+-- The hint plate at a locked wall and the goal banner, on the HUD: shown by main.lua with the chat line it sends
+-- anyway, taken down when their time is up or forgotten when the world goes.
+-- Tests: mod/test/harness.lua, the HUD block with the debuff icons ("a hint plate", "the goal banner").
 local H = {}
+-- The plate (the user, 2026-11-05: "Centered and a little transparent so that it doesn't block your view in a major
+-- way"): the Art & Assets lane's art/ap-hint-plate-ready.png when the player has the points for a hint, -short.png when
+-- not (760x168, drawn at half size), in the middle of the screen at OPACITY for SHOW_TICKS, with two lines of text and
+-- the hint points bar filled to have/cost (the plate's own empty track). Without a plate file, a navy box in its place.
+-- The host is the HUD layout's canvas (WBP_PalHUDLayout_C: SafeZone_0 > CanvasPanel, found by the Ctrl+F4 probe and
+-- seen working in the v0.13.9 playtest).
 local ART = require("art")
 local UTIL = require("util")
 local OPACITY = 0.8
@@ -97,6 +99,7 @@ local function pinToCanvas(canvas, box, anchorY)
     pcall(function() box:SetVisibility(SELF_HIT_TEST_INVISIBLE) end)
 end
 
+-- Takes down what is shown (the plate or the banner), if anything.
 function H.hide()
     if shown then pcall(function() shown.box:RemoveFromParent() end) end
     shown = nil

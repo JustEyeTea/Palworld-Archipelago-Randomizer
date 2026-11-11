@@ -6,6 +6,7 @@ local A = { dir = ".", keep = function() end }
 local textures, failed = {}, {}
 local log = require("util").log
 
+-- The texture of art `name`, kept alive, or nil; a file that could not be loaded is not tried again this session.
 function A.texture(name)
     local t = textures[name]
     if t and t:IsValid() then return t end

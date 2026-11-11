@@ -382,6 +382,7 @@ local function areaDress(a, i, passes, mode)
     if not mid and name ~= "a" then name, mid = "a", skinMaterial("a") end
     if mid and dress(a, mid) then dressedAs[i] = name end
 end
+-- Dresses a piece just raised (i: its index) in the skin worn now; an error is logged once, not raised.
 function WALL_SKINS.skinNew(a, i)
     local ok, err = true, nil
     if byArea(skin.now) then

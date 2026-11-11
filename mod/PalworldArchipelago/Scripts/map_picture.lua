@@ -13,14 +13,6 @@ local once = UTIL.onceIn("walls")
 local W, layout, isOpen, SEA, AREA_COLOURS = nil, nil, nil, nil, nil
 local slugOf, lockedList, lockedIndexes, openList, standing, beyondSig = nil, nil, nil, nil, nil, nil
 
--- The world map with locked areas in greyscale: the game's map drawn into a render target, then each locked area's
--- outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from a greyscale copy of the map, darkening
--- softly toward its edge (a narrow band whose corners are shaded dark at the edge); shown in the map screen's map image (the exploration fog is a separate layer above it). Redrawn when
--- the set of locked areas changes.
--- The greyscale copy is made once on the player's machine and kept in the mod folder (it is the game's own art, so it
--- is never shipped): the map is drawn into a render target, saved as a PNG, turned grey by the C++ part
--- (AP_GreyscalePNG; the saved PNG is in linear light, hence the gamma) and loaded back. Without the C++ part, locked
--- areas are a dimmed copy of the colour map instead.
 -- Render targets are owned by the game instance, never by something in the world: an object kept alive for the
 -- session that belongs to the world stops the world being freed when leaving it, and the game crashes on the way back
 -- to the title (v0.4.0 to v0.4.5).
@@ -119,6 +111,10 @@ local function drawStamps(canvas, locked)
     end
     once("stamps" .. n, "map: " .. n .. " locked-area stamp(s) drawn")
 end
+-- The greyscale copy of the map, for drawMap: made once on the player's machine and kept in the mod folder (it is the
+-- game's own art, so it is never shipped): the map is drawn into a render target, saved as a PNG, turned grey by the
+-- C++ part (AP_GreyscalePNG; the saved PNG is in linear light, hence the gamma) and loaded back. nil without the C++
+-- part: locked areas are then a dimmed copy of the colour map.
 local function greyscaleMap(krl, tex)
     if greyTex and greyTex:IsValid() then return greyTex end
     if greyTried or not AP_GreyscalePNG then return nil end
@@ -183,6 +179,10 @@ local function bandOf(k, tint)
     bands[key] = out
     return out
 end
+-- The map picture drawn here, without the compositor: the game's map drawn into the render target, then each locked
+-- area's outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from the greyscale copy, darkening
+-- softly toward its edge (a narrow band whose corners are shaded dark at the edge). True once drawn; drawn again when
+-- the set of locked areas changes. (The exploration fog is a separate layer above the map image.)
 local function drawMap(passes)
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local tex = gameMapTexture()

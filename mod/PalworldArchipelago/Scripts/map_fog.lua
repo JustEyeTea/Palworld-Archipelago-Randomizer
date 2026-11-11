@@ -136,16 +136,6 @@ local function logFogMaterial(screen)
     return info
 end
 
--- The explorer's-chart fog (the user, 2026-11-06: the black fog replaced by a basic map drawn like an explorer's chart,
--- with the locked-area stamps on it; art: the Art lane's ap-chart-*.png, the user's pick A). All drawn on the player's
--- machine by the C++ part from the game's own map (never shipped):
---   1. the chart, once a session, from the saved colour map (compose_chart);
---   2. when the map opens (at most every EXPORT_GAP updates) the explored mask is exported and the fog picture made from
---      it: the chart where unexplored, clear where explored, the stamps on it (compose_fog); which channel of the mask
---      means explored, and which way round, is read once from the mask at the player and beyond the world's edge;
---   3. the fog picture is handed to C++ (AP_MapScreen "fogpic"), which shows it in the fog image inside the screen's
---      own Setup: from the next opening, never swapped in view. The last session's picture is used until a new one.
--- config.txt map_chart=0 keeps the game's fog.
 local CHART_SIZE = 2048
 -- Each look keeps its own fog picture (dev.32 playtest, 2026-11-08: the first opening showed dev.31's chart, the last
 -- session's map-fog.png, until the territories' one was made).
@@ -282,6 +272,17 @@ local function fogStampsAndRegions(key, passes)
     end
     return fogParts.stamps, fogParts.regions
 end
+-- The explorer's-chart fog (the user, 2026-11-06: the black fog replaced by a basic map drawn like an explorer's chart,
+-- with the locked-area stamps on it; art: the Art lane's ap-chart-*.png, the user's pick A). All drawn on the player's
+-- machine by the C++ part from the game's own map (never shipped):
+--   1. the chart, once a session, from the saved colour map (compose_chart);
+--   2. when the map opens (at most every EXPORT_GAP updates) the explored mask is exported and the fog picture made
+--      from it: the chart where unexplored, clear where explored, the stamps on it (compose_fog); which channel of the
+--      mask means explored, and which way round, is read once from the mask at the player and beyond the world's edge;
+--   3. the fog picture is handed to C++ (AP_MapScreen "fogpic"), which shows it in the fog image inside the screen's
+--      own Setup: from the next opening, never swapped in view. The last session's picture is used until a new one.
+-- config.txt map_chart=0 keeps the game's fog.
+
 -- 1. The fog art: the Territories' own (made with its overlay), or the chart, drawn once a session. True once it is
 -- ready (from the next update, when it became ready just now in Territories).
 local function stepChartArt()
