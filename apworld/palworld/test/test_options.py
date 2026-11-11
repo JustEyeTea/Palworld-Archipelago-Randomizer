@@ -1,3 +1,5 @@
+"""Pins what the options do in __init__.py: refused options (plan_cap, check_counts), what reaches slot data
+(fill_slot_data), and that the options' player text matches the code's numbers."""
 import unittest
 
 from Options import OptionError

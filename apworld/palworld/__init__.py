@@ -37,7 +37,9 @@ WORLD_TREE_EVENT = "World Tree Boss Defeated"
 # not the game's tables), which is also the order a Towers goal takes them in.
 TOWER_LEVELS = {"Starting Zone Tower": 10, "Forest Tower": 20, "Volcano Tower": 30, "Desert Tower": 40,
                 "Snow Tower": 50, "Sakurajima Tower": 55, "Feybreak Tower": 60, "Sky Islands Tower": 68}
-# The shop slots of the first level that has any (level 2): early spots for the first sphere.
+# Early spots for the first sphere: the shop slots of the first level that has any (level 2), and the level checks
+# a new player reaches within minutes (vanilla gives the Pal Sphere at level 2).
+EARLY_SPHERE_LEVELS = (2, 3)
 FIRST_ROW_SLOTS = frozenset(loc.name for loc in LOCATIONS
                             if loc.kind == "shop" and TECH_BY_ID[loc.key].level == STARTER_LEVEL + 1)
 
@@ -158,6 +160,8 @@ class PalworldWorld(World):
     #                   unaffordable    the shop slots that hold only filler and traps
 
     # --- the seed's plan: generate_early's steps, and which checks exist ---------------------------------------------
+    # tests: test_progression.py (each goal's cap and passes, TestNoGearLogic, TestPointsBudget), test_options.py
+    # (refused options), test_logic.py (TestSharedAlpha, TestLevelChecksEvery5: wanted)
     def generate_early(self) -> None:
         """The seed's plan, before anything is built: which cut of the map, the level cap, which regions or areas are in
         the seed, and whether the options leave enough checks. Bad options stop here with an OptionError."""
@@ -387,6 +391,7 @@ class PalworldWorld(World):
         return frozenset(shop_location(t) for t in slots if t.id not in keep)
 
     def passes_in_pool(self) -> List[str]:
+        """The pass of each region or area in this seed (none without Area Locks)."""
         if not self.options.area_locks:
             return []
         return [p for a, p in self.layout.passes.items() if a in self.scope]
@@ -409,10 +414,14 @@ class PalworldWorld(World):
         return sorted(a for a in self.layout.passes if a not in self.scope)
 
     # --- the map this seed uses (Regions Beyond the Goal) ------------------------------------------------------------
+    # tests: test_progression.py (TestTwoTowers, TestBeyondGoalPasses, TestBeyondGoalOpen), test_areas.py; corridor
+    # and reach_by_land: none of their own
     def every_area(self) -> FrozenSet[str]:
+        """Every area or region of this layout, the open sea and the start too."""
         return frozenset(self.layout.pieces.values())
 
     def pieces_of(self, areas) -> FrozenSet[str]:
+        """The pieces that make up these areas or regions."""
         return frozenset(p for p, a in self.layout.pieces.items() if a in areas)
 
     def start_pieces(self) -> List[str]:
@@ -447,6 +456,7 @@ class PalworldWorld(World):
         return frozenset(a for a in scope if any(layout.pieces[p] == a for p in reached))
 
     def neighbours(self) -> Dict[str, List[str]]:
+        """Each piece's neighbours across a border, sorted (so the route searches are the same in every run)."""
         out = defaultdict(set)
         for a, b in self.layout.borders:
             out[a].add(b)
@@ -503,6 +513,7 @@ class PalworldWorld(World):
         return self.flood(by_land)
 
     # --- the level model: how far the player can level, and what they can catch and fight ----------------------------
+    # tests: test_logic.py (TestLevels); climb_top: none of its own
     # The climb asks, for each piece, whether the player can catch its Pals at the level reached so far. That question
     # (can_catch_at, then sphere_tier, has_tech and shop_ok) takes `level_so_far` and must pass it on: without it,
     # shop_ok asks level_ok, which calls max_level again, and the logic recurses without end in any seed where a sphere
@@ -557,6 +568,7 @@ class PalworldWorld(World):
         return self.level_ok(state, level) and self.can_catch_at(state, level)
 
     # --- logic helpers: what the player has and where they can go ----------------------------------------------------
+    # tests: test_logic.py (TestMounts), test_areas.py (TestAreasSky, TestAreasLockSize)
     def can_enter(self, state: CollectionState, piece: str) -> bool:
         """Crossing a border into a piece needs its area's pass (the start and open sea need none), a mount that crosses
         water to go out on the open sea, and one that flies to go up to the Sky Islands."""
@@ -608,6 +620,7 @@ class PalworldWorld(World):
                 and self.can_catch_at(state, source.level))
 
     def pals_in_logic(self, state: CollectionState, entries) -> int:
+        """How many of these Paldeck entries the player can have now."""
         return sum(1 for e in entries if self.can_get_pal(state, e))
 
     # Rule makers. A rule made inside a loop must hold its own value: a lambda that read the loop's variable would read
@@ -642,54 +655,79 @@ class PalworldWorld(World):
                 and (not tech.ancient or any(state.has(e, self.player) for e in TOWER_EVENTS.values())))
 
     # --- building the Archipelago world: regions, items, rules and slot data -----------------------------------------
+    # tests: Archipelago's own suites (tools/ap_tests.sh); test_progression.py (TestCrates, TestMaterialBundles,
+    # TestTechSlotNames); test_options.py (slot data)
     def create_regions(self) -> None:
         """The logic's map: one Archipelago Region per piece in play, an entrance each way across each border, each
         check in its piece, and the tower, World Tree and goal events."""
         menu = Region("Menu", self.player, self.multiworld)
         self.multiworld.regions.append(menu)
+        regions = self.make_piece_regions()
+        menu.connect(regions[self.layout.start], "Start")
+        self.connect_borders(regions)
+        self.place_checks(regions, menu)
+        self.place_events(regions, menu)
+
+    def make_piece_regions(self) -> Dict[str, Region]:
+        """One Region per piece in play, by piece name."""
         regions = {}
-        layout = self.layout
-        for piece in layout.pieces:
+        for piece in self.layout.pieces:
             if piece not in self.live:          # beyond the goal and locked: not in this seed at all
                 continue
             region = Region(piece, self.player, self.multiworld)
             self.multiworld.regions.append(region)
             regions[piece] = region
-        menu.connect(regions[layout.start], "Start")
-        for a, b in layout.borders:              # the walls in game: each way needs the entered piece's pass
+        return regions
+
+    def connect_borders(self, regions: Dict[str, Region]) -> None:
+        """An entrance each way across each border between two pieces in play (the walls in game): each way needs
+        what entering its piece needs (can_enter)."""
+        for a, b in self.layout.borders:
             if a not in regions or b not in regions:
                 continue
             for src, dst in ((a, b), (b, a)):
                 entrance = regions[src].connect(regions[dst], f"{src} -> {dst}", self.enter_rule(dst))
-                # A mount rule depends on Pals and levels anywhere, so Archipelago must re-check it as the map opens.
-                if layout.pieces[dst] == SEA or layout.pieces[dst] in layout.sky:
-                    for region in regions.values():
-                        self.multiworld.register_indirect_condition(region, entrance)
+                if self.needs_mount(dst):
+                    self.recheck_everywhere(entrance, regions)
+
+    def needs_mount(self, piece: str) -> bool:
+        """Entering this piece takes a mount: it is on the open sea or up in the sky."""
+        area = self.layout.pieces[piece]
+        return area == SEA or area in self.layout.sky
+
+    def recheck_everywhere(self, entrance, regions: Dict[str, Region]) -> None:
+        """A mount rule depends on Pals and levels anywhere, so Archipelago must re-check it as any region opens."""
+        for region in regions.values():
+            self.multiworld.register_indirect_condition(region, entrance)
+
+    def place_checks(self, regions: Dict[str, Region], menu: Region) -> None:
+        """Each check of this seed in its piece (in the menu when it sits anywhere); unaffordable shop slots are
+        excluded, so they hold only filler and traps."""
         for loc in LOCATIONS:
             if not self.wanted(loc):
                 continue
-            piece = layout.location_piece[loc.name]
+            piece = self.layout.location_piece[loc.name]
             region = regions[piece] if piece else menu
             location = PalworldLocation(self.player, loc.name, loc.id, region)
-            if loc.name in self.unaffordable:       # filler and traps only (unaffordable_slots)
+            if loc.name in self.unaffordable:
                 location.progress_type = LocationProgressType.EXCLUDED
             region.locations.append(location)
+
+    def place_events(self, regions: Dict[str, Region], menu: Region) -> None:
+        """The events: each tower in play beaten, the World Tree boss beaten (its goal only), and the goal itself."""
         for tower in TOWERS:
-            if layout.towers[tower.name] not in regions:
-                continue
-            region = regions[layout.towers[tower.name]]
-            event = PalworldLocation(self.player, TOWER_EVENTS[tower.name], None, region)
-            event.place_locked_item(PalworldItem(TOWER_EVENTS[tower.name], ItemClassification.progression, None,
-                                                 self.player))
-            region.locations.append(event)
+            if self.layout.towers[tower.name] in regions:
+                self.add_event(regions[self.layout.towers[tower.name]], TOWER_EVENTS[tower.name],
+                               TOWER_EVENTS[tower.name])
         if self.goal_rules().world_tree:
-            region = regions[layout.world_tree]
-            event = PalworldLocation(self.player, WORLD_TREE_EVENT, None, region)
-            event.place_locked_item(PalworldItem(WORLD_TREE_EVENT, ItemClassification.progression, None, self.player))
-            region.locations.append(event)
-        goal = PalworldLocation(self.player, "Goal Complete", None, menu)
-        goal.place_locked_item(PalworldItem("Victory", ItemClassification.progression, None, self.player))
-        menu.locations.append(goal)
+            self.add_event(regions[self.layout.world_tree], WORLD_TREE_EVENT, WORLD_TREE_EVENT)
+        self.add_event(menu, "Goal Complete", "Victory")
+
+    def add_event(self, region: Region, location_name: str, item_name: str) -> None:
+        """An event: a location with no id in this region, holding a progression item with no id."""
+        event = PalworldLocation(self.player, location_name, None, region)
+        event.place_locked_item(PalworldItem(item_name, ItemClassification.progression, None, self.player))
+        region.locations.append(event)
 
     def create_item(self, name: str) -> Item:
         """An item by name, classified: passes, Progressive Spheres and relics are progression; a tech is progression
@@ -710,14 +748,7 @@ class PalworldWorld(World):
     def create_items(self) -> None:
         """The item pool: passes, techs (or Progressive Spheres), relics, and filler or traps for every other check."""
         pool = [self.create_item(name) for name in self.pool_names()]
-        # The first sphere is placed on one of the first things you can do (a level-2 shop slot, or reaching level 2
-        # or 3): nothing can be caught without it, and vanilla has it at level 2.
-        first = PROGRESSIVE_SPHERE if self.options.progressive_spheres else tech_item(SPHERE_TECHS[0].id)
-        early = [loc for loc in self.multiworld.get_unfilled_locations(self.player)
-                 if loc.progress_type != LocationProgressType.EXCLUDED
-                 and (loc.name in ("Level 2", "Level 3")
-                      or loc.name in FIRST_ROW_SLOTS)]
-        self.random.choice(early).place_locked_item(pool.pop(next(i for i, it in enumerate(pool) if it.name == first)))
+        self.place_first_sphere(pool)
         slots = sum(1 for loc in self.multiworld.get_unfilled_locations(self.player))
         if self.goal_rules().relics:
             room = slots - len(pool)
@@ -728,6 +759,18 @@ class PalworldWorld(World):
             pool += [self.create_item(RELIC) for _ in range(self.relics)]
         filler = [self.create_item(self.filler_or_trap()) for _ in range(slots - len(pool))]
         self.multiworld.itempool += pool + filler
+
+    def place_first_sphere(self, pool: List[Item]) -> None:
+        """Takes the first sphere out of the pool and locks it on one of the first things a player can do (a level-2
+        shop slot, or an EARLY_SPHERE_LEVELS level check): nothing can be caught without it."""
+        first = PROGRESSIVE_SPHERE if self.options.progressive_spheres else tech_item(SPHERE_TECHS[0].id)
+        early_levels = {f"Level {level}" for level in EARLY_SPHERE_LEVELS}
+        early = [loc for loc in self.multiworld.get_unfilled_locations(self.player)
+                 if loc.progress_type != LocationProgressType.EXCLUDED
+                 and (loc.name in early_levels or loc.name in FIRST_ROW_SLOTS)]
+        spot = self.random.choice(early)
+        sphere = pool.pop(next(i for i, item in enumerate(pool) if item.name == first))
+        spot.place_locked_item(sphere)
 
     def get_filler_item_name(self) -> str:
         """A filler item, never a trap: core's own replacements (item links, plando, start inventory from pool) use
