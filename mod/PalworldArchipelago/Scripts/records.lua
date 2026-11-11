@@ -2,7 +2,8 @@
 -- items behind filler bundles, the Ancient points field, and on-screen notices. Record keys, from a 1.0.5 save:
 --   PalCaptureCount / PaldeckUnlockFlag   tribe ("ChickenPal"; compared in lower case, as FNames are)
 --   TowerBossDefeatFlag                   EPalBossType name ("GrassBoss", maybe with an "EPalBossType::" prefix)
---   NormalBossDefeatFlag                  alpha spawner id or character id (not yet seen in a save: unknown keys logged)
+--   NormalBossDefeatFlag                  alpha spawner id or character id (not yet seen in a save: unknown keys
+--                                         logged)
 --   FastTravelPointUnlockFlag             the point actor's LevelObjectInstanceId as 32 hex digits, mapped to its
 --                                         FastTravelPointID by scanning the loaded fast-travel actors
 -- Tests: mod/test/tests/core.lua, mod/test/tests/goals.lua; groups "connect and receive", "the other goals"
@@ -50,7 +51,9 @@ end
 
 local warned = {}
 local function warnOnce(key, msg)
-    if not warned[key] then warned[key] = true; log(msg) end
+    if warned[key] then return end
+    warned[key] = true
+    log(msg)
 end
 
 function R.level(ps)
@@ -71,11 +74,15 @@ local function scanFastTravel(now, unlockedNow)
     local n = 0
     for _, a in ipairs(FindAllOf("PalLevelObjectUnlockableFastTravelPoint") or {}) do
         if a:IsValid() then
-            local ok, id, key = pcall(function() return a.FastTravelPointID:ToString(), guidText(a.LevelObjectInstanceId) end)
+            local ok, id, key = pcall(function()
+                return a.FastTravelPointID:ToString(), guidText(a.LevelObjectInstanceId)
+            end)
             if ok then
                 ftKeys[key] = id
                 n = n + 1
-                if a.bUnlocked then unlockedNow[#unlockedNow + 1] = id end
+                if a.bUnlocked then
+                    unlockedNow[#unlockedNow + 1] = id
+                end
             end
         end
     end
@@ -86,16 +93,37 @@ end
 -- pals = number of different Pals registered (caught or hatched) }.
 function R.progress(ps, D, now)
     local out, towers, beaten, registered, pals = {}, 0, {}, {}, 0
-    local function register(k) if not registered[k:lower()] then registered[k:lower()] = true; pals = pals + 1 end end
-    local function add(loc) if loc then out[#out + 1] = loc end end
-    local function addAll(list) for _, loc in ipairs(list or {}) do add(loc) end end
+    local function register(k)
+        if registered[k:lower()] then return end
+        registered[k:lower()] = true
+        pals = pals + 1
+    end
+    local function add(loc)
+        if not loc then return end
+        out[#out + 1] = loc
+    end
+    local function addAll(list)
+        for _, loc in ipairs(list or {}) do
+            add(loc)
+        end
+    end
 
     local lv = R.level(ps)
-    for n = 2, lv do add(D.levels[n]) end
+    for n = 2, lv do
+        add(D.levels[n])
+    end
 
     local rec = ps:GetRecordData()
-    each(rec.PalCaptureCount, function(k, v) if v > 0 then add(D.captures[k:lower()]); register(k) end end)
-    each(rec.PaldeckUnlockFlag, function(k, v) if v then add(D.captures[k:lower()]); register(k) end end)
+    each(rec.PalCaptureCount, function(k, v)
+        if v <= 0 then return end
+        add(D.captures[k:lower()])
+        register(k)
+    end)
+    each(rec.PaldeckUnlockFlag, function(k, v)
+        if not v then return end
+        add(D.captures[k:lower()])
+        register(k)
+    end)
     each(rec.TowerBossDefeatFlag, function(k, v)
         if not v then return end
         -- 1.0.5 keys are BOSS_BATTLE_NAME_GrassBoss (read as GrassBoss alone, two towers beaten counted for nothing
@@ -103,7 +131,12 @@ function R.progress(ps, D, now)
         local boss = (k:match("([^:]+)$") or k):gsub("^BOSS_BATTLE_NAME_", "")
         beaten[boss] = true
         local loc = D.towers[boss]
-        if loc then towers = towers + 1; add(loc) else warnOnce("tower" .. k, "tower record key not mapped: " .. k) end
+        if loc then
+            towers = towers + 1
+            add(loc)
+        else
+            warnOnce("tower" .. k, "tower record key not mapped: " .. k)
+        end
     end)
     each(rec.NormalBossDefeatFlag, function(k, v)
         if not v then return end
@@ -122,12 +155,22 @@ function R.progress(ps, D, now)
     each(rec.FastTravelPointUnlockFlag, function(k, v)
         if not v then return end
         local id = ftKeys[k:upper()]
-        if id then add(D.fast_travel[id]) else unmapped[#unmapped + 1] = k end
+        if id then
+            add(D.fast_travel[id])
+        else
+            unmapped[#unmapped + 1] = k
+        end
     end)
-    if #unmapped > 0 then scanFastTravel(now, unlockedNow) end
-    for _, id in ipairs(unlockedNow) do add(D.fast_travel[id]) end
+    if #unmapped > 0 then
+        scanFastTravel(now, unlockedNow)
+    end
+    for _, id in ipairs(unlockedNow) do
+        add(D.fast_travel[id])
+    end
     for _, k in ipairs(unmapped) do
-        if not ftKeys[k:upper()] then warnOnce("ft" .. k, "fast-travel record key not mapped yet: " .. k) end
+        if not ftKeys[k:upper()] then
+            warnOnce("ft" .. k, "fast-travel record key not mapped yet: " .. k)
+        end
     end
     return { locations = out, towers = towers, beaten = beaten, level = lv, pals = pals }
 end
