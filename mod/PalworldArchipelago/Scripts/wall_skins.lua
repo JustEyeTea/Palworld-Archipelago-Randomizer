@@ -8,8 +8,8 @@ local UTIL = require("util")
 local log = UTIL.log
 local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance          -- (materials belong to the game instance, as walls.lua's map pictures do)
--- Handed over by install: W (settings: dir, keep, fade, tiling, scroll; data: beyond, layout), the areas part's layout,
--- isOpen, AREA_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(), passes(),
+-- Handed over by install: W (settings: dir, keepAlive, fade, tiling, scroll; data: beyond, layout), the areas part's
+-- layout, isOpen, AREA_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(), passes(),
 -- pawn()) and DISSOLVE_S.
 local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
 local PALETTE, SEALED, TEAL = nil, nil, nil   -- areas.lua's palette, and its sealed grey and teal in linear light
@@ -141,7 +141,7 @@ local function apWallMaterial()
     end
     if m then
         apWall = m
-        W.keep(m)
+        W.keepAlive(m)
         return m
     end
 end
@@ -158,13 +158,13 @@ local function colourMaterial(name, gameInstance, rendering, materials)
         log("wall skin " .. name .. ": could not load " .. path)
         return nil
     end
-    W.keep(tex)                                                -- a colour picture: sRGB as imported
+    W.keepAlive(tex)                                                -- a colour picture: sRGB as imported
     local material = materials:CreateDynamicMaterialInstance(gameInstance, base, FName("None"), MID_FLAGS)
     if not (material and material:IsValid()) then
         log("wall skin " .. name .. ": could not make the material")
         return nil
     end
-    W.keep(material)
+    W.keepAlive(material)
     material:SetTextureParameterValue(FName("Pattern"), tex)
     fadeOn(material)
     local scroll = flow and { FLOW, 0 } or W.scroll
@@ -188,7 +188,7 @@ local function pawLayerTexture(gameInstance, rendering)
         from = "walls\\ap-wall-paws-layer.png, no mips"
     end
     if not (t and t:IsValid()) then return nil end
-    W.keep(t)
+    W.keepAlive(t)
     pawLayer = t
     log("wall skin paws: the paw layer from " .. from)
     return t
@@ -220,7 +220,7 @@ local function makePaws(name, gameInstance, rendering, materials)
         log("wall skin " .. name .. ": could not make the material")
         return nil
     end
-    W.keep(material)
+    W.keepAlive(material)
     material:SetTextureParameterValue(FName("Pattern"), tex)
     material:SetVectorParameterValue(FName("Back"), back)
     material:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
@@ -360,13 +360,13 @@ local function makePatternMaterial(name, gameInstance, rendering, materials)
         tex.SRGB = false
         tex:UpdateResource()
     end)
-    W.keep(tex)
+    W.keepAlive(tex)
     local material = materials:CreateDynamicMaterialInstance(gameInstance, skin.base, FName("None"), MID_FLAGS)
     if not (material and material:IsValid()) then
         log("wall skin " .. name .. ": could not make the material")
         return nil
     end
-    W.keep(material)
+    W.keepAlive(material)
     material:SetTextureParameterValue(FName("MainTexture01"), tex)
     local night = { R = tint.R * NIGHT, G = tint.G * NIGHT, B = tint.B * NIGHT, A = 1 }
     for param, colour in pairs({ Color = tint, DayColor = tint, NightColor = night }) do
@@ -412,7 +412,7 @@ local function dress(actor, material)
     -- the red original, before any change
     if not skin.base then
         skin.base = m:GetMaterial(0)
-        W.keep(skin.base)
+        W.keepAlive(skin.base)
     end
     m:SetMaterial(0, material or skin.base)
     return true
@@ -539,7 +539,7 @@ local function learnBaseMaterial()
     local m = meshOf(actor)
     skin.base = m and m:GetMaterial(0)
     if not skin.base then return false end
-    W.keep(skin.base)
+    W.keepAlive(skin.base)
     return true
 end
 -- paws without the pak: area instead, and Ctrl+F3 skips paws from then on. False when that leaves nothing to change.

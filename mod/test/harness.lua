@@ -127,6 +127,7 @@ local hooks, postHooks, loop, extraLoops = {}, {}, nil, {}
 gameSeconds = 1234.5                                         -- the game's clock: 33 ms a turn of the 33 ms loops
 local function Card(tech)
     local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
+    c.GetAddress = function() return c end                   -- (its address: the table, as a texture's)
     local function text(field)
         return { SetText = function(_, t) c.shown[field] = t.text end,
                  GetText = function() return { ToString = function() return c.shown[field] or "" end } end }
@@ -356,9 +357,9 @@ RegisterHook = function(path, fn, post)
     hooks[path], postHooks[path] = fn, post
 end
 loopIntervals = {}                                           -- (global) every interval the mod gave LoopAsync, in ms
-LoopAsync = function(ms, fn)                                 -- 300 ms (UTIL.UPDATE_MS): the core update
+LoopAsync = function(ms, fn)                                 -- UTIL.UPDATE_MS: the core update
     loopIntervals[#loopIntervals + 1] = ms
-    if ms == 300 then loop = fn else extraLoops[#extraLoops + 1] = fn end
+    if ms == require("util").UPDATE_MS then loop = fn else extraLoops[#extraLoops + 1] = fn end
 end
 ExecuteInGameThread = function(fn) fn() end
 ExecuteWithDelay = function() error("the mod must never call ExecuteWithDelay: its callback runs off the game thread") end
@@ -626,7 +627,11 @@ else
     expect(not bound and not logged("%[perf%]"), "and no test keys are bound, no probe lines")
 end
 expect(loop ~= nil, "update loop registered")
+expect(require("ap_state").ap.status == "connecting" and logged("connecting to localhost:38281 as Tester"),
+       "the start-up connect from config.txt says it is connecting, as the title menu's does")
 expect(hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"] ~= nil, "research hook registered")
+expect(logged("shop: hooked RequestUnlockTechnology_ToServer") and logged("shop: hooked IsUnlockableRecipeTechnology")
+       and logged("shop: hooked IsUnlockRecipeTechnology"), "each native shop hook's log line names the function hooked")
 expect(D.research.Torch and D.research.Lamp and not D.shop.Lamp, "before connecting, the last seed's research techs stay research")
 local early = { v = FNameOf("Lamp") }
 early.get = function(self) return self.v end
@@ -734,6 +739,24 @@ cards[#cards + 1] = passCard
 run(1)
 expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own area's ticket: " .. tostring(passCard.shown.icon))
 
+do   -- a card whose address can't be read is skipped (its entry could not be told from another's)
+    local nameless = Card("Product_Cooking_Grade_01")
+    nameless.GetAddress = function() error("the card was freed") end
+    cards[#cards + 1] = nameless
+    run(1)
+    table.remove(cards)
+    expect(nameless.shown.name == nil, "a card with no readable address is left alone")
+end
+do   -- a card whose name text cannot be set says so, once
+    local card = cards[3]
+    local setText = card.RichText_TechnologyName_Lock.SetText
+    card.RichText_TechnologyName_Lock.SetText = function() error("no text block here") end
+    require("shop_cards").refreshCards(true)
+    require("shop_cards").refreshCards(true)
+    card.RichText_TechnologyName_Lock.SetText = setText
+    expect(logged("cards: could not set the name text %(.*no text block here%)"),
+           "a card's widget write that fails is logged, naming the widget")
+end
 do   -- (its own block: the harness main chunk is near Lua's 200-local limit)
 print("cards are labelled again only when needed")
 local sets = cardSets
@@ -1186,7 +1209,7 @@ expect(not mapBody.Image_MapBody.Brush.ResourceObject.rt, "the World Tree's own 
 -- A later session: the same map picture keeps the saved colour map; a mod that replaces the map art gets it saved again.
 local function nextSession()
     local W2 = dofile(MOD .. "/Scripts/walls.lua")
-    W2.dir, W2.keep = MOD, function() end
+    W2.dir, W2.keepAlive = MOD, function() end
     for _ = 1, 3 do W2.updateMap(true, {}, pawn) end
 end
 nextSession()
@@ -1201,7 +1224,7 @@ composeFails = true
 mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 11 end,
                                                GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end }
 local W3 = dofile(MOD .. "/Scripts/walls.lua")
-W3.dir, W3.keep = MOD, function() end
+W3.dir, W3.keepAlive = MOD, function() end
 local drawn = greyBoxes
 for _ = 1, 4 do W3.updateMap(true, {}, pawn) end
 composeFails = false
@@ -1228,7 +1251,7 @@ do
             end
         end }
     local W5 = dofile(MOD .. "/Scripts/walls.lua")
-    W5.dir, W5.keep = MOD, function() end
+    W5.dir, W5.keepAlive = MOD, function() end
     local before = exports
     for _ = 1, 4 do W5.updateMap(true, {}, pawn) end
     local said = table.concat(calls, " | ")
@@ -1282,7 +1305,7 @@ do
             end
         end }
     local W6 = dofile(MOD .. "/Scripts/walls.lua")
-    W6.dir, W6.keep = MOD, function() end
+    W6.dir, W6.keepAlive = MOD, function() end
     W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
     mapOpen = false
     W6.updateMap(true, {}, pawn)                                 -- closed: the chart is drawn in the background
@@ -1347,7 +1370,7 @@ do
     loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
     local jobsBefore = #composeJobs
     local W7 = dofile(MOD .. "/Scripts/walls.lua")
-    W7.dir, W7.keep = MOD, function() end
+    W7.dir, W7.keepAlive = MOD, function() end
     W7.updateMap(true, {}, pawn)
     local said = table.concat(calls, " | ")
     expect(said:find("enable=1", 1, true), "C++ is switched on at the first update, before any picture or map: " .. said)
@@ -1365,7 +1388,7 @@ do
     mapOpen = false
     mapArt = mapArt + 1                                            -- another session, another mod's map art
     local W8 = dofile(MOD .. "/Scripts/walls.lua")
-    W8.dir, W8.keep = MOD, function() end
+    W8.dir, W8.keepAlive = MOD, function() end
     for _ = 1, 3 do W8.updateMap(true, {}, pawn) end
     local early = #composeJobs
     mapOpen = true
@@ -1388,7 +1411,7 @@ do
     local stampsBefore = {}
     for k, v in pairs(stampAt) do stampsBefore[k] = v end
     local W9 = dofile(MOD .. "/Scripts/walls.lua")
-    W9.dir, W9.keep = MOD, function() end
+    W9.dir, W9.keepAlive = MOD, function() end
     for _ = 1, 3 do W9.updateMap(true, {}, pawn) end           -- the map not built yet: the picture is made, no icons
     expect(#mapBody.icons == 0, "no icons before the map screen exists")
     -- dev.35 playtest: after Return to title and a second world load, the first world's screen was still about (last in
@@ -1449,7 +1472,7 @@ do
     local add = mapBody["Add Icon By Location"]
     mapBody["Add Icon By Location"] = nil
     local W10 = dofile(MOD .. "/Scripts/walls.lua")
-    W10.dir, W10.keep = MOD, function() end
+    W10.dir, W10.keepAlive = MOD, function() end
     local jobs = #composeJobs
     for _ = 1, 4 do W10.updateMap(true, {}, pawn) end
     expect(logged("map icons: could not add them") and #composeJobs > jobs and composeJobs[#composeJobs].locked ~= nil,
@@ -1492,7 +1515,7 @@ mapBody.MaskTextureMaterial = { IsValid = function() return true end,      -- (t
 local AW = require("area_walls")
 local area4, sealedArea = AW.areas[4], AW.areas[16]
 local T = dofile(MOD .. "/Scripts/walls.lua")
-T.dir, T.keep = MOD, function() end
+T.dir, T.keepAlive = MOD, function() end
 T.beyond = { [sealedArea] = true }
 T.visited = {}
 local passes = { [area4] = true }
@@ -1555,7 +1578,7 @@ local askedMap
 util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
     GetRenderTargetByMapName = function(_, name) askedMap = name:ToString(); return { IsValid = function() return true end } end } end
 local F = dofile(MOD .. "/Scripts/walls.lua")
-F.dir, F.keep = MOD, function() end
+F.dir, F.keepAlive = MOD, function() end
 F.beyond, F.visited = { [sealedArea] = true }, {}
 n = #jobs
 drawLog = {}
@@ -1584,7 +1607,7 @@ expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096
 -- No colour map (and no game map to save one from): the overlay, drawn over the game's map as before.
 os.remove(colourFile)
 local G2 = dofile(MOD .. "/Scripts/walls.lua")
-G2.dir, G2.keep = MOD, function() end
+G2.dir, G2.keepAlive = MOD, function() end
 G2.beyond, G2.visited = { [sealedArea] = true }, {}
 local savedLoad = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
 mapOpen, drawLog = false, {}
@@ -1601,7 +1624,7 @@ if hadColour then cf = io.open(colourFile, "w"); cf:write("png"); cf:close() els
 AP_ComposeField = nil
 mapOpen = false
 local C = dofile(MOD .. "/Scripts/walls.lua")
-C.dir, C.keep, C.mapStyle = MOD, function() end, "chart"
+C.dir, C.keepAlive, C.mapStyle = MOD, function() end, "chart"
 n = #jobs
 for _ = 1, 3 do C.updateMap(true, {}, pawn) end
 expect(#jobs == n, "map_style=chart: no territories")
@@ -1617,7 +1640,7 @@ print("walls and the map, on fresh copies of walls.lua")
 -- standing now that were not standing when it was made.
 local function freshWalls()
     local W = dofile(MOD .. "/Scripts/walls.lua")
-    W.dir, W.keep = MOD, function() end
+    W.dir, W.keepAlive = MOD, function() end
     local before = {}
     for a in pairs(wallsUp) do before[a] = true end
     local function mine()
@@ -1791,8 +1814,8 @@ do  -- Ten passes in one session: no map overlay is kept (it is drawn into the m
     local takeAway = territoriesStandIns(calls)
     local putBack = savedColourMap(mapArt)
     local W = freshWalls()
-    local core = require("walls")                             -- (the core gave its keep and keepInPlace to this one)
-    W.keep, W.keepInPlace = core.keep, core.keepInPlace
+    local core = require("walls")                        -- (the core gave its keepAlive and keepInPlace to this one)
+    W.keepAlive, W.keepInPlace = core.keepAlive, core.keepInPlace
     local function keptOf(path)
         local n = 0
         for _, obj in pairs(kept) do if type(obj) == "table" and obj.path == path then n = n + 1 end end
@@ -4813,6 +4836,135 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     playerController.K2_GetPawn = pawnWas
 end)()
 ;(function()
+    print("checks earned while not connected")
+    local STATE, CHECKS = require("ap_state"), require("checks")
+    local was = STATE.ap.status
+    STATE.setStatus("connecting")                              -- (the title menu's connect, while still ready)
+    CHECKS.sendChecks({ 999001 })
+    STATE.setStatus("connected")
+    CHECKS.sendChecks({ 999001 })
+    STATE.setStatus(was)
+    expect(checks[999001], "a check earned while connecting is sent once connected, not marked as sent and dropped")
+end)()
+;(function()
+    print("errors that repeat every update are logged once each")
+    local function linesWith(text)
+        local n = 0
+        for _, l in ipairs(printed) do if l:find(text, 1, true) then n = n + 1 end end
+        return n
+    end
+    local DB, CW, tries = require("debuffs"), require("crate_window"), 0
+    local dbTick, cwUpdate = DB.tick, CW.update
+    DB.tick = function() tries = tries + 1; error(string.format("debuff boom at 0x%x", 8192 + tries)) end
+    CW.update = function() error(string.format("crate window boom at 0x%x", 8192 + tries)) end
+    run(5)
+    DB.tick, CW.update = dbTick, cwUpdate
+    expect(tries == 5 and linesWith("debuff boom at") == 1 and linesWith("crate window boom at") == 1,
+           "the debuff icons' and the crate window's errors, each naming a new address: one line each")
+    local MB, BAGM = require("mailbox"), require("bag")
+    local mailOn, give = MB.on, BAGM.give
+    MB.on = function() return false end
+    BAGM.give = function(id) tries = tries + 1; error(string.format("give boom at 0x%x", 8192 + tries)) end
+    slotData.seed = "70031"                                    -- a new seed, played in this world (as newSeed does)
+    push("status", "connected", "Other")
+    run(14)
+    keyBinds[Key.H]()
+    run(14)
+    push("item", "0", tostring(itemId["Stone Bundle"]), "3", "2", "0", "Stone Bundle", "Friend")
+    run(28)
+    MB.on, BAGM.give = mailOn, give
+    expect(linesWith("give boom at") == 1, "a bundle the bag keeps failing on, a new address each time: one line")
+end)()
+;(function()
+    print("small failures of the core files say so in the log")
+    local TS2 = dofile(MOD .. "/Scripts/techscan.lua")        -- (a fresh copy: the session's scan ran long ago)
+    TS2.install({ version = "test", dir = MOD .. "/no-such-folder" })
+    TS2.phase()
+    expect(logged("tech scan: could not write .*mod_techs%.txt"), "a mod_techs.txt that can't be written is logged")
+    local f = io.open(MOD .. "/save-70032-Other.txt", "w")
+    f:write("given=-1\nfrobnicate=1\nend\n")
+    f:close()
+    slotData.seed = "70032"
+    push("status", "connected", "Other")
+    run(14)
+    expect(logged("save .*: a line no part of the mod reads, left out: frobnicate="),
+           "a save line nothing reads is logged")
+end)()
+;(function()
+    print("fallbacks of the core files say which branch they took")
+    expect(logged("the seed's goal: towers") and logged("the seed's goal: relic_hunt"),
+           "the seed's goal is logged when the mod connects")
+    expect(logged("cards: a card's picture: the tech's own icon") and logged("cards: a card's picture: the mod's"),
+           "where a card's picture came from is logged, once a source")
+    local findFirst, giValid = FindFirstOf, gameInstance.IsValid
+    local plainInstance = { IsValid = function() return true end,
+                            ReferencedObjects = setmetatable({ GetArrayNum = function() return 0 end },
+                                                             { __newindex = function() end }) }
+    gameInstance.IsValid = function() return false end         -- the game instance kept so far is gone
+    FindFirstOf = function(class)
+        if class == "PalGameInstance" then return nil end
+        if class == "GameInstance" then return plainInstance end
+        return findFirst(class)
+    end
+    require("util").keepAlive({ path = "a texture" })
+    FindFirstOf, gameInstance.IsValid = findFirst, giValid
+    plainInstance.IsValid = function() return false end        -- (so the next keep looks the game instance up again)
+    expect(logged("util: the game instance: a GameInstance %(no PalGameInstance found%)"),
+           "keeping a texture alive in a plain GameInstance says so")
+end)()
+;(function()
+    print("a filler item with no effect known")
+    local DATA = require("ap_data")
+    DATA.items[987654] = { name = "Mystery Filler", kind = "filler" }   -- (from a newer APWorld)
+    slotData.seed = "70033"
+    push("status", "connected", "Other")
+    run(14)
+    keyBinds[Key.H]()
+    run(7)
+    push("item", "0", "987654", "3", "0", "0", "Mystery Filler", "Friend")
+    run(14)
+    DATA.items[987654] = nil
+    expect(logged("item Mystery Filler: no effect known to this version of the mod, nothing given"),
+           "a filler item whose name matches no effect is logged, not counted as given in silence")
+end)()
+;(function()
+    print("log lines say what the code found")
+    expect(logged("death link received while no player was in the world %([%d.]+ s ago%)"),
+           "a late death's age is given in seconds")
+    expect(logged("a different seed or slot %(seed %d+, slot %S+ %-> seed %d+, slot %S+%): progress of the last one forgotten"),
+           "a new seed's line names the old and the new seed and slot")
+    local open = io.open
+    io.open = function(path, mode)
+        if mode == "w" and (path:find("config.txt", 1, true) or path:find("research.txt", 1, true)) then
+            return nil, path .. ": Permission denied"
+        end
+        return open(path, mode)
+    end
+    require("config").write()
+    require("tech_lock").keepResearch("Torch")
+    io.open = open
+    expect(logged("could not write .*config%.txt: .*Permission denied") and logged("could not write .*research%.txt: .*Permission denied"),
+           "config.txt and research.txt that can't be written are logged with their path and the reason")
+end)()
+;(function()
+    print("one way to give to the bag")
+    local CR, MB, BAGM, ITEMS = require("crates"), require("mailbox"), require("bag"), require("items")
+    local told, mailOn, give, mailAdd = #announced, MB.on, BAGM.give, MB.add
+    MB.on, MB.add = function() return true end, function() end
+    CR.list = { "sphere" }
+    ITEMS.openCrate()
+    MB.on, MB.add = mailOn, mailAdd
+    expect(table.concat(announced, "|", told + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
+           "a crate's stack says it went to the mailbox, as a Nomad gift's does")
+    MB.on = function() return false end
+    BAGM.give = function() error("the bag broke") end
+    CR.list = { "sphere" }
+    ITEMS.openCrate()
+    MB.on, BAGM.give = mailOn, give
+    expect(logged("could not give [%w_]+: .*the bag broke"), "a give that errors is logged with the item, for crates too")
+    CR.list, CR.pending = {}, {}
+end)()
+;(function()
     print("Lua runs only on the game thread")
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
     -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread
@@ -4870,7 +5022,7 @@ end)()
         .. table.concat(bad, " | "))
 end)()
 ;(function()  -- every config.txt key the mod reads is one the title menu keeps when it rewrites the file (CONFIG_KEYS)
-    local fh = io.open(MOD .. "/Scripts/main.lua")
+    local fh = io.open(MOD .. "/Scripts/config.lua")
     local src = fh and fh:read("a") or ""
     if fh then fh:close() end
     local listed = {}

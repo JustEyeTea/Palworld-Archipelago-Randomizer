@@ -45,7 +45,7 @@ data the other parts use (see [Generated files](#generated-files)).
 2. **Start Palworld.** UE4SS loads the APConnector, then the Lua mod (`main.lua`).
 3. **Connect.** The title screen's Archipelago menu (`menu.lua`) takes the server, slot and password and calls
    `AP_Connect`.
-4. **Play.** Each core update in `main.lua` runs these steps:
+4. **Play.** Each core update (`main.lua`'s `update()`) runs these steps:
    - Received items unlock techs, take walls down (`walls.lua`), wait in the Archipelago Mailbox (`mailbox.lua`) or
      set off traps (`traps.lua`).
    - The player's records (`records.lua`) become location checks.
@@ -62,7 +62,7 @@ data the other parts use (see [Generated files](#generated-files)).
 | **Area, in the logic** | In `__init__.py`'s logic (`PASS_AREAS`, the rules and the routes), "area" means whichever locked part the seed uses: a region or an area, by Lock Size. Code that means one kind only says "region" or "area" with Lock Size in view. |
 | **Piece** | The logic's smallest part of the map: an Archipelago `Region` in `__init__.py`. Each piece belongs to one region or area. |
 | **Archipelago Region** | Archipelago's own class for a node in the logic's map (`BaseClasses.Region`). This code makes one per piece. |
-| **The core** | In the Lua mod's comments: `main.lua` and its update loop, which hands the other modules their state and calls them. |
+| **The core** | In the Lua mod's comments: `main.lua` and its update loop, with the files split from it (listed under [The Lua mod](#the-lua-mod)), which hand the other modules their state and call them. |
 | **Lane** | In comments: one Claude session with one job, such as the Art & Assets lane, which makes the project's art. Most of this code was written by Claude at JustEyeTea's direction. |
 
 **Older names in the code.** Much of the code still uses these two words the other way round: "area"
@@ -203,9 +203,9 @@ Lua in UE4SS can't open network connections, so `cppmod/APConnector` does it.
 - The Lua mod calls `AP_Poll()` every 300 ms on the game thread and acts on each line; it sends checks with
   `AP_Check`. Nothing on the bridge's thread touches the game or Lua.
 - When the server drops, apclientpp reconnects by itself, and the bridge joins the slot again when the server sends
-  `RoomInfo`; `main.lua` then re-reads the slot data and sends every check again: the ones read from the game's
-  records at the next records phase, the ones it sent itself (purchases, removed slots: `ap.bought`) at once, and
-  the goal.
+  `RoomInfo`; the Lua mod (`onConnected` in `connection.lua`) then re-reads the slot data and sends every check
+  again: the ones read from the game's records at the next records phase, the ones it sent itself (purchases,
+  removed slots: `ap.bought`) at once, and the goal.
 - Beside the mod: `client_uuid.txt` (one id per installation, so the server recognises the client) and `cacert.pem`
   (trusted certificates for `wss://`).
 
@@ -235,38 +235,64 @@ The rest of the connector calls Palworld's own functions, or does image work too
 
 ## The Lua mod
 
-`mod/PalworldArchipelago/Scripts/`. `main.lua` runs everything; the other files are modules it calls (their sections
-follow as the tour reaches them). `util.lua` holds what every module shares: the log and log-once (`once`,
-`onceIn`, `onceErr`), guarded calls (`safe`), an object's address (`addr`), the clock (`UPDATE_MS`, `updates`,
+`mod/PalworldArchipelago/Scripts/`. `main.lua` starts everything and runs the core update; the other files are
+modules it calls (their sections follow as the tour reaches them). `util.lua` holds what every module shares: the log
+and log-once (`once`, `onceIn`, `onceErr`, `took`), guarded calls (`safe`), an object's address (`addr`), objects
+kept alive (`keepAlive`, `keepInPlace`), the hook guard (`guardedHook`), the update period (`UPDATE_MS`, `updates`,
 `isDue`) and hooks that wait for their class to load (`hookWhenLoaded`).
 
-### `main.lua`: the update loop
+### `main.lua` and the core files
 
-- **The state** is the table `ap`. The server is the truth: every connection re-sends all items received and every
-  location checked, so most of `ap` is rebuilt each time. Only one-off effects (points, bundles, crates, traps, the
-  mailbox, Death Link's forgiven count, visited areas) are kept, in `save-<seed>-<slot>.txt` beside the mod. Its
-  lines are listed above `saveFile()`. It is written whole to a `.tmp` file and then moved into place, so a crash
-  never leaves half a file.
+`main.lua` is two things: the update loop, and the start-up list (`start()` at the end of the file, with the rules
+for its order). Everything else the core does lives in a file of its own. A core file takes the other core files
+with `require`; what only `main.lua` can give (the mod's folder, the version) comes through its `install(env)`, as for
+the other modules.
+
+| File | What it holds |
+|---|---|
+| `clock.lua` | The update count (`CLOCK.now()`), the waits (`WAIT`, in seconds), the cycle of phases (`PHASE`, `isPhase`) and `CLOCK.seconds`. |
+| `ap_state.lua` | The table `ap`: the connection, the seed and its progress, each field with when it is forgotten. The connection's four states are listed above it, and `STATE.setStatus` is their only writer. Slot data readers (`slotFlag`, `slotNumber`). |
+| `config.lua` | `config.txt`: read at start-up into `CONFIG.cfg`, written back by the title menu's connect (`CONFIG_KEYS`), and the saved servers. |
+| `save.lua` | `save-<seed>-<slot>.txt` beside the mod: what the server cannot send again (its lines are listed above `SAVE.path`). Written whole to a `.tmp` file and then moved into place, so a crash never leaves half a file. |
+| `player.lua` | This update's player, looked up once (`PLAYER.lookUpFrame`: the frame record and its fields), `playerPawn`, `pawnXY`, and `notify`, the chat notice. |
+| `world.lua` | The world step (`WORLD.note`: which world, how long ago it loaded, what each module forgets when it changes) and the seed's world (`checkWorld`, `tieWorld`). |
+| `tech_lock.lua` | The game's list of researched techs holds the techs items unlocked and no other shop tech (`lockAndUnlockTechs`); the techs a seed leaves as normal research (`research.txt`). |
+| `items.lua` | What each kind of item does on arrival (`onItem`) and once per seed (`applyItems`, with a table of kinds above it), crates, bundles and Nomad's gifts (`giveToBag`, `handOver`). |
+| `checks.lua` | Checks from the game's records (`pollRecords`, `sendChecks`) and the goal (`goalReached`, `sendGoalOnceOutOfArena`). |
+| `shop_cards.lua` | What each shop card shows (`relabel`, `cardLabel`, `cardPicture`), relabelled only when it changed. |
+| `shop.lua` | The shop's seven hooks (`SHOP_HOOKS`) and buying a slot (`buy`). |
+| `connection.lua` | Connecting (`connectTo`, at start-up `connectFromConfig`), the server's events (`readEvents`, `EVENT_HANDLERS`), the seed's options, what a new seed forgets (`resetSeed`) and when the connection is ready (`markReady`). |
+| `wall_hints.lua` | The notice at a locked wall and buying its pass's hint with the hint key; the server's chat (`onMessage`, `parsePassHint`). |
+| `area_locks.lua` | When the walls act (`AREA_LOCKS.update`), the visited areas, sending the player home from a locked area, and the walls' settings from config.txt (`configureWalls`). |
+| `held_notices.lua` | Notices held through a loading screen. |
+| `death_link.lua` | Death Link: the faint routes (`ROUTES`), a death received, the player's own death and the amnesty. |
+| `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`S.phase`) that sends the checks of slots another mod removed. |
+
+How it works:
+
+- **The server is the truth:** every connection re-sends all items received and every location checked, so most of
+  `ap` is rebuilt each time. Only one-off effects (points, bundles, crates, traps, the mailbox, Death Link's
+  forgiven count, visited areas) are kept, in the save file.
 - **Items** are applied in the order the server numbers them, and `ap.given` remembers how far that got, so a
-  reconnect never gives a crate or tech points twice. A tech item doesn't touch the game directly: `syncTechs`
-  makes the game's list of unlocked techs match the items received (shop techs whose item hasn't arrived are taken
-  out; those whose item has are put in).
+  reconnect never gives a crate or tech points twice. A tech item doesn't touch the game directly:
+  `lockAndUnlockTechs` makes the game's list of unlocked techs match the items received.
 - **Checks** come from the game's own records (`records.lua`): levels, captures, alphas, fast travel, towers, and
-  the shop. `sendChecks` sends each one once per session. The goal waits until the player leaves the boss's arena.
+  the shop. `sendChecks` sends each one once per session, only while connected. The goal waits until the player
+  leaves the boss's arena.
 - **The tech shop.** Level 2 and higher techs are slots: each card says what its slot sends. When the player buys
   one, the research request is renamed (`AP_ShopSlot`, a tech that doesn't exist), so the game unlocks nothing;
   `buy()` takes the points itself and sends the check. Other hooks make a bought card look researched, decide
   whether a slot can be clicked, and put what the purchase sends into the confirm box.
-- **Server events** arrive as text lines from `AP_Poll()`; `onEvent` hands each to its handler (`onStatus`,
-  `onItem`, `onScout`, ...), whose parameters name the line's fields in the order `ap_bridge.hpp` sends them.
-  "Connected" reads the seed's setup from slot data (`onConnected`, `applySeedOptions`).
+- **Server events** arrive as text lines from `AP_Poll()`; `onEvent` hands each to its handler, whose parameters
+  name the line's fields in the order `ap_bridge.hpp` sends them. "Connected" reads the seed's setup from slot data
+  (`onConnected`, `applySeedOptions`).
 - **A seed belongs to one world**, the first one it is played in (`checkWorld`, `world=` in the save). In any other
   world nothing is locked, sent or given. A first world that already has shop techs researched is tied only after
   the player presses the hint key (`tieWorld`), since tying it locks those techs again.
-- **The update** (`update()`) runs every 300 ms on the game thread. Every update it reads the server's events,
-  updates the menus, mailbox, shop cards, walls and map. The heavier work is spread over a cycle of 7 updates
-  (`PHASE`): records and checks, the other mods' tech scan, items and Death Link, visited areas, the wall's notice.
-  Waits are named in `WAIT`, in seconds.
+- **The update** (`update()` in `main.lua`) runs every 300 ms on the game thread, at most once a frame and never
+  inside a hook. Every update it reads the server's events, updates the menus, mailbox, shop cards, walls and map.
+  The heavier work is spread over a cycle of 7 updates: `PHASE_STEPS` maps each phase to its function (records and
+  checks, the other mods' tech scan, items and Death Link, visited areas, the wall's notice).
 - **Death Link** faints the player by the first of three routes that works (lethal poison, the Death Penalty's bag
   then a self-kill, a plain self-kill), and sends a death after the slot's amnesty is used up.
 
@@ -296,7 +322,7 @@ follow as the tour reaches them). `util.lua` holds what every module shares: the
 
 | Symptom | Look first | Then |
 |---|---|---|
-| A check (a capture, a level, a tower) never reaches the server | The Lua mod: `records.lua` (does it read the record?), `main.lua` (does it send?). Search the log for `[PalworldAP]`. | The APConnector, `AP_Check` in `dllmain.cpp` and `ap_bridge.cpp`: the mod sent it, but the server never got it. |
+| A check (a capture, a level, a tower) never reaches the server | The Lua mod: `records.lua` (does it read the record?), `checks.lua` (does it send?). Search the log for `[PalworldAP]`. | The APConnector, `AP_Check` in `dllmain.cpp` and `ap_bridge.cpp`: the mod sent it, but the server never got it. |
 | A game update adds Pals, techs or items | Don't edit `game_data.py`. Dump the tables and run `tools/gen_apworld_data.py`, then `tools/gen_lua_data.py`. | `test/test_ids.py` proves no old id moved. |
 | Can't connect, or the connection drops | The UE4SS log's `[PalworldAP] status:` lines (connecting, socket, connected; or refused, with the reason) | `ap_bridge.cpp`, `wire_handlers`; for a secure (`wss://`) server, that `cacert.pem` is beside the mod |
 | An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
@@ -304,8 +330,8 @@ follow as the tour reaches them). `util.lua` holds what every module shares: the
 | A Pal gift ends `result: fail ...`, or the game dies during one | UE4SS.log's `[APConnector] [pal]` lines: the last one names the step, and the step names the function in `pal_gift.cpp` | After a game update: "function not found" or "no such parameter" means a path or parameter name in `pal_gift.cpp` changed; a UE4SS header dump of the new version (UE4SS's Dump CXX Headers) shows the new one |
 | The world map shows the game's own picture or its dark fog | UE4SS.log's `[APConnector] [map]` lines: `hooked`, `Setup #n ... FAILED: <reason>`, `Setup gone` / `found Setup again` (`map_screen.cpp`) | `SETUP_PATH` in `map_screen.cpp` after a game update; `map_cpp=0` in config.txt turns it off; Lua's `AP_MapScreen` calls in `walls.lua` |
 | The map picture looks wrong (colours, rims, walls, borders) | `image_tools.cpp`: `compose_field` for the Territories map, `compose_chart` and `compose_fog` for `map_style=chart` | What Lua sends it (`areaSpec`, `wallSpec` in `walls.lua`); reproduce it on Linux with `test/image_test.cpp` |
-| An item never arrives, or arrives twice | The log's `Received ...` and `save ...: items applied up to index N` lines; `applyItems` and `giveOneOff` in `main.lua` | `ap.given` in the save file (`given=`): deleting the save makes every one-off item come again |
-| A tech is locked that should be unlocked, or the other way round | The log's `locked <tech>` / `unlocked <tech>` lines; `syncTechs` in `main.lua` | Is this the seed's world? A `world: ... is not this seed's world` line means nothing is locked or sent here (`checkWorld`) |
-| Buying a shop slot does nothing, or the card shows the wrong thing | The log's `BOUGHT` or `buy ...: not enough points` lines; `buy()` and the research request hook in `main.lua` | `relabel` for what a card shows; `slotUnlockable` for whether it can be clicked |
-| Death Link doesn't faint the player, or a death isn't sent | The log's `death link` lines: which route worked or failed, and `forgiven N of M` | `deathLink` and `faint` in `main.lua`; the slot's `death_link_amnesty` |
+| An item never arrives, or arrives twice | The log's `Received ...` and `save ...: items applied up to index N` lines; `applyItems` and `giveFiller` in `items.lua` | `ap.given` in the save file (`given=`): deleting the save makes every one-off item come again |
+| A tech is locked that should be unlocked, or the other way round | The log's `locked <tech>` / `unlocked <tech>` lines; `lockAndUnlockTechs` in `tech_lock.lua` | Is this the seed's world? A `world: ... is not this seed's world` line means nothing is locked or sent here (`checkWorld` in `world.lua`) |
+| Buying a shop slot does nothing, or the card shows the wrong thing | The log's `BOUGHT` or `buy ...: not enough points` lines; `buy()` and `researchRequested` in `shop.lua` | `relabel` in `shop_cards.lua` for what a card shows; `slotUnlockable` in `shop.lua` for whether it can be clicked |
+| Death Link doesn't faint the player, or a death isn't sent | The log's `death link` lines: which route worked or failed, and `forgiven N of M` | `DEATH_LINK.step` and `ROUTES` in `death_link.lua`; the slot's `death_link_amnesty` |
 | The options page or YAML template shows old text, or CI's options page check fails | `docs/options/options.json` is out of date: run `tools/gen_options_page.py`, then `tools/test_options_page.py` | The option's class in `options.py` (its docstring and `display_name`) |

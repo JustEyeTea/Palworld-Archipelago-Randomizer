@@ -1,5 +1,6 @@
--- Helpers every module shares: the log, log-once, guarded calls, a game object's identity, the mod's clock and hook
--- registration that waits for a class to load. A module takes what it needs with `local UTIL = require("util")`.
+-- Helpers every module shares: the log, log-once, guarded calls, a game object's identity, objects kept alive, the
+-- mod's clock, the guard that keeps the core update out of hook callbacks, and hook registration that waits for a
+-- class to load. A module takes what it needs with `local UTIL = require("util")`.
 -- Tests: mod/test/harness.lua, group "util" (run by tools/lua_harness.sh, in CI).
 local UTIL = {}
 
@@ -125,6 +126,37 @@ function UTIL.gameInstance()
     return gameInstanceKept
 end
 
+-- Objects kept alive. Textures the shop's cards, the walls and the map use are kept alive in the game instance's
+-- ReferencedObjects for the whole session: otherwise nothing references them once the menu rebuilds its cards, the
+-- engine frees them, and the cards go blank grey.
+-- State: forgotten never; looked up again when it is no longer valid.
+local keptBy = nil         -- the game instance: objects in its ReferencedObjects are not freed while the game runs
+-- Keeps obj alive in place `index` of ReferencedObjects, in place of what was kept there, so a picture that is made
+-- again and again keeps one place, not one more each time. Nothing is removed from the list (removing from it is
+-- untested in game). With no place yet (nil, past the list's end, or in the list of a game instance found before) obj goes at the
+-- end. Returns its place.
+function UTIL.keepInPlace(index, obj)
+    local gi = UTIL.gameInstance()                 -- (it says when it had to take a plain GameInstance)
+    if gi ~= keptBy then
+        keptBy = gi
+        index = nil
+    end
+    local ok, at = pcall(function()
+        local arr = gi.ReferencedObjects
+        local n = arr:GetArrayNum()
+        local place = (index and index <= n) and index or n + 1
+        arr[place] = obj
+        return place
+    end)
+    if not ok then
+        UTIL.once("keep", "could not keep a texture alive: " .. tostring(at))
+        return index
+    end
+    return at
+end
+-- Keeps obj alive for the session, in a new place at the end of ReferencedObjects.
+function UTIL.keepAlive(obj) UTIL.keepInPlace(nil, obj) end
+
 -- An object's path without its class: GetFullName gives "Class /Path.Object", the engine's lookups take "/Path.Object".
 function UTIL.objectPath(obj)
     local full = obj:GetFullName()
@@ -191,6 +223,38 @@ end
 -- each period that is (0 when left out), so two schedules need not fall on the same update.
 function UTIL.isDue(count, period, first)
     return count % period == (first or 0)
+end
+
+------------------------------------------------------------------------------------------------------------------------
+-- Hook callbacks and the core update.
+-- The core update never runs inside a hook. UE4SS can run its game-thread queue from inside a hook (a log showed the
+-- update's player lookup nested inside IsUnlockRecipeTechnology's hook, under a:get(); FindAllOf then got a bad
+-- argument and UE4SS logged "Ref was not function"), and an update inside a Blueprint hook would do widget work there,
+-- which crashes the game. So every hook callback runs through UTIL.runInsideHook(), and an update that finds itself inside
+-- one skips its turn. (The other way round is ordinary: the update refreshing the tech tree asks these hooks.)
+-- State: true only while a hook callback runs.
+local inHook = false
+-- Runs fn(...) under pcall as a hook callback: an update that comes meanwhile skips its turn. Returns ok and a result.
+function UTIL.runInsideHook(fn, ...)
+    local was = inHook
+    inHook = true
+    local ok, v = pcall(fn, ...)
+    inHook = was
+    return ok, v
+end
+-- A hook callback run through UTIL.runInsideHook(). An error is logged once under the hook's name, and the game's own
+-- result stands. main.lua hands it to menu.lua and mailbox.lua for their hooks too.
+function UTIL.guardedHook(name, cb)
+    return function(...)
+        local ok, v = UTIL.runInsideHook(cb, ...)
+        if ok then return v end
+        UTIL.once("hookerr" .. name, "hook " .. name .. " error: " .. tostring(v))
+    end
+end
+
+-- Whether a hook callback is running now (main.lua's update then skips its turn).
+function UTIL.insideHook()
+    return inHook
 end
 
 ------------------------------------------------------------------------------------------------------------------------

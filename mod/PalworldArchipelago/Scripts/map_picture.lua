@@ -85,7 +85,7 @@ local function mapTarget(rendering, gameInstance)
     if not mapRT or not mapRT:IsValid() then
         mapRT = rendering:CreateRenderTarget2D(gameInstance, RT_SIZE, RT_SIZE, RTF_RGBA8_SRGB, BLACK, false)
         if not mapRT or not mapRT:IsValid() then return nil end
-        W.keep(mapRT)
+        W.keepAlive(mapRT)
     end
     return mapRT
 end
@@ -167,7 +167,7 @@ local function greyscaleMap(rendering, tex)
         greyTex = nil
         return nil
     end
-    W.keep(greyTex)
+    W.keepAlive(greyTex)
     return greyTex
 end
 -- An area's shape as the canvas's triangles (area_shapes*.lua: 6 numbers a triangle, u, v of each of its 3 corners,

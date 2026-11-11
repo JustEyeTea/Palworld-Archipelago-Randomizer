@@ -13,14 +13,14 @@ local R = {}
 R.ANCIENT_POINTS = "bossTechnologyPoint"
 R.ANCIENT_ONREP = "OnRep_BossTechnologyPoint"
 
--- filler item -> { item id, count } handed out (DT_ItemDataTable rows)
+-- filler item -> { { id = item id (a DT_ItemDataTable row), n = count } } handed out
 R.BUNDLES = {
-    ["Wood Bundle"] = { { "Wood", 50 } },
-    ["Stone Bundle"] = { { "Stone", 50 } },
-    ["Paldium Bundle"] = { { "Pal_crystal_S", 20 } },
-    ["Ingot Bundle"] = { { "CopperIngot", 10 } },
-    ["Sphere Bundle"] = { { "PalSphere", 5 } },
-    ["Food Bundle"] = { { "Baked_Berries", 10 } },
+    ["Wood Bundle"] = { { id = "Wood", n = 50 } },
+    ["Stone Bundle"] = { { id = "Stone", n = 50 } },
+    ["Paldium Bundle"] = { { id = "Pal_crystal_S", n = 20 } },
+    ["Ingot Bundle"] = { { id = "CopperIngot", n = 10 } },
+    ["Sphere Bundle"] = { { id = "PalSphere", n = 5 } },
+    ["Food Bundle"] = { { id = "Baked_Berries", n = 10 } },
 }
 
 -- A system message in the chat log (single player: only you see it).

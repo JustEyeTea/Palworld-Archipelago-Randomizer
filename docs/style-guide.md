@@ -54,11 +54,32 @@ or a new file, look here and use the block. Never write a second copy. A block i
 - **A log line, a log-once, a guarded call, an object's address:** `log`, `once` (`onceIn(owner)` for a module's
   own keys), `onceErr`, `safe`, `addr` in `util.lua`. A failure that can repeat every update goes through
   `onceErr`. Which branch of a fallback ran: `took`.
-- **A wait:** `updates(seconds)` from `util.lua`, as a named entry in the file's `WAIT` table. Never a bare count
-  of updates, and never a typed 300 or 0.3. A schedule ("every 3 seconds") is tested with `isDue`.
+- **A texture or other object the game must not free while the mod uses it:** `keepAlive(obj)`, or
+  `keepInPlace(index, obj)` for a picture made again and again, in `util.lua`.
+- **A wait:** `updates(seconds)` from `util.lua`, as a named entry in the file's `WAIT` table (the core files share
+  `clock.lua`'s). Never a bare count of updates, and never a typed 300 or 0.3. A schedule ("every 3 seconds") is
+  tested with `isDue`. A log line that says how long turns a count of updates back into seconds with
+  `CLOCK.seconds`.
+- **The time in the core:** `CLOCK.now()`, the update count, from `clock.lua`. Timed work in the core is a phase in
+  `PHASE` and a row in `main.lua`'s `PHASE_STEPS`, never a test of the count inside another step.
+- **The Archipelago state:** the table `ap` in `ap_state.lua`, each field with when it is forgotten. Only
+  `STATE.setStatus` writes the connection's state; a new seed's forgetting is `STATE.forgetSeed` plus one reset per
+  topic, called from `connection.lua`'s `resetSeed`.
+- **This update's player:** the frame record from `player.lua` (`PLAYER.lookUpFrame`, once per update), read with
+  `PLAYER.playerState()`, `playerPawn()` and `pawnXY(pawn)`. A notice in chat is `PLAYER.notify(text)`.
+- **A core file:** it takes the other core files with `require`, and what only `main.lua` can give (the mod's
+  folder, the version) through `install(env)`, listed in its header; its kept state is in a block that says when
+  each field is forgotten. A start-up step is a named function in `main.lua`'s start-up list.
 - **A function the Lua mod calls in the connector:** `register_text` in `dllmain.cpp`. Code that turns text into
   numbers lives in `lua_text.*`, which is tested on Linux. An event line the bridge sends Lua is built and taken
   apart in `event_lines.*`.
+- **Which world the player is in, and forgetting the last one:** the world step in `world.lua`. `WORLD.note()` runs
+  near the start of every update; `WORLD.key()`, `WORLD.age()` and `WORLD.settled()` answer for every file. A file
+  that keeps anything from one world registers the function that forgets it with `WORLD.onChange(forget)`, in
+  `main.lua`'s start-up list. New code keeps no world key of its own (`mailbox.lua` and `menu.lua` still notice a
+  world change themselves).
+- **A hook callback:** wrapped by `guardedHook(name, cb)` from `util.lua`, so no core update runs inside it and an
+  error is logged once under the hook's name.
 - **A hook on a Blueprint class:** `hookWhenLoaded(path, fn, tag)` in `util.lua`, called every update until it
   registers.
 
@@ -74,8 +95,8 @@ or a new file, look here and use the block. Never write a second copy. A block i
 ## Size and layout
 
 - **A function does one job and fits on one screen:** aim for 40 lines or fewer and no more than 3 levels of nesting.
-- **A hand-written file has one topic:** aim for 800 lines or fewer. `main.lua`, `walls.lua`, `mailbox_chest.lua` and
-  `menu_title.lua` are over this and get split by topic when the tour reaches them.
+- **A hand-written file has one topic:** aim for 800 lines or fewer. `mailbox_chest.lua` and `menu_title.lua` are over
+  this and get split by topic when the tour reaches them.
 - **One statement per line,** and no `;` joining two. An `if`, `for` or `while` puts its body on its own lines.
   The one exception is a guard clause whose whole body is `return` (with or without a value), `break` or
   `continue`: `if not pawn then return end` (Lua), `if (!m_client) return;` (C++).
