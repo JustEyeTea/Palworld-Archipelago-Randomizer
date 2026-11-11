@@ -268,6 +268,9 @@ class PalworldWorld(World):
                                else self.levels.pal_levels)
         # No check above what the map in this seed lets a player reach.
         self.cap = min(self.asked_cap, self.climb_top(self.live))
+        if o.check_level.value and self.cap < o.check_level.value:      # on auto, lowering it is routine
+            logging.warning(f"Palworld ({self.player_name}): the Check Level Cap is {o.check_level.value}, but the "
+                            f"regions in this seed let a player level only to {self.cap}; checks stop there")
 
     def plan_checks(self) -> None:
         """Which techs stay normal research, and which shop slots hold only filler: both need the final cap."""
