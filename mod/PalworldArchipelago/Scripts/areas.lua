@@ -1,12 +1,15 @@
 -- The areas of the map and whether each is open: the seed's cut of the map (its walls, names and grid), which area a
 -- spot is in, the areas beyond the goal, and the lists of locked and open areas the walls and the map draw from. A part
 -- of walls.lua, which loads it (fresh for each copy of walls.lua) and hands it W, the table main.lua sees, by install.
--- Two cuts (the seed's Lock Size, W.setLayout): "areas" is the 15 regions, "regions" the 75 areas (see walls.lua).
 -- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
 local AREAS = {}
 local W = nil                 -- walls.lua's public table (install): settings and data main.lua sets there
 local SEA = "Open sea"
 
+-- Two cuts (the seed's Lock Size, W.setLayout). Players call the 15 parts regions (Region Passes) and the 75 areas
+-- (Area Passes); the code uses the older words the other way round, until the code tour renames them: "areas" is the
+-- 15 regions (area_walls.lua and the rest), "regions" the 75 areas (the same files with _regions). "Area" here means a
+-- locked part of either cut. The 15 regions' cut is loaded at start.
 -- The seed's cut of the map, as data. Its fields change when the seed's Lock Size arrives (W.setLayout), so they are
 -- read through this table, never kept elsewhere: walls (the border pieces, area_walls*.lua), areas (the parts' names
 -- by index), start (the starting part), map (area_map*.lua: which part each spot of the map is in), centres
@@ -27,6 +30,7 @@ function AREAS.passName(area)
     return (W.layout == "regions" and "Area Pass: " or "Region Pass: ") .. area
 end
 
+-- Open sea is never locked, so a locked part is ringed from the sea as well.
 local function isOpen(area, passes)
     return area == SEA or area == layout.start or passes[area] == true
 end

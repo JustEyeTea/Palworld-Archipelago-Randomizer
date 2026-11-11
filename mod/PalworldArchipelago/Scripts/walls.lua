@@ -1,11 +1,8 @@
--- Area locks: the game's own blocking wall (BP_PalBlockingVolume, the red energy grid beside the World Tree gate),
--- stretched into pieces along every border between locked parts (area_walls.lua, from tools/area_walls.py). A piece
--- stays up while either part it separates is locked; the part's pass opens it. Open sea is never locked, so a locked
--- part is ringed from the sea as well.
--- Two cuts of the map (the seed's Lock Size option, W.setLayout). Players call the 15 parts regions (Region Passes)
--- and the 75 areas (Area Passes); this file still uses the older words the other way round, until the code tour
--- renames them: "areas" is the 15 regions (area_walls.lua and the rest), "regions" the 75 areas (the same files with
--- _regions). In this file "area" means a locked part of either cut. The 15 regions' walls are loaded at start.
+-- Area locks: the game's own blocking wall (BP_PalBlockingVolume, the red grid by the World Tree gate) stretched into
+-- pieces along every border between locked parts of the map; a piece stays up while either part it separates is locked.
+-- This file keeps the pieces (raising, hiding, opening, forgetting) and is the table main.lua sees (W). Its parts:
+-- areas.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
+-- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
 local W = {}
 W.layout = "areas"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
@@ -21,8 +18,7 @@ local WALL_SKINS = freshPart("wall_skins")
 local MAP_PICTURE = freshPart("map_picture")
 local MAP_ICONS = freshPart("map_icons")
 local MAP_FOG = freshPart("map_fog")
-local layout, isOpen, SEA, AREA_COLOURS = AREAS.layout, AREAS.isOpen, AREAS.SEA, AREAS.AREA_COLOURS
-local slugOf, lockedList, lockedIndexes, openList = AREAS.slugOf, AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList
+local layout, isOpen = AREAS.layout, AREAS.isOpen
 W.passName, W.areaAt, W.lockedAround, W.parentOf = AREAS.passName, AREAS.areaAt, AREAS.lockedAround, AREAS.parentOf
 W.setBeyond, W.slugOf = AREAS.setBeyond, AREAS.slugOf
 W.start, W.home = layout.start, layout.map.home
