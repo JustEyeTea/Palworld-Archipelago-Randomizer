@@ -7,15 +7,15 @@
 -- The chat line is sent as before; this only shows it better. Untested in game.
 local H = {}
 local ART = require("art")
+local UTIL = require("util")
 local OPACITY = 0.8
 local SHOW_TICKS = 20                    -- updates of 300 ms: 6 s
 local WIDTH, HEIGHT = 380, 84
 local LINE1 = { 86, 15, 280 }            -- left, top, width (half of hint_prompt.py's SLOTS)
 local LINE2 = { 86, 37, 280 }
 local BAR = { 86, 60, 280, 9 }
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+local log = UTIL.log
+local once = UTIL.onceIn("hint_popup")
 
 -- sRGB #RRGGBB (the brand palette, art-assets src/brand.py) as UMG's linear colour.
 local function linear(hex, a)

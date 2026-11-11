@@ -3,7 +3,7 @@
 -- kept alive (main.lua sets A.keep): textures not kept are collected and come back as white placeholders (ui.md).
 local A = { dir = ".", keep = function() end }
 local textures, failed = {}, {}
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local log = require("util").log
 
 function A.texture(name)
     local t = textures[name]

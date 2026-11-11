@@ -14,9 +14,9 @@ local SUFFIX = ""
 local W = {}
 W.layout = "areas"
 local P = require("perf")
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+local UTIL = require("util")
+local log = UTIL.log
+local once = UTIL.onceIn("walls")
 
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
