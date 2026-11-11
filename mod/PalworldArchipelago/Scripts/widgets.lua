@@ -9,6 +9,7 @@ local UTIL = require("util")
 WIDGETS.VISIBILITY = { visible = 0, collapsed = 1, hidden = 2, selfHitTestInvisible = 4 }   -- ESlateVisibility
 WIDGETS.HALIGN = { fill = 0, left = 1, center = 2, right = 3 }                               -- EHorizontalAlignment
 WIDGETS.VALIGN = { fill = 0, top = 1, center = 2, bottom = 3 }                               -- EVerticalAlignment
+WIDGETS.JUSTIFY = { left = 0, center = 1, right = 2 }                                       -- ETextJustify
 WIDGETS.COLOUR_RULE = { specified = 0 }       -- ESlateColorStylingMode: UseColor_Specified (the colour given)
 
 -- The engine's panels a row of buttons can sit in.
