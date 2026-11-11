@@ -1,6 +1,7 @@
 // The Archipelago connection, independent of UE4SS and Lua: apclientpp on its own thread, with a small text API the
 // Lua mod calls through the UE4SS C++ mod (dllmain.cpp). Method names avoid Unreal macros (check, verify, ensure),
-// which UE4SS's headers define in dllmain.cpp. Tested on Linux by test/bridge_test.cpp against a live server.
+// which UE4SS's headers define in dllmain.cpp. Checked by hand: tools/bridge_test.sh builds test/bridge_test.cpp and
+// runs it against a local server. CI does not run it.
 #pragma once
 
 #include <atomic>
