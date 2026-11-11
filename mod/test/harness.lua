@@ -3178,6 +3178,27 @@ end)()
     run(14)
     expect(goals > sent, "after reconnecting, the goal is sent again: " .. (goals - sent) .. " sent")
 end)()
+;(function()
+    print("small failures say so in the log")
+    local sent = goals
+    newSeed("70020", { ["options.goal"] = "9" })                -- a goal from a newer APWorld
+    run(14)
+    expect(goals == sent and logged("this seed's goal %(9%) is not known to this version of the mod"),
+           "an unknown goal is not judged as the towers goal, and the log says why")
+    slotData["options.goal"] = "0"
+    local POP = require("hint_popup")
+    local tickWas = POP.tick
+    POP.tick = function() error("boom in the pop-up") end
+    run(1)
+    POP.tick = tickWas
+    expect(logged("hint pop%-up error: .*boom in the pop%-up"), "an error in the hint pop-up's timer is logged")
+    local dirWas = worldDir
+    worldDir = ""                                              -- the world's folder can't be read
+    run(7)
+    worldDir = dirWas
+    expect(logged("world: the loaded world's folder can't be read, so it is not taken as this seed's"),
+           "a seed with a world does not take a world it can't name as its own")
+end)()
 print("mailbox off: bundles straight to the bag")
 local MB = require("mailbox")
 local mailOn = MB.on

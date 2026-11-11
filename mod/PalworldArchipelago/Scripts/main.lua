@@ -123,6 +123,10 @@ end
 local cfg = readConfig()
 -- The key that asks for a hint at a sealed wall, and says yes to tying a seed to a world with progress.
 local HINT_KEY = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper()
+if Key and Key[HINT_KEY] == nil then
+    log("hint_key=" .. HINT_KEY .. " is not a key UE4SS knows: using H")
+    HINT_KEY = "H"
+end
 -- The performance probe (perf_log=1; perf.lua). Installed before any hook is registered, so it counts them all.
 local P = require("perf")
 P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
@@ -413,6 +417,7 @@ end
 -- skip is tied to the TechnologyData it was taken from (another world loaded with the same seed and an equally long
 -- list must be compared at once, as 6dd356e did within 2.1 s), and it is forgotten on a world change as well.
 local techsSeen, techPolls = nil, 0
+local researchedNow = {}      -- tech -> true: the world's researched list at the last full read (prerequisites)
 local function syncTechs(ps)
     local td = ps:GetTechnologyData()
     if not td or not td:IsValid() then return end   -- still loading into the world
@@ -440,6 +445,7 @@ local function syncTechs(ps)
             keep[#keep + 1] = n
         end
     end
+    researchedNow = have
     for tech in pairs(ap.techs) do
         if not have[tech] then
             keep[#keep + 1] = tech
@@ -508,7 +514,12 @@ local function tieWorld(ps, id)
 end
 local function checkWorld(ps)
     local id = worldId()
-    if not id then return true end
+    if not id and ap.world then
+        once("worldunread", "world: the loaded world's folder can't be read, so it is not taken as this seed's ("
+            .. ap.world .. ")")
+        return false
+    end
+    if not id then return true end                 -- a seed with no world yet: not tied to one (logged in worldId)
     if not ap.world then return tieWorld(ps, id) end
     if id == ap.world then return true end
     if seedWorld ~= false then
@@ -661,7 +672,14 @@ end
 -- The seed's goal (slot data options.goal: 0 towers, 1 relic hunt, 2 Paldeck, 3 World Tree); what was done, or nil.
 local GOALS = { ["0"] = "towers", ["1"] = "relic_hunt", ["2"] = "paldeck", ["3"] = "world_tree" }
 local function goalReached(found)
-    local goal = GOALS[AP_SlotData("options.goal")] or "towers"
+    local number = AP_SlotData("options.goal")
+    if number == nil or number == "" then number = "0" end      -- (a seed without the option: the default, towers)
+    local goal = GOALS[number]
+    if not goal then
+        once("goalunknown", "this seed's goal (" .. tostring(number) .. ") is not known to this version of the mod:"
+            .. " the goal is not judged or sent")
+        return nil
+    end
     if goal == "relic_hunt" then
         local have, need = relicCount(), slotNumber("relics_needed", 999)
         return have >= need and (have .. " Palpagos Relics found") or nil
@@ -774,14 +792,22 @@ do      -- wall skins (test builds; walls.lua): wall_skin=a|b|a3d|b3d|a3d-dense|
 end
 
 local textures = {}
+-- A failed load is remembered as false for the session, so it is not loaded again for every card on every update.
 local function icon(kind, ctx)
     local t = textures[kind]
+    if t == false then return nil end
     if t and t:IsValid() then return t end
     local lib = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     if not lib or not lib:IsValid() then once("nolib", "KismetRenderingLibrary not found"); return nil end
     local path = modDir .. "\\icons\\" .. kind .. ".png"
     t = lib:ImportFileAsTexture2D(ctx, path)
-    if t and t:IsValid() then textures[kind] = t; keep(t) else once("icon" .. kind, "could not load icon " .. path) end
+    if not (t and t:IsValid()) then
+        textures[kind] = false
+        log("could not load icon " .. path)
+        return nil
+    end
+    textures[kind] = t
+    keep(t)
     return t
 end
 
@@ -789,6 +815,7 @@ end
 local techTextures = {}
 local function techIcon(tech)
     local t = techTextures[tech]
+    if t == false then return nil end                 -- (failed before: see icon)
     if t and t:IsValid() then return t end
     local path = ICONS[tech]
     if not path then return nil end
@@ -797,7 +824,13 @@ local function techIcon(tech)
         pcall(LoadAsset, path)
         t = StaticFindObject(path)
     end
-    if t and t:IsValid() then techTextures[tech] = t; keep(t) else once("techicon" .. tech, "could not load " .. path) end
+    if not (t and t:IsValid()) then
+        techTextures[tech] = false
+        log("could not load " .. path)
+        return nil
+    end
+    techTextures[tech] = t
+    keep(t)
     return t
 end
 
@@ -1117,7 +1150,9 @@ local function slotUnlockable(td, tech)
     if not ap.techs[tech] then return nil end
     if ap.level < s.level then return false end
     if (td[s.ancient and R.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
-    if s.prereq and not (ap.techs[s.prereq] or D.starters[s.prereq]) then return false end
+    local p = s.prereq
+    -- A prerequisite the seed leaves as normal research is met once the player has researched it in the game.
+    if p and not (ap.techs[p] or D.starters[p] or (D.research[p] and researchedNow[p])) then return false end
     if s.tower and not ap.beaten[s.tower] then return false end
     if s.research then
         local ok, yes = pcall(function() return td:IsLabResearchRequirementSatisfied(FName(s.research)) end)
@@ -1608,7 +1643,10 @@ local function deathLink(ps)
             return
         end
     end
-    if death.incoming then
+    -- An incoming death waits for a settled world with a character (as the traps do), then counts as late.
+    local character = safe(function() return ps:GetPawn() end)
+    local settled = wallsWorld and worldTicks >= WAIT.settle and character and character:IsValid()
+    if death.incoming and (settled or tick - death.at > WAIT.deathLate) then
         local cause = death.incoming
         death.incoming = nil
         if tick - death.at > WAIT.deathLate then
@@ -1701,7 +1739,8 @@ end
 local function stepSmallModules()
     local oktt, errtt = pcall(TEST_TOOLS.update)
     if not oktt then onceErr("testtools", errtt, "test tools error: " .. tostring(errtt)) end
-    pcall(POPUP.tick, tick)
+    local okp, errp = pcall(POPUP.tick, tick)
+    if not okp then onceErr("popup", errp, "hint pop-up error: " .. tostring(errp)) end
     local okdb, errdb = pcall(DEBUFFS.tick, tick)
     if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end
 end
@@ -1891,7 +1930,8 @@ local function phaseItems()
     local changed = syncTechs(ps)
     P.stop("techs")
     if changed then refreshTree() end
-    applyItems(ps)
+    local td = safe(function() return ps:GetTechnologyData() end)
+    if td and td:IsValid() then applyItems(ps) end    -- (items wait while the tech data is still loading)
     if wallsWorld and worldTicks >= WAIT.settle then
         local oks, news = pcall(SYNC.apply, ps, AP_SlotData, wallsWorld, noticeLater)
         if not oks then
