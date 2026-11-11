@@ -524,4 +524,42 @@ group("the title menu's Archipelago menu", function()
         run(1)
         expect(goText == "Connect (type a server first)", "an empty Server box: " .. tostring(goText))
     end
+    do   -- Esc while the text window asks for a field (the window layout): it is the window's, the menu stays open
+        game.palEditOk, game.umgEditOk = false, false
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        click(menuChildren[4].child)                         -- Port: the text window opens
+        run(1)
+        local escBind = keyBinds["key:ESCAPE"]
+        if escBind then
+            escBind()
+        end
+        tick()
+        run(1)
+        local stillOpen = gameButtonWrap.vis == 1
+        okWith("40002")
+        local back
+        for _, box in ipairs(menuChildren) do
+            local b = inner(box)
+            if b and b.Test_Content and b.Test_Content.text == "Back" then
+                back = b
+            end
+        end
+        if back then
+            click(back)
+        end
+        run(1)
+        game.titleOpen = false
+        run(1)
+        game.palEditOk, game.umgEditOk = nil, nil
+        expect(escBind and stillOpen and back and gameButtonWrap.vis == 0,
+               "Esc while the text window is up leaves the Archipelago menu open (a click there does nothing either)")
+    end
 end)

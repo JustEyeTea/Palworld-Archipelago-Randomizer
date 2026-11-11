@@ -8,6 +8,7 @@ local CLICKS = require("clicks")
 local UTIL = require("util")
 local WIDGETS = require("widgets")
 local SURVEY = require("menu_survey")
+local TEXT = require("text_window")
 local NAMES = require("menu_names")
 local GAME = NAMES.GAME
 local EVERY = NAMES.EVERY
@@ -364,8 +365,10 @@ function TITLE.onUnhover(self)
 end
 
 -- Esc closes the Archipelago menu as Back does: a UE4SS key bind (it fires whatever has the keyboard, a text box
--- too), acted on at the next game tick for each live menu that shows; Esc anywhere else is left to the game.
+-- too), acted on at the next game tick for each live menu that shows; Esc anywhere else is left to the game. While
+-- the game's text window asks for a field, Esc is the window's: the menu stays, as it does for a click then.
 function TITLE.escape()
+    if TEXT.asking() then return end
     for _, m in pairs(menus) do
         if m.live and m.showing then
             local ok, err = pcall(CONNECT.act, m, { kind = "back" })
