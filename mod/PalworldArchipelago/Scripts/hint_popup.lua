@@ -14,12 +14,20 @@ local WIDTH, HEIGHT = 380, 84
 local LINE1 = { 86, 15, 280 }            -- left, top, width (half of hint_prompt.py's SLOTS)
 local LINE2 = { 86, 37, 280 }
 local BAR = { 86, 60, 280, 9 }
+local TITLE_PT, LINE_PT = 13, 10        -- text sizes: the title line, the second line (and the banner's line: TITLE_PT)
+local DEFAULT_FONT_PT = 24              -- UMG's default text size, scaled down from when the font cannot be set
+local OVER_HUD_Z = 1000                 -- the canvas Z order that puts the plate over the HUD's own widgets
+local PLATE_AT_Y, BANNER_AT_Y = 0.5, 0.3  -- how far down the screen the plate and the banner sit (0 top, 1 bottom)
+local HUD_DEPTH = 3                     -- how deep under the HUD layout's root the canvas is looked for
+local SELF_HIT_TEST_INVISIBLE = 4       -- ESlateVisibility::SelfHitTestInvisible: never takes a click
+local ALIGN_FILL, ALIGN_START = 0, 1    -- EHorizontalAlignment / EVerticalAlignment: Fill, and Left or Top
 local log = UTIL.log
 local once = UTIL.onceIn("hint_popup")
 
 -- The brand palette's sRGB colours (the project's art), as UMG's linear colour.
 local linear = UTIL.linear
 local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECBE6E"), linear("17324D", 0.94)
+local BANNER_INK = linear("CEE7E3")     -- the goal banner's text, on its pill
 
 -- What is on screen: { box, untilTick, hud = the HUD layout's address (UTIL.addr), banner = true for the goal banner }.
 -- Forgotten: when taken down (H.hide), when its time is up or its HUD is gone (H.tick), and at a new pawn (H.forget).
@@ -34,7 +42,7 @@ local function hudCanvas()
     end
     if not layout then return nil, nil, "no HUD layout on screen" end
     local root = layout.WidgetTree.RootWidget
-    for _ = 1, 3 do
+    for _ = 1, HUD_DEPTH do
         if not (root and root:IsValid()) then break end
         local okc, cls = pcall(function() return root:GetClass():GetFName():ToString() end)
         if okc and cls == "CanvasPanel" then return root, layout end
@@ -47,8 +55,9 @@ end
 local function text(outer, s, size, colour)
     local t = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), outer)
     local sized = pcall(function() local f = t.Font; f.Size = size; t:SetFont(f) end)
-    if not sized then          -- the default font is 24: scale it down instead
-        pcall(function() t:SetRenderTransformPivot({ X = 0, Y = 0 }); t:SetRenderScale({ X = size / 24, Y = size / 24 }) end)
+    if not sized then          -- the default font: scale it down instead
+        local scale = size / DEFAULT_FONT_PT
+        pcall(function() t:SetRenderTransformPivot({ X = 0, Y = 0 }); t:SetRenderScale({ X = scale, Y = scale }) end)
     end
     pcall(function() t:SetColorAndOpacity({ SpecifiedColor = colour, ColorUseRule = 0 }) end)
     t:SetText(FText(s))
@@ -60,7 +69,7 @@ local function fill(outer, w, h, colour)
 end
 local function place(over, w, left, top)
     local s = over:AddChild(w)
-    pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)    -- Left, Top
+    pcall(function() s:SetHorizontalAlignment(ALIGN_START); s:SetVerticalAlignment(ALIGN_START) end)
     pcall(function() s:SetPadding({ Left = left, Top = top, Right = 0, Bottom = 0 }) end)
     return s
 end
@@ -82,8 +91,8 @@ local function pinToCanvas(canvas, box, anchorY)
     pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
     pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
     pcall(function() slot:SetAutoSize(true) end)
-    pcall(function() slot:SetZOrder(1000) end)
-    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
+    pcall(function() slot:SetZOrder(OVER_HUD_Z) end)
+    pcall(function() box:SetVisibility(SELF_HIT_TEST_INVISIBLE) end)
 end
 
 function H.hide()
@@ -105,15 +114,15 @@ function H.show(info, tick)
     local box, over = hudBox(layout, WIDTH, HEIGHT)
     local bg = plate or fill(layout, WIDTH, HEIGHT, NAVY)
     local bs = over:AddChild(bg)
-    pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
+    pcall(function() bs:SetHorizontalAlignment(ALIGN_FILL); bs:SetVerticalAlignment(ALIGN_FILL) end)
     if not plate then once("popupnoplate", "hint pop-up: no " .. plateName .. ".png yet; a plain box instead") end
-    place(over, text(layout, info.title or "", 13, CREAM), LINE1[1], LINE1[2])
-    place(over, text(layout, info.line or "", 10, CREAM), LINE2[1], LINE2[2])
+    place(over, text(layout, info.title or "", TITLE_PT, CREAM), LINE1[1], LINE1[2])
+    place(over, text(layout, info.line or "", LINE_PT, CREAM), LINE2[1], LINE2[2])
     if info.cost and info.cost > 0 then
         local f = math.max(0, math.min(1, (info.have or 0) / info.cost))
         if f > 0 then place(over, fill(layout, math.max(BAR[4], math.floor(BAR[3] * f)), BAR[4], info.ready and LTEAL or SAND), BAR[1], BAR[2]) end
     end
-    pinToCanvas(canvas, box, 0.5)
+    pinToCanvas(canvas, box, PLATE_AT_Y)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
     shown = { box = box, untilTick = tick + SHOW_TICKS, hud = UTIL.addr(layout) }
     once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen (" .. (plate and plateName or "plain box")
@@ -133,9 +142,9 @@ function H.banner(line, tick)
     if not art then log("goal banner: no ap-goal-banner.png; chat only"); return false end
     local box, over = hudBox(layout, BANNER_W, BANNER_H)
     local bs = over:AddChild(art)
-    pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
-    place(over, text(layout, line or "", 13, linear("CEE7E3")), BANNER_TEXT[1], BANNER_TEXT[2])
-    pinToCanvas(canvas, box, 0.3)
+    pcall(function() bs:SetHorizontalAlignment(ALIGN_FILL); bs:SetVerticalAlignment(ALIGN_FILL) end)
+    place(over, text(layout, line or "", TITLE_PT, BANNER_INK), BANNER_TEXT[1], BANNER_TEXT[2])
+    pinToCanvas(canvas, box, BANNER_AT_Y)
     shown = { box = box, untilTick = tick + BANNER_TICKS, hud = UTIL.addr(layout), banner = true }
     log("goal banner: shown (" .. tostring(line) .. ")")
     return true

@@ -13,6 +13,12 @@ local owner = UTIL.gameInstance
 -- TERR_FOG, COLOUR_FILE, stampSize, drawInto, drawWhole).
 local W, layout, slugOf, lockedList, lockedIndexes, iconsActive, picture = nil, nil, nil, nil, nil, nil, nil
 local territories, terr, TERR_FOG, COLOUR_FILE, stampSize = nil, nil, nil, nil, nil
+local GAMMA, RTF_RGBA8, BLEND_OPAQUE = nil, nil, nil
+local LOG_FIRST = 3           -- openings and pictures put back that are logged; after that they are only counted
+-- Which channel of the explored mask means explored: the mask sampled at the player and at EDGE_UV (map u and v, a
+-- point beyond the world's edge, never explored); a channel tells them apart by at least MIN_CHANNEL_GAP (of 255).
+local EDGE_UV = "0.02"
+local MIN_CHANNEL_GAP = 64
 
 local mapShownAt = 0           -- map screens on screen at the last update (an opening is one coming on screen)
 function MAP_FOG.mapShown() return mapShownAt > 0 end
@@ -96,8 +102,8 @@ local function exportDefaultMask(def, gi)
     local ok, err = pcall(function()
         local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
         local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
-        local drt = krl:CreateRenderTarget2D(gi, w, h, 2, { R = 0, G = 0, B = 0, A = 0 }, false)
-        picture.drawInto(krl, gi, drt, function(canvas) picture.drawWhole(canvas, def, w, h, 0) end)
+        local drt = krl:CreateRenderTarget2D(gi, w, h, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 0 }, false)
+        picture.drawInto(krl, gi, drt, function(canvas) picture.drawWhole(canvas, def, w, h, BLEND_OPAQUE) end)
         krl:ExportRenderTarget(gi, drt, W.dir, "fog-default-mask.png")
         return w .. "x" .. h
     end)
@@ -177,7 +183,7 @@ local function maskSpec(ctx)
     local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
     local u, v = (at.Y - y0) / (y1 - y0), (x1 - at.X) / (x1 - x0)
     local mask = W.dir .. "\\fog-mask.png"
-    local here, corner = AP_SamplePNG(mask, tostring(u), tostring(v)), AP_SamplePNG(mask, "0.02", "0.02")
+    local here, corner = AP_SamplePNG(mask, tostring(u), tostring(v)), AP_SamplePNG(mask, EDGE_UV, EDGE_UV)
     local a, b = {}, {}
     for n in tostring(here):gmatch("%d+") do a[#a + 1] = tonumber(n) end
     for n in tostring(corner):gmatch("%d+") do b[#b + 1] = tonumber(n) end
@@ -185,7 +191,7 @@ local function maskSpec(ctx)
     if #a ~= 4 or #b ~= 4 then return nil, info end
     local best, diff = nil, 0
     for c = 1, 4 do if math.abs(a[c] - b[c]) > math.abs(diff) then best, diff = c, a[c] - b[c] end end
-    if math.abs(diff) < 64 then return nil, info .. ": no channel tells them apart" end
+    if math.abs(diff) < MIN_CHANNEL_GAP then return nil, info .. ": no channel tells them apart" end
     return ("rgba"):sub(best, best) .. (diff > 0 and "+" or "-"), info
 end
 local function exportMask(screen, krl, gi)
@@ -241,7 +247,7 @@ local function regionSpec(passes)
     return table.concat({ W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
         artFile("ap-chart-hatch"),
         REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH),
-        exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", "0.4545" }, "|")
+        exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", GAMMA }, "|")
 end
 MAP_FOG.regionSpec = regionSpec
 local function startFog(stamps, regions, tag)
@@ -274,7 +280,7 @@ local function stepChartArt()
         local colour = W.dir .. "\\" .. COLOUR_FILE
         if not exists(colour) then return false end
         local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
-            W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), "0.4545")
+            W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), GAMMA)
         if err == "" then chart.state = "composing"
         elseif err ~= "busy" then failChart("could not start: " .. err) end
         return false
@@ -410,7 +416,7 @@ function MAP_FOG.step(ctx, screens, opening, passes, key)
     if not okc0 then once("cpperr", "map screen (C++): " .. tostring(errc0)) end
     if AP_MapScreen and opening then
         cpp.opened = cpp.opened + 1
-        if cpp.opened <= 3 then
+        if cpp.opened <= LOG_FIRST then
             log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back " .. cpp.fixes .. "x")
         end
         if not cpp.maskDone then
@@ -435,7 +441,7 @@ end
 -- Lua found the game's own picture on a screen and put ours back: counted, and the first three logged.
 function MAP_FOG.notePictureFixed()
     cpp.fixes = cpp.fixes + 1
-    if cpp.fixes <= 3 then log("map: Lua put the picture back (" .. cpp.fixes .. "x; C++ had not set it)") end
+    if cpp.fixes <= LOG_FIRST then log("map: Lua put the picture back (" .. cpp.fixes .. "x; C++ had not set it)") end
 end
 
 -- Hands over what this part reads (see the top of the file).
@@ -445,6 +451,7 @@ function MAP_FOG.install(env)
     layout, slugOf, lockedList, lockedIndexes = areas.layout, areas.slugOf, areas.lockedList, areas.lockedIndexes
     territories, terr, TERR_FOG = picture.territories, picture.terr, picture.TERR_FOG
     COLOUR_FILE, stampSize = picture.COLOUR_FILE, picture.stampSize
+    GAMMA, RTF_RGBA8, BLEND_OPAQUE = picture.GAMMA, picture.RTF_RGBA8, picture.BLEND_OPAQUE
 end
 
 MAP_FOG.tellCpp = tellCpp

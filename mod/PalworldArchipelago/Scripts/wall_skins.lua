@@ -48,6 +48,14 @@ local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1
 local apWall = nil                                             -- M_APWall once loaded
 local DENSE = { 10, 6 }
 local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
+local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
+local GLOW_MOVE_CM = 5        -- the player moves this far before the walls' glow is told again
+-- The paws' scatter: an Area's number turned into s, a fraction from 0 to 1 that looks random so neighbours differ
+-- (frac(sin(n * SCATTER_A + 1) * SCATTER_B), a common hash); s moves the pattern by s * OFFSET_U_RATE and
+-- s * OFFSET_V_RATE tiles, mirrors it past one half, and shades the back by BACK_SHADE + BACK_SHADE_RANGE * s.
+local SCATTER_A, SCATTER_B = 12.9898, 43758.5453
+local OFFSET_U_RATE, OFFSET_V_RATE = 7.13, 3.71
+local BACK_SHADE, BACK_SHADE_RANGE = 0.88, 0.24
 local NIGHT = 0.421875                                         -- the game's NightColor over its DayColor
 local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
 local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
@@ -117,7 +125,7 @@ local function colourMaterial(name, gi, krl, kml)
     local tex = krl:ImportFileAsTexture2D(gi, path)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
     W.keep(tex)                                                -- a colour picture: sRGB as imported
-    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), 0)
+    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), MID_FLAGS)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("Pattern"), tex)
@@ -156,14 +164,13 @@ local function makePaws(name, gi, krl, kml)
     local back = hex and linearOf(hex) or SEALED
     local s = nil
     if own and own ~= "" then
-        -- The Art lane (2026-11-08): s in 0..1 from the Area's number; offset (frac(s*7.13), frac(s*3.71)) tiles, mirrored
-        -- when s > 0.5, Back x (0.88 + 0.24 s). Never hue, rotation or scale.
-        local v = math.sin(tonumber(own) * 12.9898 + 1.0) * 43758.5453
+        -- (The Art lane's scatter, above: never hue, rotation or scale.)
+        local v = math.sin(tonumber(own) * SCATTER_A + 1.0) * SCATTER_B
         s = v - math.floor(v)
-        local k = 0.88 + 0.24 * s
+        local k = BACK_SHADE + BACK_SHADE_RANGE * s
         back = { R = back.R * k, G = back.G * k, B = back.B * k, A = 1 }
     end
-    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), 0)
+    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), MID_FLAGS)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("Pattern"), tex)
@@ -171,8 +178,8 @@ local function makePaws(name, gi, krl, kml)
     mid:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
     mid:SetScalarParameterValue(FName("Brightness"), PAW_BRIGHT)
     if s then
-        mid:SetScalarParameterValue(FName("OffsetU"), (s * 7.13) % 1)
-        mid:SetScalarParameterValue(FName("OffsetV"), (s * 3.71) % 1)
+        mid:SetScalarParameterValue(FName("OffsetU"), (s * OFFSET_U_RATE) % 1)
+        mid:SetScalarParameterValue(FName("OffsetV"), (s * OFFSET_V_RATE) % 1)
         mid:SetScalarParameterValue(FName("MirrorU"), s > 0.5 and 1 or 0)
     end
     fadeOn(mid)
@@ -227,7 +234,8 @@ function WALL_SKINS.glowTick()
     if not (pawn and pawn:IsValid()) then return end
     local loc = pawn:K2_GetActorLocation()
     if not (loc and loc.X) then return end
-    if glowAt and math.abs(glowAt.R - loc.X) + math.abs(glowAt.G - loc.Y) + math.abs(glowAt.B - loc.Z) < 5 then return end
+    local moved = glowAt and math.abs(glowAt.R - loc.X) + math.abs(glowAt.G - loc.Y) + math.abs(glowAt.B - loc.Z)
+    if moved and moved < GLOW_MOVE_CM then return end
     glowAt = { R = loc.X, G = loc.Y, B = loc.Z, A = 1 }
     -- Only the materials pieces shown now wear (dev.42 crash: every material ever made was called, those of the world
     -- before included), and the dissolving ones of pieces still there.
@@ -287,7 +295,7 @@ local function makePatternMaterial(name, gi, krl, kml)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
     local srgb = pcall(function() tex.SRGB = false; tex:UpdateResource() end)   -- the game's pattern is linear
     W.keep(tex)
-    local mid = kml:CreateDynamicMaterialInstance(gi, skin.base, FName("None"), 0)
+    local mid = kml:CreateDynamicMaterialInstance(gi, skin.base, FName("None"), MID_FLAGS)
     if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
     W.keep(mid)
     mid:SetTextureParameterValue(FName("MainTexture01"), tex)

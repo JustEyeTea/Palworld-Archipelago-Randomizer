@@ -27,6 +27,14 @@ local slugOf, lockedList, lockedIndexes, openList, standing = nil, nil, nil, nil
 local MAP_TEXTURE = "/Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
 local GREY_FILE = "map-grey-1.png"
 local RT_SIZE = 4096
+-- Engine enum values passed as numbers, with the engine's own name for each.
+local RTF_RGBA8 = 2           -- ETextureRenderTargetFormat::RTF_RGBA8 (linear: what is exported to a PNG)
+local RTF_RGBA8_SRGB = 3      -- ETextureRenderTargetFormat::RTF_RGBA8_SRGB (the map picture, shown on screen)
+local BLEND_OPAQUE = 0        -- EBlendMode::BLEND_Opaque
+local BLEND_TRANSLUCENT = 2   -- EBlendMode::BLEND_Translucent
+-- The gamma (1 / 2.2) the C++ part applies to the PNGs the engine exports, which are in linear light.
+local GAMMA = "0.4545"
+local FIELD_SIZE = 4096       -- px: a Territories picture made from the distance field (area_field*.png is made for it)
 local mapRT, mapKey, mapShownOn, greyTex, greyTried = nil, nil, nil, nil, false
 local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint without a greyscale copy
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
@@ -48,7 +56,7 @@ end
 -- The map picture's render target, made (and kept for the session) when there is none; nil if it cannot be made.
 local function mapTarget(krl, gi)
     if not mapRT or not mapRT:IsValid() then
-        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 3, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8_SRGB
+        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, RTF_RGBA8_SRGB, { R = 0, G = 0, B = 0, A = 1 }, false)
         if not mapRT or not mapRT:IsValid() then return nil end
         W.keep(mapRT)
     end
@@ -88,7 +96,8 @@ local function drawStamps(canvas, krl, gi, locked)
             local u, v = c[3] or c[1], c[4] or c[2]
             local px = stampSize(c)
             canvas:K2_DrawTexture(tex, { X = u * RT_SIZE - px / 2, Y = v * RT_SIZE - px / 2 },
-                { X = px, Y = px }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, 2, 0, { X = 0.5, Y = 0.5 })
+                { X = px, Y = px }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, BLEND_TRANSLUCENT, 0,
+                { X = 0.5, Y = 0.5 })
             n = n + 1
         end
     end
@@ -102,10 +111,10 @@ local function greyscaleMap(krl, tex)
     if not gi then greyTried = false; return nil end
     local path = W.dir .. "\\" .. GREY_FILE
     if not UTIL.exists(path) then
-        local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
-        drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0) end)
+        local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
+        drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE) end)
         krl:ExportRenderTarget(gi, rt, W.dir, "map-colour.png")
-        local err = AP_GreyscalePNG(W.dir .. "\\map-colour.png", path, "0.4545")
+        local err = AP_GreyscalePNG(W.dir .. "\\map-colour.png", path, GAMMA)
         os.remove(W.dir .. "\\map-colour.png")
         if err ~= "" then log("map: no greyscale copy: " .. tostring(err)); return nil end
         log("map: made the greyscale copy " .. path)
@@ -168,7 +177,7 @@ local function drawMap(ctx, passes)
     krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
     local canvas = canvasOut.Canvas
     if not canvas then return false end
-    drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0)
+    drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
     for k, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then
             local tris = trianglesOf(k - 1, grey and WHITE or FADE)
@@ -197,16 +206,21 @@ local COLOUR_FILE = "map-colour-1.png"
 -- for), "busy" (not yet) or "failed" (it will not: the map is drawn without the compositor).
 -- greyJob also keeps the composing look's locked area indexes, for the stamps (locked).
 local greyJob = { composing = nil, done = nil, failed = nil, locked = {} }
--- A fingerprint of the map the game shows: 16 pixels of it drawn small. A mod that replaces the map's art changes it, so
--- the saved colour map is made again (once a session, cheaply, instead of exporting the whole map every time).
+-- A fingerprint of the map the game shows: PRINT_GRID x PRINT_GRID pixels of it drawn PRINT_PX across. A mod that
+-- replaces the map's art changes it, so the saved colour map is made again (once a session, cheaply, instead of
+-- exporting the whole map every time).
+local PRINT_PX = 16           -- the map drawn this small for its fingerprint
+local PRINT_GRID = 4          -- that many pixels a row and a column are read, each in the middle of its cell
 local printChecked, printNow = false, nil
 local colourSaved = false      -- colourMap saved the colour map again this session (the game's map changed)
 local function mapPrint(krl, tex, gi)
-    local rt = krl:CreateRenderTarget2D(gi, 16, 16, 2, { R = 0, G = 0, B = 0, A = 1 }, false)
-    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, 16, 16, 0) end)
+    local rt = krl:CreateRenderTarget2D(gi, PRINT_PX, PRINT_PX, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
+    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, PRINT_PX, PRINT_PX, BLEND_OPAQUE) end)
     local parts = {}
-    for i = 0, 15 do
-        local c = krl:ReadRenderTargetPixel(gi, rt, (i % 4) * 4 + 2, (i // 4) * 4 + 2)
+    local cell = PRINT_PX // PRINT_GRID
+    for i = 0, PRINT_GRID * PRINT_GRID - 1 do
+        local x, y = (i % PRINT_GRID) * cell + cell // 2, (i // PRINT_GRID) * cell + cell // 2
+        local c = krl:ReadRenderTargetPixel(gi, rt, x, y)
         parts[#parts + 1] = string.format("%d,%d,%d", c.R, c.G, c.B)
     end
     return table.concat(parts, ";")
@@ -231,8 +245,8 @@ local function colourMap(krl, tex, gi)
         if saved then log("map: the game's map picture changed (another mod?): saving it again")
         else log("map: saving the colour map again with a fingerprint (made before map changes were checked)") end
     end
-    local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, 2, { R = 0, G = 0, B = 0, A = 1 }, false)   -- RTF_RGBA8
-    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0) end)
+    local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
+    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE) end)
     krl:ExportRenderTarget(gi, rt, W.dir, COLOUR_FILE)
     colourSaved = true
     if printNow then
@@ -305,9 +319,9 @@ local function drawTerritories(krl, gi, k, key)
         log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
     end
     drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
-        drawWhole(canvas, map, RT_SIZE, RT_SIZE, 0)
+        drawWhole(canvas, map, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
         if not terr.whole then
-            drawWhole(canvas, over, RT_SIZE, RT_SIZE, 2)
+            drawWhole(canvas, over, RT_SIZE, RT_SIZE, BLEND_TRANSLUCENT)
         end
     end)
     terr.done = k
@@ -361,9 +375,9 @@ local function startTerritories(krl, gi, passes, key)
         -- With the colour map: the whole map picture, greyscale where locked, the walls there in the area's colour.
         local colour
         whole, colour = haveColourMap(krl, gi)
-        size = 4096
+        size = FIELD_SIZE
         err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
-            W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", "0.4545")
+            W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", GAMMA)
     else
         size = TERR_SIZE
         err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. layout.suffix .. ".png", areaSpec(passes),
@@ -417,7 +431,7 @@ local function drawComposed(krl, gi, done)
         return false
     end
     drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
-        drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0)
+        drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
         local okS, errS = pcall(drawStamps, canvas, krl, gi, greyJob.locked)
         if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
     end)
@@ -456,7 +470,7 @@ local function startCompose(krl, gi, passes, key, open)
         colour = colourMap(krl, tex, gi)
     end
     local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
-        W.dir .. "\\map-composed.png", "0.4545")
+        W.dir .. "\\map-composed.png", GAMMA)
     if err == "" then
         greyJob.composing, greyJob.locked = key, lockedList(passes)
     elseif err ~= "busy" then
@@ -651,5 +665,6 @@ end
 -- What the fog part reads of the picture: the render target is replaced when it is made again, so it goes by function.
 MAP_PICTURE.target = function() return mapRT end
 MAP_PICTURE.territories, MAP_PICTURE.terr, MAP_PICTURE.TERR_FOG = territories, terr, TERR_FOG
+MAP_PICTURE.GAMMA, MAP_PICTURE.RTF_RGBA8, MAP_PICTURE.BLEND_OPAQUE = GAMMA, RTF_RGBA8, BLEND_OPAQUE
 MAP_PICTURE.COLOUR_FILE, MAP_PICTURE.drawInto, MAP_PICTURE.drawWhole = COLOUR_FILE, drawInto, drawWhole
 return MAP_PICTURE

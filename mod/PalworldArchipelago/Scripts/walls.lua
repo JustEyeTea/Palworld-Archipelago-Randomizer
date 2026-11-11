@@ -30,6 +30,8 @@ local once = UTIL.onceIn("walls")
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
 -- Sizes of one wall piece, all in centimetres (the game's unit).
+local SPAWN_ALWAYS = 1        -- ESpawnActorCollisionHandlingMethod::AlwaysSpawn: a piece goes up wherever it stands
+local MIN_SCALE = 0.01        -- the height scale a shrinking piece ends at (never 0)
 local CUBE_CM = 100           -- the blocking cube's side at scale 1: a piece's scale is its size / CUBE_CM
 local THICK_CM = 400          -- 4 m thick, so nothing fast slips through
 local HEIGHT_CM = 300000      -- 3 km tall: from 1 km below sea level to 2 km above
@@ -144,7 +146,7 @@ local function raise(i, context)
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = x, Y = y, Z = MID_Z_CM },
                 Scale3D = { X = length / CUBE_CM, Y = THICK_CM / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
-    local a = gs:BeginDeferredActorSpawnFromClass(context, cls, t, 1, nil)
+    local a = gs:BeginDeferredActorSpawnFromClass(context, cls, t, SPAWN_ALWAYS, nil)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
     WALL_SKINS.skinNew(a, i)
@@ -178,7 +180,7 @@ local function stepOne(s, now)
     if not s.dissolving then                     -- shrinking: top and bottom towards the middle
         local t = math.min(1, (now - s[4]) / SHRINK_S)
         local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
-        local height = math.max(0.01, HEIGHT_CM / CUBE_CM * (1 - eased))
+        local height = math.max(MIN_SCALE, HEIGHT_CM / CUBE_CM * (1 - eased))
         pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = height }) end)
     end
     if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
