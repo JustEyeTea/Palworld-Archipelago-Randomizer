@@ -76,25 +76,17 @@ end
 local techsSeen, techPolls = nil, 0
 local FULL_TECH_COMPARE_EVERY = 15  -- polls, one per cycle: a full comparison about every 30 s, whatever the skip says
 local researchedNow = {}      -- tech -> true: the world's researched list at the last full read (prerequisites)
--- Makes the game's researched list hold the techs items unlocked and no other shop tech. Returns true when it changed
--- the list, false when nothing changed or the comparison was skipped, nil while the list cannot be read.
-function TECH_LOCK.lockAndUnlockTechs(ps)
-    local td = ps:GetTechnologyData()
-    if not td or not td:IsValid() then return end   -- still loading into the world
-    local arr = td.UnlockedTechnologyNameArray
-    techPolls = techPolls + 1
-    local okNum, num = pcall(function() return arr:GetArrayNum() end)
-    if not okNum then num = nil end
-    local okAddr, addr = pcall(function() return tostring(td:GetAddress()) end)
-    if not okAddr then addr = nil end
-    if num and addr and techsSeen and techsSeen.version == techsVersion and techsSeen.num == num and techsSeen.td == addr
-        and not UTIL.isDue(techPolls, FULL_TECH_COMPARE_EVERY) then
-        return false
-    end
-    techsSeen = nil
-    local okNames, names = pcall(TECH_LOCK.arrayNames, arr)
-    if not okNames then return end                    -- not readable this moment (seen as the menu first opens)
-    PERF.count("techs", #names)
+-- Whether the last comparison still holds: the same TechnologyData, a list of the same length and nothing changed on
+-- our side since (techsVersion), and no full comparison due.
+local function techListUnchanged(num, addr)
+    return num and addr and techsSeen and techsSeen.version == techsVersion and techsSeen.num == num
+        and techsSeen.td == addr and not UTIL.isDue(techPolls, FULL_TECH_COMPARE_EVERY)
+end
+
+-- The list the game should hold, from the names it holds now: less each shop tech whose item has not arrived, plus
+-- each tech an item unlocked. Returns it and whether it differs; logs each lock and unlock, and keeps the names held
+-- now as researchedNow.
+local function wantedTechs(names)
     local keep, have, changed = {}, {}, false
     for _, n in ipairs(names) do
         have[n] = true
@@ -113,10 +105,35 @@ function TECH_LOCK.lockAndUnlockTechs(ps)
             log("unlocked " .. tech)
         end
     end
+    return keep, changed
+end
+
+-- Writes the list into the game's TechnologyData and tells the game it changed.
+local function writeTechs(td, arr, keep)
+    arr:Empty()
+    for i, n in ipairs(keep) do arr[i] = FName(n) end
+    safe(function() td:OnRep_UnlockedTechnologyNameArray() end)
+end
+
+-- Makes the game's researched list hold the techs items unlocked and no other shop tech. Returns true when it changed
+-- the list, false when nothing changed or the comparison was skipped, nil while the list cannot be read.
+function TECH_LOCK.lockAndUnlockTechs(ps)
+    local td = ps:GetTechnologyData()
+    if not td or not td:IsValid() then return end   -- still loading into the world
+    local arr = td.UnlockedTechnologyNameArray
+    techPolls = techPolls + 1
+    local okNum, num = pcall(function() return arr:GetArrayNum() end)
+    if not okNum then num = nil end
+    local okAddr, addr = pcall(function() return tostring(td:GetAddress()) end)
+    if not okAddr then addr = nil end
+    if techListUnchanged(num, addr) then return false end
+    techsSeen = nil
+    local okNames, names = pcall(TECH_LOCK.arrayNames, arr)
+    if not okNames then return end                    -- not readable this moment (seen as the menu first opens)
+    PERF.count("techs", #names)
+    local keep, changed = wantedTechs(names)
     if changed then
-        arr:Empty()
-        for i, n in ipairs(keep) do arr[i] = FName(n) end
-        safe(function() td:OnRep_UnlockedTechnologyNameArray() end)
+        writeTechs(td, arr, keep)
     elseif num and addr then
         techsSeen = { version = techsVersion, num = num, td = addr }
     end

@@ -152,16 +152,16 @@ local function stillShows(card, seen)
     return okc and on == seen.clickable
 end
 
--- Card header: one of your techs looks like ordinary research (its own category, before and after buying); your
--- other items say "Received" once bought, other players' items "Sent".
-function SHOP_CARDS.relabel(card, key, full)
-    local tech = card.BindedTechnologyName:ToString()
-    -- A level-1 card's category is read until the game has filled it in (it can still be empty as the card is built),
-    -- then again only on a full pass or when the card shows another tech.
+-- A level-1 card's category is read until the game has filled it in (it can still be empty as the card is built),
+-- then again only on a full pass or when the card shows another tech.
+local function readStarterCategory(card, tech, key, full)
     if DATA.starters[tech] and (full or not labelled[key] or labelled[key].tech ~= tech) then
         labelled[key] = readCategory(card, tech) and { tech = tech } or nil
     end
-    if not SHOP_CARDS.isShopSlot(tech) then return end
+end
+
+-- What a shop slot's card should show: { name, category, clickable, texture }.
+local function cardLabel(tech, card)
     local sent, mine = SHOP_CARDS.bought(tech), SHOP_CARDS.ownTech(tech)
     local scouted = ap.scouted[DATA.shop[tech].loc]
     local own = scouted and scouted.own
@@ -179,23 +179,41 @@ function SHOP_CARDS.relabel(card, key, full)
         or (kind == "area-pass" and (ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
                                      or (it.name:find("^Area Pass") and ART.texture("ap-pass-region"))))
         or modIcon(kind, card)
+    return { name = name, category = category, clickable = clickable, texture = tex }
+end
+
+-- Sets a card's click state, name texts, category and icon to `label`.
+local function applyLabel(card, label)
+    -- A bought card does nothing when clicked (the game is told it cannot be researched). One showing your own tech
+    -- stays interactive so its tooltip still works; the others are switched off outright.
+    safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(label.clickable) end)
+    local text = FText(label.name)
+    safe(function() card.RichText_TechnologyName_Lock:SetText(text) end)
+    safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
+    safe(function() card.BP_PalTextBlock_Category:SetText(FText(label.category)) end)
+    if label.texture then safe(function() card.Image_Icon:SetBrushFromTexture(label.texture, false) end) end
+end
+
+-- Labels one tech card as its shop slot (key: the card's address), unless it still shows that label; `full` labels it
+-- anyway. The header: one of your techs looks like ordinary research (its own category, before and after buying);
+-- your other items say "Received" once bought, other players' items "Sent".
+function SHOP_CARDS.relabel(card, key, full)
+    local tech = card.BindedTechnologyName:ToString()
+    readStarterCategory(card, tech, key, full)
+    if not SHOP_CARDS.isShopSlot(tech) then return end
+    local label = cardLabel(tech, card)
+    local tex = label.texture
     local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
-    local sig = name .. "\0" .. category .. "\0" .. tostring(clickable) .. "\0" .. tostring(texAddr)
+    local sig = label.name .. "\0" .. label.category .. "\0" .. tostring(label.clickable) .. "\0" .. tostring(texAddr)
     local seen = labelled[key]
     if not full and seen and seen.tech == tech and seen.sig == sig and stillShows(card, seen) then
         PERF.count("cardsSkipped")
         return
     end
     PERF.count("cards")
-    -- A bought card does nothing when clicked (the game is told it cannot be researched). One showing your own tech
-    -- stays interactive so its tooltip still works; the others are switched off outright.
-    safe(function() card.WBP_PalInvisibleButton:SetIsInteractionEnabled(clickable) end)
-    local text = FText(name)
-    safe(function() card.RichText_TechnologyName_Lock:SetText(text) end)
-    safe(function() card.RichText_TechnologyName_Unlock:SetText(text) end)
-    safe(function() card.BP_PalTextBlock_Category:SetText(FText(category)) end)
-    if tex then safe(function() card.Image_Icon:SetBrushFromTexture(tex, false) end) end
-    labelled[key] = { tech = tech, sig = sig, name = name, category = category, tex = texAddr, clickable = clickable }
+    applyLabel(card, label)
+    labelled[key] = { tech = tech, sig = sig, name = label.name, category = label.category, tex = texAddr,
+                      clickable = label.clickable }
 end
 
 -- State: forgotten never (cardPasses counts the session's passes); lastCards is replaced every update.

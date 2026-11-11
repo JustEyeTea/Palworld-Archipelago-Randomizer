@@ -81,12 +81,18 @@ local goalWait = nil          -- { done = what, since = the update it was reache
 function CHECKS.resetGoal()
     goalWait = nil
 end
--- The records phase's work: sends what the game's records say is done, and the goal once it is reached.
-function CHECKS.pollRecords(ps, tick)
-    local okp, found = pcall(RECORDS.progress, ps, DATA, os.time())
-    if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
-    CHECKS.sendChecks(found.locations)
-    ap.level, ap.beaten = found.level, found.beaten
+-- The goal's banner and chat notice, once per seed (kept in the save as goal=shown), so loading a won world does not
+-- show the banner again.
+local function showGoalOnce(done, tick)
+    if ap.goalShown then return end
+    ap.goalShown = true
+    notify("Goal complete: " .. done .. "!")
+    local okb, errb = pcall(POPUP.banner, done, tick)
+    if not okb then log("goal banner error: " .. tostring(errb)) end
+end
+
+-- Sends the goal once it is reached and the player is out of the boss's arena, or WAIT.goal after it was reached.
+local function sendGoalOnceOutOfArena(ps, found, tick)
     if ap.goalSent then return end
     local done = goalReached(found)
     if done and not goalWait then
@@ -101,13 +107,16 @@ function CHECKS.pollRecords(ps, tick)
     goalWait = nil
     AP_Goal()                                          -- (sent again on each connection: the server takes it once)
     log("goal sent: " .. done .. (out and "" or " (still in a stage after 2 minutes)"))
-    -- The banner and notice once per seed (kept in the save as goal=shown), so loading a won world does not show the
-    -- banner again.
-    if ap.goalShown then return end
-    ap.goalShown = true
-    notify("Goal complete: " .. done .. "!")
-    local okb, errb = pcall(POPUP.banner, done, tick)
-    if not okb then log("goal banner error: " .. tostring(errb)) end
+    showGoalOnce(done, tick)
+end
+
+-- The records phase's work: sends what the game's records say is done, and the goal once it is reached.
+function CHECKS.pollRecords(ps, tick)
+    local okp, found = pcall(RECORDS.progress, ps, DATA, os.time())
+    if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
+    CHECKS.sendChecks(found.locations)
+    ap.level, ap.beaten = found.level, found.beaten
+    sendGoalOnceOutOfArena(ps, found, tick)
 end
 
 return CHECKS

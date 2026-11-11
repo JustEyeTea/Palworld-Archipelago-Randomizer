@@ -188,6 +188,15 @@ local function techArg(...)
         end
     end
 end
+-- The game's own answer in an after-callback's arguments: the first plain boolean UE4SS hands it, or nil.
+local function gameAnswer(...)
+    for i = 1, select("#", ...) do
+        local arg = select(i, ...)
+        if type(arg) == "boolean" then return arg end
+    end
+    return nil
+end
+
 -- Whether a slot can be bought (the after-callback of IsUnlockableRecipeTechnology). The tech menu asks this (and
 -- the next hook) about 25 times for each card it builds or refreshes, and twice for all 588 techs on a filter. The
 -- early returns give exactly what the full check gives in that case (nothing is a shop card before ap.shopOpen; the
@@ -198,13 +207,15 @@ local function canResearch(self, ...)
     local tech = techArg(...)
     if not tech or not isShopSlot(tech) then return nil end
     local answer = slotUnlockable(self:get(), tech)
-    if answer ~= nil and not UTIL.said("unlockable") then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(answer) .. ")") end
+    if answer ~= nil and not UTIL.said("unlockable") then
+        once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(answer) .. ")")
+    end
     if tech == hoveredTech and not UTIL.said("ask1" .. tech) then
-        -- Left to the game (nil): its own answer too, the first plain boolean UE4SS hands the after-callback, so a slot
-        -- the game greys out with no gate in our data or the game's table can be traced.
-        local game
-        if answer == nil then for i = 1, select("#", ...) do if type((select(i, ...))) == "boolean" then game = select(i, ...); break end end end
-        once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(answer) .. (answer == nil and (" (the game says " .. tostring(game) .. ")") or ""))
+        -- Left to the game (nil): its own answer too, so a slot the game greys out with no gate in our data or the
+        -- game's table can be traced.
+        local game = answer == nil and gameAnswer(...) or nil
+        once("ask1" .. tech, "click check on " .. tech .. ": unlockable -> " .. tostring(answer)
+            .. (answer == nil and (" (the game says " .. tostring(game) .. ")") or ""))
     end
     return answer
 end
@@ -273,20 +284,23 @@ function SHOP.registerNativeHooks()
 end
 
 local preloaded = false       -- the shop's menu classes were loaded once ready: forgotten never (once a session)
+-- Loads the class of each Blueprint hook not registered yet, so the next registerLazyHooks can hook it.
+local function loadHookClasses()
+    for _, hook in ipairs(SHOP_HOOKS) do
+        if not hook.native and not hook.done then
+            local class = hook.path:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
+            local ok, err = pcall(LoadAsset, (class:gsub("_C$", "")))
+            if not ok then once("preload" .. class, "could not preload " .. class .. ": " .. tostring(err)) end
+        end
+    end
+end
+
 -- Load the menus' classes up front, once ready, so their hooks are in place before the Technology menu first opens
 -- (hooked mid-draw, a bought card could flip to researched and stick on the game's white unlock flash).
 function SHOP.preloadMenuClasses()
     if not ap.ready or preloaded then return end
     preloaded = true
-    ExecuteInGameThread(function()
-        for _, hook in ipairs(SHOP_HOOKS) do
-            if not hook.native and not hook.done then
-                local class = hook.path:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
-                local ok, err = pcall(LoadAsset, (class:gsub("_C$", "")))
-                if not ok then once("preload" .. class, "could not preload " .. class .. ": " .. tostring(err)) end
-            end
-        end
-    end)
+    ExecuteInGameThread(loadHookClasses)
 end
 
 -- The tech whose tooltip was set up last (see the hover hand-off), or nil.

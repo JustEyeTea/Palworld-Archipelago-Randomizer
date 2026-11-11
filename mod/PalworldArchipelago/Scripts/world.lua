@@ -107,20 +107,23 @@ local function techsToRelock(ps)
     end
     return relock
 end
+-- Asks the player, once a world, whether to tie the seed to a world whose researched shop techs it would lock.
+local function askAboutProgress(id, relock)
+    if worldAsk and worldAsk.id == id then return end
+    worldAsk = { id = id, yes = false }
+    log("world: " .. id .. " has " .. relock .. " researched shop tech(s);"
+        .. " asking before tying the seed to it")
+    notify("This world already has progress: " .. relock .. " researched tech(s) would be locked again"
+        .. " and its records sent as checks. Load a new world for this seed, or press " .. CONFIG.hintKey
+        .. " to play the seed here anyway.")
+end
 -- Ties the seed to the loaded world when the world is new, or the player said yes. False while asking.
 local function tieWorld(ps, id)
     if not (worldAsk and worldAsk.id == id and worldAsk.yes) then
         local relock = techsToRelock(ps)
         if not relock then return false end
         if relock > 0 then
-            if not (worldAsk and worldAsk.id == id) then
-                worldAsk = { id = id, yes = false }
-                log("world: " .. id .. " has " .. relock .. " researched shop tech(s);"
-                    .. " asking before tying the seed to it")
-                notify("This world already has progress: " .. relock .. " researched tech(s) would be locked again"
-                    .. " and its records sent as checks. Load a new world for this seed, or press " .. CONFIG.hintKey
-                    .. " to play the seed here anyway.")
-            end
+            askAboutProgress(id, relock)
             return false
         end
     end

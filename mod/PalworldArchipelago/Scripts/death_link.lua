@@ -115,69 +115,88 @@ local function faintNow(ps)
     end
     return ok, err, ROUTES[death.route].name
 end
+-- Checks the faint tried at the last step: dead, its route worked; still alive, the next route is tried at once.
+-- Returns true when it tried another route, which ends this step.
+local function checkLastFaint(ps, dead)
+    if not death.pending then return false end
+    local cause = death.pending
+    death.pending = nil
+    if dead then
+        once("dlworked" .. death.route, "death link: the " .. ROUTES[death.route].name .. " worked")
+        return false
+    end
+    if death.route >= #ROUTES then return false end
+    local failed = ROUTES[death.route].name
+    death.route = death.route + 1
+    death.caused = CLOCK.now()
+    local ok, err, how = faintNow(ps)
+    if ok and death.route < #ROUTES then death.pending = cause end
+    log("death link: the " .. failed .. " did not faint the player; used the " .. how .. ": " .. cause
+        .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+    return true
+end
+
+-- Applies a death received from the link. It waits for a settled world with a character (as the traps do), and one
+-- older than WAIT.deathLate is dropped.
+local function applyIncomingDeath(ps, dead)
+    local character = safe(function() return ps:GetPawn() end)
+    local settled = WORLD.settled() and character and character:IsValid()
+    if not (death.incoming and (settled or CLOCK.now() - death.at > WAIT.deathLate)) then return end
+    local cause = death.incoming
+    death.incoming = nil
+    if CLOCK.now() - death.at > WAIT.deathLate then
+        log("death link received while no player was in the world (" .. (CLOCK.now() - death.at) .. " updates ago): not applied: " .. cause)
+    elseif not dead then
+        death.caused = CLOCK.now()
+        local ok, err, how = faintNow(ps)
+        if ok and death.route < #ROUTES then death.pending = cause end
+        notify("Death Link: " .. cause)
+        log("death link received: " .. cause .. " (" .. how .. ")" .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+    end
+end
+
+-- Sends the player's own death to everyone linked.
+local function sendOwnDeath()
+    ap.forgiven = 0
+    writeSave()
+    local cause = cfg.slot .. " fainted in Palworld."
+    AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), jsonText(cfg.slot),
+        jsonText(cause)), "DeathLink")
+    notify("Death Link: your death was sent to the multiworld.")
+    log("death link sent")
+end
+
+-- The player's own death, at the update it happens: not sent back when the link caused it, forgiven while the amnesty
+-- lasts, else sent. Amnesty (slot data options.death_link_amnesty): that many of your own faints are forgiven before
+-- one is sent. The count is kept in the seed's save file, so quitting does not reset it.
+local function reportOwnDeath(dead)
+    if not (dead and not death.wasDead) then return end
+    if death.caused and CLOCK.now() - death.caused < WAIT.ownDeath then
+        log("death link: this death came from the link, not sent back")
+        return
+    end
+    local amnesty = slotNumber("options.death_link_amnesty", 0)
+    if ap.forgiven >= amnesty then
+        sendOwnDeath()
+        return
+    end
+    ap.forgiven = ap.forgiven + 1
+    writeSave()
+    local left = amnesty - ap.forgiven
+    notify(left > 0 and string.format("Death Link: faint forgiven (%d more before one is sent).", left)
+                     or "Death Link: faint forgiven. The next one is sent to the multiworld.")
+    log(string.format("death link: forgiven %d of %d", ap.forgiven, amnesty))
+end
+
 -- One Death Link step (the items phase): checks the last faint worked, applies a death received, and reports the
 -- player's own death.
 function DEATH_LINK.step(ps)
     if not death.on then return end
     local okd, dead = pcall(function() return ps:IsPlayerDead() end)
     if not okd then return end
-    if death.pending then
-        local cause = death.pending
-        death.pending = nil
-        if dead then
-            once("dlworked" .. death.route, "death link: the " .. ROUTES[death.route].name .. " worked")
-        elseif death.route < #ROUTES then
-            local failed = ROUTES[death.route].name
-            death.route = death.route + 1
-            death.caused = CLOCK.now()
-            local ok, err, how = faintNow(ps)
-            if ok and death.route < #ROUTES then death.pending = cause end
-            log("death link: the " .. failed .. " did not faint the player; used the " .. how .. ": " .. cause
-                .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
-            return
-        end
-    end
-    -- An incoming death waits for a settled world with a character (as the traps do), then counts as late.
-    local character = safe(function() return ps:GetPawn() end)
-    local settled = WORLD.settled() and character and character:IsValid()
-    if death.incoming and (settled or CLOCK.now() - death.at > WAIT.deathLate) then
-        local cause = death.incoming
-        death.incoming = nil
-        if CLOCK.now() - death.at > WAIT.deathLate then
-            log("death link received while no player was in the world (" .. (CLOCK.now() - death.at) .. " updates ago): not applied: " .. cause)
-        elseif not dead then
-            death.caused = CLOCK.now()
-            local ok, err, how = faintNow(ps)
-            if ok and death.route < #ROUTES then death.pending = cause end
-            notify("Death Link: " .. cause)
-            log("death link received: " .. cause .. " (" .. how .. ")" .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
-        end
-    end
-    if dead and not death.wasDead then
-        if death.caused and CLOCK.now() - death.caused < WAIT.ownDeath then
-            log("death link: this death came from the link, not sent back")
-        else
-            -- Amnesty (slot data options.death_link_amnesty): that many of your own faints are forgiven before one is
-            -- sent. The count is kept in the seed's save file, so quitting does not reset it.
-            local amnesty = slotNumber("options.death_link_amnesty", 0)
-            if ap.forgiven < amnesty then
-                ap.forgiven = ap.forgiven + 1
-                writeSave()
-                local left = amnesty - ap.forgiven
-                notify(left > 0 and string.format("Death Link: faint forgiven (%d more before one is sent).", left)
-                                 or "Death Link: faint forgiven. The next one is sent to the multiworld.")
-                log(string.format("death link: forgiven %d of %d", ap.forgiven, amnesty))
-            else
-                ap.forgiven = 0
-                writeSave()
-                local cause = cfg.slot .. " fainted in Palworld."
-                AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), jsonText(cfg.slot),
-                    jsonText(cause)), "DeathLink")
-                notify("Death Link: your death was sent to the multiworld.")
-                log("death link sent")
-            end
-        end
-    end
+    if checkLastFaint(ps, dead) then return end
+    applyIncomingDeath(ps, dead)
+    reportOwnDeath(dead)
     death.wasDead = dead
 end
 

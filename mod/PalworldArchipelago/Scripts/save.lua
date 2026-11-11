@@ -99,18 +99,16 @@ end
 -- (the perf probe's Ctrl+0 replay of the old load).
 local lastSave = nil          -- path and text of the last write: the same again is not written
 local saveWarned = false      -- the player was told the save file can't be written (once a session)
--- Writes the save file whole when its text changed, or anyway with `always`.
-function SAVE.write(always)
-    local path = SAVE.path()
-    if not path then return end
-    -- One write holds everything that must agree: what was applied, and the traps and mailbox items it left.
+-- The save file's text, every line in the order the list above gives. One write holds everything that must agree:
+-- what was applied, and the traps and mailbox items it left.
+local function saveText()
     local been = {}
     for area in pairs(ap.visited) do been[#been + 1] = area end
     table.sort(been)
     local bought = {}
     for loc in pairs(ap.bought) do bought[#bought + 1] = loc end
     table.sort(bought)
-    local text = table.concat({
+    return table.concat({
         "given=" .. ap.given .. "\n",
         ap.world and ("world=" .. ap.world .. "\n") or "",
         "deaths=" .. ap.forgiven .. "\n",
@@ -120,26 +118,46 @@ function SAVE.write(always)
         TRAPS.serialize(), MAIL.serialize(), CRATES.serialize(), SYNC.serialize(),
         "end\n",
     })
-    if not always and lastSave == path .. "\n" .. text then return end
-    PERF.start("save")
+end
+
+-- Writes `text` to path .. ".tmp", then puts it in place of the file at `path`. Returns whether it worked; a file that
+-- cannot be opened is logged and the player told, once a session.
+local function writeWhole(path, text)
     local f, errOpen = io.open(path .. ".tmp", "w")
     if not f then
-        PERF.stop("save")
         if not saveWarned then
             saveWarned = true
             log("could not write " .. path .. ".tmp: " .. tostring(errOpen))
             notify("Can't write the mod's save file: items you receive will be given again next time."
                 .. " Check that the game may write to its Mods folder.")
         end
-        return
+        return false
     end
     local okw = f:write(text)
     f:close()
-    if not okw then PERF.stop("save"); once("savewrite", "could not write " .. path .. ".tmp"); return end
+    if not okw then
+        once("savewrite", "could not write " .. path .. ".tmp")
+        return false
+    end
     os.remove(path)                                   -- (Windows will not rename over a file)
     local okr, err = os.rename(path .. ".tmp", path)
+    if not okr then
+        once("saverename", "could not put the save in place: " .. tostring(err))
+        return false
+    end
+    return true
+end
+
+-- Writes the save file whole when its text changed, or anyway with `always`.
+function SAVE.write(always)
+    local path = SAVE.path()
+    if not path then return end
+    local text = saveText()
+    if not always and lastSave == path .. "\n" .. text then return end
+    PERF.start("save")
+    local written = writeWhole(path, text)
     PERF.stop("save")
-    if not okr then once("saverename", "could not put the save in place: " .. tostring(err)); return end
+    if not written then return end
     lastSave = path .. "\n" .. text
     PERF.count("save")
 end

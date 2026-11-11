@@ -20,16 +20,38 @@ local ap, slotNumber = STATE.ap, STATE.slotNumber
 local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
 
+-- A Palworld Crate received: its kind is rolled from the seed's crate weights and the item's index (crates.lua).
+local function receiveCrate(index)
+    local weights = {}
+    for _, k in ipairs(CRATES.KINDS) do weights[k] = slotNumber("options." .. CRATES.WEIGHT_KEYS[k]) end
+    local kind = CRATES.receive(ap.seed, index, weights)
+    notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
+end
+
+-- A bundle's items, into the mailbox, or with the mailbox off straight into the bag. False when the bag refused one
+-- (it is tried again later).
+local function giveBundle(it)
+    for _, bundle in ipairs(RECORDS.BUNDLES[it.name]) do
+        if MAIL.on() then
+            MAIL.add(bundle.id, bundle.n)
+        else
+            -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
+            local okg, got = pcall(BAG.give, bundle.id, bundle.n)
+            if not okg then once("give" .. tostring(got), "could not give " .. bundle.id .. ": " .. tostring(got)); return false end
+            if got == 0 then return false end
+            if got < bundle.n then log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in") end
+        end
+    end
+    return true
+end
+
 -- A filler item's once-per-seed effect: a Palworld Crate, tech points or a bundle. False when it could not be applied
 -- yet (a bundle the bag refused, with the mailbox off): it is tried again later.
 local function giveFiller(ps, id, index)
     local it = DATA.items[id]
     if not it then return true end
     if it.name == "Palworld Crate" then
-        local weights = {}
-        for _, k in ipairs(CRATES.KINDS) do weights[k] = slotNumber("options." .. CRATES.WEIGHT_KEYS[k]) end
-        local kind = CRATES.receive(ap.seed, index, weights)
-        notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
+        receiveCrate(index)
         return true
     end
     local td = ps:GetTechnologyData()
@@ -40,17 +62,7 @@ local function giveFiller(ps, id, index)
         td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
         safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
     elseif RECORDS.BUNDLES[it.name] then
-        for _, bundle in ipairs(RECORDS.BUNDLES[it.name]) do
-            if MAIL.on() then
-                MAIL.add(bundle.id, bundle.n)
-            else
-                -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
-                local okg, got = pcall(BAG.give, bundle.id, bundle.n)
-                if not okg then once("give" .. tostring(got), "could not give " .. bundle.id .. ": " .. tostring(got)); return false end
-                if got == 0 then return false end
-                if got < bundle.n then log("bundle " .. it.name .. ": only " .. got .. " of " .. bundle.n .. " " .. bundle.id .. " went in") end
-            end
-        end
+        return giveBundle(it)
     end
     return true
 end
