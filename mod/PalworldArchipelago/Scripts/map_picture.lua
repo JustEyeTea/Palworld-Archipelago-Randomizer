@@ -308,48 +308,53 @@ local function drawTerritories(krl, gi, k, key)
     return k == key
 end
 -- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
-local function composeTerritories(ctx, passes, key)
-    if not terr.composing then
-        if terr.done == key then return true end
-        if terr.failed == key then return "failed" end
-    end
-    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    local gi = owner()
-    if not gi then return false end
-    if terr.composing then
-        local st = AP_TerritoriesStatus()
-        if st == "busy" then return false end
-        local k = terr.composing
-        terr.composing = nil
-        if st ~= "done" then log("map territories: composing failed: " .. tostring(st)); terr.failed = k; return "failed" end
-        -- A picture that cannot be drawn is not composed again: it would fail the same way on every update.
-        local okD, drawn = pcall(drawTerritories, krl, gi, k, key)
-        if okD then
-            return drawn
-        end
-        log("map territories: could not draw the picture (" .. tostring(drawn) .. "); not composed again")
+-- A Territories composition finished: its picture drawn into the map picture. As composeTerritories returns.
+local function finishTerritories(krl, gi, key)
+    local st = AP_TerritoriesStatus()
+    if st == "busy" then return false end
+    local k = terr.composing
+    terr.composing = nil
+    if st ~= "done" then
+        log("map territories: composing failed: " .. tostring(st))
         terr.failed = k
         return "failed"
     end
-    -- From the Art lane's distance field when the DLL has it (dev.34: smooth at 4096, where the 2048 label map gave stairs
-    -- and octagons; area_field*.png, made from the label maps by tools/map_fields.py), else from the label map at 2048.
+    -- A picture that cannot be drawn is not composed again: it would fail the same way on every update.
+    local okD, drawn = pcall(drawTerritories, krl, gi, k, key)
+    if okD then
+        return drawn
+    end
+    log("map territories: could not draw the picture (" .. tostring(drawn) .. "); not composed again")
+    terr.failed = k
+    return "failed"
+end
+-- Whether the saved colour map is there to compose from (the player's own map, saved once; the user, dev.33: locked
+-- areas' "interior should be the greyscale"), saving it from the game's map first if it is not.
+local function haveColourMap(krl, gi)
+    local colour = W.dir .. "\\" .. COLOUR_FILE
+    local hasColour = UTIL.exists(colour)
+    if not hasColour then
+        pcall(LoadAsset, MAP_TEXTURE)
+        local tex = StaticFindObject(MAP_TEXTURE)
+        if tex and tex:IsValid() then
+            local okc, path = pcall(colourMap, krl, tex, gi)
+            hasColour = okc and path and UTIL.exists(path) or false
+        end
+    end
+    return hasColour, colour
+end
+-- Starts a Territories composition for `key` in the background. From the Art lane's distance field when the DLL has it
+-- (dev.34: smooth at 4096, where the 2048 label map gave stairs and octagons; area_field*.png, made from the label maps
+-- by tools/map_fields.py), else from the label map at 2048.
+local function startTerritories(krl, gi, passes, key)
     local field = W.dir .. "\\area_field" .. layout.suffix .. ".png"
     local hasField = AP_ComposeField and UTIL.exists(field)
     local err, size, whole
     if hasField then
-        -- With the colour map (the player's own map, saved once; the user, dev.33: locked areas' "interior should be the
-        -- greyscale"): the whole map picture, greyscale where locked, the walls there in the area's colour.
-        local colour = W.dir .. "\\" .. COLOUR_FILE
-        local hasColour = UTIL.exists(colour)
-        if not hasColour then
-            pcall(LoadAsset, MAP_TEXTURE)
-            local tex = StaticFindObject(MAP_TEXTURE)
-            if tex and tex:IsValid() then
-                local okc, path = pcall(colourMap, krl, tex, gi)
-                hasColour = okc and path and UTIL.exists(path) or false
-            end
-        end
-        size, whole = 4096, hasColour
+        -- With the colour map: the whole map picture, greyscale where locked, the walls there in the area's colour.
+        local colour
+        whole, colour = haveColourMap(krl, gi)
+        size = 4096
         err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
             W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", "0.4545")
     else
@@ -363,6 +368,20 @@ local function composeTerritories(ctx, passes, key)
         once("terrfrom" .. size, "map territories: composing "
             .. (hasField and "from the distance field" or "from the label map") .. " at " .. size)
     elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
+end
+-- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
+local function composeTerritories(ctx, passes, key)
+    if not terr.composing then
+        if terr.done == key then return true end
+        if terr.failed == key then return "failed" end
+    end
+    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local gi = owner()
+    if not gi then return false end
+    if terr.composing then
+        return finishTerritories(krl, gi, key)
+    end
+    startTerritories(krl, gi, passes, key)
     return false
 end
 
@@ -400,6 +419,42 @@ local function drawComposed(krl, gi, done)
     composedKey = done
     return true
 end
+-- A composition finished: its picture drawn into the map picture. As composeMap returns.
+local function finishCompose(krl, gi, key)
+    local st = AP_ComposeStatus()
+    if st == "busy" then return false end
+    local done = composing
+    composing = nil
+    -- A failure is not a picture: the render target still holds the last one. That set is not composed again (no
+    -- retry loop); the map is drawn without the compositor instead.
+    if st ~= "done" then
+        log("map: composing failed: " .. tostring(st) .. "; drawing it without the compositor")
+        failedKey = done
+        return false
+    end
+    local okD, drawn = pcall(drawComposed, krl, gi, done)
+    if not okD then
+        log("map: could not draw the composed map (" .. tostring(drawn) .. "); drawing it without the compositor")
+        failedKey = done
+        return false
+    end
+    return drawn and done == key
+end
+-- Starts a composition for `key` in the background, from the saved colour map (saved again from the game's map at the
+-- first opening, or when there is none) and the area labels.
+local function startCompose(krl, gi, passes, key, open)
+    local colour = W.dir .. "\\" .. COLOUR_FILE
+    local saved = UTIL.exists(colour)
+    if open or printChecked or not saved then
+        pcall(LoadAsset, MAP_TEXTURE)
+        local tex = StaticFindObject(MAP_TEXTURE)
+        if not tex or not tex:IsValid() then return end
+        colour = colourMap(krl, tex, gi)
+    end
+    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
+        W.dir .. "\\map-composed.png", "0.4545")
+    if err == "" then composing, composingList = key, lockedList(passes) elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
+end
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
 -- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
 -- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
@@ -428,32 +483,9 @@ local function composeMap(ctx, passes, key, open)
     local gi = owner()
     if not gi then return false end
     if composing then
-        local st = AP_ComposeStatus()
-        if st == "busy" then return false end
-        local done = composing
-        composing = nil
-        -- A failure is not a picture: the render target still holds the last one. That set is not composed again (no
-        -- retry loop); the map is drawn without the compositor instead.
-        if st ~= "done" then log("map: composing failed: " .. tostring(st) .. "; drawing it without the compositor"); failedKey = done; return false end
-        local okD, drawn = pcall(drawComposed, krl, gi, done)
-        if not okD then
-            log("map: could not draw the composed map (" .. tostring(drawn) .. "); drawing it without the compositor")
-            failedKey = done
-            return false
-        end
-        return drawn and done == key
+        return finishCompose(krl, gi, key)
     end
-    local colour = W.dir .. "\\" .. COLOUR_FILE
-    local saved = UTIL.exists(colour)
-    if open or printChecked or not saved then
-        pcall(LoadAsset, MAP_TEXTURE)
-        local tex = StaticFindObject(MAP_TEXTURE)
-        if not tex or not tex:IsValid() then return false end
-        colour = colourMap(krl, tex, gi)
-    end
-    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
-        W.dir .. "\\map-composed.png", "0.4545")
-    if err == "" then composing, composingList = key, lockedList(passes) elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
+    startCompose(krl, gi, passes, key, open)
     return false
 end
 
