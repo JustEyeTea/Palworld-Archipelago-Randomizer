@@ -622,7 +622,7 @@ function MAP_PICTURE.install(env)
     W.iconsOff = false
     W.mapStyle = "territories"
     W.cppOff = false             -- config.txt map_cpp=0 (main.lua): C++ leaves the screen alone; Lua alone, as before
-    W.testFogColour = false      -- config.txt test_tools=1 (main.lua): the chart look sends FOG_TEST as the fog colour
+    W.testFogColour = false      -- config.txt test_tools=1 (main.lua): the chart look's parchment fog colour is sent
     W.chartOff = false
     W.regionsOff = false
 end

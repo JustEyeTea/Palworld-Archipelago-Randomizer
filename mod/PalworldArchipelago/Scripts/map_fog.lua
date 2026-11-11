@@ -36,18 +36,20 @@ end
 -- map in C++). It changes the screen inside the game's own Setup, before the screen draws; Lua hands it the picture and
 -- the fog's colour. Lua still puts the picture back as before when it finds the game's, but with C++ working it should
 -- never have to: each time it does is counted and logged (the swap the player sees).
--- PROBE BUILD (untested in game): a parchment fog (FOG_TEST, linear light, alpha 0.6) to see whether the fog's colour
--- alpha lets the map and the stamps show through; the explored mask is exported once (fog-mask.png) to see which way
--- round it is, for the explorer's-chart fog (unexplored areas drawn as a chart, the user's idea).
-local FOG_TEST = "0.815,0.693,0.434,0.6"
+-- At the first opening of a session the fog's material and masks are logged, and its default mask (what every player
+-- sees uncovered) is exported to fog-default-mask.png, which startFog hands the C++ fog composer.
+-- The chart look's parchment fog colour (linear light, alpha 0.6, to see whether the colour's alpha lets the map show
+-- through), sent only with the test tools (fogColour). Untested in game: how the screen shows it.
+local CHART_FOG_COLOUR = "0.815,0.693,0.434,0.6"
 -- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), fog whether it was
 -- switched on and given the fog colour; opened and fixes count map openings and pictures Lua put back, for the log.
 local cpp = { body = nil, fog = false, opened = 0, fixes = 0, maskDone = false }
--- The fog colour C++ gives the screen until there is a fog picture: "" keeps the game's own dark fog. FOG_TEST only
--- with the test tools, in the chart look with its fog on; config.txt says map_chart=0 keeps the game's fog.
+-- The fog colour C++ gives the screen until there is a fog picture: "" keeps the game's own dark fog.
+-- CHART_FOG_COLOUR only with the test tools, in the chart look with its fog on; config.txt says map_chart=0 keeps the
+-- game's fog.
 local function fogColour()
     if W.testFogColour and not territories() and not W.chartOff then
-        return FOG_TEST
+        return CHART_FOG_COLOUR
     end
     return ""
 end
@@ -73,8 +75,9 @@ function MAP_FOG.mapOff()
     AP_MapScreen("enable", "0")
     log("map screen (C++): switched off, the game's own map here")
 end
--- What the fog is made of, and its explored mask exported (once a session).
-local function probeMask(screen)
+-- The fog's material and its two masks (the explored mask, a render target, and the default mask, a texture), as words
+-- for the log, and the two masks; or the reason there is no fog material.
+local function fogMasks(screen)
     local dmi = screen.MaskTextureMaterial
     if not (dmi and dmi:IsValid()) then return "no fog material" end
     local function tex(param)
@@ -85,26 +88,35 @@ local function probeMask(screen)
     local info = "fog material " .. dmi:GetFullName() .. "; mask " .. (rt and (rt:GetFullName() .. " " .. tostring(rt.SizeX)
         .. "x" .. tostring(rt.SizeY) .. " format " .. tostring(rt.RenderTargetFormat)) or "none")
         .. "; default mask " .. (def and def:GetFullName() or "none")
+    return info, rt, def
+end
+-- The default mask exported to fog-default-mask.png: drawn into a render target of its size, then saved. The words
+-- for the log.
+local function exportDefaultMask(def, gi)
+    local ok, err = pcall(function()
+        local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+        local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
+        local drt = krl:CreateRenderTarget2D(gi, w, h, 2, { R = 0, G = 0, B = 0, A = 0 }, false)
+        picture.drawInto(krl, gi, drt, function(canvas) picture.drawWhole(canvas, def, w, h, 0) end)
+        krl:ExportRenderTarget(gi, drt, W.dir, "fog-default-mask.png")
+        return w .. "x" .. h
+    end)
+    return ok and ("; default mask " .. tostring(err) .. " exported to fog-default-mask.png")
+        or ("; default mask export failed: " .. tostring(err))
+end
+-- At the first opening of a session: the fog's material and masks as words for the log, with the default mask exported
+-- (and, with the chart off, the explored mask too, for the log: with the chart on, its own step exports it).
+local function logFogMaterial(screen)
+    local info, rt, def = fogMasks(screen)
     local gi = owner()
-    -- (With the chart on, its own step exports the mask: not twice in one opening.)
     if rt and gi and (W.chartOff or not AP_ComposeFog) then
         local ok, err = pcall(function()
             StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"):ExportRenderTarget(gi, rt, W.dir, "fog-mask.png")
         end)
         info = info .. (ok and "; exported to fog-mask.png" or ("; export failed: " .. tostring(err)))
     end
-    -- The default mask (a texture, what every player sees uncovered): drawn into a render target of its size to export.
     if def and gi then
-        local ok, err = pcall(function()
-            local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-            local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
-            local drt = krl:CreateRenderTarget2D(gi, w, h, 2, { R = 0, G = 0, B = 0, A = 0 }, false)
-            picture.drawInto(krl, gi, drt, function(canvas) picture.drawWhole(canvas, def, w, h, 0) end)
-            krl:ExportRenderTarget(gi, drt, W.dir, "fog-default-mask.png")
-            return w .. "x" .. h
-        end)
-        info = info .. (ok and ("; default mask " .. tostring(err) .. " exported to fog-default-mask.png")
-            or ("; default mask export failed: " .. tostring(err)))
+        info = info .. exportDefaultMask(def, gi)
     end
     return info
 end
@@ -376,7 +388,7 @@ function MAP_FOG.step(ctx, screens, opening, passes, key)
         end
         if not cpp.maskDone then
             cpp.maskDone = true
-            local ok, info = pcall(probeMask, screens[#screens])
+            local ok, info = pcall(logFogMaterial, screens[#screens])
             log("map fog: " .. tostring(info))
         end
     end
