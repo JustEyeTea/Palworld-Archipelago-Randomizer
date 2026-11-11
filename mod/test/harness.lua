@@ -2153,6 +2153,41 @@ do  -- With two live main-map screens (two menus), each gets the locked-area ico
            "two live main-map screens each get the icons, once: " .. first .. " and " .. other)
     FindAllOf, mapOpen, mapBody.icons = realFAO, false, {}
 end
+do  -- A fallback that is taken says so once: a wall's mesh found the second way, an opening piece without the game's
+    -- clock, the explored mask from the world map data's current render target
+    local W, mine = freshWalls()
+    W.radius = 0
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    local odd = mine()[1]
+    local mesh = odd.Cube
+    odd.Cube = nil
+    odd.GetComponentByClass = function() return mesh end
+    W.setSkin("a")
+    W.update(true, {}, offMap)
+    local realClock = gameplay.GetTimeSeconds
+    gameplay.GetTimeSeconds = function() error("no clock") end
+    for _ = 1, 3 do W.update(true, { [WD.areas[4]] = true }, offMap) end
+    gameplay.GetTimeSeconds = realClock
+    W.setSkin("red")
+    W.update(true, {}, offMap)
+    worldGoes(mine())
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
+        GetRenderTargetByMapName = function() return nil end,
+        GetCurrentRenderTarget = function() return { IsValid = function() return true end } end } end
+    local M = freshWalls()
+    mapOpen = false
+    for _ = 1, 45 do M.updateMap(true, {}, pawn) end
+    util.GetLocalWorldMapData = nil
+    takeAway()
+    putBack()
+    expect(logged("wall skins: a wall's mesh: found by GetComponentByClass")
+           and logged("walls: an opening piece's start: 0 s %(the game's clock could not be read%)")
+           and logged("walls: an opening piece's clock: the updates counted")
+           and logged("map chart: the explored mask: from GetCurrentRenderTarget"),
+           "fallbacks taken are logged once: the mesh, the opening clock, the explored mask")
+end
 end
 end)()
 

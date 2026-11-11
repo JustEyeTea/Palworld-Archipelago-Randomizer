@@ -219,7 +219,9 @@ local function worldMask(pawn)
         local r = wmd:GetRenderTargetByMapName(FName("MainMap"))
         if r and r:IsValid() then return r end
         r = wmd:GetCurrentRenderTarget()
-        return r and r:IsValid() and r or nil
+        if not (r and r:IsValid()) then return nil end
+        UTIL.took("map chart: the explored mask", "from GetCurrentRenderTarget (MainMap not found)")
+        return r
     end)
     return ok and rt or nil
 end

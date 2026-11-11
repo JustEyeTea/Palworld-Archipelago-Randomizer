@@ -224,7 +224,10 @@ local function stepOpeningPieces()
         if a:IsValid() then
             s.steps = s.steps + 1
             local ok, now = pcall(function() return gs:GetTimeSeconds(a) end)
-            if not (ok and type(now) == "number") then now = s.startedAt + s.steps * UTIL.UPDATE_MS / 1000 end
+            if not (ok and type(now) == "number") then
+                UTIL.took("walls: an opening piece's clock", "the updates counted (the game's clock could not be read)")
+                now = s.startedAt + s.steps * UTIL.UPDATE_MS / 1000
+            end
             if stepOne(s, now) then
                 still[#still + 1] = s
             end
@@ -267,7 +270,11 @@ local function startOpening(i, pawn)
     local m = ok and mid and WALL_SKINS.meshOf(a)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
-    now = (m and start) or (okT and type(now) == "number" and now) or 0
+    now = (m and start) or (okT and type(now) == "number" and now) or nil
+    if not now then
+        UTIL.took("walls: an opening piece's start", "0 s (the game's clock could not be read)")
+        now = 0
+    end
     opening[#opening + 1] = { actor = a, scaleX = layout.walls[i][3] / CUBE_CM, scaleY = THICK_CM / CUBE_CM,
                               startedAt = now, addr = addr, dissolving = m and true or nil,
                               material = m and mid or nil, collisionOff = nil, steps = 0 }

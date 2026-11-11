@@ -116,7 +116,11 @@ function UTIL.gameInstance()
     if gameInstanceKept and gameInstanceKept:IsValid() then
         return gameInstanceKept
     end
-    local gi = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
+    local gi = FindFirstOf("PalGameInstance")
+    if not gi then
+        gi = FindFirstOf("GameInstance")
+        UTIL.took("util: the game instance", "a GameInstance (no PalGameInstance found)")
+    end
     gameInstanceKept = gi and gi:IsValid() and gi or nil
     return gameInstanceKept
 end

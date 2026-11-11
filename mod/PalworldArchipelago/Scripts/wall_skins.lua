@@ -82,7 +82,10 @@ local function meshOf(a)
     if ok and m and m:IsValid() then return m end
     local smc = StaticFindObject("/Script/Engine.StaticMeshComponent")
     ok, m = pcall(function() return a:GetComponentByClass(smc) end)
-    if ok and m and m:IsValid() then return m end
+    if ok and m and m:IsValid() then
+        UTIL.took("wall skins: a wall's mesh", "found by GetComponentByClass (the actor has no Cube)")
+        return m
+    end
 end
 WALL_SKINS.meshOf = meshOf
 -- An asset of the PalworldArchipelagoArt pak: already loaded, else through the asset registry as BPModLoader loads the
@@ -385,7 +388,10 @@ WALL_SKINS.pieceSkin = pieceSkin
 local function areaDress(a, i, passes, mode)
     local name = pieceSkin(i, passes or {}, mode)
     local mid = skinMaterial(name)
-    if not mid and name ~= "a" then name, mid = "a", skinMaterial("a") end
+    if not mid and name ~= "a" then
+        UTIL.took("wall skin " .. name, "the teal lattice (a) instead: its own material could not be made")
+        name, mid = "a", skinMaterial("a")
+    end
     if mid and dress(a, mid) then dressedAs[i] = name end
 end
 -- Dresses a piece just raised (i: its index) in the skin worn now; an error is logged once, not raised.
