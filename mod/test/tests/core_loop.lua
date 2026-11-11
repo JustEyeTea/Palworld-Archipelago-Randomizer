@@ -135,6 +135,37 @@ group("a save file that can't be written is logged, and the player told once", f
     expect(logged("could not write .*save%-12345%-Tester%.txt%.tmp: Permission denied") and timesTold == 1,
            "the failure is logged with the reason, and the player is told once: " .. timesTold)
     table.remove(MB.queue)
+    -- A write that fails only when the file is closed (a full disk: Lua buffers the text) leaves the last good save.
+    local SAVE = require("save")
+    local path = SAVE.path()
+    local function sizeOf(file)
+        local f = openWas(file)
+        local size = f and #f:read("a") or 0
+        if f then
+            f:close()
+        end
+        return size
+    end
+    SAVE.write(true)
+    local before = sizeOf(path)
+    io.open = function(file, mode)
+        if (mode or ""):find("w", 1, true) and file:find("save%-[^\\/]*%.txt%.tmp$") then
+            local real = openWas(file, mode)                   -- (made empty, as a full disk leaves it)
+            return { write = function(self) return self end,
+                     close = function()
+                         real:close()
+                         return nil, "No space left on device", 28
+                     end }
+        end
+        return openWas(file, mode)
+    end
+    local mark = logMark()
+    SAVE.write(true)
+    io.open = openWas
+    expect(before > 0 and sizeOf(path) == before and loggedSince(mark, "No space left on device"),
+           "a save whose close fails keeps the last good file, and says why: before " .. before .. " bytes, after "
+           .. sizeOf(path))
+    SAVE.write(true)
 end)
 
 group("the save file is written only when it changes", function()

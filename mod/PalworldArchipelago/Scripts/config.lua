@@ -68,17 +68,17 @@ local CONFIG_KEYS = {
 -- Writes config.txt with every key of CONFIG_KEYS that cfg holds (the title menu's connect).
 function CONFIG.write()
     local path = env.dir .. "\\config.txt"
-    local f, err = io.open(path, "w")
-    if not f then
-        log("could not write " .. path .. ": " .. tostring(err))
-        return
-    end
+    local lines = {}
     for _, k in ipairs(CONFIG_KEYS) do
         if cfg[k] then
-            f:write(k .. "=" .. cfg[k] .. "\n")
+            lines[#lines + 1] = k .. "=" .. cfg[k] .. "\n"
         end
     end
-    f:close()
+    local ok, step, why = UTIL.replaceFile(path, table.concat(lines))
+    if not ok then
+        log("could not write " .. path .. ": " .. tostring(why) .. " (at its " .. step .. ");"
+            .. " the last config.txt is kept")
+    end
 end
 
 -- The servers the title menu's Archipelago menu offers: archipelago.gg always, and any server connected to before

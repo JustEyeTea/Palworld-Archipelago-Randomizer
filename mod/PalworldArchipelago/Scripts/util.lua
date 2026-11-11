@@ -171,6 +171,22 @@ function UTIL.objectPath(obj)
     return full:match("^%S+%s+(.+)$") or full
 end
 
+-- Writes `text` to path .. ".tmp", then puts it in place of the file at `path`, so the file is never left half
+-- written. Returns true, or false, the step that failed ("open", "write" or "rename") and why. The write is checked at
+-- the close too: Lua buffers the text, so a full disk fails only there.
+function UTIL.replaceFile(path, text)
+    local tmp = path .. ".tmp"
+    local f, errOpen = io.open(tmp, "w")
+    if not f then return false, "open", errOpen end
+    local okWrite, errWrite = f:write(text)
+    local okClose, errClose = f:close()
+    if not (okWrite and okClose) then return false, "write", errWrite or errClose end
+    os.remove(path)                                   -- (Windows will not rename over a file)
+    local okRename, errRename = os.rename(tmp, path)
+    if not okRename then return false, "rename", errRename end
+    return true
+end
+
 -- Whether a file can be opened for reading.
 function UTIL.exists(path)
     local f = io.open(path, "rb")

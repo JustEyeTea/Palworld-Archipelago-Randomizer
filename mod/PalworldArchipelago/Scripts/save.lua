@@ -98,6 +98,9 @@ function SAVE.load()
     if tmp and tmpComplete and not complete then
         log("save " .. path .. ": " .. (lines and "incomplete" or "missing") .. "; using the copy written last (.tmp)")
         lines = tmp
+    elseif lines and not complete then
+        once("saveend " .. path, "save " .. path .. ": no end line (from an older version, or cut short) and no"
+            .. " complete .tmp copy; read as it is")
     end
     if not lines then return end
     for _, line in ipairs(lines) do
@@ -139,32 +142,27 @@ local function saveText()
     })
 end
 
--- Writes `text` to path .. ".tmp", then puts it in place of the file at `path`. Returns whether it worked; a file that
--- cannot be opened is logged and the player told, once a session.
+-- Writes `text` in place of the file at `path` (through its .tmp copy, UTIL.replaceFile). Returns whether it worked; a
+-- file that cannot be opened is logged and the player told, once a session; a failed write or rename is logged once
+-- and leaves the last good file.
 local function writeWhole(path, text)
-    local f, errOpen = io.open(path .. ".tmp", "w")
-    if not f then
+    local ok, step, why = UTIL.replaceFile(path, text)
+    if ok then return true end
+    if step == "open" then
         if not saveWarned then
             saveWarned = true
-            log("could not write " .. path .. ".tmp: " .. tostring(errOpen))
+            log("could not write " .. path .. ".tmp: " .. tostring(why))
             notify("Can't write the mod's save file: items you receive will be given again next time."
                 .. " Check that the game may write to its Mods folder.")
         end
-        return false
+    elseif step == "write" then
+        once("savewrite", "could not write " .. path .. ".tmp: " .. tostring(why) .. "; the last save is kept")
+    elseif step == "rename" then
+        once("saverename", "could not put the save in place: " .. tostring(why))
+    else
+        error("UTIL.replaceFile failed at a step save.lua does not know: " .. tostring(step))
     end
-    local okw = f:write(text)
-    f:close()
-    if not okw then
-        once("savewrite", "could not write " .. path .. ".tmp")
-        return false
-    end
-    os.remove(path)                                   -- (Windows will not rename over a file)
-    local okr, err = os.rename(path .. ".tmp", path)
-    if not okr then
-        once("saverename", "could not put the save in place: " .. tostring(err))
-        return false
-    end
-    return true
+    return false
 end
 
 -- Writes the save file whole when its text changed, or anyway with `always`.
