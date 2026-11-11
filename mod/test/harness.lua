@@ -2033,6 +2033,22 @@ do  -- Walls that are opening when the cut of the map changes, or when the openi
            .. " error in the opening step (" .. afterError .. " of " .. (#opening2 - 1) .. " left)")
     worldGoes(mine2())
 end
+do  -- The game's template of the map screen (no map image, no player) is not taken for a screen of the last world
+    local asked = 0
+    local realFAO = FindAllOf
+    FindAllOf = function(class)
+        local list = realFAO(class)
+        if class == "WBP_Map_Body_C" and list and list[1] and list[1] ~= mapBody then
+            list[1].GetOwningPlayer = function() asked = asked + 1; return nil end
+        end
+        return list
+    end
+    local W = freshWalls()
+    mapOpen = true
+    for _ = 1, 3 do W.updateMap(true, {}, pawn) end
+    FindAllOf, mapOpen = realFAO, false
+    expect(asked == 0, "the map screen's template is not asked for its player: asked " .. asked .. "x")
+end
 end
 end)()
 

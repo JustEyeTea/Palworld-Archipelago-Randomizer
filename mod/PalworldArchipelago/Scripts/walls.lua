@@ -1785,8 +1785,11 @@ function W.updateMap(enabled, passes, ctx)
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
         local okn, mapName = pcall(function() return b.MapName:ToString() end)
         local main = not (okn and type(mapName) == "string" and mapName ~= "" and mapName ~= "None") or mapName:find("Main", 1, true)
-        local okp, owner = pcall(function() return b:GetOwningPlayer() end)
-        local gone = okp and not (owner and owner:IsValid())
+        local gone = false
+        if ok and img then                    -- (the game's template has no map image and no player: not a last world's)
+            local okp, owner = pcall(function() return b:GetOwningPlayer() end)
+            gone = okp and not (owner and owner:IsValid())
+        end
         if gone then once("stalescreen", "map: a map screen of the last world left alone (its player is gone)") end
         if b:IsValid() and ok and img and main and not gone then images[#images + 1] = img; screens[#screens + 1] = b end
     end
