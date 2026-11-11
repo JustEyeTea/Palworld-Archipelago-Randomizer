@@ -97,8 +97,8 @@ local sinking = {}            -- list of { actor, scale X, scale Y, started (gam
 local function liveWallAddresses()
     local live = {}
     for _, a in ipairs(FindAllOf(WALL_CLASS) or {}) do
-        local ok, addr = pcall(function() return tostring(a:GetAddress()) end)
-        if ok then
+        local addr = UTIL.addr(a)
+        if addr then
             live[addr] = true
         end
     end
@@ -149,7 +149,7 @@ local function raise(i, context)
     gs:FinishSpawningActor(a, t)
     W.skinNew(a, i)
     raised[i] = a
-    raisedAt[i] = tostring(a:GetAddress())
+    raisedAt[i] = UTIL.addr(a)
     nRaised = nRaised + 1
     return true
 end
@@ -1378,6 +1378,8 @@ end
 -- alpha lets the map and the stamps show through; the explored mask is exported once (fog-mask.png) to see which way
 -- round it is, for the explorer's-chart fog (unexplored areas drawn as a chart, the user's idea).
 local FOG_TEST = "0.815,0.693,0.434,0.6"
+-- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), fog whether it was
+-- switched on and given the fog colour; opened and fixes count map openings and pictures Lua put back, for the log.
 local cpp = { body = nil, fog = false, opened = 0, fixes = 0, maskDone = false }
 W.cppOff = false                     -- config.txt map_cpp=0 (main.lua): C++ leaves the screen alone; Lua alone, as before
 W.testFogColour = false              -- config.txt test_tools=1 (main.lua): the chart look sends FOG_TEST as the fog colour
@@ -1696,6 +1698,8 @@ local function openTexture(k)
     return nil
 end
 -- The icons on each live main-map screen: its address -> { key = the look they show, list = the icon widgets }.
+-- Forgotten: a screen's entry once the screen is no longer listed (forgetIconsOfGoneScreens), every entry once the
+-- icons fail. A screen is known by its address, which the engine reuses; a screen gone is never called again.
 local mapIcons = {}
 -- A map point (0-1 across and down the 4096 map) as a world location (game-systems: pixel = ((Y + 724400) / 1448800,
 -- (349400 - X) / 1448800) of the map's width).
@@ -1707,7 +1711,7 @@ W.worldAt = worldAt
 local function forgetIconsOfGoneScreens(screens)
     local live = {}
     for _, b in ipairs(screens) do
-        live[tostring(b:GetAddress())] = true
+        live[UTIL.addr(b) or ""] = true
     end
     for addr in pairs(mapIcons) do
         if not live[addr] then
@@ -1738,7 +1742,7 @@ local function iconsStillShown(icons, key)
     return ok and still
 end
 local function placeIcons(screen, passes, key)
-    local addr = tostring(screen:GetAddress())
+    local addr = UTIL.addr(screen)
     local icons = mapIcons[addr]
     if icons and iconsStillShown(icons, key) then
         return
@@ -1889,13 +1893,13 @@ function W.updateMap(enabled, passes, ctx)
             log("map icons: could not add them (" .. tostring(erri) .. "); drawing the stamps on the map instead")
         end
     end
-    local want = tostring(mapRT:GetAddress())
+    local want = UTIL.addr(mapRT)
     for _, image in ipairs(images) do
         local okr, shown = pcall(function()
             local res = image.Brush.ResourceObject
             return res and res:IsValid() and res or nil
         end)
-        local current = okr and shown and tostring(shown:GetAddress()) or nil
+        local current = okr and shown and UTIL.addr(shown) or nil
         -- Only the main world's map is replaced: the World Tree has a map screen of its own (T_TreeMap).
         local name = okr and shown and select(2, pcall(function() return shown:GetFullName() end)) or ""
         local mainMap = current == want or tostring(name):find("T_WorldMap", 1, true) ~= nil

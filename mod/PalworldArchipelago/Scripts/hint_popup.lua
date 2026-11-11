@@ -21,7 +21,9 @@ local once = UTIL.onceIn("hint_popup")
 local linear = UTIL.linear
 local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECBE6E"), linear("17324D", 0.94)
 
-local shown = nil                        -- { box, untilTick, hud = the HUD layout's address when shown }
+-- What is on screen: { box, untilTick, hud = the HUD layout's address (UTIL.addr), banner = true for the goal banner }.
+-- Forgotten: when taken down (H.hide), when its time is up or its HUD is gone (H.tick), and at a new pawn (H.forget).
+local shown = nil
 
 -- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed.
 local function hudCanvas()
@@ -102,7 +104,7 @@ function H.show(info, tick)
     pcall(function() slot:SetZOrder(1000) end)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
     pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, untilTick = tick + SHOW_TICKS, hud = layout:GetAddress() }
+    shown = { box = box, untilTick = tick + SHOW_TICKS, hud = UTIL.addr(layout) }
     once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen (" .. (plate and plateName or "plain box")
         .. ", opacity " .. OPACITY .. ")")
     return true
@@ -133,7 +135,7 @@ function H.banner(line, tick)
     pcall(function() slot:SetAutoSize(true) end)
     pcall(function() slot:SetZOrder(1000) end)
     pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, untilTick = tick + BANNER_TICKS, hud = layout:GetAddress(), banner = true }
+    shown = { box = box, untilTick = tick + BANNER_TICKS, hud = UTIL.addr(layout), banner = true }
     log("goal banner: shown (" .. tostring(line) .. ")")
     return true
 end
@@ -143,7 +145,7 @@ end
 -- of the world gone, called). Whether the HUD is still there is asked of FindAllOf, which lists only live objects.
 local function hudLive(addr)
     for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
-        local ok, same = pcall(function() return l:GetAddress() == addr and l:IsValid() end)
+        local ok, same = pcall(function() return UTIL.addr(l) == addr and l:IsValid() end)
         if ok and same then return true end
     end
     return false
