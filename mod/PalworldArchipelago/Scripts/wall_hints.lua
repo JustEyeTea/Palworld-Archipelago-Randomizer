@@ -21,7 +21,7 @@ local POPUP_LINE_CHARS = 60     -- the most of a hint sentence the pop-up's seco
 
 -- State: hints at walls. Forgotten: known, shown and offer on a new seed (resetHints); key never.
 local hints = {
-    known = {},               -- area -> the server's hint sentence for that area's pass (onMessage)
+    known = {},               -- area -> the server's hint for that area's pass, taken apart (parsePassHint)
     shown = {},               -- area -> the update that area's wall notice was last shown on (noticeLockedWall)
     offer = nil,              -- the area whose hint the player may ask for now (wallNotice; askHint takes it)
     offeredAt = 0,            -- the update the offer was made on: it lasts WAIT.hintOffer
@@ -35,14 +35,27 @@ function WALL_HINTS.resetHints()
 end
 
 -- message <text> <type>: chat; hints are shown, and a hint for one of our passes is kept for its wall's notice.
+-- Takes apart the server's hint for a pass. A full line, as the server sends it:
+--   [Hint]: Tester's Region Pass: Bamboo Groves is at Shop: Foo Stand in Friend's World. (not found)
+-- Returns nil for a line that is no pass hint, else { owner = "Tester" (whose pass), area = "Bamboo Groves",
+-- sentence = the line after "[Hint]: ", location = "Shop: Foo Stand", worldOwner = "Friend" (whose world it is in) };
+-- location and worldOwner are nil when the sentence does not name them.
+local function parsePassHint(text)
+    local owner, area = text:match("^%[Hint%]: (.-)'s %a+ Pass: (.-) is at ")       -- Area or Region Pass
+    if not area then return nil end
+    local sentence = text:gsub("^%[Hint%]: ", "")
+    local location, worldOwner = sentence:match(" is at (.-) in (.-)'s World")
+    return { owner = owner, area = area, sentence = sentence, location = location, worldOwner = worldOwner }
+end
+
 function WALL_HINTS.onMessage(textField, kindOf)
     local text = tostring(textField)
     log("AP: " .. text)
     if kindOf == "Hint" then
         notify(text)
         -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
-        local who, pass = text:match("^%[Hint%]: (.-)'s %a+ Pass: (.-) is at ")       -- Area or Region Pass
-        if pass and who == (ap.slotName or cfg.slot) then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
+        local hint = parsePassHint(text)
+        if hint and hint.owner == (ap.slotName or cfg.slot) then hints.known[hint.area] = hint end
     elseif kindOf == "CommandResult" and hints.asked and CLOCK.now() - hints.asked < WAIT.hintAnswer then
         notify(text)                               -- the server's answer to a hint the player asked for
     end
@@ -56,11 +69,11 @@ local function wallNotice(area)
             { title = area .. " is beyond the goal", line = "Its walls stay up for good." }
     end
     local pass = WALLS.passName(area)
-    if hints.known[area] then
-        local where, world = hints.known[area]:match(" is at (.-) in (.-)'s World")
-        return area .. " is sealed. " .. hints.known[area],
-            { title = area .. " is sealed", line = where and ("Its pass is at " .. where .. " (" .. world .. ")")
-                                                     or hints.known[area]:sub(1, POPUP_LINE_CHARS), ready = true }
+    local hint = hints.known[area]
+    if hint then
+        local line = hint.location and ("Its pass is at " .. hint.location .. " (" .. hint.worldOwner .. ")")
+            or hint.sentence:sub(1, POPUP_LINE_CHARS)
+        return area .. " is sealed. " .. hint.sentence, { title = area .. " is sealed", line = line, ready = true }
     end
     local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
     local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")

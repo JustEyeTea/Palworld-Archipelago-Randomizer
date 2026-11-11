@@ -64,32 +64,44 @@ end
 --      self-kill; skipped when the world's Death Penalty is None (the drop might not check it itself). UNTESTED.
 --   3. "self-kill": nothing dropped, but the death is never lost.
 -- A route that ran without error is checked at the next run (~2 s): still alive means it failed, and the next is tried.
-local ROUTES = { "poison", "penalty drop", "self-kill" }
 local function deathPenalty(ps)                       -- the world's EPalOptionWorldDeathPenalty (0 None), or nil
     local ok, v = pcall(function()
         return tonumber(StaticFindObject("/Script/Pal.Default__PalUtility"):GetOptionSubsystem(ps).OptionWorldSettings.DeathPenalty)
     end)
     return ok and v or nil
 end
+-- Route 1: lethal slip damage through the player's own damage component.
+local function faintByPoison(pc, ps)
+    local pawn = pc:K2_GetPawn()
+    pawn.DamageReactionComponent:SlipDamage(LETHAL_DAMAGE, true, DEAD_TYPE_POISON, true)
+end
+-- Route 2: the Death Penalty's bag on the ground (unless the world's Death Penalty is None), then the self-kill.
+local function faintByPenaltyDrop(pc, ps)
+    local penalty = deathPenalty(ps)
+    if penalty == 0 then
+        log("death link: the world's Death Penalty is None: nothing to drop")
+    else
+        local pawn = pc:K2_GetPawn()
+        StaticFindObject("/Script/Pal.Default__PalUtility"):GetDeathPenaltyManager(ps):DropDeathPenaltyChest(pawn)
+        log("death link: dropped the Death Penalty's bag (the world's Death Penalty " .. tostring(penalty) .. ")")
+    end
+    pc:SelfKillPlayer()
+end
+-- Route 3: the game's self-kill.
+local function faintBySelfKill(pc, ps)
+    pc:SelfKillPlayer()
+end
+-- The routes, in the order they are tried (see above); death.route is an index into it.
+local ROUTES = {
+    { name = "poison", run = faintByPoison },
+    { name = "penalty drop", run = faintByPenaltyDrop },
+    { name = "self-kill", run = faintBySelfKill },
+}
+-- Faints the player by `route`, through this update's controller (the frame's, or the first found).
 local function faint(route, ps)
     local frame = PLAYER.frame()
-    local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")   -- this update's controller (the frame)
-    if route == 1 then
-        local pawn = pc:K2_GetPawn()
-        pawn.DamageReactionComponent:SlipDamage(LETHAL_DAMAGE, true, DEAD_TYPE_POISON, true)
-    elseif route == 2 then
-        local penalty = deathPenalty(ps)
-        if penalty == 0 then
-            log("death link: the world's Death Penalty is None: nothing to drop")
-        else
-            local pawn = pc:K2_GetPawn()
-            StaticFindObject("/Script/Pal.Default__PalUtility"):GetDeathPenaltyManager(ps):DropDeathPenaltyChest(pawn)
-            log("death link: dropped the Death Penalty's bag (the world's Death Penalty " .. tostring(penalty) .. ")")
-        end
-        pc:SelfKillPlayer()
-    else
-        pc:SelfKillPlayer()
-    end
+    local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")
+    ROUTES[route].run(pc, ps)
 end
 -- Faints by death.route; a route that errors falls to the next at once. Returns ok, error, the route's name.
 local function faintNow(ps)
@@ -97,10 +109,10 @@ local function faintNow(ps)
     while true do
         ok, err = pcall(faint, death.route, ps)
         if ok or death.route >= #ROUTES then break end
-        log("death link: " .. ROUTES[death.route] .. " failed: " .. tostring(err) .. "; trying " .. ROUTES[death.route + 1])
+        log("death link: " .. ROUTES[death.route].name .. " failed: " .. tostring(err) .. "; trying " .. ROUTES[death.route + 1].name)
         death.route = death.route + 1
     end
-    return ok, err, ROUTES[death.route]
+    return ok, err, ROUTES[death.route].name
 end
 function DEATH_LINK.step(ps)
     if not death.on then return end
@@ -110,9 +122,9 @@ function DEATH_LINK.step(ps)
         local cause = death.pending
         death.pending = nil
         if dead then
-            once("dlworked" .. death.route, "death link: the " .. ROUTES[death.route] .. " worked")
+            once("dlworked" .. death.route, "death link: the " .. ROUTES[death.route].name .. " worked")
         elseif death.route < #ROUTES then
-            local failed = ROUTES[death.route]
+            local failed = ROUTES[death.route].name
             death.route = death.route + 1
             death.caused = CLOCK.now()
             local ok, err, how = faintNow(ps)
