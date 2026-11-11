@@ -53,9 +53,9 @@ end
 
 
 
--- Forgets everything tied to the last seed: a different seed or slot connected. One call per topic; what each forgets
--- is written at its state.
-local function resetSeed()
+-- Forgets everything tied to the last seed: a different seed or slot (`seed`, `slot`) connected. One call per topic;
+-- what each forgets is written at its state.
+local function resetSeed(seed, slot)
     STATE.forgetSeed()
     WALLS.setVisited(ap.visited)              -- (the new table: the map reads it)
     CRATES.reset()
@@ -67,7 +67,8 @@ local function resetSeed()
     WORLD.resetSeedWorld()
     WALL_HINTS.resetHints()
     TECHSCAN.resetTechScan()
-    log("a different seed or slot: progress of the last one forgotten")
+    log("a different seed or slot (seed " .. tostring(ap.seed) .. ", slot " .. tostring(ap.slotName) .. " -> seed "
+        .. tostring(seed) .. ", slot " .. tostring(slot) .. "): progress of the last one forgotten")
 end
 
 -- The seed's options that shape this session: area locks and their cut of the map, the areas beyond the goal, and
@@ -117,7 +118,7 @@ local function onConnected(was)
     ap.me = tonumber(AP_SlotData("slot"))
     local seed = AP_SlotData("seed")
     if seed ~= "" and (seed ~= ap.seed or cfg.slot ~= ap.slotName) then
-        if ap.seed then resetSeed() end            -- another seed or slot: nothing of the last one carries over
+        if ap.seed then resetSeed(seed, cfg.slot) end  -- another seed or slot: nothing of the last one carries over
         ap.seed, ap.slotName = seed, cfg.slot
         loadSave()
     end

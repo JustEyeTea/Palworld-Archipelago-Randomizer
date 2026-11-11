@@ -45,7 +45,8 @@ function HELD.showHeldNotices(pawn)
     end
     if moved or WORLD.age() >= WAIT.settle + WAIT.heldNotice then
         for _, msg in ipairs(held.list) do notify(msg) end
-        local why = moved and "the player moved" or "a minute in the world"
+        local why = moved and "the player moved"
+            or string.format("%.0f s in the world", CLOCK.seconds(WAIT.settle + WAIT.heldNotice))
         log("held notice(s) shown (" .. why .. "): " .. #held.list)
         held.list, held.from = {}, nil
     end

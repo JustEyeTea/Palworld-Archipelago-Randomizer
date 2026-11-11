@@ -45,8 +45,12 @@ end
 -- The last seed's list is kept in research.txt, so its normal-research techs can be researched before the first
 -- connection of a session too (the server down, or playing before connecting).
 function TECH_LOCK.keepResearch(list)
-    local f = io.open(env.dir .. "\\research.txt", "w")
-    if not f then log("could not write research.txt"); return end
+    local path = env.dir .. "\\research.txt"
+    local f, err = io.open(path, "w")
+    if not f then
+        log("could not write " .. path .. ": " .. tostring(err))
+        return
+    end
     f:write((list or "") .. "\n")
     f:close()
 end

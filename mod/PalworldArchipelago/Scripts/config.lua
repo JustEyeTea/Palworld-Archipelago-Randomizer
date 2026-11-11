@@ -55,9 +55,10 @@ local CONFIG_KEYS = {
 }
 -- Writes config.txt with every key of CONFIG_KEYS that cfg holds (the title menu's connect).
 function CONFIG.write()
-    local f = io.open(env.dir .. "\\config.txt", "w")
+    local path = env.dir .. "\\config.txt"
+    local f, err = io.open(path, "w")
     if not f then
-        log("could not write config.txt")
+        log("could not write " .. path .. ": " .. tostring(err))
         return
     end
     for _, k in ipairs(CONFIG_KEYS) do

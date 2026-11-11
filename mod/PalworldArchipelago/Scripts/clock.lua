@@ -43,6 +43,11 @@ function CLOCK.now()
     return tick
 end
 
+-- A count of updates in seconds, for a log line or a notice that says how long.
+function CLOCK.seconds(count)
+    return count * UTIL.UPDATE_MS / 1000
+end
+
 -- Whether this update is the given phase of the cycle (PHASE).
 function CLOCK.isPhase(phase)
     return tick % CYCLE == phase

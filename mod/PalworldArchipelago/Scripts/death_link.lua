@@ -145,7 +145,8 @@ local function applyIncomingDeath(ps, dead)
     local cause = death.incoming
     death.incoming = nil
     if CLOCK.now() - death.at > WAIT.deathLate then
-        log("death link received while no player was in the world (" .. (CLOCK.now() - death.at) .. " updates ago): not applied: " .. cause)
+        local age = string.format("%.1f s", CLOCK.seconds(CLOCK.now() - death.at))
+        log("death link received while no player was in the world (" .. age .. " ago): not applied: " .. cause)
     elseif not dead then
         death.caused = CLOCK.now()
         local ok, err, how = faintNow(ps)

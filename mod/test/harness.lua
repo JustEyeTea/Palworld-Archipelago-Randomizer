@@ -4917,6 +4917,25 @@ end)()
            "a filler item whose name matches no effect is logged, not counted as given in silence")
 end)()
 ;(function()
+    print("log lines say what the code found")
+    expect(logged("death link received while no player was in the world %([%d.]+ s ago%)"),
+           "a late death's age is given in seconds")
+    expect(logged("a different seed or slot %(seed %d+, slot %S+ %-> seed %d+, slot %S+%): progress of the last one forgotten"),
+           "a new seed's line names the old and the new seed and slot")
+    local open = io.open
+    io.open = function(path, mode)
+        if mode == "w" and (path:find("config.txt", 1, true) or path:find("research.txt", 1, true)) then
+            return nil, path .. ": Permission denied"
+        end
+        return open(path, mode)
+    end
+    require("config").write()
+    require("tech_lock").keepResearch("Torch")
+    io.open = open
+    expect(logged("could not write .*config%.txt: .*Permission denied") and logged("could not write .*research%.txt: .*Permission denied"),
+           "config.txt and research.txt that can't be written are logged with their path and the reason")
+end)()
+;(function()
     print("Lua runs only on the game thread")
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
     -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread

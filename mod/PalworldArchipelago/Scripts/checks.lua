@@ -118,7 +118,8 @@ local function sendGoalOnceOutOfArena(ps, found, tick)
     ap.goalSent, done = true, goalWait.done
     goalWait = nil
     AP_Goal()                                          -- (sent again on each connection: the server takes it once)
-    log("goal sent: " .. done .. (out and "" or " (still in a stage after 2 minutes)"))
+    local waited = string.format(" (still in a stage after %.0f s)", CLOCK.seconds(WAIT.goal))
+    log("goal sent: " .. done .. (out and "" or waited))
     showGoalOnce(done, tick)
 end
 
