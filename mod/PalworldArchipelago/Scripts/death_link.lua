@@ -1,0 +1,188 @@
+-- Death Link (the slot's death_link option): the player's death is sent to everyone linked, and a death from them
+-- faints the player. main.lua's items phase calls DEATH_LINK.step; the server's bounce event calls DEATH_LINK.onBounce.
+-- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "death link" and "death link amnesty".
+local DEATH_LINK = {}
+local CLOCK = require("clock")
+local CONFIG = require("config")
+local PLAYER = require("player")
+local SAVE = require("save")
+local STATE = require("ap_state")
+local UTIL = require("util")
+local WORLD = require("world")
+local WAIT = CLOCK.WAIT
+local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
+local cfg = CONFIG.cfg
+local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
+local notify, writeSave = PLAYER.notify, SAVE.write
+
+-- State: Death Link. Forgotten: never. `on` is set each connection; the route that worked stays for the session,
+-- whatever the seed, and a death in flight belongs to whoever plays now.
+local death = {
+    on = false,               -- the seed has Death Link on (DEATH_LINK.applyOption)
+    wasDead = false,          -- the player was dead at the last look: a new death is the change to dead
+    incoming = nil,           -- the cause of a death received from the link, until it is applied or dropped
+    at = nil,                 -- the update that death was received on (it is dropped after WAIT.deathLate)
+    caused = nil,             -- the update the link last fainted the player on: a death soon after is not sent back
+    pending = nil,            -- the cause of a faint just tried: the next look checks it worked
+    route = 1,                -- which of ROUTES faints the player (the first that works)
+}
+
+-- Death Link's JSON, both ways: a string's contents escaped for sending, and a string field read back with \" and
+-- \\ undone (other clients escape quotes in their causes).
+local function jsonText(text)
+    local clean = text:gsub("%c", "")
+    return (clean:gsub('[\\"]', "\\%0"))
+end
+local function jsonField(data, key)
+    local _, open = data:find('"' .. key .. '"%s*:%s*"')
+    if not open then return nil end
+    local out, i = {}, open + 1
+    while i <= #data do
+        local c = data:sub(i, i)
+        if c == '"' then return table.concat(out) end
+        if c == "\\" then
+            i = i + 1
+            c = data:sub(i, i)
+        end
+        out[#out + 1] = c
+        i = i + 1
+    end
+    return nil
+end
+
+-- Death Link (the slot's death_link option): dying sends a death to everyone linked; a death from them faints the
+-- player. A death the link caused is not sent back, and neither counts towards nor resets the amnesty.
+-- How it faints (the user, 2026-11-06: a linked death killed them but dropped nothing, unlike a normal death). The
+-- game's self-kill (PalPlayerController:SelfKillPlayer) dies as EPalDeadType Sucide and skips the world's Death Penalty.
+-- dev.17 test (2026-11-07): DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer did not faint the player at all.
+-- So, in order, each tried until one works, and the one that worked kept for the session (death.route):
+--   1. "poison": lethal slip damage through the player's own damage component (SlipDamage, EPalDeadType Poison 5,
+--      shield ignored and cleared), an ordinary death to the game, so its Death Penalty should apply. UNTESTED.
+--   2. "penalty drop": the Death Penalty manager's own DropDeathPenaltyChest(player) (the bag on the ground), then the
+--      self-kill; skipped when the world's Death Penalty is None (the drop might not check it itself). UNTESTED.
+--   3. "self-kill": nothing dropped, but the death is never lost.
+-- A route that ran without error is checked at the next run (~2 s): still alive means it failed, and the next is tried.
+local ROUTES = { "poison", "penalty drop", "self-kill" }
+local function deathPenalty(ps)                       -- the world's EPalOptionWorldDeathPenalty (0 None), or nil
+    local ok, v = pcall(function()
+        return tonumber(StaticFindObject("/Script/Pal.Default__PalUtility"):GetOptionSubsystem(ps).OptionWorldSettings.DeathPenalty)
+    end)
+    return ok and v or nil
+end
+local function faint(route, ps)
+    local frame = PLAYER.frame()
+    local pc = (frame and frame.pc) or FindFirstOf("PalPlayerController")   -- this update's controller (playerContext)
+    if route == 1 then
+        local pawn = pc:K2_GetPawn()
+        pawn.DamageReactionComponent:SlipDamage(999999, true, 5, true)
+    elseif route == 2 then
+        local penalty = deathPenalty(ps)
+        if penalty == 0 then
+            log("death link: the world's Death Penalty is None: nothing to drop")
+        else
+            local pawn = pc:K2_GetPawn()
+            StaticFindObject("/Script/Pal.Default__PalUtility"):GetDeathPenaltyManager(ps):DropDeathPenaltyChest(pawn)
+            log("death link: dropped the Death Penalty's bag (the world's Death Penalty " .. tostring(penalty) .. ")")
+        end
+        pc:SelfKillPlayer()
+    else
+        pc:SelfKillPlayer()
+    end
+end
+-- Faints by death.route; a route that errors falls to the next at once. Returns ok, error, the route's name.
+local function faintNow(ps)
+    local ok, err
+    while true do
+        ok, err = pcall(faint, death.route, ps)
+        if ok or death.route >= #ROUTES then break end
+        log("death link: " .. ROUTES[death.route] .. " failed: " .. tostring(err) .. "; trying " .. ROUTES[death.route + 1])
+        death.route = death.route + 1
+    end
+    return ok, err, ROUTES[death.route]
+end
+function DEATH_LINK.step(ps)
+    if not death.on then return end
+    local okd, dead = pcall(function() return ps:IsPlayerDead() end)
+    if not okd then return end
+    if death.pending then
+        local cause = death.pending
+        death.pending = nil
+        if dead then
+            once("dlworked" .. death.route, "death link: the " .. ROUTES[death.route] .. " worked")
+        elseif death.route < #ROUTES then
+            local failed = ROUTES[death.route]
+            death.route = death.route + 1
+            death.caused = CLOCK.now()
+            local ok, err, how = faintNow(ps)
+            if ok and death.route < #ROUTES then death.pending = cause end
+            log("death link: the " .. failed .. " did not faint the player; used the " .. how .. ": " .. cause
+                .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+            return
+        end
+    end
+    -- An incoming death waits for a settled world with a character (as the traps do), then counts as late.
+    local character = safe(function() return ps:GetPawn() end)
+    local settled = WORLD.settled() and character and character:IsValid()
+    if death.incoming and (settled or CLOCK.now() - death.at > WAIT.deathLate) then
+        local cause = death.incoming
+        death.incoming = nil
+        if CLOCK.now() - death.at > WAIT.deathLate then
+            log("death link received while no player was in the world (" .. (CLOCK.now() - death.at) .. " updates ago): not applied: " .. cause)
+        elseif not dead then
+            death.caused = CLOCK.now()
+            local ok, err, how = faintNow(ps)
+            if ok and death.route < #ROUTES then death.pending = cause end
+            notify("Death Link: " .. cause)
+            log("death link received: " .. cause .. " (" .. how .. ")" .. (ok and "" or (" (could not faint: " .. tostring(err) .. ")")))
+        end
+    end
+    if dead and not death.wasDead then
+        if death.caused and CLOCK.now() - death.caused < WAIT.ownDeath then
+            log("death link: this death came from the link, not sent back")
+        else
+            -- Amnesty (slot data options.death_link_amnesty): that many of your own faints are forgiven before one is
+            -- sent. The count is kept in the seed's save file, so quitting does not reset it.
+            local amnesty = slotNumber("options.death_link_amnesty", 0)
+            if ap.forgiven < amnesty then
+                ap.forgiven = ap.forgiven + 1
+                writeSave()
+                local left = amnesty - ap.forgiven
+                notify(left > 0 and string.format("Death Link: faint forgiven (%d more before one is sent).", left)
+                                 or "Death Link: faint forgiven. The next one is sent to the multiworld.")
+                log(string.format("death link: forgiven %d of %d", ap.forgiven, amnesty))
+            else
+                ap.forgiven = 0
+                writeSave()
+                local cause = cfg.slot .. " fainted in Palworld."
+                AP_Bounce(string.format('{"time":%d,"source":"%s","cause":"%s"}', os.time(), jsonText(cfg.slot),
+                    jsonText(cause)), "DeathLink")
+                notify("Death Link: your death was sent to the multiworld.")
+                log("death link sent")
+            end
+        end
+    end
+    death.wasDead = dead
+end
+
+-- bounce <tags> <json>: a Death Link from another player faints this one at the next items phase
+-- (DEATH_LINK.step).
+function DEATH_LINK.onBounce(tags, json)
+    if not (death.on and (tags or ""):find("DeathLink", 1, true)) then return end
+    local data = json or ""
+    local source = jsonField(data, "source") or "someone"
+    local cause = jsonField(data, "cause")
+    if source == cfg.slot then return end
+    death.incoming, death.at = cause and cause ~= "" and cause or (source .. " died."), CLOCK.now()
+end
+
+-- Reads the seed's death_link option (each connection) and tells the server this slot takes part.
+function DEATH_LINK.applyOption()
+    death.on = slotFlag("options.death_link") and AP_SetTags ~= nil
+    if death.on then
+        AP_SetTags("AP,DeathLink")
+        log("Death Link on: amnesty " .. slotNumber("options.death_link_amnesty", 0) .. ", "
+            .. ap.forgiven .. " faint(s) forgiven so far")
+    end
+end
+
+return DEATH_LINK
