@@ -3159,6 +3159,31 @@ run(1)
 palEditOk, umgEditOk = nil, nil
 ExecuteInGameThread = realGT
 end)()
+;(function()   -- a title menu whose rows kept failing, gone and back at the same address: tried again at once
+    local function added()
+        local n = 0
+        for _, l in ipairs(printed) do
+            if l:find("Archipelago menu added to the title menu", 1, true) then n = n + 1 end
+        end
+        return n
+    end
+    local create = wbl.Create
+    wbl.Create = function() return nil end
+    titleOpen = true
+    run(13)                                                 -- builds failing every update, then every 10th
+    titleOpen = false
+    run(1)                                                  -- the menu goes
+    wbl.Create = create
+    for i = #menuChildren, 1, -1 do menuChildren[i] = nil end
+    menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+    gameButtonWrap.vis, quitWrap.vis = 0, 0
+    titleOpen = true                                        -- back, at the address it had
+    local before = added()
+    run(1)
+    expect(added() == before + 1, "its rows are made on the first update it is back, not after a backoff")
+    titleOpen = false
+    run(1)
+end)()
 
 print("the other goals")
 local function newSeed(seed, extra)

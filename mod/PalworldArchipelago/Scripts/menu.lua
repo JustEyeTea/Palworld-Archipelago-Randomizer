@@ -987,7 +987,8 @@ local EDIT_BG = { R = 0.0, G = 0.006, B = 0.01, A = 0.97 }    -- the box: near b
 -- buttons fold away) -> closed again (Back, Esc, or connected after Connect) -> given up (dropTitleMenu), after which
 -- nothing touches it again: a remake is a new record.
 local menus = {}              -- a title menu's address -> its record (newTitleMenu)
-local fails = {}              -- a title menu's address -> builds that failed in a row (FAILS_BEFORE_BACKOFF)
+local fails = {}              -- a title menu's address -> builds that failed in a row (FAILS_BEFORE_BACKOFF);
+                              --   forgotten when the menu is no longer found (a new one may get its address)
 -- State: what the menu will connect with. Forgotten: each time the menu opens (setShowing).
 local draft = nil             -- { host, port, slot, password }
 -- State. Forgotten: never.
@@ -2035,6 +2036,9 @@ function TITLE.forgetGone(looked, found)
     local live = {}
     for _, menu in ipairs(found) do
         pcall(function() live[UTIL.addr(menu)] = menu:IsValid() end)
+    end
+    for key in pairs(fails) do
+        if not live[key] then fails[key] = nil end
     end
     for key, m in pairs(menus) do
         if not live[key] then
