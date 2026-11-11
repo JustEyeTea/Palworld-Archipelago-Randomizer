@@ -1,126 +1,61 @@
--- PalworldArchipelago: the Lua core of the mod. The Archipelago connection comes from the APConnector C++ mod, which
--- registers AP_* functions here when this mod starts (see cppmod/APConnector/src/dllmain.cpp).
---  * Technology levels 2+ are a shop: each card shows what its slot holds in the multiworld, researching it spends the
---    points and sends the check, and never unlocks the tech itself. Techs unlock as their items arrive.
---  * Received items: techs, Progressive Spheres, Region and Area Passes, points, bundles (into the mailbox, mailbox.lua), and traps
---    (traps.lua).
---  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
+-- PalworldArchipelago, the Lua core of the mod: it starts every other file in order and runs the core update. The
+-- connection to Archipelago comes from the APConnector C++ mod, which registers the AP_* functions this mod calls
+-- (cppmod/APConnector/src/dllmain.cpp). Each topic lives in a file of its own; docs/architecture.md lists them.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
+-- Tests: mod/test/harness.lua, run by tools/lua_harness.sh.
 local VERSION = "0.14.1-dev.8"
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
 local UTIL = require("util")
-local CONFIG = require("config")
 local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
 log("loaded " .. VERSION)
-local D = require("ap_data")
-local R = require("records")
-local WALLS = require("walls")
-local POPUP = require("hint_popup")
-local DEBUFFS = require("debuffs")
+local AREA_LOCKS = require("area_locks")
+local CHECKS = require("checks")
+local CLOCK = require("clock")
+local CONFIG = require("config")
+local CONNECTION = require("connection")
 local CRATES = require("crates")
 local CWIN = require("crate_window")
-local MENU = require("menu")
+local DEATH_LINK = require("death_link")
+local DEBUFFS = require("debuffs")
+local HELD = require("held_notices")
+local ITEMS = require("items")
 local MAIL = require("mailbox")
-local BAG = require("bag")
-local TRAPS = require("traps")
-local SYNC = require("sync")
-
-local CLOCK = require("clock")
-local WAIT, PHASE, isPhase = CLOCK.WAIT, CLOCK.PHASE, CLOCK.isPhase
-
-if type(AP_Connect) ~= "function" then
-    log("APConnector is not installed: no AP_* functions. Install ue4ss/Mods/APConnector and enable it in mods.txt.")
-    return
-end
-CONFIG.install({ dir = modDir })
-local cfg, HINT_KEY, writeConfig = CONFIG.cfg, CONFIG.hintKey, CONFIG.write
--- The performance probe (perf_log=1; perf.lua). Installed before any hook is registered, so it counts them all.
+local MENU = require("menu")
 local P = require("perf")
-P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
-                 mailOpen = function() return MAIL.viewOpen() end })
--- The test tools (test_tools.lua). update() steps their probes every update; they stay idle unless installed, which
--- only test_tools=1 in config.txt does (at the end of this file).
-local TEST_TOOLS = require("test_tools")
-local STATE = require("ap_state")
-local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
 local PLAYER = require("player")
+local POPUP = require("hint_popup")
+local R = require("records")
+local SAVE = require("save")
+local SHOP = require("shop")
+local SHOP_CARDS = require("shop_cards")
+local SOON = require("soon")
+local STATE = require("ap_state")
+local SYNC = require("sync")
+local TECH_LOCK = require("tech_lock")
+local TECHSCAN = require("techscan")
+local TEST_TOOLS = require("test_tools")
+local TRAPS = require("traps")
+local WALL_HINTS = require("wall_hints")
+local WALLS = require("walls")
+local WORLD = require("world")
+local WAIT, PHASE, isPhase = CLOCK.WAIT, CLOCK.PHASE, CLOCK.isPhase
+local ap = STATE.ap
+local cfg = CONFIG.cfg
+local guardedHook = UTIL.guardedHook
 local playerContext, findPlayerState, playerState, notify =
     PLAYER.context, PLAYER.findPlayerState, PLAYER.playerState, PLAYER.notify
-WALLS.visited = ap.visited                -- (the same table: the map reads it)
-
-local SAVE = require("save")
-SAVE.install({ dir = modDir })
-local saveFile, loadSave, writeSave = SAVE.path, SAVE.load, SAVE.write
-local TECH_LOCK = require("tech_lock")
-TECH_LOCK.install({ dir = modDir })
-TECH_LOCK.readLastResearch()
-local syncTechs = TECH_LOCK.sync
-
-local WORLD = require("world")
-local DEATH_LINK = require("death_link")
-local HELD = require("held_notices")
-local WALL_HINTS = require("wall_hints")
-local TECHSCAN = require("techscan")
-TECHSCAN.install({ version = VERSION, dir = modDir })
-
-local ITEMS = require("items")
+local writeSave = SAVE.write
 local applyItems, openCrate = ITEMS.applyItems, ITEMS.openCrate
-
-local CHECKS = require("checks")
-local sendChecks, sendBoughtAgain, resetGoal, pollRecords =
-    CHECKS.sendChecks, CHECKS.sendBoughtAgain, CHECKS.resetGoal, CHECKS.pollRecords
-
-local AREA_LOCKS = require("area_locks")
-AREA_LOCKS.configureWalls(modDir)
-
-local SHOP_CARDS = require("shop_cards")
-SHOP_CARDS.install({ dir = modDir })
+local pollRecords = CHECKS.pollRecords
+local syncTechs = TECH_LOCK.sync
 local refreshTree = SHOP_CARDS.refreshTree
-local SHOP = require("shop")
-local SOON = require("soon")
-local guardedHook = UTIL.guardedHook
+
 local inTick = false          -- state: true only while an update runs
 
-SHOP.registerNativeHooks()
-
 ------------------------------------------------------------------------------------------------------------------------
-
-local CONNECTION = require("connection")
-MENU.install({
-    status = function() return ap.status end,
-    servers = CONFIG.servers,
-    rememberServer = CONFIG.rememberServer,
-    server = function() return cfg.server or "" end,
-    slot = function() return cfg.slot or "" end,
-    password = function() return cfg.password or "" end,
-    connect = CONNECTION.connectTo,
-    disconnect = CONNECTION.disconnect,
-    mailboxLabel = MAIL.label,
-    crateLabel = CRATES.label,
-    openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
-    openMailbox = function() MAIL.open() end,
-    guardedHook = guardedHook,
-})
-MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end,
-               guardedHook = guardedHook })
-CWIN.install({ chestWidget = function() return MAIL.chestWidget() end,
-               openCrate = function(kind)
-                   local ok, k, out = pcall(openCrate, kind)
-                   if not ok then log("crate error: " .. tostring(k)); return nil end
-                   return k, out
-               end })
-TRAPS.install({ notify = notify, save = writeSave,
-                announce = function(text) log(text); R.notify(text, playerState()) end,
-                sender = function(index) return ap.from[index] end,
-                home = function() return WALLS.home end, start = function() return WALLS.start end })
-CONNECTION.connectFromConfig()
-
-WALL_HINTS.bindKey()
-
-
--- The parts of one update, in the order update() runs them.
+-- The update loop: one core update every UPDATE_MS. Its parts, in the order update() runs them.
 
 -- The modules that keep their own timers: the test tools' probes, the hint pop-up, the debuff icons.
 local function stepSmallModules()
@@ -148,10 +83,6 @@ local function updateWindows(ctx)
     P.stop("mail")
     if not okx then onceErr("mail", errx, "mailbox error: " .. tostring(errx)) end
 end
-
-
-
-
 
 -- The records phase: trap timers, the seed's-world check, the game's records (checks and the goal).
 local function phaseRecords()
@@ -327,22 +258,107 @@ local function coreTick()
     inTick = false
     if not ok then onceErr("coreTick", err, "update error: " .. tostring(err)) end
 end
+------------------------------------------------------------------------------------------------------------------------
+-- Start-up: each step in its own function, called in order by start() at the end of this file.
+
+-- Whether the APConnector C++ mod is there: without its AP_* functions nothing else can run.
+local function connectorInstalled()
+    if type(AP_Connect) ~= "function" then
+        log("APConnector is not installed: no AP_* functions. Install ue4ss/Mods/APConnector and enable it in mods.txt.")
+        return false
+    end
+    return true
+end
+
+-- The performance probe (perf_log=1; perf.lua).
+local function installPerfProbe()
+    P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
+                     mailOpen = function() return MAIL.viewOpen() end })
+end
+
+-- The files that keep files next to the mod (the save, research.txt, mod_techs.txt, the icons) get its folder.
+local function installCoreFiles()
+    WALLS.visited = ap.visited                -- (the same table: the map reads it)
+    SAVE.install({ dir = modDir })
+    TECH_LOCK.install({ dir = modDir })
+    TECH_LOCK.readLastResearch()
+    TECHSCAN.install({ version = VERSION, dir = modDir })
+    AREA_LOCKS.configureWalls(modDir)
+    SHOP_CARDS.install({ dir = modDir })
+end
+
+-- The menus, the mailbox, the crate window and the traps get what main.lua hands them.
+local function installWindows()
+    MENU.install({
+        status = function() return ap.status end,
+        servers = CONFIG.servers,
+        rememberServer = CONFIG.rememberServer,
+        server = function() return cfg.server or "" end,
+        slot = function() return cfg.slot or "" end,
+        password = function() return cfg.password or "" end,
+        connect = CONNECTION.connectTo,
+        disconnect = CONNECTION.disconnect,
+        mailboxLabel = MAIL.label,
+        crateLabel = CRATES.label,
+        openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
+        openMailbox = function() MAIL.open() end,
+        guardedHook = guardedHook,
+    })
+    MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end,
+                   guardedHook = guardedHook })
+    CWIN.install({ chestWidget = function() return MAIL.chestWidget() end,
+                   openCrate = function(kind)
+                       local ok, k, out = pcall(openCrate, kind)
+                       if not ok then log("crate error: " .. tostring(k)); return nil end
+                       return k, out
+                   end })
+    TRAPS.install({ notify = notify, save = writeSave,
+                    announce = function(text) log(text); R.notify(text, playerState()) end,
+                    sender = function(index) return ap.from[index] end,
+                    home = function() return WALLS.home end, start = function() return WALLS.start end })
+end
+
 -- What a world change forgets, in this order: whether this world is the seed's (looked at again in the records phase
 -- before any wall goes up; a yes is for the world it was asked in), the pop-up or goal banner (it went with the old
 -- world's HUD), the walls, and the skip of the tech list's comparison (another world's list is compared in full).
-WORLD.onChange(WORLD.resetSeedWorld)
-WORLD.onChange(POPUP.forget)
-WORLD.onChange(WALLS.reset)
-WORLD.onChange(TECH_LOCK.forgetSeen)
+local function forgetOnWorldChange()
+    WORLD.onChange(WORLD.resetSeedWorld)
+    WORLD.onChange(POPUP.forget)
+    WORLD.onChange(WALLS.reset)
+    WORLD.onChange(TECH_LOCK.forgetSeen)
+end
 
--- Every UPDATE_MS (the harness's thread-rule check reads this loop: keep its shape).
-LoopAsync(UTIL.UPDATE_MS, function()
-    ExecuteInGameThread(coreTick)
-    return false
-end)
+-- The core update, every UPDATE_MS (the harness's thread-rule check reads this loop: keep its shape).
+local function startLoop()
+    LoopAsync(UTIL.UPDATE_MS, function()
+        ExecuteInGameThread(coreTick)
+        return false
+    end)
+end
 
 -- Test tools: only with test_tools=1 in config.txt (see test_tools.lua).
-if cfg.test_tools == "1" then
-    local okt, errt = pcall(TEST_TOOLS.install)
-    if not okt then log("test tools not loaded: " .. tostring(errt)) end
+local function installTestTools()
+    if cfg.test_tools == "1" then
+        local okt, errt = pcall(TEST_TOOLS.install)
+        if not okt then log("test tools not loaded: " .. tostring(errt)) end
+    end
 end
+
+-- The start-up list. Its order matters in three places: config.txt is read before anything reads cfg; the perf
+-- probe is installed before any hook is registered, so it counts them all; and every install comes before the loop
+-- starts, so the first update finds every file wired. The test tools come last, after everything they probe.
+local function start()
+    if not connectorInstalled() then return end
+    CONFIG.install({ dir = modDir })
+    installPerfProbe()
+    installCoreFiles()
+    SHOP.registerNativeHooks()
+    installWindows()
+    CONNECTION.connectFromConfig()
+    WALL_HINTS.bindKey()
+    forgetOnWorldChange()
+    startLoop()
+    installTestTools()
+end
+
+start()
