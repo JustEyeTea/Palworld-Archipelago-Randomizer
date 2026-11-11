@@ -32,6 +32,11 @@ function UTIL.once(key, msg)
     UTIL.log(msg)
 end
 
+-- Whether once() has logged this key (to skip building a costly message that would not be logged).
+function UTIL.said(key)
+    return reported[key] == true
+end
+
 -- A once() of a module's own, so its keys can't meet another module's: UTIL.onceIn("menu").
 function UTIL.onceIn(owner)
     return function(key, msg)

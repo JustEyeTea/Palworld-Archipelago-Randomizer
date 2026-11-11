@@ -6,12 +6,13 @@
 --    (traps.lua).
 --  * Checks: shop slots, levels, captures, alphas, fast-travel points and towers, read from the game's own records.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
 local VERSION = "0.14.1-dev.8"
-log("loaded " .. VERSION)
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
+local UTIL = require("util")
+local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
+log("loaded " .. VERSION)
 local D = require("ap_data")
 local TECHS = require("tech_icons")
 local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
@@ -27,28 +28,9 @@ local MAIL = require("mailbox")
 local TRAPS = require("traps")
 local SYNC = require("sync")
 
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
--- For errors caught every update: the key drops numbers and addresses (an error naming an object's address would
--- otherwise log anew on each update, three lines a second), and each kind logs at most 20 different errors.
-local errKinds = {}
-local function onceErr(kind, err, msg)
-    local key = kind .. tostring(err):gsub("0x%x+", ""):gsub("%d+", "#")
-    if reported[key] then return end
-    errKinds[kind] = (errKinds[kind] or 0) + 1
-    if errKinds[kind] > 20 then return end
-    once(key, msg .. (errKinds[kind] == 20 and " (further errors of this kind are not logged)" or ""))
-end
-local function safe(fn, ...)
-    local ok, a, b = pcall(fn, ...)
-    if ok then return a, b end
-    return nil
-end
-
 -- The core update runs every UPDATE_MS (the LoopAsync at the end of this file). Waits are counted in updates;
 -- updates() turns seconds into that count.
-local UPDATE_MS = 300
-local function updates(seconds) return math.floor(seconds * 1000 / UPDATE_MS + 0.5) end
+local updates = UTIL.updates
 local WAIT = {
     firstItems = updates(1.5),  -- after connecting, before anything is locked: the first batch of items arrives
     settle = updates(5),        -- after a world loads, before any wall: spawning into a world still loading can crash
@@ -1021,7 +1003,7 @@ end
 
 local lazyHooks = {
     -- A slot card looks researched exactly when its slot has been bought, whether or not you own its tech.
-    { class = CONTENT, fn = CONTENT .. ":IsUnlocked", cb = function(self, out)
+    { fn = CONTENT .. ":IsUnlocked", cb = function(self, out)
         if not ap.shown then return end        -- no shop card yet (shopCard is false for all): the game's answer
         local tech = self:get().BindedTechnologyName:ToString()
         if not shopCard(tech) then return end
@@ -1031,7 +1013,7 @@ local lazyHooks = {
     -- Tooltips: a slot holding one of your techs shows that tech's own tooltip (set up again for it, a moment later,
     -- outside this hook); other slot cards have none (the card already says what it sends). Hidden by transparency
     -- rather than collapsing: the game makes the tooltip visible again after setting it up.
-    { class = INFO, fn = INFO .. ":Setup by Technology Name", cb = function(self, techName)
+    { fn = INFO .. ":Setup by Technology Name", cb = function(self, techName)
         local tech = techName:get():ToString()
         local info = self:get()
         if retarget == tech then
@@ -1053,13 +1035,13 @@ local lazyHooks = {
         end)
     end },
     -- Leaving a card forgets it, so a later dialog (Return to Title...) is not mistaken for a purchase.
-    { class = TREE, fn = TREE .. ":OnUnhoveredAnyTechnology_Internal", cb = function()
+    { fn = TREE .. ":OnUnhoveredAnyTechnology_Internal", cb = function()
         hoveredTech = nil
     end },
     -- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
     -- applied on the next frame and again on the next two updates (only while it still differs): about the first
     -- half second, as the five ExecuteWithDelay re-applies did, all on the game thread.
-    { class = DIALOG, fn = DIALOG .. ":SetupUI", cb = function(self, dialogType, message)
+    { fn = DIALOG .. ":SetupUI", cb = function(self, dialogType, message)
         local tech = hoveredTech
         once("dialogmsg", "first confirm box message: '" .. tostring(safe(function() return message:get():ToString() end)) .. "'")
         if not shopCard(tech) or bought(tech) then return end
@@ -1075,25 +1057,13 @@ local lazyHooks = {
         later(2, apply)
     end },
 }
--- RegisterHook can fail ("UFunction::Func: 0x0") while a Blueprint class is still loading, so a hook is done only once
--- it registered. A failed one is tried again every HOOK_RETRY_EVERY updates; only the first failure is logged.
-local HOOK_RETRY_EVERY = 10                -- updates (3 s): soon enough for a menu, without retrying every update
-local function registerLazyHook(h)
-    local cls = StaticFindObject(h.class)
-    if not cls or not cls:IsValid() then return end
-    h.tries = (h.tries or 0) + 1
-    if h.tries > 1 and h.tries % HOOK_RETRY_EVERY ~= 1 then return end
-    local ok, err = pcall(RegisterHook, h.fn, guardedHook(h.fn, h.cb))
-    if ok then
-        h.done = true
-        log("hooked " .. h.fn .. (h.tries > 1 and (" (try " .. h.tries .. ")") or ""))
-    elseif h.tries == 1 then
-        log("could not hook " .. h.fn .. " yet (will retry): " .. tostring(err):match("^[^\n]*"))
-    end
-end
+-- Each is registered once its class has loaded (UTIL.hookWhenLoaded retries while it loads), through guardedHook.
 local function registerLazyHooks()
     for _, h in ipairs(lazyHooks) do
-        if not h.done then registerLazyHook(h) end
+        if not h.done then
+            h.guarded = h.guarded or guardedHook(h.fn, h.cb)
+            h.done = UTIL.hookWhenLoaded(h.fn, h.guarded, "shop")
+        end
     end
 end
 
@@ -1180,8 +1150,8 @@ local function unlockableCheck(self, ...)
     local tech = techArg(...)
     if not tech or not shopCard(tech) then return nil end
     local r = slotUnlockable(self:get(), tech)
-    if r ~= nil and not reported.unlockable then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
-    if tech == hoveredTech and not reported["ask1" .. tech] then
+    if r ~= nil and not UTIL.said("unlockable") then once("unlockable", "slot clickability decided by the mod (first: " .. tech .. " -> " .. tostring(r) .. ")") end
+    if tech == hoveredTech and not UTIL.said("ask1" .. tech) then
         -- Left to the game (nil): its own answer too, the first plain boolean UE4SS hands the after-callback (2026-11-05:
         -- Direhowl's Saddled Harness stayed greyed with no gate in our data or the game's table).
         local game
@@ -1790,8 +1760,9 @@ local function preloadMenuClasses()
     ExecuteInGameThread(function()
         for _, h in ipairs(lazyHooks) do
             if not h.done then
-                local ok, err = pcall(LoadAsset, (h.class:gsub("_C$", "")))
-                if not ok then once("preload" .. h.class, "could not preload " .. h.class .. ": " .. tostring(err)) end
+                local class = h.fn:gsub(":.*$", "")          -- the hook's "<class path>:<function>"
+                local ok, err = pcall(LoadAsset, (class:gsub("_C$", "")))
+                if not ok then once("preload" .. class, "could not preload " .. class .. ": " .. tostring(err)) end
             end
         end
     end)
