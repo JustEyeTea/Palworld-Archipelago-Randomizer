@@ -1806,6 +1806,44 @@ do  -- The Territories look, as the chart look above: a map mod (or a game updat
     takeAway()
     putBack()
 end
+do  -- The map screen stays listed from its first opening until Return to title: an opening is the screen coming on
+    -- screen, so each later opening reads the explored mask again (the fog picture follows what the player explored)
+    local calls = {}
+    local takeAway = territoriesStandIns(calls)
+    local putBack = savedColourMap(mapArt)
+    local maskExports = 0
+    local realExport = renderLib.ExportRenderTarget
+    renderLib.ExportRenderTarget = function(lib, gi, rt, dir, name)
+        if name == "fog-mask.png" then maskExports = maskExports + 1 end
+        return realExport(lib, gi, rt, dir, name)
+    end
+    local onScreen = true
+    mapBody.IsVisible = function() return onScreen end
+    local W = freshWalls()
+    mapOpen = true                                            -- the first opening: the screen is built
+    for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    local first = maskExports
+    for _ = 1, 3 do                                           -- closed for 3 minutes of exploring, opened again
+        onScreen = false
+        for _ = 1, 600 do W.updateMap(true, {}, pawn) end
+        onScreen = true
+        for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    end
+    expect(first == 1 and maskExports == first + 3,
+           "the explored mask is read again at each later opening of the same map screen: " .. first
+           .. " by the first opening, " .. maskExports .. " after three more")
+    local statuses, callsBefore = 0, #calls
+    local W2 = freshWalls()
+    for _ = 1, 2 do W2.updateMap(true, {}, pawn) end         -- the map on screen as the world goes
+    W2.reset()
+    for _ = 1, 2 do W2.updateMap(true, {}, pawn) end         -- the next world's map, opened at once
+    for i = callsBefore + 1, #calls do if calls[i]:find("^status=") then statuses = statuses + 1 end end
+    expect(statuses == 2, "a map on screen in the first update of a new world is an opening too: C++'s status"
+           .. " logged at " .. statuses .. " of 2 openings")
+    renderLib.ExportRenderTarget, mapBody.IsVisible, mapOpen = realExport, nil, false
+    takeAway()
+    putBack()
+end
 end
 end)()
 

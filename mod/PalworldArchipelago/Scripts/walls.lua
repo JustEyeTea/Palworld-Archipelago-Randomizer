@@ -103,6 +103,7 @@ end
 function W.reset()
     W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
     W.dropCaches()
+    W.resetMapShown()
     local live = liveWallAddresses()
     for i in pairs(raised) do
         if not live[raisedAt[i]] then
@@ -1304,8 +1305,23 @@ local function composeMap(ctx, passes, key, open)
     return false
 end
 
-local mapShownAt = 0           -- map screens with a map image found on the last update (for the perf probe's replay)
+local mapShownAt = 0           -- map screens on screen at the last update (an opening is one coming on screen)
 function W.mapShown() return mapShownAt > 0 end
+-- A new world: its map has not been on screen yet, so its first showing is an opening.
+function W.resetMapShown() mapShownAt = 0 end
+-- How many of the live map screens are on screen. A screen lasts from its first opening until Return to title, so
+-- being listed is not being open. One whose visibility cannot be read counts as on screen. Untested in game: that
+-- IsVisible reads false while the map is closed (if it reads true, an opening is seen once per world, as before).
+local function screensOnScreen(screens)
+    local n = 0
+    for _, b in ipairs(screens) do
+        local ok, visible = pcall(function() return b:IsVisible() end)
+        if not ok or visible then
+            n = n + 1
+        end
+    end
+    return n
+end
 
 -- The map screen from C++ (APConnector's AP_MapScreen, map_screen.cpp; the user, 2026-11-06: Lua's swaps show, do the
 -- map in C++). It changes the screen inside the game's own Setup, before the screen draws; Lua hands it the picture and
@@ -1669,7 +1685,7 @@ local function placeIcons(screen, passes, key)
 end
 
 function W.updateMap(enabled, passes, ctx)
-    local wasShown = mapShownAt > 0                  -- whether the map was open at the last update
+    local wasShown = mapShownAt > 0                  -- whether the map was on screen at the last update
     mapShownAt = 0
     if not enabled then return end
     -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
@@ -1690,15 +1706,16 @@ function W.updateMap(enabled, passes, ctx)
         if gone then once("stalescreen", "map: a map screen of the last world left alone (its player is gone)") end
         if b:IsValid() and ok and img and main and not gone then images[#images + 1] = img; screens[#screens + 1] = b end
     end
-    mapShownAt = #images
+    mapShownAt = screensOnScreen(screens)
+    local opening = mapShownAt > 0 and not wasShown
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
-    local okt, errt = pcall(chartTick, ctx, screens, #images > 0 and not wasShown, passes)
+    local okt, errt = pcall(chartTick, ctx, screens, opening, passes)
     if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
     -- C++ is switched on from the start, not once the picture is ready (dev.16 playtest, 2026-11-07: the map opened
     -- 3 s before the picture was, and C++ logged "OFF; Setup ran 0x" though its hook saw Setup run).
     local okc0, errc0 = pcall(tellCpp)
     if not okc0 then once("cpperr", "map screen (C++): " .. tostring(errc0)) end
-    if AP_MapScreen and #images > 0 and not wasShown then
+    if AP_MapScreen and opening then
         cpp.opened = cpp.opened + 1
         if cpp.opened <= 3 then
             log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back " .. cpp.fixes .. "x")
