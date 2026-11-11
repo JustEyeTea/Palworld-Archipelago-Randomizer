@@ -124,6 +124,7 @@ class PalworldWorld(World):
     location_name_groups = LOCATION_GROUPS
     topology_present = True
 
+    # --- the seed's plan: generate_early's steps, and which checks exist ---------------------------------------------
     def generate_early(self) -> None:
         """The seed's plan, before anything is built: which cut of the map, the level cap, which regions or areas are in
         the seed, and whether the options leave enough checks. Bad options stop here with an OptionError."""
@@ -215,7 +216,111 @@ class PalworldWorld(World):
             logging.warning(f"Palworld ({self.player_name}): Trap Chance is {o.trap_chance.value}% but every trap "
                             f"weight is 0, so there are no traps")
 
-    # --- the map this seed uses (Regions Beyond the Goal) ------------------------------------------------------
+    def research(self) -> frozenset:
+        """Techs that stay normal research in this seed (no check, no item): décor when asked, and techs above the check
+        level cap."""
+        if not hasattr(self, "_research"):
+            decor = DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
+            beyond = {t for t in self.layout.towers if self.layout.pieces[self.layout.towers[t]] not in self.scope}
+            self._research = decor | {t.id for t in SHOP_TECHS if self.lv.tech(t) > self.cap or t.tower in beyond
+                                      or (not self.gear and self.gated(t))}
+        return self._research
+
+    def loc_level(self, loc) -> int:
+        """The level from which a location can be checked, for the check level cap."""
+        if loc.kind == "shop":
+            return self.lv.tech(TECH_BY_ID[loc.key])
+        if loc.kind == "capture":
+            return self.pal_level[loc.key]
+        if loc.kind == "alpha":
+            return loc.level
+        if loc.kind == "fast_travel":
+            return piece_level(self.layout, self.layout.location_piece[loc.name])
+        if loc.kind == "level":
+            return loc.key
+        if loc.kind == "tower":
+            return self.lv.tower[loc.key]
+        return 0
+
+    def wanted(self, loc) -> bool:
+        """Whether this location is a check in this seed: in a region or area of the seed, under the cap, and of a
+        kind the options turn on."""
+        o = self.options
+        piece = self.layout.location_piece[loc.name]
+        if piece and (self.layout.pieces[piece] not in self.scope or piece not in self.live):
+            return False                            # not in this seed
+        if self.loc_level(loc) > self.cap:
+            return False
+        if loc.name in SHARED_ALPHAS:
+            return False                            # its defeat records as another alpha's: that one is the check
+        if loc.kind == "shop":
+            return loc.key not in self.research()
+        if loc.kind == "capture":
+            return bool(o.capture_checks)
+        if loc.kind == "alpha":
+            return bool(o.alpha_checks)
+        if loc.kind == "fast_travel":
+            return bool(o.fast_travel_checks)
+        if loc.kind == "level":
+            return o.level_checks.value != 0 and loc.key % o.level_checks.value == 0
+        return True
+
+    def progression_techs(self) -> FrozenSet[str]:
+        """The techs the logic counts on in this seed: every prerequisite, the Lab, breeding, spheres, their furnaces
+        and the sea mounts with Gear Logic; without it only the first sphere and the saddles the map needs."""
+        if self.gear:
+            return frozenset(PREREQ_TECHS)
+        out = {SPHERE_TECHS[0].id}
+        if self.sea_needed:
+            out |= set(SEA_MOUNTS)
+        if self.sky_needed:
+            out |= set(FLYING_MOUNTS)
+        todo = list(out)                        # and whatever those techs' cards need first
+        while todo:
+            tech = TECH_BY_ID[todo.pop()]
+            for need in (tech.prereq, LAB_TECH if tech.research else None):
+                if need and TECH_BY_ID[need].level > STARTER_LEVEL and need not in out:
+                    out.add(need)
+                    todo.append(need)
+        return frozenset(out)
+
+    def gated(self, tech: Tech) -> bool:
+        """A tech card that needs another (non-starter) tech or Lab research first: without Gear Logic it stays normal
+        research, so no check waits on a gear item."""
+        return bool(tech.research) or bool(tech.prereq and TECH_BY_ID[tech.prereq].level > STARTER_LEVEL)
+
+    def points_budget(self) -> FrozenSet[str]:
+        """Tech-slot checks a player can't be sure to afford in time; they hold only filler and traps (anyone's), so no
+        one's progression or useful item waits on tech points the logic doesn't count. Normal slots are taken in the
+        order they open, cheapest first, while their running cost stays within the points levelling gives by then
+        (6 a level; fast travel, Technical Manuals and the like are the player's spare). Ancient slots: within the
+        Ancient points of the towers beaten before the goal (5 each; the last goal tower's come with the goal), and at
+        least one tower's."""
+        o = self.options
+        slots = [t for t in SHOP_TECHS if t.id not in self.research()]
+        towers = len(self.goal_towers) - (1 if o.goal == o.goal.option_towers else 0)
+        ancient_points = ANCIENT_POINTS_PER_TOWER * max(1, towers)
+        keep, normal, ancient = set(), 0, 0
+        for t in sorted(slots, key=lambda t: (self.lv.tech(t), t.cost, t.id)):
+            if t.ancient:
+                if ancient + t.cost <= ancient_points:
+                    keep.add(t.id)
+                    ancient += t.cost
+            elif normal + t.cost <= TECH_POINTS_PER_LEVEL * (self.lv.tech(t) - 1):
+                keep.add(t.id)
+                normal += t.cost
+        return frozenset(shop_location(t) for t in slots if t.id not in keep)
+
+    def passes_in_pool(self) -> List[str]:
+        if not self.options.area_locks:
+            return []
+        return [p for a, p in self.layout.passes.items() if a in self.scope]
+
+    def beyond_goal_areas(self) -> List[str]:
+        """The areas with a pass in the game but not in this seed: walls that stay up (locked) or are down (open)."""
+        return sorted(a for a in self.layout.passes if a not in self.scope)
+
+    # --- the map this seed uses (Regions Beyond the Goal) ------------------------------------------------------------
     def every_area(self) -> FrozenSet[str]:
         return frozenset(self.layout.pieces.values())
 
@@ -290,16 +395,6 @@ class PalworldWorld(World):
                     todo.append(nxt)
         return frozenset(seen)
 
-    def climb_top(self) -> int:
-        """The highest level the pieces in this seed let a player reach, as max_level climbs with everything in hand."""
-        top = FREE_LEVEL
-        levels = self.layout.levels
-        for piece in sorted((piece for piece in levels if piece in self.live), key=levels.get):
-            if levels[piece] - LEVELS_BELOW_PIECE > top:
-                break
-            top = max(top, int(levels[piece]) + LEVELS_PAST_PIECE)
-        return min(MAX_LEVEL, top)
-
     def reach_by_land(self) -> FrozenSet[str]:
         """The pieces in this seed the start reaches without the open sea (and without going up to the sky)."""
         layout, nbrs = self.layout, self.neighbours()
@@ -313,82 +408,16 @@ class PalworldWorld(World):
                     todo.append(nxt)
         return frozenset(seen)
 
-    def progression_techs(self) -> FrozenSet[str]:
-        """The techs the logic counts on in this seed: every prerequisite, the Lab, breeding, spheres, their furnaces
-        and the sea mounts with Gear Logic; without it only the first sphere and the saddles the map needs."""
-        if self.gear:
-            return frozenset(PREREQ_TECHS)
-        out = {SPHERE_TECHS[0].id}
-        if self.sea_needed:
-            out |= set(SEA_MOUNTS)
-        if self.sky_needed:
-            out |= set(FLYING_MOUNTS)
-        todo = list(out)                        # and whatever those techs' cards need first
-        while todo:
-            tech = TECH_BY_ID[todo.pop()]
-            for need in (tech.prereq, LAB_TECH if tech.research else None):
-                if need and TECH_BY_ID[need].level > STARTER_LEVEL and need not in out:
-                    out.add(need)
-                    todo.append(need)
-        return frozenset(out)
-
-    def gated(self, tech: Tech) -> bool:
-        """A tech card that needs another (non-starter) tech or Lab research first: without Gear Logic it stays normal
-        research, so no check waits on a gear item."""
-        return bool(tech.research) or bool(tech.prereq and TECH_BY_ID[tech.prereq].level > STARTER_LEVEL)
-
-    def points_budget(self) -> FrozenSet[str]:
-        """Tech-slot checks a player can't be sure to afford in time; they hold only filler and traps (anyone's), so no
-        one's progression or useful item waits on tech points the logic doesn't count. Normal slots are taken in the
-        order they open, cheapest first, while their running cost stays within the points levelling gives by then
-        (6 a level; fast travel, Technical Manuals and the like are the player's spare). Ancient slots: within the
-        Ancient points of the towers beaten before the goal (5 each; the last goal tower's come with the goal), and at
-        least one tower's."""
-        o = self.options
-        slots = [t for t in SHOP_TECHS if t.id not in self.research()]
-        towers = len(self.goal_towers) - (1 if o.goal == o.goal.option_towers else 0)
-        ancient_points = ANCIENT_POINTS_PER_TOWER * max(1, towers)
-        keep, normal, ancient = set(), 0, 0
-        for t in sorted(slots, key=lambda t: (self.lv.tech(t), t.cost, t.id)):
-            if t.ancient:
-                if ancient + t.cost <= ancient_points:
-                    keep.add(t.id)
-                    ancient += t.cost
-            elif normal + t.cost <= TECH_POINTS_PER_LEVEL * (self.lv.tech(t) - 1):
-                keep.add(t.id)
-                normal += t.cost
-        return frozenset(shop_location(t) for t in slots if t.id not in keep)
-
-    def passes_in_pool(self) -> List[str]:
-        if not self.options.area_locks:
-            return []
-        return [p for a, p in self.layout.passes.items() if a in self.scope]
-
-    def beyond_goal_areas(self) -> List[str]:
-        """The areas with a pass in the game but not in this seed: walls that stay up (locked) or are down (open)."""
-        return sorted(a for a in self.layout.passes if a not in self.scope)
-
-    # --- logic helpers -----------------------------------------------------------------------------------------
-    def can_enter(self, state: CollectionState, piece: str) -> bool:
-        """Crossing a border into a piece needs its area's pass (the start and open sea need none), a mount that crosses
-        water to go out on the open sea, and one that flies to go up to the Sky Islands."""
-        area = self.layout.pieces[piece]
-        if area == SEA:
-            return not self.sea_needed or self.can_ride(state, SEA_MOUNTS)
-        if area in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
-            return False
-        if area not in self.scope:              # beyond the goal: open from the start, or no pass at all
-            return self.options.beyond_goal == self.options.beyond_goal.option_open
-        return (area == self.layout.start or not self.options.area_locks
-                or state.has(self.layout.passes[area], self.player))
-
-    def can_ride(self, state: CollectionState, mounts: Dict[str, str]) -> bool:
-        """One of these mounts: its saddle tech and its Pal."""
-        return any(self.has_tech(state, tech) and self.can_get_pal(state, entry) for tech, entry in mounts.items())
-
-    def piece_open(self, state: CollectionState, piece: str) -> bool:
-        """A piece is open when the player can get there: through the borders from the start."""
-        return piece in self.live and state.can_reach_region(piece, self.player)
+    # --- the level model: how far the player can level, and what they can catch and fight ----------------------------
+    def climb_top(self) -> int:
+        """The highest level the pieces in this seed let a player reach, as max_level climbs with everything in hand."""
+        top = FREE_LEVEL
+        levels = self.layout.levels
+        for piece in sorted((piece for piece in levels if piece in self.live), key=levels.get):
+            if levels[piece] - LEVELS_BELOW_PIECE > top:
+                break
+            top = max(top, int(levels[piece]) + LEVELS_PAST_PIECE)
+        return min(MAX_LEVEL, top)
 
     def max_level(self, state: CollectionState) -> int:
         """How far the player can level. A piece takes you LEVELS_PAST_PIECE past its Pals' level once you can catch
@@ -424,6 +453,28 @@ class PalworldWorld(World):
     def can_fight_at(self, state: CollectionState, level: int) -> bool:
         """A boss of this level: the level, and a team of Pals caught at about it."""
         return self.level_ok(state, level) and self.can_catch_at(state, level)
+
+    # --- logic helpers: what the player has and where they can go ----------------------------------------------------
+    def can_enter(self, state: CollectionState, piece: str) -> bool:
+        """Crossing a border into a piece needs its area's pass (the start and open sea need none), a mount that crosses
+        water to go out on the open sea, and one that flies to go up to the Sky Islands."""
+        area = self.layout.pieces[piece]
+        if area == SEA:
+            return not self.sea_needed or self.can_ride(state, SEA_MOUNTS)
+        if area in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
+            return False
+        if area not in self.scope:              # beyond the goal: open from the start, or no pass at all
+            return self.options.beyond_goal == self.options.beyond_goal.option_open
+        return (area == self.layout.start or not self.options.area_locks
+                or state.has(self.layout.passes[area], self.player))
+
+    def can_ride(self, state: CollectionState, mounts: Dict[str, str]) -> bool:
+        """One of these mounts: its saddle tech and its Pal."""
+        return any(self.has_tech(state, tech) and self.can_get_pal(state, entry) for tech, entry in mounts.items())
+
+    def piece_open(self, state: CollectionState, piece: str) -> bool:
+        """A piece is open when the player can get there: through the borders from the start."""
+        return piece in self.live and state.can_reach_region(piece, self.player)
 
     def has_tech(self, state: CollectionState, tech_id: str, top: Optional[int] = None) -> bool:
         """Whether the player has a tech (top: the player's level, when already known)."""
@@ -464,56 +515,7 @@ class PalworldWorld(World):
                 and (not tech.research or self.has_tech(state, LAB_TECH, top))
                 and (not tech.ancient or any(state.has(e, self.player) for e in TOWER_EVENTS.values())))
 
-    # --- generation --------------------------------------------------------------------------------------------
-    def research(self) -> frozenset:
-        """Techs that stay normal research in this seed (no check, no item): décor when asked, and techs above the check
-        level cap."""
-        if not hasattr(self, "_research"):
-            decor = DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
-            beyond = {t for t in self.layout.towers if self.layout.pieces[self.layout.towers[t]] not in self.scope}
-            self._research = decor | {t.id for t in SHOP_TECHS if self.lv.tech(t) > self.cap or t.tower in beyond
-                                      or (not self.gear and self.gated(t))}
-        return self._research
-
-    def loc_level(self, loc) -> int:
-        """The level from which a location can be checked, for the check level cap."""
-        if loc.kind == "shop":
-            return self.lv.tech(TECH_BY_ID[loc.key])
-        if loc.kind == "capture":
-            return self.pal_level[loc.key]
-        if loc.kind == "alpha":
-            return loc.level
-        if loc.kind == "fast_travel":
-            return piece_level(self.layout, self.layout.location_piece[loc.name])
-        if loc.kind == "level":
-            return loc.key
-        if loc.kind == "tower":
-            return self.lv.tower[loc.key]
-        return 0
-
-    def wanted(self, loc) -> bool:
-        """Whether this location is a check in this seed: in a region or area of the seed, under the cap, and of a
-        kind the options turn on."""
-        o = self.options
-        piece = self.layout.location_piece[loc.name]
-        if piece and (self.layout.pieces[piece] not in self.scope or piece not in self.live):
-            return False                            # not in this seed
-        if self.loc_level(loc) > self.cap:
-            return False
-        if loc.name in SHARED_ALPHAS:
-            return False                            # its defeat records as another alpha's: that one is the check
-        if loc.kind == "shop":
-            return loc.key not in self.research()
-        if loc.kind == "capture":
-            return bool(o.capture_checks)
-        if loc.kind == "alpha":
-            return bool(o.alpha_checks)
-        if loc.kind == "fast_travel":
-            return bool(o.fast_travel_checks)
-        if loc.kind == "level":
-            return o.level_checks.value != 0 and loc.key % o.level_checks.value == 0
-        return True
-
+    # --- building the Archipelago world: regions, items, rules and slot data -----------------------------------------
     def create_regions(self) -> None:
         """The logic's map: one Archipelago Region per piece in play, an entrance each way across each border, each
         check in its piece, and the tower, World Tree and goal events."""
