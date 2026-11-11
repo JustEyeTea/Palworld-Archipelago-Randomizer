@@ -105,8 +105,7 @@ or a new file, look here and use the block. Never write a second copy. A block i
 ## Size and layout
 
 - **A function does one job and fits on one screen:** aim for 40 lines or fewer and no more than 3 levels of nesting.
-- **A hand-written file has one topic:** aim for 800 lines or fewer. `mailbox_chest.lua` is over this and gets split
-  by topic when the tour reaches it.
+- **A hand-written file has one topic:** aim for 800 lines or fewer.
 - **One statement per line,** and no `;` joining two. An `if`, `for` or `while` puts its body on its own lines.
   The one exception is a guard clause whose whole body is `return` (with or without a value), `break` or
   `continue`: `if not pawn then return end` (Lua), `if (!m_client) return;` (C++).

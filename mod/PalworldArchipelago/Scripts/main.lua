@@ -360,7 +360,8 @@ local function installWindows()
     })
     MAIL.install({ notify = notify, save = writeSave, cfg = cfg, guardedHook = guardedHook,
                    connected = function() return ap.status == "connected" end })
-    CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, openCrate = openCrateOfKind })
+    CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, openCrate = openCrateOfKind,
+                   guardedHook = guardedHook })
     TRAPS.install({ notify = notify, save = writeSave, announce = announceTrap,
                     sender = function(index) return ap.from[index] end,
                     home = function() return WALLS.home end, start = function() return WALLS.start end })

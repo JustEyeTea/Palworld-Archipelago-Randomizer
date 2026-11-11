@@ -1,7 +1,8 @@
 -- The Palworld Crates window, drawn over the mailbox's chest window (which already has the cursor and the input): a
 -- row per crate kind waiting (its icon, its count, a button to open one), the chosen kind in the details pane, and the
--- last crate opened in the contents cells. Closed, a small "Open Palworld Crates (N)" button brings it back. Every
--- image falls back to a plain box without its file. Untested in game: the window's look and its buttons.
+-- last crate opened in the contents cells. Closed, a small button brings it back whenever the chest window is open:
+-- "Open Palworld Crates (N)" while crates wait, "Palworld Crates" (to see the last crate opened) when none do. Every
+-- image falls back to a plain box without its file. Untested in game: the reopen button, where it is now.
 -- Tests: mod/test/tests/crates_run_style.lua; group "the crate window" (tools/lua_harness.sh, in CI).
 local CW = {}
 local ART = require("art")
@@ -9,6 +10,7 @@ local BAG = require("bag")
 local CLICKS = require("clicks")
 local CRATES = require("crates")
 local MAIL = require("mailbox")
+local NAMES = require("menu_names")
 local UTIL = require("util")
 local WIDGETS = require("widgets")
 local log, once = UTIL.log, UTIL.onceIn("crate_window")
@@ -17,10 +19,12 @@ local place, sized = WIDGETS.place, WIDGETS.sized
 -- What main.lua hands over (CW.install).
 --   chestWidget()     the chest window the mailbox has open, or nil
 --   openCrate(kind)   opens one crate of a kind into the mailbox: the kind opened and its contents { id, n }, or nil
+--   guardedHook(name, fn)  optional: a hook callback that no update can run inside
 local env = nil
 
 -- The window's buttons are the game's WBP_CommonButton_C, claimed in clicks.lua under this owner. menu.lua's hook on
--- that class notes their clicks; CW.update runs them.
+-- that class notes their clicks (CW.update asks for the same hook while the chest window is open, should menu.lua
+-- not have it yet); CW.update runs them.
 local OWNER = "crate window"
 
 -- The art plate (art/ap-mailbox-window.png, 1600x1000) is shown at half size; its slots below are the art's own
@@ -53,12 +57,18 @@ local CELLS_PER_ROW = 5
 local CELL_INSET = 5                  -- the text inside a cell keeps this far from its edges
 local NAME_MAX_CHARS = 22             -- a longer item name is cut, so it fits a cell
 local EMPTY_NOTE_INSET = 8            -- "No crates waiting." sits this far into the list
-local TOGGLE = { w = 300, h = 36, top = 130 }   -- the small button: top centre, above the inventory and chest panels
+local TOGGLE = { w = 300, h = 36 }    -- the small button that brings the window back
+-- Where the small button goes: centred on the canvas as the window is, moved up so its top edge is the window's top
+-- edge (a negative offset is above the centre). Centred is the one place over the chest window known in game to show
+-- and take clicks: the window's own buttons work there. Nearer the canvas's top, its size and anchors are unknown.
+local TOGGLE_FROM_CENTRE = -(PLATE.h - TOGGLE.h) // 2
+local BUILD_TRIES = 10                -- a draw that fails is tried on this many updates (3 s), then waits for a change
 local OVER_CHEST = 1000               -- the canvas ZOrder that puts the window over everything on the chest window
 local CANVAS_DEPTH = 4                -- how deep under the chest window's root its canvas is looked for
 local FONT = { title = 22, header = 12, rowName = 12, rowCount = 9, name = 16, detail = 10, contentsHeader = 11,
                cell = 8 }             -- point sizes
-local CENTRE, TOP_CENTRE = { X = 0.5, Y = 0.5 }, { X = 0.5, Y = 0 }   -- anchors and alignments on a canvas
+local CENTRE = { X = 0.5, Y = 0.5 }    -- an anchor and alignment on a canvas
+local SLATE_LIBRARY = "/Script/UMG.Default__SlateBlueprintLibrary"   -- reads where a widget was laid out
 
 local CREAM, MUTED, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("A3ADC9"), UTIL.linear("17324D")
 local GLOW = { sphere = UTIL.linear("3FC1D9"), food = UTIL.linear("ECBE6E"), common = UTIL.linear("C8B79A"),
@@ -66,11 +76,15 @@ local GLOW = { sphere = UTIL.linear("3FC1D9"), food = UTIL.linear("ECBE6E"), com
 
 -- State: what is drawn over the chest window. Forgotten: when the chest window goes (CW.update). Its buttons are
 -- released whenever it is drawn again, and when it goes (hide()).
-local overlay = nil           -- { widgetAddress = the chest window's address, panel, toggle, signature }
+-- { widgetAddress = the chest window's address, panel, toggle, signature = what the drawn part shows (nil until a
+-- draw works), triedSignature = what the draws being tried would show, tries = how many have failed }
+local overlay = nil
 -- State: the player's choices in the window. Forgotten: when a new chest window opens (a fresh mailbox).
-local dismissed = false       -- the player closed the crate window
+local choice = nil            -- "closed" (the player closed the window), "open" (asked for it or opened a crate in it)
 local selected = nil          -- the kind in the details pane
+-- State. Forgotten: never (the last crate opened can be seen again on a later mailbox).
 local last = nil              -- the last crate opened: { kind, out = its contents { id, n }, stamp = +1 a crate }
+local layoutLogged = false    -- the reopen button's place as laid out was logged (once a session)
 
 local function valid(object)
     local ok, answer = pcall(function() return object:IsValid() end)
@@ -105,10 +119,11 @@ end
 -- What each button does. A button names one of these, with a value for "open" (the kind).
 local ACTIONS = {
     close = function()
-        dismissed = true
+        choice = "closed"
     end,
     show = function()
-        dismissed = false
+        once("cwshowclick", "crate window: the reopen button's click arrived; the window comes back")
+        choice = "open"
     end,
     open = function(kind)
         local opened, out = env.openCrate(kind)
@@ -119,6 +134,7 @@ local ACTIONS = {
         end
         last = { kind = opened, out = out, stamp = (last and last.stamp or 0) + 1 }
         selected = opened
+        choice = "open"                                   -- the window stays up, also once the last crate is open
     end,
 }
 
@@ -146,7 +162,13 @@ local function signature()
         parts[#parts + 1] = kind .. (counts[kind] or 0)
     end
     return table.concat(parts, ",") .. "|" .. tostring(selected) .. "|" .. tostring(last and last.stamp)
-        .. "|" .. tostring(dismissed)
+        .. "|" .. tostring(choice)
+end
+
+-- Whether the window shows (else the small button does): as the player chose, or, until they do, while crates wait.
+local function windowWanted()
+    if choice then return choice == "open" end
+    return CRATES.count() > 0
 end
 
 -- The plate, its title when the plate is missing, the Close button and the list's header.
@@ -273,24 +295,101 @@ local function putOnCanvas(canvas, widget, anchor, offsetY)
     pcall(function() slot:SetZOrder(OVER_CHEST) end)
 end
 
--- Draws what should show over `widget` now: the window (crates waiting, or one just opened, and not closed) or the
--- small button that brings it back.
+-- Whether the buttons' click hook (menu.lua's, also asked for by CW.update) is in place: logged once each way.
+local function logClickHookOnce()
+    if UTIL.isHooked(NAMES.GAME.commonClick) then
+        once("cwhooked", "crate window: the buttons' click hook is in place")
+        return
+    end
+    once("cwnothooked", "crate window: the buttons' click hook is not in place yet; a click on the reopen button is "
+        .. "lost until it is")
+end
+
+-- The small button that brings the window back (TOGGLE_FROM_CENTRE says where, and why there). Untested in game.
+local function addToggle(widget, canvas)
+    local count = CRATES.count()
+    local label = count > 0 and ("Open Palworld Crates (" .. count .. ")") or "Palworld Crates"
+    overlay.toggle = button(widget, label, TOGGLE.w, TOGGLE.h, "show")
+    putOnCanvas(canvas, overlay.toggle, CENTRE, TOGGLE_FROM_CENTRE)
+    once("cwtoggleplaced", "crate window: reopen button placed on " .. WIDGETS.nameOf(canvas) .. ", centred "
+        .. -TOGGLE_FROM_CENTRE .. " above its centre (the window's top edge), ZOrder " .. OVER_CHEST)
+    logClickHookOnce()
+end
+
+-- Draws what should show over `widget` now: the window, or the small button that brings it back. Whether it was
+-- drawn (not while the chest window has no canvas).
 local function build(widget)
     local canvas = canvasOf(widget)
     if not canvas then
         once("cwnocanvas", "crate window: the chest window has no canvas; crates open from the Inventory page")
-        return
+        return false
     end
     hide()
-    if not dismissed and (CRATES.count() > 0 or last ~= nil) then
+    if windowWanted() then
         overlay.panel = buildPanel(widget)
         putOnCanvas(canvas, overlay.panel, CENTRE, 0)
         once("cwshown", "crate window: shown over the mailbox (" .. CRATES.count() .. " crate(s))")
-    elseif CRATES.count() > 0 then
-        local label = "Open Palworld Crates (" .. CRATES.count() .. ")"
-        overlay.toggle = button(widget, label, TOGGLE.w, TOGGLE.h, "show")
-        putOnCanvas(canvas, overlay.toggle, TOP_CENTRE, TOGGLE.top)
+    else
+        addToggle(widget, canvas)
     end
+    return true
+end
+
+-- Whether the part drawn is still on the chest window (the game may rebuild the window under it). An answer that
+-- can't be read counts as yes.
+local function drawnStillUp()
+    local part = overlay.panel or overlay.toggle
+    if not part then return false end
+    local ok, parent = pcall(function() return part:GetParent() end)
+    return not ok or (parent ~= nil and valid(parent))
+end
+
+-- Draws again when what should show has changed or what was drawn is gone. A draw that fails (no canvas yet, a
+-- widget the game would not make) is tried on the next updates too, up to BUILD_TRIES times for the same signature.
+local function redrawIfNeeded(widget)
+    local now = signature()
+    if overlay.signature == now then
+        if drawnStillUp() then return end
+        once("cwgone", "crate window: what was drawn is gone from the chest window; drawn again")
+    end
+    if overlay.triedSignature ~= now then
+        overlay.triedSignature, overlay.tries = now, 0
+    end
+    if overlay.tries >= BUILD_TRIES then return end
+    overlay.signature = nil
+    local ok, drawn = pcall(build, widget)
+    if ok and drawn then
+        overlay.signature, overlay.tries = now, 0
+        return
+    end
+    overlay.tries = overlay.tries + 1
+    if not ok then
+        once("cwbuild" .. tostring(drawn), "crate window error: " .. tostring(drawn))
+    end
+end
+
+-- Where a widget was laid out, in the screen's units: "x,y wxh", or "?" when it can't be read.
+local function screenBox(widget)
+    local ok, box = pcall(function()
+        local geometry = widget:GetCachedGeometry()
+        local slate = StaticFindObject(SLATE_LIBRARY)
+        local at, size = slate:LocalToAbsolute(geometry, { X = 0, Y = 0 }), slate:GetAbsoluteSize(geometry)
+        return string.format("%.0f,%.0f %.0fx%.0f", at.X, at.Y, size.X, size.Y)
+    end)
+    return ok and box or "?"
+end
+
+-- Once a session, on the update after the reopen button is first drawn (the game has laid it out by then): what it
+-- sits on, whether it shows, and where it is beside that canvas.
+local function logToggleLayoutOnce()
+    if layoutLogged or not (overlay and overlay.toggle) then return end
+    layoutLogged = true
+    local toggle = overlay.toggle
+    local okParent, canvas = pcall(function() return toggle:GetParent() end)
+    local okShown, shown = pcall(function() return toggle:IsVisible() end)
+    log("crate window: reopen button as laid out: on " .. (okParent and WIDGETS.nameOf(canvas) or "?") .. ", visible "
+        .. (okShown and tostring(shown) or "?") .. ", at " .. screenBox(toggle) .. " on a canvas at "
+        .. (okParent and screenBox(canvas) or "?"))
 end
 
 -- The first kind with a crate waiting, when the chosen kind has none left.
@@ -306,8 +405,8 @@ local function keepSelectionValid()
     end
 end
 
--- Every update: runs the buttons' clicks, follows the mailbox's chest window, and draws the window again when the
--- crates, the choice or the last crate opened change.
+-- Every update: runs the buttons' clicks, follows the mailbox's chest window, and draws the window or its small
+-- button again when the crates, the choice or the last crate opened change, or what was drawn has gone.
 function CW.update()
     CLICKS.run(OWNER)
     local widget = env and env.chestWidget()
@@ -318,18 +417,14 @@ function CW.update()
         overlay = nil
         return
     end
+    CLICKS.hookClass(NAMES.GAME.commonClick, OWNER, env.guardedHook)
     if not overlay or overlay.widgetAddress ~= UTIL.addr(widget) then
-        overlay = { widgetAddress = UTIL.addr(widget) }
-        dismissed, last, selected = false, nil, nil       -- a fresh mailbox: the window again, no old contents
+        overlay = { widgetAddress = UTIL.addr(widget), tries = 0 }
+        choice, selected = nil, nil                       -- a fresh mailbox: the window again if crates wait
     end
     keepSelectionValid()
-    local now = signature()
-    if overlay.signature == now then return end
-    overlay.signature = now
-    local ok, err = pcall(build, widget)
-    if not ok then
-        once("cwbuild" .. tostring(err), "crate window error: " .. tostring(err))
-    end
+    logToggleLayoutOnce()
+    redrawIfNeeded(widget)
 end
 
 -- Takes what main.lua hands over (see env above).

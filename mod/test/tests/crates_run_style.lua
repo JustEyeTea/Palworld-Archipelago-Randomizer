@@ -113,9 +113,9 @@ group("the crate window", function()
     expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main
            and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
            "Close leaves the chest with an Open Palworld Crates (3) button")
-    expect(not toggle.slot or not toggle.slot.anchors or (toggle.slot.anchors.Minimum.X == 0.5
-                                                          and toggle.slot.anchors.Minimum.Y == 0),
-           "at the top centre, where the player sees it (not the screen's corner)")
+    local toggleAt = toggle.canvasSlot
+    expect(toggleAt and toggleAt.anchors.Minimum.X == 0.5 and toggleAt.anchors.Minimum.Y == 0.5,
+           "centred on the chest window, where the window was (not the screen's corner)")
     clickHook({ get = function() return toggle.child end })
     run(2)
     expect(toggle.removed and kids[#kids].width == 800, "which brings the window back")
@@ -164,6 +164,120 @@ group("the crate window", function()
         run(1)
         StaticConstructObject = construct
         expect(logged("widgets: text sizes: scaled, as a text's font could not be set"), "the fallback is logged")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    -- Reopening the window from the mailbox (untested in game): the small button shows whenever the chest window is
+    -- open and the crate window is not, where the window's top edge was (the one place over the chest window seen to
+    -- show and take clicks), and each step of the way back is logged once a session (the test above may have).
+    local function buttonsHook()
+        for path, callback in pairs(hooks) do
+            if path:find("WBP_CommonButton_C:BndEvt", 1, true) then return callback end
+        end
+    end
+    local function labelOf(button)
+        return button and button.Text_Main and button.Text_Main.text
+    end
+    -- The game's button labelled `label` on a drawn part: the reopen button itself, or one on the window's plate.
+    local function buttonOn(part, label)
+        if part and labelOf(part.child) == label then return part.child end
+        for _, c in ipairs(part and part.child and part.child.children or {}) do
+            if labelOf(c.child) == label then return c.child end
+        end
+    end
+    local function click(button)
+        buttonsHook()({ get = function() return button end })
+        run(2)
+    end
+    local function textsOn(part)
+        local t = {}
+        for _, c in ipairs(part and part.child and part.child.children or {}) do
+            t[#t + 1] = c.text or (c.child and c.child.text) or nil
+        end
+        return table.concat(t, "|")
+    end
+    local function chestWindowOn(canvas)
+        local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+        MB.chestWidget = function() return chestWin end
+        return chestWin
+    end
+    do   -- closed with crates waiting: "Open Palworld Crates (N)" brings it back
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        chestWindowOn(canvas)
+        CR.list = { "food", "food" }
+        run(1)
+        click(buttonOn(kids[#kids], "X"))
+        local toggle = kids[#kids]
+        local at = toggle and toggle.canvasSlot
+        expect(labelOf(toggle and toggle.child) == "Open Palworld Crates (2)" and at and at.anchors.Minimum.X == 0.5
+               and at.anchors.Minimum.Y == 0.5 and at.alignment.Y == 0.5 and at.position.Y == -(500 - 36) / 2,
+               "closed with 2 crates waiting: Open Palworld Crates (2), where the window's top edge was")
+        expect(logged("crate window: reopen button placed")
+               and logged("crate window: the buttons' click hook is in place"),
+               "where it went and whether its click hook is in place are logged")
+        click(toggle.child)
+        expect(toggle.removed and kids[#kids].width == 800 and buttonOn(kids[#kids], "X")
+               and logged("crate window: the reopen button's click arrived"),
+               "its click brings the window back, and the click is logged")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    do   -- with no crate left it still shows, as Palworld Crates, and brings back the last crate opened
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        chestWindowOn(canvas)
+        CR.list = { "food" }
+        run(1)
+        click(buttonOn(kids[#kids], "Open"))
+        local opened = kids[#kids]
+        expect(#CR.list == 0 and opened.width == 800 and textsOn(opened):find("No crates waiting.", 1, true)
+               and textsOn(opened):find("Last opened: Food Crate", 1, true),
+               "the last crate opened keeps the window up: " .. textsOn(opened))
+        click(buttonOn(opened, "X"))
+        local toggle = kids[#kids]
+        expect(opened.removed and labelOf(toggle and toggle.child) == "Palworld Crates",
+               "closed with none waiting, the button still shows: Palworld Crates")
+        click(toggle.child)
+        expect(toggle ~= opened and toggle.removed and kids[#kids].width == 800
+               and textsOn(kids[#kids]):find("Last opened: Food Crate", 1, true),
+               "which brings the window back with the last crate opened")
+        local canvas2, kids2 = fakeCanvas("CanvasPanel_0")
+        chestWindowOn(canvas2)
+        run(1)
+        expect(labelOf(kids2[#kids2] and kids2[#kids2].child) == "Palworld Crates",
+               "a mailbox opened with no crates waiting shows the button, not the window")
+        click(kids2[#kids2] and kids2[#kids2].child)
+        expect(textsOn(kids2[#kids2]):find("Last opened: Food Crate", 1, true),
+               "and the last crate opened is still there to see")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    do   -- a window that could not be drawn yet (no canvas on its first update) is drawn once it can be
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        local chestWin = chestWindowOn(nil)
+        CR.list = { "sphere" }
+        run(1)
+        chestWin.WidgetTree.RootWidget = canvas
+        run(1)
+        expect(kids[#kids] and kids[#kids].width == 800, "a draw that failed is tried again on the next update")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    do   -- the reopen button taken off the chest window (the game rebuilt it) is drawn again
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        chestWindowOn(canvas)
+        CR.list = { "sphere" }
+        run(1)
+        click(buttonOn(kids[#kids], "X"))
+        local toggle = kids[#kids]
+        toggle.GetParent = function() return nil end
+        run(1)
+        expect(kids[#kids] ~= toggle and labelOf(kids[#kids].child) == "Open Palworld Crates (1)"
+               and logged("crate window: what was drawn is gone from the chest window; drawn again"),
+               "a reopen button the game took away is put back")
         MB.chestWidget, CR.list = savedWidget, savedList
         run(1)
     end
