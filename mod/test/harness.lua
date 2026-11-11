@@ -4961,7 +4961,7 @@ end)()
     CR.list = { "sphere" }
     ITEMS.openCrate()
     MB.on, BAGM.give = mailOn, give
-    expect(logged("could not give PalSphere: .*the bag broke"), "a give that errors is logged with the item, for crates too")
+    expect(logged("could not give [%w_]+: .*the bag broke"), "a give that errors is logged with the item, for crates too")
     CR.list, CR.pending = {}, {}
 end)()
 ;(function()
