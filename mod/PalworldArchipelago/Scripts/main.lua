@@ -22,7 +22,6 @@ local DEBUFFS = require("debuffs")
 local CRATES = require("crates")
 local CWIN = require("crate_window")
 local MENU = require("menu")
-local TECHSCAN = require("techscan")
 local MAIL = require("mailbox")
 local BAG = require("bag")
 local TRAPS = require("traps")
@@ -30,7 +29,6 @@ local SYNC = require("sync")
 
 local CLOCK = require("clock")
 local WAIT, PHASE, isPhase = CLOCK.WAIT, CLOCK.PHASE, CLOCK.isPhase
-local TECH_SCAN_TRIES = 40      -- one try per cycle until the player's tech data is there: about 84 s
 local SENT_HOME_AFTER = 2       -- looks in a row (one per cycle) inside a locked area before the player is sent home
 
 if type(AP_Connect) ~= "function" then
@@ -65,6 +63,8 @@ local WORLD = require("world")
 local DEATH_LINK = require("death_link")
 local HELD = require("held_notices")
 local WALL_HINTS = require("wall_hints")
+local TECHSCAN = require("techscan")
+TECHSCAN.install({ version = VERSION, dir = modDir })
 
 local ITEMS = require("items")
 local applyItems, openCrate = ITEMS.applyItems, ITEMS.openCrate
@@ -134,17 +134,6 @@ local function onChecked(locationText)
 end
 
 
--- State: other mods' techs (techscan.lua). Forgotten: report and tries never (other mods do not change while the game
--- runs, so one scan a session is enough); sent on a new seed (resetTechScan), whose slots are other checks.
-local techScan = {
-    report = nil,             -- what the scan found, once it ran
-    tries = 0,                -- scans tried this session (until the player's tech data is there)
-    sent = false,             -- the checks of slots whose tech another mod removed were sent for this seed
-}
--- Lets the removed slots' checks be sent again for a new seed.
-local function resetTechScan()
-    techScan.sent = false
-end
 
 -- Forgets everything tied to the last seed: a different seed or slot connected. One call per topic; what each forgets
 -- is written at its state.
@@ -159,7 +148,7 @@ local function resetSeed()
     resetGoal()
     WORLD.resetSeedWorld()
     WALL_HINTS.resetHints()
-    resetTechScan()
+    TECHSCAN.resetTechScan()
     log("a different seed or slot: progress of the last one forgotten")
 end
 
@@ -301,53 +290,6 @@ end
 
 WALL_HINTS.bindKey()
 
--- Other mods' techs (techscan.lua): read once a session, as soon as the player's tech data is there. Their own techs stay
--- normal research; the report goes to the log and mod_techs.txt.
-local function scanTechs(td)
-    techScan.tries = techScan.tries + 1
-    local ok, report, why = pcall(TECHSCAN.scan, td, D)
-    if not ok then
-        techScan.tries = math.huge
-        log("tech scan error: " .. tostring(report))
-        return
-    end
-    if not report then
-        if techScan.tries == TECH_SCAN_TRIES then log("tech scan: gave up: " .. tostring(why)) end
-        return
-    end
-    techScan.report = report
-    local lines = TECHSCAN.lines(report)
-    for _, l in ipairs(lines) do log(l) end
-    local f = io.open(modDir .. "\\mod_techs.txt", "w")
-    if f then
-        f:write("# PalworldArchipelago " .. VERSION .. ": techs other mods added, changed or removed (vanilla is 1.0.5)\n",
-                table.concat(lines, "\n"), "\n")
-        f:close()
-    end
-    if #report.added > 0 then notify(#report.added .. " tech(s) from other mods: they stay normal research.") end
-    if #report.warn > 0 then
-        notify(#report.warn .. " shop tech(s) moved to much higher levels by other mods; this seed's logic expects vanilla levels.")
-    end
-end
-
--- A shop slot whose tech another mod removed can never be bought: send its check, so no one waits on it forever.
--- Once a seed, as soon as the scan has found them and the connection is ready.
-local function sendRemovedSlots()
-    if not (ap.ready and techScan.report and not techScan.sent) then return end
-    techScan.sent = true
-    local locs = {}
-    for _, id in ipairs(techScan.report.removed) do
-        local loc = D.shop[id] and D.shop[id].loc            -- (a tech this seed leaves as research has no check)
-        if loc and not ap.checked[loc] then
-            locs[#locs + 1] = loc
-            ap.bought[loc] = true
-        end
-    end
-    if #locs > 0 then
-        sendChecks(locs)
-        notify(#locs .. " shop slot(s) can't be bought (another mod removed their techs): their checks were sent.")
-    end
-end
 
 -- The parts of one update, in the order update() runs them.
 
@@ -397,15 +339,6 @@ local function markReady()
     log("ready: " .. n .. " item(s) received, slot " .. tostring(ap.me))
 end
 
--- The tech-scan phase: other mods' techs, once per cycle until the player's tech data is there.
-local function phaseTechScan()
-    if techScan.report or techScan.tries >= TECH_SCAN_TRIES then return end
-    P.start("scan")
-    local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
-    if td and safe(function() return td:IsValid() end) then scanTechs(td) end
-    P.stop("scan")
-    sendRemovedSlots()                             -- (in the update the scan found them)
-end
 
 
 -- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open stamp).
@@ -550,7 +483,7 @@ end
 -- Two of the seven updates in a cycle carry no phase.
 local PHASE_STEPS = {
     [PHASE.records] = phaseRecords,         -- trap timers, the seed's-world check, the game's records
-    [PHASE.techScan] = phaseTechScan,       -- other mods' techs, until found
+    [PHASE.techScan] = TECHSCAN.phase,      -- other mods' techs, until found
     [PHASE.items] = phaseItems,             -- techs, items, held notices, Death Link, traps
     [PHASE.areas] = phaseAreas,             -- visited areas; sent home from inside a locked area
     [PHASE.wallNotice] = phaseWallNotice,   -- the chat notice and hint offer at a locked wall
@@ -577,7 +510,7 @@ local function update(ctx)
     P.start("cards")
     SHOP_CARDS.refreshCards()
     P.stop("cards")
-    sendRemovedSlots()
+    TECHSCAN.sendRemovedSlots()
     local pawn = nil
     if ap.ready then
         pawn = WORLD.note()

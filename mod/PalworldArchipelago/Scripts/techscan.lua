@@ -2,7 +2,29 @@
 -- with vanilla 1.0.5 (ap_data's shop slots and level-1 techs). Techs other mods add are left as normal research (the
 -- shop only touches its own slots); this reports them, notes vanilla techs whose level or cost a mod changed, and lists
 -- shop slots a mod removed, which can never be bought, so their checks can be sent instead of stranding the multiworld.
+-- The scan runs once a session, in main.lua's tech-scan phase (S.phase). Wired by main.lua (S.install).
+-- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): group "other mods' techs".
 local S = {}
+local CHECKS = require("checks")
+local D = require("ap_data")
+local P = require("perf")
+local PLAYER = require("player")
+local STATE = require("ap_state")
+local UTIL = require("util")
+local ap = STATE.ap
+local log, safe = UTIL.log, UTIL.safe
+local notify, playerState, sendChecks = PLAYER.notify, PLAYER.playerState, CHECKS.sendChecks
+local TECH_SCAN_TRIES = 40      -- one try per cycle until the player's tech data is there: about 84 s
+
+-- What main.lua hands over (S.install).
+--   version   the mod's version, written at the top of mod_techs.txt
+--   dir       the mod's folder, where mod_techs.txt is written
+local env
+
+-- Takes what main.lua hands over.
+function S.install(handedOver)
+    env = handedOver
+end
 
 local TABLES = {
     "/Game/Pal/DataTable/Technology/DT_TechnologyRecipeUnlock.DT_TechnologyRecipeUnlock",
@@ -113,6 +135,79 @@ function S.lines(report)
     for _, c in ipairs(report.changed) do out[#out + 1] = "changed\t" .. c.id .. "\t" .. c.what end
     for _, id in ipairs(report.removed) do out[#out + 1] = "removed\t" .. id end
     return out
+end
+
+------------------------------------------------------------------------------------------------------------------------
+-- The scan in the session: when it runs, what it reports, and the checks of the slots it finds removed.
+
+-- State: the scan in this session. Forgotten: report and tries never (other mods do not change while the game
+-- runs, so one scan a session is enough); sent on a new seed (resetTechScan), whose slots are other checks.
+local techScan = {
+    report = nil,             -- what the scan found, once it ran
+    tries = 0,                -- scans tried this session (until the player's tech data is there)
+    sent = false,             -- the checks of slots whose tech another mod removed were sent for this seed
+}
+-- Lets the removed slots' checks be sent again for a new seed.
+function S.resetTechScan()
+    techScan.sent = false
+end
+
+-- Other mods' techs: read once a session, as soon as the player's tech data is there. Their own techs stay
+-- normal research; the report goes to the log and mod_techs.txt.
+local function scanTechs(td)
+    techScan.tries = techScan.tries + 1
+    local ok, report, why = pcall(S.scan, td, D)
+    if not ok then
+        techScan.tries = math.huge
+        log("tech scan error: " .. tostring(report))
+        return
+    end
+    if not report then
+        if techScan.tries == TECH_SCAN_TRIES then log("tech scan: gave up: " .. tostring(why)) end
+        return
+    end
+    techScan.report = report
+    local lines = S.lines(report)
+    for _, l in ipairs(lines) do log(l) end
+    local f = io.open(env.dir .. "\\mod_techs.txt", "w")
+    if f then
+        f:write("# PalworldArchipelago " .. env.version .. ": techs other mods added, changed or removed (vanilla is 1.0.5)\n",
+                table.concat(lines, "\n"), "\n")
+        f:close()
+    end
+    if #report.added > 0 then notify(#report.added .. " tech(s) from other mods: they stay normal research.") end
+    if #report.warn > 0 then
+        notify(#report.warn .. " shop tech(s) moved to much higher levels by other mods; this seed's logic expects vanilla levels.")
+    end
+end
+
+-- A shop slot whose tech another mod removed can never be bought: send its check, so no one waits on it forever.
+-- Once a seed, as soon as the scan has found them and the connection is ready.
+function S.sendRemovedSlots()
+    if not (ap.ready and techScan.report and not techScan.sent) then return end
+    techScan.sent = true
+    local locs = {}
+    for _, id in ipairs(techScan.report.removed) do
+        local loc = D.shop[id] and D.shop[id].loc            -- (a tech this seed leaves as research has no check)
+        if loc and not ap.checked[loc] then
+            locs[#locs + 1] = loc
+            ap.bought[loc] = true
+        end
+    end
+    if #locs > 0 then
+        sendChecks(locs)
+        notify(#locs .. " shop slot(s) can't be bought (another mod removed their techs): their checks were sent.")
+    end
+end
+
+-- The tech-scan phase: other mods' techs, once per cycle until the player's tech data is there.
+function S.phase()
+    if techScan.report or techScan.tries >= TECH_SCAN_TRIES then return end
+    P.start("scan")
+    local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
+    if td and safe(function() return td:IsValid() end) then scanTechs(td) end
+    P.stop("scan")
+    S.sendRemovedSlots()                           -- (in the update the scan found them)
 end
 
 return S
