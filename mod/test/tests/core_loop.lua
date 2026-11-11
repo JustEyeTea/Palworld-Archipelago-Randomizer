@@ -18,9 +18,9 @@ end)
 group("reconnect does not repeat one-off items", function()
     local MB = require("mailbox")
     h.reconnect("Tester")
-    push("item", "2", tostring(itemId["Wood Bundle"]), "3", "2", "0", "Wood Bundle", "Friend")
-    push("item", "3", tostring(itemId["Tech Points +2"]), "4", "2", "0", "Tech Points +2", "Friend")
-    run(14)
+    pushItem({ name = "Wood Bundle", from = "Friend", index = 2 })
+    pushItem({ name = "Tech Points +2", from = "Friend", index = 3 })
+    runCycles(2)
     expect(#given == 0 and select(2, MB.count()) == 50 and td.TechnologyPoint == 12, "no second Wood Bundle or points")
 end)
 
@@ -72,7 +72,7 @@ group("a bought slot's check is sent again on every connection, and kept in the 
     h.reconnect("Tester")
     run(1)
     expect(checks[loc], "after reconnecting, the purchase's check is sent again")
-    run(14)                                          -- (the save is written once the items are in again)
+    runCycles(2)                                          -- (the save is written once the items are in again)
     local text = h.saveText()
     expect(text:find("bought=[%d,]*" .. loc),
            "the save file keeps the bought slot: " .. (text:match("bought=[^\n]*") or "none"))
@@ -82,7 +82,7 @@ group("still loading into the world", function()
     td.valid = false
     local forEach = unlocked.ForEach
     unlocked.ForEach = function() error("Tried calling a member function but the UObject instance is nullptr") end
-    run(14)
+    runCycles(2)
     td.valid, unlocked.ForEach = true, forEach
     expect(not logged("update error"), "no errors while the player's tech data is not there yet")
 end)
@@ -94,7 +94,7 @@ group("buying a slot: what the cards and the save file say afterwards", function
            "bought, your other items say Received: " .. tostring(shared.passCard.shown.category) .. " / " .. tostring(shared.passCard.shown.name))
     expect(cards[1].shown.name:find("^Sent: "), "other players' items keep the Sent: prefix")
 
-    expect(h.saveText():match("given=7"), "save file records items applied")
+    expect(h.saveText():match("given=" .. (nextItemIndex - 1)), "save file records items applied")   -- (every item so far)
 end)
 
 group("a save file that can't be written is logged, and the player told once", function()
@@ -105,8 +105,8 @@ group("a save file that can't be written is logged, and the player told once", f
         return openWas(path, mode)
     end
     MB.add("Stone", 1)                                        -- something new to save (as the test below does)
-    run(14)
-    run(14)                                                   -- (tried again: the text was never written)
+    runCycles(2)
+    runCycles(2)                                                   -- (tried again: the text was never written)
     io.open = openWas
     local timesTold = 0
     for _, a in ipairs(announced) do if a:find("Can't write the mod's save file", 1, true) then timesTold = timesTold + 1 end end
@@ -117,35 +117,35 @@ end)
 
 group("the save file is written only when it changes", function()
     local MB = require("mailbox")
-    run(14)                                                      -- (the purchase above is saved first: bought=)
+    runCycles(2)                                                      -- (the purchase above is saved first: bought=)
     local writes = saveWrites
-    run(14)
+    runCycles(2)
     expect(saveWrites == writes, "nothing changed: not written again: " .. (saveWrites - writes) .. " write(s)")
     MB.add("Stone", 1)                                           -- mail alone changes (no item index moves)
-    run(7)
+    runCycles(1)
     expect(saveWrites == writes + 1 and h.saveText():find("Stone:1", 1, true),
            "mail that arrives is still saved")
     table.remove(MB.queue)
-    run(7)
+    runCycles(1)
 end)
 
 group("the tech list is compared only when it may have changed", function()
     local reads, forEachTechs = 0, unlocked.ForEach
     unlocked.ForEach = function(self, fn) reads = reads + 1; return forEachTechs(self, fn) end
-    run(14)
+    runCycles(2)
     expect(reads <= 1, "nothing changed: the list is not read on every poll: " .. reads .. " read(s) in 2 polls")
     unlocked.list[#unlocked.list + 1] = FNameOf("PalBox")      -- the game unlocks a shop tech by itself
-    run(7)
+    runCycles(1)
     local relocked = true
     for _, n in ipairs(unlocked.list) do if n:ToString() == "PalBox" then relocked = false end end
     expect(relocked, "a tech the game added is still locked again at the next poll")
-    run(7)
+    runCycles(1)
     local techDataWas = tdAddress
     reads = 0
     newTechData()                                                -- another world's TechnologyData, its list as long
-    run(7)
+    runCycles(1)
     local afterSwitch = reads
-    run(7)
+    runCycles(1)
     expect(afterSwitch == 1 and reads <= 2, "another TechnologyData with a list as long: compared at the next poll ("
            .. afterSwitch .. "), then skipped again (" .. reads .. ")")
     tdAddress = techDataWas

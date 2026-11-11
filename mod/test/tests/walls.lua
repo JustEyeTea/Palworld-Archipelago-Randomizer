@@ -104,21 +104,21 @@ group("area locks", function()
     do
         local stageWas = ps.IsInStage
         ps.IsInStage = function() return true end                  -- a dungeon whose stage sits under that spot
-        run(21)
+        runCycles(3)
         ps.IsInStage = stageWas
         expect(teleported == nil, "a player in a stage is not sent home by where the stage sits on the map")
     end
-    run(21)
+    runCycles(3)
     expect(teleported and teleported.X == liveWalls.home[1], "a player inside a locked area is sent home")
     local sent = false
     for _, t in ipairs(announced) do if t:find("Bamboo Groves is locked") then sent = true end end
     expect(sent, "and told why")
-    push("item", "6", tostring(itemId["Region Pass: Bamboo Groves"]), "1", "1", "1", "Region Pass: Bamboo Groves", "Tester")
+    pushItem({ name = "Region Pass: Bamboo Groves" })
     run(40)
     open["Bamboo Groves"] = true
     teleported = nil
     pawnAt = { X = -312819, Y = 84516, Z = -800 }
-    run(21)
+    runCycles(3)
     expect(teleported == nil, "with its pass, nobody is sent away")
     -- Walking up to a wall between the start and a locked area: chat names the pass.
     local hintAt, hintArea
@@ -137,7 +137,7 @@ group("area locks", function()
     shared.hintAt, shared.hintArea = hintAt, hintArea   -- a spot at a locked wall beside the start, and its area
     local noticesBefore = #announced
     pawnAt = hintAt
-    run(14)
+    runCycles(2)
     local offered
     for i = noticesBefore + 1, #announced do
         if announced[i]:find("needs Region Pass: " .. hintArea, 1, true)
@@ -145,14 +145,14 @@ group("area locks", function()
     end
     expect(offered, "walking up to a wall names its pass and offers a hint, with the points and the cost: " .. tostring(announced[#announced]))
     local count = #announced
-    run(14)
+    runCycles(2)
     expect(#announced == count, "and not again straight away")
     keyBinds["key:H"]()
     expect(said[#said] == "!hint Region Pass: " .. hintArea, "the hint key asks the server: " .. tostring(said[#said]))
     push("message", "[Hint]: Tester's Region Pass: " .. hintArea .. " is at Shop: Foo Stand in Tester's World. (not found)", "Hint")
     run(1)
     expect(announced[#announced]:find("is at Shop: Foo Stand", 1, true), "the server's answer shows in chat")
-    run(420)
+    runPast(WAIT.wallNotice)
     local remembered
     for i = count + 1, #announced do
         if announced[i]:find(hintArea .. " is sealed. Tester's Region Pass: " .. hintArea .. " is at Shop: Foo Stand", 1, true) then remembered = true end
@@ -161,7 +161,7 @@ group("area locks", function()
     -- The finder hears hints too: another player's Region Pass of the same name, sitting in our world, is not ours.
     push("message", "[Hint]: Friend's Region Pass: " .. hintArea .. " is at Shop: Palbox in Tester's World. (not found)", "Hint")
     local count2 = #announced
-    run(420)
+    runPast(WAIT.wallNotice)
     local stillOurs, theirs = false, false
     for i = count2 + 1, #announced do
         if announced[i]:find("sealed. Tester's Region Pass: " .. hintArea, 1, true) then stillOurs = true end
@@ -186,7 +186,7 @@ group("area locks", function()
             end
         end
         local n = #announced
-        pawnAt = at; run(14)
+        pawnAt = at; runCycles(2)
         local short = false
         for i = n + 1, #announced do
             if announced[i]:find("needs Region Pass: " .. tostring(area), 1, true)

@@ -6,7 +6,7 @@ group("Palworld Crates", function()
     local CR = require("crates")
     h.switchSeed("70200", {})                   -- a seed of its own
     local cratesBefore = CR.count()
-    push("item", "0", tostring(itemId["Palworld Crate"]), "1", "1", "1", "Palworld Crate", "Friend")
+    pushItem({ name = "Palworld Crate", from = "Friend" })
     run(20)
     expect(CR.count() == cratesBefore + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
            "a Palworld Crate arrives as one of the five crates, and says which")
@@ -146,7 +146,7 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     -- The defaults (Standard, no Speed Boost): the world's settings are never touched, and a tech is a recipe only.
     h.switchSeed("70012", { ["options.run_style"] = "0", ["options.speed_boost"] = "0" })
     local bows = bagHas.WeakerBow or 0
-    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
+    pushItem({ name = "Tech: Old Bow", from = "Friend" })
     run(40)
     expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1 and (bagHas.WeakerBow or 0) == bows and not logged("nomad:")
            and not warned("Speed Boost"), "defaults: world settings untouched, no warning, no bow handed over")
@@ -167,8 +167,8 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     run(40)
     expect(ws.ExpRate == 3 and optionSub.sets == 0 and #announced == warnings,
            "set again, it stays x3 (not x9), the setter wasn't needed, and the warning isn't repeated")
-    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
-    run(14)
+    pushItem({ name = "Tech: Old Bow", from = "Friend" })
+    runCycles(2)
     expect((bagHas.WeakerBow or 0) == bows, "Standard with Speed Boost: a tech is still a recipe only")
     -- A struct that comes back as a copy (writes don't stick): reported once for that world; the game's setter is never
     -- called from Lua (its struct is bigger than UE4SS Lua's 0x200-byte call buffer: in game that is a crash, not an error).
@@ -185,8 +185,8 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
     h.switchSeed("70016", { ["options.run_style"] = "1", ["options.speed_boost"] = "0" })
     local spheres = mailHas("PalSphere")
-    push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
-    push("item", "1", tostring(itemId["Tech: Pal Sphere"]), "6", "2", "1", "Tech: Pal Sphere", "Friend")
+    pushItem({ name = "Tech: Old Bow", from = "Friend" })
+    pushItem({ name = "Tech: Pal Sphere", from = "Friend" })
     run(40)
     expect((bagHas.WeakerBow or 0) == bows + 1 and logged("nomad: Tech: Old Bow brought"), "Nomad: the Old Bow itself, in the bag")
     expect(mailHas("PalSphere") == spheres + 10, "Nomad: 10 Pal Spheres in the mailbox")
@@ -215,7 +215,7 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     run(40)
     expect(ws.ExpRate == 3 and not newWarning(), "a world just loaded: the speeds change at once, the warning waits")
     pawnAt = { X = atWas.X + 500, Y = atWas.Y, Z = atWas.Z }
-    run(14)
+    runCycles(2)
     expect(newWarning() and logged("held notice%(s%) shown %(the player moved%)"), "and is shown once the player moves")
     pawnAddress, pawnAt = pawnWas, atWas
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"

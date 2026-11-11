@@ -25,8 +25,8 @@ group("errors that repeat every update are logged once each", function()
     MB.on = function() return false end
     BAGM.give = function(id) tries = tries + 1; error(string.format("give boom at 0x%x", 8192 + tries)) end
     h.switchSeed("70031", {})                                  -- a new seed, played in this world
-    push("item", "0", tostring(itemId["Stone Bundle"]), "3", "2", "0", "Stone Bundle", "Friend")
-    run(28)
+    pushItem({ name = "Stone Bundle", from = "Friend" })
+    runCycles(4)
     MB.on, BAGM.give = mailOn, give
     expect(countLoggedText("give boom at") == 1, "a bundle the bag keeps failing on, a new address each time: one line")
 end)
@@ -39,7 +39,7 @@ group("small failures of the core files say so in the log", function()
     writeFile(h.saveFile("70032", "Other"), "given=-1\nfrobnicate=1\nend\n")
     slotData.seed = "70032"
     push("status", "connected", "Other")
-    run(14)
+    runCycles(2)
     expect(logged("save .*: a line no part of the mod reads, left out: frobnicate="),
            "a save line nothing reads is logged")
 end)
@@ -71,11 +71,11 @@ group("a filler item with no effect known", function()
     DATA.items[987654] = { name = "Mystery Filler", kind = "filler" }   -- (from a newer APWorld)
     slotData.seed = "70033"
     push("status", "connected", "Other")
-    run(14)
+    runCycles(2)
     keyBinds[Key.H]()
-    run(7)
-    push("item", "0", "987654", "3", "0", "0", "Mystery Filler", "Friend")
-    run(14)
+    runCycles(1)
+    pushItem({ name = "Mystery Filler", from = "Friend", index = 0, id = 987654 })
+    runCycles(2)
     DATA.items[987654] = nil
     expect(logged("item Mystery Filler: no effect known to this version of the mod, nothing given"),
            "a filler item whose name matches no effect is logged, not counted as given in silence")

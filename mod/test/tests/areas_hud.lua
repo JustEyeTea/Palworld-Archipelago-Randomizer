@@ -14,7 +14,7 @@ group("Lock Size: areas", function()
            and liveWalls.passName("Golden Hills") == "Area Pass: Golden Hills", "a 75-areas seed: the areas' walls and passes")
     local up = wallCount()
     expect(up > 1000 and up <= #RD.walls, "the 75 areas' walls go up (the 15 regions' came down): " .. up)
-    push("item", "9000", tostring(itemId["Area Pass: Golden Hills"]), "1", "1", "1", "Area Pass: Golden Hills", "Tester")
+    pushItem({ name = "Area Pass: Golden Hills", index = 9000 })
     run(60)
     expect(wallCount() < up, "an Area Pass takes its area's walls down: " .. up .. " -> " .. wallCount())
     expect(liveWalls.parentOf("Golden Hills") == "Bamboo Groves" and liveWalls.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
@@ -48,7 +48,7 @@ group("areas beyond the goal", function()
     local up = wallCount()
     local noticesBefore = #announced
     pawnAt = shared.hintAt
-    run(420)
+    runPast(WAIT.wallNotice)
     local toldBeyond, offered = false, false
     for i = noticesBefore + 1, #announced do
         if announced[i]:find(shared.hintArea .. " is beyond this seed's goal: its walls stay up.", 1, true) then toldBeyond = true end
@@ -89,6 +89,7 @@ group("area-coloured walls and the hint pop-up", function()
             run(1)
         end
     end
+    local skinAt = logMark()
     liveWalls.setSkin(nil); run(3)
     -- An area beside the start still locked (the open-beyond test above opened the hint test's area), and a spot on
     -- the start's side of one of its walls.
@@ -108,7 +109,7 @@ group("area-coloured walls and the hint pop-up", function()
     local popupArea, popupAt = area, at   -- (another wall: the one above was opened)
     local want = popupArea and liveWalls.linearOf(liveWalls.AREA_COLOURS[popupArea])
     expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes" and h.sameColour(piece.Cube.mat.vectors.Color, want)
-           and logged("wall skin area: colours "), "by default a wall wears the paw holes in the colour of the area it keeps you out of")
+           and loggedSince(skinAt, "wall skin area: colours "), "by default a wall wears the paw holes in the colour of the area it keeps you out of")
     -- The hint pop-up at that wall: centred, a little transparent, gone after 6 s.
     pawnAt = popupAt
     local box = popupAfter(#hudKids)
@@ -121,7 +122,7 @@ group("area-coloured walls and the hint pop-up", function()
            and over.children[3].text == "Not enough points for a hint: 3 of 121" and over.children[4] and over.children[4].width == 9,
            "on the not-enough-points plate, with its two lines and the bar: "
            .. tostring(over and over.children[3] and over.children[3].text))
-    run(21)
+    runCycles(3)
     expect(box and box.removed, "and goes away after 6 s")
     -- Beyond the goal: the sealed walls (slate grey; the sealed pattern when its file is found) and the pop-up says so.
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = popupArea, "0"
@@ -151,7 +152,7 @@ group("area-coloured walls and the hint pop-up", function()
     end
     local colourOf = function(area) return liveWalls.linearOf(liveWalls.AREA_COLOURS[area]) end
     local colourBefore = between and between.Cube.mat.vectors.Color
-    push("item", "9300", tostring(itemId["Region Pass: " .. tostring(a1)]), "1", "1", "1", "Region Pass: " .. tostring(a1), "Tester")
+    pushItem({ name = "Region Pass: " .. tostring(a1), index = 9300 })
     run(80)
     expect(between and (h.sameColour(colourBefore, colourOf(a1)) or h.sameColour(colourBefore, colourOf(a2))) and h.sameColour(between.Cube.mat.vectors.Color, colourOf(a2))
            and not between.gone, "a piece between " .. tostring(a1) .. " and " .. tostring(a2) .. " turns to "

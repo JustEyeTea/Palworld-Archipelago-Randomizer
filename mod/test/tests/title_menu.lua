@@ -196,7 +196,7 @@ group("the title menu's Archipelago menu", function()
     expect(not io.open(MOD .. "/config.txt"):read("*a"):find("archipelago.gg,", 1, true), "archipelago.gg is not saved: it is always there")
     -- A slot the server refuses: what is in memory is still Other's, and is saved as Other's, not under the refused name.
     MB.add("Wood", 10)
-    run(7)
+    runCycles(1)
     click(openBtn); run(1)
     typeInto(R.slot, "Typo"); typeInto(R.password, "")
     run(1)
@@ -219,8 +219,10 @@ group("the title menu's Archipelago menu", function()
     typeInto(R.server, "72.60.29.30")
     run(1)
     local cb = #connects
+    local backAt = logMark()
     click(btn(R.back)); run(1)
-    expect(gameButtonWrap.vis == 0 and #connects == cb and logged("Archipelago menu closed"), "Back: the game's buttons again, nothing connected")
+    expect(gameButtonWrap.vis == 0 and #connects == cb and loggedSince(backAt, "Archipelago menu closed"),
+           "Back: the game's buttons again, nothing connected")
     -- dev.36 ("It would be nice if we could hit 'ESC' to back out of that Archipelago Menu"): Esc does what Back does.
     click(openBtn); run(1)
     typeInto(R.server, "10.0.0.9")

@@ -138,17 +138,17 @@ if PERF then
         keyBinds["key:SEVEN"]()
         expect(inState(false, false) == full and inState(true, true) == 0, "nocoll: shown again, collision off")
         teleported, pawnAt = nil, deep
-        run(21)
+        runCycles(3)
         expect(deep and teleported == nil, "nobody is sent home while the walls are held")
         keyBinds["key:SEVEN"]()
         expect(liveWalls.count() == 0 and inState(false, false) == 0 and logged("ab walls hidden%->nocoll interrupted"),
                "none: every piece removed at once (a switch within 13 s says so)")
-        run(21)
+        runCycles(3)
         expect(liveWalls.count() == 0 and teleported == nil, "and nothing is raised again while held")
         keyBinds["key:SEVEN"]()
         run(60)
         expect(liveWalls.count() == full and logged("%[perf%] walls full again: " .. full .. " raised"), "full: every piece raised again by the normal path: " .. liveWalls.count())
-        run(21)
+        runCycles(3)
         expect(teleported ~= nil, "and the send-home check is back")
         teleported = nil
 

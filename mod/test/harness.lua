@@ -33,12 +33,16 @@
 --   1. Find its group and add the test at its end, or add a group at the end of its file. The groups run in the
 --      order above, and each starts from the state the ones before it left (the seed, the save file, the items
 --      received, the world), so a test put in the middle can break a later one.
---   2. Set the scene through the stand-ins (a new one goes in fakes.lua, beside the lookup that returns it), send
---      the connector's events with push(...), and move time with run(updates):
---          push("item", "3", tostring(itemId["Tech Points +2"]), "4", "2", "0", "Tech Points +2", "Friend")
---          run(14)
---   3. expect(cond, "what should be true: " .. tostring(value)): the value in the message says what a FAIL saw.
---   4. Run tools/lua_harness.sh and judge it by its exit code. Read the first FAIL line first: it names the group,
+--   2. Set the scene through the stand-ins: a switch in game (game.mapOpen = true), a world helper (inWorld(true),
+--      newPawn()), or a field of a fake. A new stand-in goes in the fakes, beside the lookup that returns it.
+--   3. Send the connector's events (pushItem, pushScout, trap, push) and move time (run, runCycles, runSeconds,
+--      runPast(WAIT.<wait>)):
+--          local mark = logMark()
+--          pushItem({ name = "Tech Points +2", from = "Friend" })
+--          runCycles(2)
+--   4. expect(cond, "what should be true: " .. tostring(value)): the value in the message says what a FAIL saw. Ask
+--      the log about this step with loggedSince(mark, pattern); logged(pattern) looks at the whole run.
+--   5. Run tools/lua_harness.sh and judge it by its exit code. Read the first FAIL line first: it names the group,
 --      the file and the line; later failures are often the state it left behind.
 -- A group's body is a function, so its locals end with it; a value a later group needs goes in the table shared.
 -- Group bodies are long, as a playthrough is: they are scripts of steps, and the 40-line rule is not kept there.
@@ -92,31 +96,121 @@ shared = {}
 
 dofile(HARNESS_DIR .. "fakes.lua")
 
--- The connector's events: push appends one line, tab-separated, as the connector's AP_Poll hands them over.
+-- Time. One update is UPDATE_MS (util.lua); the core's heavier work runs over a cycle of CYCLE updates, and its
+-- waits are clock.lua's WAIT, counted in updates.
+UPDATE_SECONDS = require("util").UPDATE_MS / 1000
+CYCLE = require("clock").CYCLE
+WAIT = require("clock").WAIT
+local FRAMES_PER_UPDATE = 20         -- engine frames in one update: the probe reads 66.7 frames a second
+local PAST_A_WAIT = 20               -- updates run past a wait, so that it is surely over
+-- Moves time on by `updates` updates: each moves the clocks and runs the mod's core update.
+function run(updates)
+    for _ = 1, updates do
+        clock, frameCount = clock + UPDATE_SECONDS, frameCount + FRAMES_PER_UPDATE
+        gameSeconds = gameSeconds + UPDATE_SECONDS
+        loop()
+        runExtraLoops()
+    end
+end
+-- Any loop other than the core update (none today: the mod registers one; LoopAsync would list another here) runs
+-- until it returns true.
+local EXTRA_LOOP_TURNS = 10          -- turns of another loop in one update
+function runExtraLoops()
+    for i = #extraLoops, 1, -1 do
+        for _ = 1, EXTRA_LOOP_TURNS do
+            if extraLoops[i] and extraLoops[i]() then
+                table.remove(extraLoops, i)
+                break
+            end
+        end
+    end
+end
+-- Moves time on by `n` cycles of the core's phases (CYCLE updates each).
+function runCycles(n)
+    run(n * CYCLE)
+end
+-- Moves time on by about `seconds`, in whole updates (util.lua's updates()).
+function runSeconds(seconds)
+    run(require("util").updates(seconds))
+end
+-- Moves time on just past one of clock.lua's waits (WAIT.wallNotice ...).
+function runPast(wait)
+    run(wait + PAST_A_WAIT)
+end
+
+-- The connector's events, as AP_Poll hands them over: one line per event, its fields joined by tabs. The kinds,
+-- their fields and their order are defined in cppmod/APConnector/src/ap_bridge.hpp (take_events), and built in
+-- event_lines.cpp:
+--     status   <state> [detail]
+--     item     <index> <item id> <location id> <player number> <flags> <item name> <player name>
+--     scout    <location id> <item id> <player number> <flags> <item name> <player name> <game>
+--     checked  <location id>
+--     message  <text> <type>
+--     bounce   <tags> <json>
+-- push(kind, ...) takes the fields in that order; pushItem and pushScout fill them in by name.
 itemHistory = {}                                             -- every item sent, as the server sends them all again
 function push(...)
     events[#events + 1] = table.concat({ ... }, "\t")
     if select(1, ...) == "item" then itemHistory[#itemHistory + 1] = events[#events] end
 end
--- Moves time on: each update is 0.3 s and 20 engine frames, and runs the mod's core update.
-function run(ticks)
-    for _ = 1, ticks do
-        clock, frameCount = clock + 0.3, frameCount + 20
-        gameSeconds = gameSeconds + 0.3
-        loop()
-        for i = #extraLoops, 1, -1 do                     -- other loops (the walls sinking) end by returning true
-            for _ = 1, 10 do
-                if extraLoops[i] and extraLoops[i]() then table.remove(extraLoops, i); break end
-            end
-        end
-    end
+-- Archipelago's item flags (ap_bridge.hpp: 1 progression, 2 useful, 4 trap; filler has none).
+FLAG = { filler = "0", progression = "1", useful = "2", trap = "4" }
+local PLAYER_NUMBER = { Tester = "1" }                     -- the player's own number; everyone else's is OTHER_PLAYER
+local OTHER_PLAYER = "2"
+local SOME_LOCATION = 1                                      -- where an item was found: the mod does not read it
+nextItemIndex = 0                    -- the index this seed's next item gets (h.switchSeed starts a seed at 0)
+-- An item's flags by its kind in the mod's data: a trap, filler, or (a tech, a pass, a relic ...) progression.
+local function flagsOf(id)
+    local kind = D.items[id] and D.items[id].kind
+    if kind == "trap" then return FLAG.trap end
+    if kind == "filler" then return FLAG.filler end
+    return FLAG.progression
 end
+-- One item the server sends: { name =, from = (its sender; Tester if not given), index = (this seed's next if not
+-- given), id = (by its name if not given) }. Returns its index.
+function pushItem(item)
+    local index = item.index or nextItemIndex
+    nextItemIndex = math.max(nextItemIndex, index + 1)
+    local from = item.from or "Tester"
+    local id = item.id or itemId[item.name]
+    push("item", tostring(index), tostring(id), tostring(SOME_LOCATION), PLAYER_NUMBER[from] or OTHER_PLAYER,
+         flagsOf(id), item.name, from)
+    return index
+end
+-- A trap the server sends, from `from` (the player's own if not given). Returns its index: its log lines say
+-- "trap #<index>".
+function trap(name, from)
+    return pushItem({ name = name, from = from })
+end
+-- What a location holds, as a scout answers: { location =, name = (the item), from = (whose item; Tester if not
+-- given), game = (Palworld if not given), id = and flags = (by the item's name, for one of this game) }.
+function pushScout(scout)
+    local from = scout.from or "Tester"
+    local id = scout.id or itemId[scout.name]
+    push("scout", tostring(scout.location), tostring(id), PLAYER_NUMBER[from] or OTHER_PLAYER,
+         scout.flags or flagsOf(id), scout.name, from, scout.game or "Palworld")
+end
+
 -- Everything printed (the mod's log, the titles, the results), in order.
 printed = {}
 local realPrint = print
 print = function(s) printed[#printed + 1] = tostring(s); realPrint(s) end
--- Whether any line printed so far in the whole run matches the pattern.
-function logged(pattern) for _, l in ipairs(printed) do if l:find(pattern) then return true end end end
+-- Whether any line printed so far IN THE WHOLE RUN matches the pattern. A line an earlier test already caused makes
+-- it true whatever the mod does now: to test one step, take logMark() before it and ask loggedSince(mark, pattern).
+function logged(pattern)
+    return loggedSince(0, pattern)
+end
+-- A mark in the log: what is printed after it is what loggedSince looks at.
+function logMark()
+    return #printed
+end
+-- Whether a line printed after the mark matches the pattern.
+function loggedSince(mark, pattern)
+    for i = mark + 1, #printed do
+        if printed[i]:find(pattern) then return true end
+    end
+    return false
+end
 -- How many lines printed so far in the whole run match the pattern.
 function countLogged(pattern)
     local n = 0

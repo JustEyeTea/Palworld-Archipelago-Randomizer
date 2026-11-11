@@ -89,7 +89,7 @@ group("the mailbox", function()
     run(1)
     expect(slots[2]:IsEmpty() and bagHas.Sword == 2, "a second piece of gear in the same slot goes back too")
     expect(table.concat(announced, "|"):find("The mailbox only hands items out: Wood went back to your bag.", 1, true), "and the player is told")
-    push("item", "8", tostring(itemId["Stone Bundle"]), "9", "2", "0", "Stone Bundle", "Friend")   -- arrives meanwhile
+    pushItem({ name = "Stone Bundle", from = "Friend" })   -- arrives meanwhile
     run(8)                                                     -- (bundles are applied every 7th update)
     expect(slots[2].ItemId.StaticId:ToString() == "Stone" and slots[2].StackCount == 50, "what arrives while it is open shows at once")
     -- Gear put into the first empty slot goes back by the game's move, and an item arrives in the same update: it takes

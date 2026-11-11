@@ -70,7 +70,10 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local opening = {}
         for _, a in ipairs(mine()) do if a.shrunkTo then opening[#opening + 1] = a end end
         W.reset()                                                 -- the core: the pawn read nil, then came back
-        for _ = 1, 20 do gameSeconds = gameSeconds + 0.3; W.update(true, passes, offMap) end
+        for _ = 1, 20 do
+            gameSeconds = gameSeconds + UPDATE_SECONDS
+            W.update(true, passes, offMap)
+        end
         local stillUp = 0
         for _, a in ipairs(opening) do if not a.gone then stillUp = stillUp + 1 end end
         expect(#opening > 0 and stillUp == 0,
@@ -87,7 +90,10 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         h.wallsGo(old)
         W.reset()                                                 -- the core, on the new world's pawn
-        for _ = 1, 3 do gameSeconds = gameSeconds + 0.3; W.update(true, passes, offMap) end
+        for _ = 1, 3 do
+            gameSeconds = gameSeconds + UPDATE_SECONDS
+            W.update(true, passes, offMap)
+        end
         expect(openingNow > 0 and calls == 0,
                "after a world change no wall of the world that went is called: " .. calls .. " calls on " .. #old
                .. " old walls, " .. openingNow .. " of them opening")

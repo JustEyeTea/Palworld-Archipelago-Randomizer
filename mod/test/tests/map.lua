@@ -32,7 +32,7 @@ group("the world map", function()
     local lockedFirst = composeJobs[jobs0].locked
     expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
            "locked areas passed by index: " .. lockedFirst)
-    push("item", "7", tostring(itemId["Region Pass: Marsh Island"]), "1", "1", "1", "Region Pass: Marsh Island", "Tester")
+    pushItem({ name = "Region Pass: Marsh Island" })
     run(3)
     expect(#composeJobs == jobs0 + 1 and select(2, composeJobs[jobs0 + 1].locked:gsub(",", "")) == 11, "a pass recomposes with one fewer")
     run(3)
@@ -289,8 +289,10 @@ group("the world map", function()
                "unlocked areas not yet visited get an open stamp: " .. tostring(newest.tex.path))
         W9.visited[area4] = true
         count = #mapBody.icons
+        local standing = logMark()
         for _ = 1, 3 do W9.updateMap(true, { [area4] = true, [area5] = true }, pawn) end
-        expect(#mapBody.icons == count + nLocked - 1 and logged("1 open not yet visited"), "once stood in, its open stamp goes")
+        expect(#mapBody.icons == count + nLocked - 1 and loggedSince(standing, "1 open not yet visited"),
+               "once stood in, its open stamp goes")
         os.remove(openArt)
         -- The icons failing (here: the screen without the function): the stamps are drawn into the picture again.
         mapBody.icons = {}

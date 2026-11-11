@@ -65,6 +65,7 @@ function h.switchSeed(seed, changes)
     for k, v in pairs(SLOT_DATA_START) do slotData[k] = v end
     for k, v in pairs(changes) do slotData[k] = v end
     slotData.seed = seed
+    nextItemIndex = 0
     push("status", "connected", "Other")
     run(14)
     keyBinds[Key.H]()
