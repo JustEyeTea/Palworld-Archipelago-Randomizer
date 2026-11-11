@@ -72,7 +72,8 @@ end
 WORLD.NOT_SEED_WORLD = "This is not the world this Archipelago seed is played in"
 
 -- Which world save is loaded: the game instance's selected world folder (PalGameInstance, a pure UFunction returning
--- an FString). Untested from Lua: its first answer is logged. Nil when it can't be read.
+-- an FString), or nil when it can't be read. Untested in game: what the call answers from Lua; its first answer is
+-- logged.
 local function worldId()
     local gi = FindFirstOf("PalGameInstance")
     if not gi or not gi:IsValid() then return nil end

@@ -60,9 +60,11 @@ end
 -- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer does not faint the player at all (seen in a playtest).
 -- So, in order, each tried until one works, and the one that worked kept for the session (death.route):
 --   1. "poison": lethal slip damage through the player's own damage component (SlipDamage, EPalDeadType Poison 5,
---      shield ignored and cleared), an ordinary death to the game, so its Death Penalty should apply. UNTESTED.
+--      shield ignored and cleared), an ordinary death to the game, so its Death Penalty should apply. Untested in
+--      game: whether it faints the player and the Death Penalty applies.
 --   2. "penalty drop": the Death Penalty manager's own DropDeathPenaltyChest(player) (the bag on the ground), then the
---      self-kill; skipped when the world's Death Penalty is None (the drop might not check it itself). UNTESTED.
+--      self-kill; skipped when the world's Death Penalty is None (the drop might not check it itself). Untested in
+--      game: whether the bag is dropped.
 --   3. "self-kill": nothing dropped, but the death is never lost.
 -- A route that ran without error is checked at the next run (~2 s): still alive means it failed, and the next is tried.
 local function deathPenalty(ps)                       -- the world's EPalOptionWorldDeathPenalty (0 None), or nil

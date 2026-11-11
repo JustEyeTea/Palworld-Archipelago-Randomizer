@@ -132,8 +132,8 @@ end
 -- State: forgotten never; looked up again when it is no longer valid.
 local keptBy = nil         -- the game instance: objects in its ReferencedObjects are not freed while the game runs
 -- Keeps obj alive in place `index` of ReferencedObjects, in place of what was kept there, so a picture that is made
--- again and again keeps one place, not one more each time. Nothing is removed from the list: that is untested from
--- Lua. With no place yet (nil, past the list's end, or in the list of a game instance found before) obj goes at the
+-- again and again keeps one place, not one more each time. Nothing is removed from the list (removing from it is
+-- untested in game). With no place yet (nil, past the list's end, or in the list of a game instance found before) obj goes at the
 -- end. Returns its place.
 function UTIL.keepInPlace(index, obj)
     local gi = UTIL.gameInstance()                 -- (it says when it had to take a plain GameInstance)

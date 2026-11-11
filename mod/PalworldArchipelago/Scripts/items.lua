@@ -62,7 +62,7 @@ local function giveBundle(_, it)
         if MAIL.on() then
             MAIL.add(bundle.id, bundle.n)
         else
-            -- Counted and logged as the mailbox does (what a full bag answers is untested). A bundle is one stack.
+            -- Counted and logged as the mailbox does (see giveToBag). A bundle is one stack.
             local got = giveToBag(bundle.id, bundle.n)
             if got == 0 then return false end
             if got < bundle.n then

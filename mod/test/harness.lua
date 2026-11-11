@@ -357,9 +357,9 @@ RegisterHook = function(path, fn, post)
     hooks[path], postHooks[path] = fn, post
 end
 loopIntervals = {}                                           -- (global) every interval the mod gave LoopAsync, in ms
-LoopAsync = function(ms, fn)                                 -- 300 ms (UTIL.UPDATE_MS): the core update
+LoopAsync = function(ms, fn)                                 -- UTIL.UPDATE_MS: the core update
     loopIntervals[#loopIntervals + 1] = ms
-    if ms == 300 then loop = fn else extraLoops[#extraLoops + 1] = fn end
+    if ms == require("util").UPDATE_MS then loop = fn else extraLoops[#extraLoops + 1] = fn end
 end
 ExecuteInGameThread = function(fn) fn() end
 ExecuteWithDelay = function() error("the mod must never call ExecuteWithDelay: its callback runs off the game thread") end
