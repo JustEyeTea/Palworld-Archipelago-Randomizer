@@ -199,7 +199,9 @@ Lua in UE4SS can't open network connections, so `cppmod/APConnector` does it.
 - The Lua mod calls `AP_Poll()` every 300 ms on the game thread and acts on each line; it sends checks with
   `AP_Check`. Nothing on the bridge's thread touches the game or Lua.
 - When the server drops, apclientpp reconnects by itself, and the bridge joins the slot again when the server sends
-  `RoomInfo`; `main.lua` then re-reads the slot data and sends every check again.
+  `RoomInfo`; `main.lua` then re-reads the slot data and sends every check again: the ones read from the game's
+  records at the next records phase, the ones it sent itself (purchases, removed slots: `ap.bought`) at once, and
+  the goal.
 - Beside the mod: `client_uuid.txt` (one id per installation, so the server recognises the client) and `cacert.pem`
   (trusted certificates for `wss://`).
 
@@ -253,7 +255,8 @@ follow as the tour reaches them).
   `onItem`, `onScout`, ...), whose parameters name the line's fields in the order `ap_bridge.hpp` sends them.
   "Connected" reads the seed's setup from slot data (`onConnected`, `applySeedOptions`).
 - **A seed belongs to one world**, the first one it is played in (`checkWorld`, `world=` in the save). In any other
-  world nothing is locked, sent or given.
+  world nothing is locked, sent or given. A first world that already has shop techs researched is tied only after
+  the player presses the hint key (`tieWorld`), since tying it locks those techs again.
 - **The update** (`update()`) runs every 300 ms on the game thread. Every update it reads the server's events,
   updates the menus, mailbox, shop cards, walls and map. The heavier work is spread over a cycle of 7 updates
   (`PHASE`): records and checks, the other mods' tech scan, items and Death Link, visited areas, the wall's notice.

@@ -618,6 +618,20 @@ push("scout", tostring(D.shop.Product_Cooking_Grade_01.loc), tostring(itemId["Wo
 push("scout", tostring(D.shop.Special_PalSphere_Grade_01.loc), tostring(itemId["Region Pass: Feybreak"]), "1", "1", "Region Pass: Feybreak", "Tester", "Palworld")
 push("checked", tostring(D.shop.Wooden_houseset.loc))
 run(14)
+;(function()
+    print("a world with researched shop techs is not taken over without a yes")
+    local still = {}
+    unlocked:ForEach(function(_, e) still[e:get():ToString()] = true end)
+    expect(still.PalBox and not checks[D.levels[2]] and td.TechnologyPoint == 10,
+           "while asking, nothing is locked, sent or given")
+    expect(table.concat(announced, "|"):find("This world already has progress: 1 researched tech", 1, true)
+           and table.concat(announced, "|"):find("press H to play the seed here anyway", 1, true),
+           "the player is told what would happen, and which key says yes")
+    keyBinds[Key.H]()                                   -- the player says yes
+    run(14)
+    expect(logged("world: the player said yes") and logged("world: this seed is played in world AP_WORLD"),
+           "after the yes, the seed is tied to the world")
+end)()
 local have = {}
 unlocked:ForEach(function(_, e) have[e:get():ToString()] = true end)
 expect(have.Workbench, "level-1 tech kept")
@@ -3027,6 +3041,8 @@ local function newSeed(seed, extra)
     for k, v in pairs(extra) do slotData[k] = v end
     push("status", "connected", "Other")
     run(14)
+    keyBinds[Key.H]()             -- the world already has progress: the player says yes to playing this seed in it
+    run(14)
 end
 local relic = tostring(itemId["Palpagos Relic"])
 newSeed("70001", { ["options.goal"] = "1", relics_needed = "2", relics = "3" })
@@ -3618,6 +3634,8 @@ end)()
     slotData.seed = "70200"                     -- a seed of its own (as newSeed in the goals tests)
     push("status", "connected", "Other")
     run(14)
+    keyBinds[Key.H]()                           -- yes to playing it in this world, which has progress
+    run(14)
     local before = CR.count()
     push("item", "0", tostring(itemId["Palworld Crate"]), "1", "1", "1", "Palworld Crate", "Friend")
     run(20)
@@ -3734,6 +3752,8 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
         slotData.seed = seed
         for k, v in pairs(extra) do slotData[k] = v end
         push("status", "connected", "Other")
+        run(14)
+        keyBinds[Key.H]()         -- the world already has progress: the player says yes to playing this seed in it
         run(14)
     end
     -- The defaults (Standard, no Speed Boost): the world's settings are never touched, and a tech is a recipe only.

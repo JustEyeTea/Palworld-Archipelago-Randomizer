@@ -121,6 +121,8 @@ if type(AP_Connect) ~= "function" then
     return
 end
 local cfg = readConfig()
+-- The key that asks for a hint at a sealed wall, and says yes to tying a seed to a world with progress.
+local HINT_KEY = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper()
 -- The performance probe (perf_log=1; perf.lua). Installed before any hook is registered, so it counts them all.
 local P = require("perf")
 P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = function(mode) WALLS.perfMode(mode) end,
@@ -453,16 +455,50 @@ end
 -- connects at every start, whatever world is loaded next; in any other world nothing is locked, sent, given or
 -- linked, or a vanilla world would have its techs relocked and its records sent as checks. If the world can't be told,
 -- the seed is not tied to one (logged above).
+-- A world that already has shop techs researched is tied only after the player says yes (the hint key): tying it
+-- locks those techs again, and the points spent on them do not come back.
 local seedWorld = nil         -- whether the world loaded now is the seed's; nil until looked at
-local function checkWorld()
+local worldAsk = nil          -- { id = world folder, yes = pressed }: a world with progress, asked about
+-- The researched techs of the loaded world that tying a seed to it would lock (nil: not readable yet).
+local function techsToRelock(ps)
+    local ok, names = pcall(function()
+        local td = ps:GetTechnologyData()
+        if not td or not td:IsValid() then error("no tech data yet") end
+        return arrayNames(td.UnlockedTechnologyNameArray)
+    end)
+    if not ok then return nil end
+    local relock = 0
+    for _, n in ipairs(names) do
+        if D.shop[n] and not ap.techs[n] then relock = relock + 1 end
+    end
+    return relock
+end
+-- Ties the seed to the loaded world when the world is new, or the player said yes. False while asking.
+local function tieWorld(ps, id)
+    if not (worldAsk and worldAsk.id == id and worldAsk.yes) then
+        local relock = techsToRelock(ps)
+        if not relock then return false end
+        if relock > 0 then
+            if not (worldAsk and worldAsk.id == id) then
+                worldAsk = { id = id, yes = false }
+                log("world: " .. id .. " has " .. relock .. " researched shop tech(s); asking before tying the seed to it")
+                notify("This world already has progress: " .. relock .. " researched tech(s) would be locked again"
+                    .. " and its records sent as checks. Load a new world for this seed, or press " .. HINT_KEY
+                    .. " to play the seed here anyway.")
+            end
+            return false
+        end
+    end
+    worldAsk = nil
+    ap.world = id
+    writeSave()
+    log("world: this seed is played in world " .. id)
+    return true
+end
+local function checkWorld(ps)
     local id = worldId()
     if not id then return true end
-    if not ap.world then
-        ap.world = id
-        writeSave()
-        log("world: this seed is played in world " .. id)
-        return true
-    end
+    if not ap.world then return tieWorld(ps, id) end
     if id == ap.world then return true end
     if seedWorld ~= false then
         log("world: " .. id .. " is not this seed's world (" .. ap.world .. "): nothing is locked, sent or given here"
@@ -1130,7 +1166,7 @@ local tick = 0
 local function isPhase(phase) return tick % CYCLE == phase end
 local preloaded = false
 local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
-                key = ((cfg.hint_key or ""):match("^%s*(%w+)%s*$") or "H"):upper() }
+                key = HINT_KEY }
 local wallsLogged = false
 local death = { on = false, wasDead = false, incoming = nil, at = nil, caused = nil, pending = nil, route = 1 }
 local lockedTicks = 0
@@ -1253,7 +1289,7 @@ local function resetSeed()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
     ap.goalShown = false
     goalWait = nil
-    ap.world, seedWorld = nil, nil
+    ap.world, seedWorld, worldAsk = nil, nil, nil
     ap.from, ap.forgiven = {}, 0
     ap.visited = {}
     WALLS.visited = ap.visited
@@ -1468,6 +1504,11 @@ local function askHint()
 end
 -- Key binds run off the game thread: they only hand over a function made here, once (no new function there).
 local function hintKey()
+    if worldAsk and not worldAsk.yes then
+        worldAsk.yes = true
+        log("world: the player said yes to playing this seed in " .. worldAsk.id)
+        return
+    end
     local ok, err = pcall(askHint)
     if not ok then log("hint error: " .. tostring(err)) end
 end
@@ -1704,6 +1745,7 @@ end
 local function noteWorldChange(world)
     wallsWorld, worldTicks = world, 0
     seedWorld = nil                                -- looked at again (records phase) before any wall goes up
+    worldAsk = nil                                 -- (a yes is for the world it was asked in)
     POPUP.forget()                                 -- (the pop-up or goal banner went with the old world's HUD)
     WALLS.reset()
     techsSeen = nil                                -- another world's tech list: compare it in full
@@ -1800,7 +1842,7 @@ local function phaseRecords()
     -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
     local okk, errk = pcall(TRAPS.tick, { tick = tick, pawn = pawn })
     if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
-    if ps and ap.ready then seedWorld = checkWorld() end
+    if ps and ap.ready then seedWorld = checkWorld(ps) end
     if ps and ap.ready and seedWorld then
         P.start("rec")
         pollRecords(ps, tick)
