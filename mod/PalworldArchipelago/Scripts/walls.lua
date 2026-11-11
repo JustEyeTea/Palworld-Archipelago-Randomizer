@@ -46,7 +46,7 @@ function W.setVisited(set)
     W.visited = set
 end
 
-local AREAS = freshPart("areas")
+local AREAS = freshPart("locks")
 AREAS.install(W)
 local WALL_SKINS = freshPart("wall_skins")
 local MAP_PICTURE = freshPart("map_picture")
