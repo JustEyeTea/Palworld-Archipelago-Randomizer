@@ -3912,6 +3912,29 @@ end)()
     MB.chestWidget, CR.list = savedWidget, savedList
     run(1)
 end)()
+;(function()   -- a text whose font can't be set is scaled to its size instead, and that is said once
+    local CR, MB = require("crates"), require("mailbox")
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function canvas:AddChildToCanvas(w)
+        w.RemoveFromParent = function() end
+        return { SetAnchors = function() end, SetAlignment = function() end, SetPosition = function() end,
+                 SetAutoSize = function() end, SetZOrder = function() end }
+    end
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedWidget, savedList, construct = MB.chestWidget, CR.list, StaticConstructObject
+    StaticConstructObject = function(class, owner)
+        local made = construct(class, owner)
+        made.SetFont = nil                                          -- no font setter, as a different engine build
+        return made
+    end
+    MB.chestWidget = function() return chestWin end
+    CR.list = { "food" }
+    run(1)
+    StaticConstructObject = construct
+    expect(logged("widgets: text sizes: scaled, as a text's font could not be set"), "the fallback is logged")
+    MB.chestWidget, CR.list = savedWidget, savedList
+    run(1)
+end)()
 print("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning")
 ;(function()
     local MB = require("mailbox")

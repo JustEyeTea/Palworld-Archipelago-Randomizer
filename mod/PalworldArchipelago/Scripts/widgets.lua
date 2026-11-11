@@ -50,6 +50,7 @@ function WIDGETS.text(owner, words, size, colour)
         block:SetFont(font)
     end)
     if not sized then
+        UTIL.took("widgets: text sizes", "scaled, as a text's font could not be set")
         pcall(function()
             block:SetRenderTransformPivot({ X = 0, Y = 0 })
             block:SetRenderScale({ X = size / DEFAULT_FONT_SIZE, Y = size / DEFAULT_FONT_SIZE })
