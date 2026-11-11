@@ -136,11 +136,11 @@ local keptBy = nil         -- the game instance: objects in its ReferencedObject
 -- Lua. With no place yet (nil, past the list's end, or in the list of a game instance found before) obj goes at the
 -- end. Returns its place.
 function UTIL.keepInPlace(index, obj)
-    if not (keptBy and keptBy:IsValid()) then
-        keptBy = FindFirstOf("PalGameInstance") or FindFirstOf("GameInstance")
+    local gi = UTIL.gameInstance()                 -- (it says when it had to take a plain GameInstance)
+    if gi ~= keptBy then
+        keptBy = gi
         index = nil
     end
-    local gi = keptBy
     local ok, at = pcall(function()
         local arr = gi.ReferencedObjects
         local n = arr:GetArrayNum()
@@ -149,7 +149,7 @@ function UTIL.keepInPlace(index, obj)
         return place
     end)
     if not ok then
-        once("keep", "could not keep a texture alive: " .. tostring(at))
+        UTIL.once("keep", "could not keep a texture alive: " .. tostring(at))
         return index
     end
     return at

@@ -4880,6 +4880,28 @@ end)()
            "a save line nothing reads is logged")
 end)()
 ;(function()
+    print("fallbacks of the core files say which branch they took")
+    expect(logged("the seed's goal: towers") and logged("the seed's goal: relic_hunt"),
+           "the seed's goal is logged when the mod connects")
+    expect(logged("cards: a card's picture: the tech's own icon") and logged("cards: a card's picture: the mod's"),
+           "where a card's picture came from is logged, once a source")
+    local findFirst, giValid = FindFirstOf, gameInstance.IsValid
+    local plainInstance = { IsValid = function() return true end,
+                            ReferencedObjects = setmetatable({ GetArrayNum = function() return 0 end },
+                                                             { __newindex = function() end }) }
+    gameInstance.IsValid = function() return false end         -- the game instance kept so far is gone
+    FindFirstOf = function(class)
+        if class == "PalGameInstance" then return nil end
+        if class == "GameInstance" then return plainInstance end
+        return findFirst(class)
+    end
+    require("util").keepAlive({ path = "a texture" })
+    FindFirstOf, gameInstance.IsValid = findFirst, giValid
+    plainInstance.IsValid = function() return false end        -- (so the next keep looks the game instance up again)
+    expect(logged("util: the game instance: a GameInstance %(no PalGameInstance found%)"),
+           "keeping a texture alive in a plain GameInstance says so")
+end)()
+;(function()
     print("Lua runs only on the game thread")
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
     -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread

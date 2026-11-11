@@ -160,6 +160,25 @@ local function readStarterCategory(card, tech, key, full)
     end
 end
 
+-- A card's picture, the first of these that loads: your own tech's icon; the crate's art; a Region Pass's own region's
+-- ticket (art/ap-pass-<region>.png), an Area Pass's (Lock Size: areas) region's, else the small-pass ticket
+-- (ap-pass-region.png, named before the rename); else the mod's icon for the item's kind. Returns it and its source.
+local function cardPicture(mine, it, kind, card)
+    local ART = require("art")
+    local tex = mine and SHOP_CARDS.techIcon(mine)
+    if tex then return tex, "the tech's own icon" end
+    tex = it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld")
+    if tex then return tex, "the crate's art" end
+    if kind == "area-pass" then
+        tex = ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
+        if tex then return tex, "its region's pass ticket" end
+        tex = it.name:find("^Area Pass") and ART.texture("ap-pass-region")
+        if tex then return tex, "the small-pass ticket" end
+    end
+    tex = modIcon(kind, card)
+    return tex, tex and ("the mod's " .. kind .. " icon") or ("none (the mod's " .. kind .. " icon did not load)")
+end
+
 -- What a shop slot's card should show: { name, category, clickable, texture }.
 local function cardLabel(tech, card)
     local sent, mine = SHOP_CARDS.bought(tech), SHOP_CARDS.ownTech(tech)
@@ -171,14 +190,8 @@ local function cardLabel(tech, card)
     local clickable = not sent or mine ~= nil
     local it = own and DATA.items[scouted.id]
     local kind = (it and it.kind == "pass") and "area-pass" or (scouted and iconKind(scouted.flags) or "filler")
-    -- A Region Pass shows its own region's ticket (art/ap-pass-<region>.png); an Area Pass (Lock Size: areas) its
-    -- region's, else the small-pass ticket (ap-pass-region.png, named before the rename); else the shared one.
-    local ART = require("art")
-    local tex = mine and SHOP_CARDS.techIcon(mine)
-        or (it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld"))
-        or (kind == "area-pass" and (ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
-                                     or (it.name:find("^Area Pass") and ART.texture("ap-pass-region"))))
-        or modIcon(kind, card)
+    local tex, source = cardPicture(mine, it, kind, card)
+    UTIL.took("cards: a card's picture", source)
     return { name = name, category = category, clickable = clickable, texture = tex }
 end
 

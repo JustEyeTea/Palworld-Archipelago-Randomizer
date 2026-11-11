@@ -99,6 +99,7 @@ local function applySeedOptions()
         log("areas beyond the goal: " .. nBeyond .. (ap.beyondOpen and ", open from the start" or ", sealed for good"))
     end
     DEATH_LINK.applyOption()
+    CHECKS.logSeedGoal()
     local style = SYNC.style(AP_SlotData)
     if style ~= 0 then log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)") end
     if SYNC.boost(AP_SlotData) then

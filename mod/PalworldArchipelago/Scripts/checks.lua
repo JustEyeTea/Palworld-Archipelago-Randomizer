@@ -19,6 +19,16 @@ local notify, relicCount = PLAYER.notify, ITEMS.relicCount
 local GOAL_NEVER = math.huge  -- the count a goal needs when slot data does not say: never reached
 -- The seed's goal, by slot data options.goal: 0 towers, 1 relic hunt, 2 Paldeck, 3 World Tree.
 local GOALS = { ["0"] = "towers", ["1"] = "relic_hunt", ["2"] = "paldeck", ["3"] = "world_tree" }
+-- Says which goal this seed has (each connection; each goal is logged once).
+function CHECKS.logSeedGoal()
+    local number = AP_SlotData("options.goal")
+    if number == nil or number == "" then
+        UTIL.took("the seed's goal", "towers (the seed does not say: the default)")
+        return
+    end
+    UTIL.took("the seed's goal", GOALS[number] or ("unknown value " .. number .. ", not judged or sent"))
+end
+
 -- What was done, as the goal's notice words it, once the records (`found`) say the seed's goal is reached; else nil.
 local function goalReached(found)
     local number = AP_SlotData("options.goal")
