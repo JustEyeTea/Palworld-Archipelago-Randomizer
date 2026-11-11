@@ -4,7 +4,8 @@
 -- delayed purchase) crashed the game with the stack seen in every such crash (08E98397). Nothing here runs off-thread.
 local S = {}
 local queue = {}
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.log
 
 -- fn runs in `n` updates (1: the next one).
 function S.later(n, fn) queue[#queue + 1] = { n = math.max(1, n), fn = fn } end

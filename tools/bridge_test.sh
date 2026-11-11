@@ -10,11 +10,21 @@ work=$(mktemp -d)
 installed="$ap/custom_worlds/palworld.apworld"
 # The test installs this repo's world; whatever was installed before is put back afterwards.
 [ -f "$installed" ] && cp "$installed" "$work/installed.bak"
-trap 'kill $server 2>/dev/null || true; [ -f "$work/installed.bak" ] && cp "$work/installed.bak" "$installed"; rm -rf "$work"' EXIT
+server=                                                    # (set once the server starts; the clean-up checks it)
+restore() {
+  [ -n "$server" ] && kill "$server" 2>/dev/null || true
+  [ -f "$work/installed.bak" ] && cp "$work/installed.bak" "$installed"
+  rm -rf "$work"
+}
+trap restore EXIT
 s=$deps/ap-soeclient/subprojects
+# The same defines and include paths as cppmod/APConnector/CMakeLists.txt (the Windows build); change both. -w: the
+# dependencies' headers give hundreds of warnings.
 g++ -std=c++17 -O1 -DASIO_STANDALONE -DAP_NO_SCHEMA -I"$deps/apclientpp" -I"$deps/wswrap/include" \
   -I"$s/asio/include" -I"$s/websocketpp" -I"$s/json/include" -w \
-  cppmod/APConnector/src/ap_bridge.cpp cppmod/APConnector/test/bridge_test.cpp -o "$work/bridge_test" -lssl -lcrypto -lz -pthread
+  cppmod/APConnector/src/ap_bridge.cpp cppmod/APConnector/src/event_lines.cpp cppmod/APConnector/src/lua_text.cpp \
+  cppmod/APConnector/test/bridge_test.cpp \
+  -o "$work/bridge_test" -lssl -lcrypto -lz -pthread
 mkdir -p "$work/players" "$work/out"
 printf 'name: Tester\ngame: Palworld\nPalworld:\n  tower_count: 2\n' > "$work/players/t.yaml"
 mkdir -p "$ap/custom_worlds"

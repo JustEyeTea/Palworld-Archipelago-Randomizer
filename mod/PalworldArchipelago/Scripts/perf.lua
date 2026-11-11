@@ -41,7 +41,11 @@ P.frameBegin, P.frameEnd = noop, noop
 P.records, P.world = noop, noop
 
 local BUILD = "perf-1"
-local function log(msg) print("[PalworldAP] [perf] " .. msg .. "\n") end
+local CLOCK = require("clock")
+local STATE = require("ap_state")
+local UTIL = require("util")
+local ap = STATE.ap
+local log = UTIL.logger("perf")
 -- os.clock is read at call time (the harness fakes it). On Windows (MSVC) it is wall time with 1 ms steps: one update
 -- reads 0 or 1 ms for a small part, but the average over a 30 s window is still meaningful, and the worst is exact to
 -- about 1 ms. The os.time column in the 30s line checks that it is wall time.
@@ -62,7 +66,9 @@ local BYPASSED = { H1 = true, H2 = true, H4 = true, H6 = true, H7 = true }
 local SECTIONS = { "ctx", "poll", "menu", "mail", "cards", "scan", "walls", "map", "e7", "rec", "techs", "save", "legacy" }
 local COUNTERS = { "sweep", "refill", "rec", "techs", "save" }
 
-local env                     -- { wallsCount() -> raised, setWalls(mode), mailOpen() -> bool }
+local env                     -- { wallsCount() -> raised, setWalls(mode), mailOpen() -> bool, oldCost = { mapShown(),
+                              --   sweepWalls(), cards() -> the last pass's cards, relabel(card, key, full),
+                              --   writeSave(always) } }: main.lua's, for the Ctrl+0 replay
 local win                     -- the current 30 s window
 local ring = {}               -- recent samples { t, frames, lua } for the A/B lines (the last ~20 s)
 local ab = nil                -- an A/B measure under way
@@ -271,7 +277,7 @@ end
 -- them instead of two object-array walks per update, if they agree (untested: whether they take the GameInstance).
 local gettersFor = {}
 local function getters(ctx)
-    local key = ctx.worldKey or "title"
+    local key = ctx.controllerKey or "title"
     if gettersFor[key] then return end
     gettersFor[key] = true
     local u = util
@@ -283,7 +289,7 @@ local function getters(ctx)
     local pcA, psA = okc and addr(pc) or nil, oks and addr(ps) or nil
     local pawn = nil
     if pcA then pcall(function() pawn = pc:K2_GetPawn() end) end
-    log("getters world=" .. (ctx.worldKey and 1 or 0) .. " pc=" .. (pcA and "ok" or ("nil" .. (okc and "" or " (error)")))
+    log("getters world=" .. (ctx.controllerKey and 1 or 0) .. " pc=" .. (pcA and "ok" or ("nil" .. (okc and "" or " (error)")))
         .. " ps=" .. (psA and "ok" or ("nil" .. (oks and "" or " (error)"))) .. " pawn=" .. (addr(pawn) and "ok" or "nil")
         .. " same_pc=" .. ((pcA and pcA == addr(ctx.pc)) and 1 or 0) .. " same_ps=" .. ((psA and psA == addr(ctx.playerState and ctx.playerState())) and 1 or 0))
 end
@@ -533,7 +539,7 @@ local function hotkeys()
     end)
 end
 
--- cfg: the config table. e: { wallsCount(), setWalls(mode), mailOpen() }.
+-- cfg: the config table. e: what main.lua hands over (see env, above).
 function P.install(cfg, e)
     if cfg.perf_log ~= "1" then return end
     install(cfg, e)
@@ -541,6 +547,31 @@ function P.install(cfg, e)
         pcall(watch)
         hotkeys()
     end
+end
+
+-- Ctrl+0: after each update, a replay of the lookups and writes the mod made every update before it shared one player
+-- lookup per update and skipped cards, walls and saves that had not changed, so one session can compare that cost
+-- with today's. Results are thrown away, and the game sees nothing new (the cards are labelled again with the same
+-- text). It replays the cost, not the old code. Called by main.lua after each update while P.legacy is on.
+function P.replayOldCost(ctx)
+    P.start("legacy")
+    FindFirstOf("PalPlayerController")                   -- the menu's own controller lookup
+    if ctx.pawn then FindAllOf("WBP_TitleMenu_C") end    -- the title menu, looked for in a world too
+    if ap.ready and CLOCK.isPhase(CLOCK.PHASE.records) then FindAllOf("PalPlayerState") end  -- a second state walk
+    if env.mailOpen() then                               -- the chest view's own player and window lookups
+        FindFirstOf("PalPlayerController")
+        FindAllOf("PalPlayerState")
+        FindAllOf("WBP_ItemChest_C")
+    end
+    if env.oldCost.mapShown() then FindFirstOf("PalGameInstance") end
+    AP_SlotData("options.area_locks")
+    env.oldCost.sweepWalls()                             -- every raised piece checked every update
+    for _, card in ipairs(env.oldCost.cards() or {}) do  -- every card labelled every update
+        local key = card:IsValid() and UTIL.addr(card)
+        if key then pcall(env.oldCost.relabel, card, key, true) end
+    end
+    if ap.ready and CLOCK.isPhase(CLOCK.PHASE.items) then env.oldCost.writeSave(true) end   -- written even unchanged
+    P.stop("legacy")
 end
 
 -- Called by the walls when a full re-raise has caught up (after Ctrl+7 back to full).

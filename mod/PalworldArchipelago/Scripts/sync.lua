@@ -16,7 +16,8 @@
 -- The world keeps the faster speeds in its own save; World Settings sets them back.
 local S = {}
 local GIFTS = require("tech_gifts")
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.log
 local reported = {}
 local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
 

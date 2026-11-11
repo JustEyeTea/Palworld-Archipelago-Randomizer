@@ -13,7 +13,8 @@
 -- read and what came back, and a trap that fails says "<name> fizzled." in chat and is never retried.
 local T = {}
 local DEBUFFS = require("debuffs")
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.log
 
 local CAP = 10              -- traps waiting at most: a mass release should not mean an hour of traps
 local GIVE_UP = 200         -- ticks (60 s) a trap waits for game objects that are missing (a world still loading)

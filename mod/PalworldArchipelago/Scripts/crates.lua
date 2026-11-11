@@ -11,7 +11,8 @@
 -- mailbox chest can't hold, go straight to the bag, and what the bag refuses waits in `pending` and is tried again.
 -- Item ids from the 1.0.5 item table. Untested in game (2026-11-05).
 local C = { list = {}, pending = {} }
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+local UTIL = require("util")
+local log = UTIL.log
 
 C.KINDS = { "sphere", "food", "common", "rare", "jackpot" }
 C.NAMES = { sphere = "Sphere Crate", food = "Food Crate", common = "Common Supply Crate", rare = "Rare Supply Crate",
@@ -159,7 +160,7 @@ C.ABOUT = { sphere = "Spheres of your tier: more as you level.", food = "Dishes 
 -- The save file: crates=rare,sphere,... and cratebag=id:n,... (gear the bag refused).
 function C.serialize()
     local p = {}
-    for _, e in ipairs(C.pending) do p[#p + 1] = e[1] .. ":" .. e[2] end
+    for _, held in ipairs(C.pending) do p[#p + 1] = held.id .. ":" .. held.n end
     return "crates=" .. table.concat(C.list, ",") .. "\ncratebag=" .. table.concat(p, ",") .. "\n"
 end
 function C.load(line)
@@ -172,12 +173,29 @@ function C.load(line)
     local bag = line:match("^cratebag=(.*)$")
     if bag then
         C.pending = {}
-        for id, n in bag:gmatch("([^:,]+):(%d+)") do C.pending[#C.pending + 1] = { id, tonumber(n) } end
+        for id, n in bag:gmatch("([^:,]+):(%d+)") do C.pending[#C.pending + 1] = { id = id, n = tonumber(n) } end
         return true
     end
     return false
 end
 function C.reset() C.list, C.pending = {}, {} end
+
+-- Holds n of item `id` that the bag refused (crate gear, a Nomad gift), to be tried again by C.retryBag.
+function C.holdForBag(id, n)
+    C.pending[#C.pending + 1] = { id = id, n = n }
+end
+
+-- Tries the held items again, oldest first. give(id, n) puts up to n in the bag and returns how many went in; the
+-- first item that gets none stops the round, so the order is kept.
+function C.retryBag(give)
+    while C.pending[1] do
+        local held = C.pending[1]
+        local got = give(held.id, held.n)
+        if got <= 0 then return end
+        held.n = held.n - got
+        if held.n <= 0 then table.remove(C.pending, 1) end
+    end
+end
 
 -- The player's tier: the best sphere unlocked by `level` (1-based index into SPHERES); rank 1-5 for gear and food.
 local function sphereTier(level)

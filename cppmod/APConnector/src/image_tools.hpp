@@ -17,12 +17,6 @@ auto greyscale_png(const std::string& in, const std::string& out, double gamma) 
 auto compose_map(const std::string& colour, const std::string& labels, const std::string& locked, const std::string& out,
                  double gamma) -> std::string;
 
-// compose_map on a background thread: start returns "" (started), "busy" or an error; status returns "busy", "done"
-// (the last job finished well; then "" until the next), or "error: ...".
-auto compose_map_start(const std::string& colour, const std::string& labels, const std::string& locked,
-                       const std::string& out, double gamma) -> std::string;
-auto compose_map_status() -> std::string;
-
 // The explorer's-chart picture of the map (the user, 2026-11-06: unexplored areas drawn like an explorer's chart instead
 // of the black fog, so the locked-area stamps show there too). size x size, opaque: paper, with land and sea told apart
 // by colour; inked coastlines, coastal ripple rings, light contours and relief on land, a double-ruled frame along the
@@ -84,8 +78,9 @@ auto compose_field(const std::string& field, const std::string& areas, const std
                    const std::string& style, const std::string& out, const std::string& fogart,
                    const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0) -> std::string;
 
-// One background job at a time per slot (the map, the chart, the fog each have their own), as compose_map_start:
-// start returns "" (started), "busy" or an error; status "busy", "done" (once), "error: ..." or "".
+// One background job at a time per slot (the map, the chart, the fog and the Territories each have their own).
+// start returns "" (started) or "busy". Every error, even a bad argument, comes from status, which returns "busy",
+// then once "done" or "error: ...", then "".
 class JobSlot
 {
   public:
@@ -96,6 +91,7 @@ class JobSlot
     std::mutex m_lock;
     std::string m_state;                            // "busy", "done", "error: ..." or ""
 };
+auto map_jobs() -> JobSlot&;
 auto chart_jobs() -> JobSlot&;
 auto fog_jobs() -> JobSlot&;
 auto territory_jobs() -> JobSlot&;

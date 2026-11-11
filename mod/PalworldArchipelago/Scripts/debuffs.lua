@@ -8,28 +8,21 @@ local D = {}
 local ART = require("art")
 local ICON, GAP, TOP = 44, 10, 112
 local TICK_SECONDS = 0.3                 -- main.lua's update period
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+local UTIL = require("util")
+local log, once = UTIL.log, UTIL.onceIn("debuffs")
+local WIDGETS = require("widgets")
 
-local function linear(hex, a)
-    local c = { A = a or 1 }
-    for k, at in pairs({ R = 1, G = 3, B = 5 }) do
-        local v = tonumber(hex:sub(at, at + 1), 16) / 255
-        c[k] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
-    end
-    return c
-end
-local CREAM, NAVY = linear("FFF4DC"), linear("17324D", 0.9)
+local CREAM, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("17324D", 0.9)
 
 local list = {}                          -- { { key, icon, short, tint, untilTick } } in the order they started
 local shown = nil                        -- { box, layout, sig, timers = { key -> TextBlock }, left = { key -> seconds shown } }
 
+-- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed.
 local function hudCanvas()
     local layout
     for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
         local ok, vis = pcall(function() return l:IsValid() and l:IsVisible() end)
-        if ok and vis then layout = l; break end
+        if ok and vis and not UTIL.ownerGone(l) then layout = l; break end
     end
     if not layout then return nil, nil, "no HUD layout on screen" end
     local root = layout.WidgetTree.RootWidget
@@ -43,32 +36,12 @@ local function hudCanvas()
     return nil, nil, "no canvas in the HUD layout"
 end
 
+-- A line of text centred in its box, on one line (the timer under an icon).
 local function text(outer, s, size, colour)
-    local t = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), outer)
-    local sized = pcall(function() local f = t.Font; f.Size = size; t:SetFont(f) end)
-    if not sized then
-        pcall(function() t:SetRenderTransformPivot({ X = 0, Y = 0 }); t:SetRenderScale({ X = size / 24, Y = size / 24 }) end)
-    end
-    pcall(function() t:SetColorAndOpacity({ SpecifiedColor = colour, ColorUseRule = 0 }) end)
-    pcall(function() t:SetJustification(1) end)                           -- Center
-    t:SetText(FText(s))
-    return t
-end
-local function fill(outer, w, h, colour)
-    local img = StaticConstructObject(StaticFindObject("/Script/UMG.Image"), outer)
-    pcall(function() img:SetColorAndOpacity(colour) end)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
-    box:SetWidthOverride(w)
-    box:SetHeightOverride(h)
-    local s = box:AddChild(img)
-    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)
-    return box
-end
-local function place(over, w, left, top, width)
-    local s = over:AddChild(w)
-    pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)    -- Left, Top
-    pcall(function() s:SetPadding({ Left = left, Top = top, Right = 0, Bottom = 0 }) end)
-    return s
+    local block = WIDGETS.text(outer, s, size, colour)
+    pcall(function() block:SetAutoWrapText(false) end)
+    pcall(function() block:SetJustification(WIDGETS.JUSTIFY.center) end)
+    return block
 end
 
 -- m:ss left of an effect ending at `untilTick`, seen from `tick`.
@@ -99,20 +72,20 @@ local function build(tick)
         local x = (i - 1) * (ICON + GAP)
         local art = ART.box(layout, e.icon, ICON, ICON)
         if art then
-            place(over, art, x, 0)
+            WIDGETS.place(over, art, x, 0)
         else
             once("debuffnoart" .. e.icon, "debuffs: no " .. e.icon .. ".png yet; a plain tile instead")
-            place(over, fill(layout, ICON, ICON, e.tint or NAVY), x, 0)
+            WIDGETS.place(over, (WIDGETS.plain(layout, ICON, ICON, e.tint or NAVY)), x, 0)
             local label = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
             label:SetWidthOverride(ICON)
             label:AddChild(text(layout, e.short, 9, CREAM))
-            place(over, label, x, ICON / 2 - 7)
+            WIDGETS.place(over, label, x, ICON / 2 - 7)
         end
         local t = text(layout, (clock(e.untilTick, tick)), 11, CREAM)
         local tb = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
         tb:SetWidthOverride(ICON)
         tb:AddChild(t)
-        place(over, tb, x, ICON + 3)
+        WIDGETS.place(over, tb, x, ICON + 3)
         timers[e.key], left[e.key] = t, select(2, clock(e.untilTick, tick))
     end
     local slot = canvas:AddChildToCanvas(box)

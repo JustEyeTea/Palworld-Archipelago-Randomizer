@@ -54,8 +54,10 @@ with `[PalworldAP]`.
    - **Slot** and **Password**: your slot name, and the room's password (leave it empty if there is none).
    - **Connect** connects and takes you back to the title's buttons; the banner then shows **Connected** with your
      slot. While connected, the same row says **Disconnect**. **Back** returns without connecting.
-2. Start a new world for each new multiworld: anything an old world already did (Pals caught, levels reached) is
-   sent as checks at once.
+2. Start a new world for each new multiworld. In an old world, the techs it has researched are locked again until
+   their items arrive (the points spent on them do not come back), and anything it already did (Pals caught, levels
+   reached) is sent as checks at once. If the first world you load with a new seed has researched techs, the mod asks
+   first: load a new world, or press the hint key (**H**) to play the seed there anyway.
 3. The mod remembers the server and slot in `ue4ss\Mods\PalworldArchipelago\config.txt` and connects by itself next
    time. You can also write that file by hand: copy `config.example.txt` to `config.txt` and fill in `server`, `slot`
    and `password`.

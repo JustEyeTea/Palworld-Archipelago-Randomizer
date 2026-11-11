@@ -9,7 +9,9 @@ Before writing code:
    this project's rules for names, comments, function and file size, the UE4SS Lua threading rules and C++ layout.
 2. Read the section of [docs/architecture.md](docs/architecture.md) for the part you are changing, and update it (and
    its "where to look" rows) when the change moves anything.
-3. Write the file's opening comment and the function names and one-line descriptions before the bodies.
+3. Look in the style guide's [Building blocks](docs/style-guide.md#building-blocks) for the shared piece that does
+   what you need, and use it. Never write a second copy of a helper, a constant or a text format.
+4. Write the file's opening comment and the function names and one-line descriptions before the bodies.
 
 Before committing:
 
