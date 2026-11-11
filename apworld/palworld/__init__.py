@@ -18,8 +18,9 @@ from .data import (BREEDING_TECH, BUNDLES, CATCHABLE, CAUGHT_KINDS, CRATE, DECOR
 from .game_data import GAME_VERSION
 from .options import Goal, PalworldOptions, option_groups, options_presets
 
-# Tuning, in player levels unless said. The options' player text (options.py, docs/en_Palworld.md) repeats
-# TOWER_LEVELS, TOWER_MARGIN, PALDECK_MARGIN, RELIC_LEVEL and MAX_LEVEL; test_options.py checks options.py's copies.
+# Tuning, in player levels unless said. The options' descriptions (options.py) and the game page
+# (docs/en_Palworld.md) repeat TOWER_LEVELS, TOWER_MARGIN, PALDECK_MARGIN and RELIC_LEVEL, and the game page also
+# LEVELS_BELOW_PIECE and TECH_POINTS_PER_LEVEL; test_options.py's TestPlayerTextMatchesTheCode checks every copy.
 FREE_LEVEL = 15              # levels anyone reaches in the starting zone
 LEVELS_PAST_PIECE = 8        # a piece lets a player level about this far past its typical Pal level
 LEVELS_BELOW_PIECE = 8       # and only a player at most this far below that level can start levelling there
