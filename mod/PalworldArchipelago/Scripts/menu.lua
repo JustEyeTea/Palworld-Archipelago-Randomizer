@@ -414,10 +414,10 @@ function TEXT.update()
         SURVEY.headingOnce(window, asking.headingLogs)
     end
     if open then return end
-    local answer, done = asking.answer, asking.done
+    local answer, done, field = asking.answer, asking.done, asking.field
     asking = nil
     if not answer then
-        log("menu: cancelled")
+        log("menu: the \"" .. field.title .. "\" window was closed without OK")
         return
     end
     local ok, err = pcall(done, answer)
@@ -1069,19 +1069,25 @@ local function buttonList(menu)
             return found and found:IsValid() and found or nil
         end)
         local box = ok and button and boxAbove(button)
-        if box then return box end
+        if box then
+            UTIL.took("menu: the button list", "the panel above " .. name)
+            return box
+        end
     end
     for _, button in ipairs(FindAllOf(GAME.titleButtonClass) or {}) do
-        if button:IsValid() and not CLICKS.isClaimed(button) then
-            local box = boxAbove(button)
-            if box then return box end
+        local box = button:IsValid() and not CLICKS.isClaimed(button) and boxAbove(button)
+        if box then
+            UTIL.took("menu: the button list", "the panel above another title button")
+            return box
         end
     end
     local ok, box = pcall(function()
         local found = menu[GAME.fallbackList]
         return found:IsValid() and found or nil
     end)
-    if ok and box then return box end
+    if not (ok and box) then return nil end
+    UTIL.took("menu: the button list", GAME.fallbackList)
+    return box
 end
 
 -- The top-centre point of the button list on its canvas, with the list's anchors. Raises an error when the list's slot
@@ -1685,9 +1691,15 @@ end
 -- What a text box holds now (nil when it can't be read).
 local function readEdit(edit)
     local ok, text = pcall(function() return edit.Text:ToString() end)
-    if ok and type(text) == "string" then return text end
+    if ok and type(text) == "string" then
+        UTIL.took("menu: a text box's text", "its Text field")
+        return text
+    end
     ok, text = pcall(function() return edit:GetText():ToString() end)
-    if ok and type(text) == "string" then return text end
+    if ok and type(text) == "string" then
+        UTIL.took("menu: a text box's text", "GetText()")
+        return text
+    end
     return nil
 end
 

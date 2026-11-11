@@ -117,7 +117,11 @@ function UTIL.findClass(path)
     if found and found:IsValid() then return found end
     pcall(LoadAsset, (path:gsub("_C$", "")))
     found = StaticFindObject(path)
-    if found and found:IsValid() then return found end
+    if found and found:IsValid() then
+        UTIL.took("util: " .. path:match("[^./]+$"), "not loaded yet; its package was loaded")
+        return found
+    end
+    UTIL.took("util: " .. path:match("[^./]+$"), "not there, even after loading its package")
     return nil
 end
 

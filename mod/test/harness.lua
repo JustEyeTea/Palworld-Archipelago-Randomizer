@@ -3208,6 +3208,13 @@ end)()
     end
     expect(lines == 1, "a label that can't be set is logged once: " .. lines)
 end)()
+;(function()   -- the fallback chains say once which branch they took
+    expect(logged("menu: the button list: the panel above WBP_Title_MenuButton_StartLocalGame")
+           and logged("widgets: a button's label: Test_Content") and logged("widgets: a button's label: Text_Main")
+           and logged("menu: a text box's text: its Text field")
+           and logged("util: WBP_APMailbox_C: not there, even after loading its package"),
+           "the button list, a label, a text box's text and a class each say where they came from")
+end)()
 
 print("the other goals")
 local function newSeed(seed, extra)

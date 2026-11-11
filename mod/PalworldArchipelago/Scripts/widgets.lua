@@ -220,6 +220,7 @@ function WIDGETS.setLabel(button, words)
         return block and block:IsValid() and block or nil
     end)
     if okMain and main then
+        UTIL.took("widgets: a button's label", WIDGETS.GAME.commonButtonLabel)
         WIDGETS.setBoundText(main, words)
         return
     end
@@ -229,6 +230,7 @@ function WIDGETS.setLabel(button, words)
             .. WIDGETS.GAME.titleButtonLabel .. "; its label is not set")
         return
     end
+    UTIL.took("widgets: a button's label", WIDGETS.GAME.titleButtonLabel)
     UTIL.attempt("widgets: set a title button's label", function() title:SetText(FText(words)) end)
 end
 
