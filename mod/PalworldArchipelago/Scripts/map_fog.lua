@@ -232,6 +232,112 @@ local function fogStampsAndRegions(key, passes)
     end
     return fogParts.stamps, fogParts.regions
 end
+-- 1. The fog art: the Territories' own (made with its overlay), or the chart, drawn once a session. True once it is
+-- ready (from the next update, when it became ready just now in Territories).
+local function stepChartArt()
+    if chart.state == "none" and territories() then                          -- (the territories' fog art)
+        if terr.done and exists(W.dir .. "\\" .. TERR_FOG) then chart.state = "ready"; log("map territories: the fog art is ready") end
+        return false
+    elseif chart.state == "none" then                                        -- the chart
+        local colour = W.dir .. "\\" .. COLOUR_FILE
+        if not exists(colour) then return false end
+        local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
+            W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), "0.4545")
+        if err == "" then chart.state = "composing"
+        elseif err ~= "busy" then chart.state = "failed"; log("map chart: could not start: " .. err) end
+        return false
+    elseif chart.state == "composing" then
+        local st = AP_ChartStatus()
+        if st == "busy" then return false end
+        if st ~= "done" then chart.state = "failed"; log("map chart: failed: " .. tostring(st)); return false end
+        chart.state = "ready"
+        log("map chart: drawn (" .. CHART_SIZE .. " px)")
+    end
+    return chart.state == "ready"
+end
+-- 2. A fog picture being made: true once it is done and is to be loaded, nil while busy or after it failed, false
+-- otherwise. The last session's picture, when there is one, is loaded once until a new one is made.
+local function finishFog()
+    if chart.fog == "composing" then
+        local st = AP_FogStatus()
+        if st == "busy" then return nil end
+        chart.fog = "idle"
+        if st ~= "done" then
+            once("fogerr" .. tostring(st), "map chart: the fog failed: " .. tostring(st))
+            return nil
+        end
+        return true
+    elseif not chart.old and not chart.tex and exists(W.dir .. "\\" .. fogFile()) then
+        chart.old = true                                                     -- the last session's, until a new one
+        return true
+    end
+    return false
+end
+-- Before the map opens: the explored mask read from the world's map data (worldMask) and the fog picture made.
+local function readMaskEarly(ctx, krl, gi, stamps, regions, tag)
+    chart.early = (chart.early or 0) + 1
+    local rt = worldMask(ctx)
+    local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png") end)
+    local spec, info = chart.spec, nil
+    if okE and not spec then spec, info = maskSpec(ctx) end
+    if okE and spec then
+        chart.spec, chart.exportedAt = spec, chart.ticks
+        log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
+        startFog(stamps, regions, tag)
+    elseif chart.early == EARLY_MASK_TRIES then
+        log("map chart: the explored mask could not be read before the map opened ("
+            .. (rt and tostring(info) or "no world map data") .. "); from the first opening instead")
+    end
+end
+-- At a map opening: the explored mask exported from the screen, read once to learn which channel means explored, and
+-- the fog picture made.
+local function readMaskOnOpening(ctx, screen, krl, gi, stamps, regions, tag)
+    chart.exportedAt, chart.want = chart.ticks, false
+    local ok, res = pcall(exportMask, screen, krl, gi)
+    if not ok or res ~= true then
+        once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res))
+        return
+    end
+    if not chart.spec then
+        local spec, info = maskSpec(ctx)
+        -- One reading that tells nothing apart (the player at the world's edge, no position yet) does not end the
+        -- fog picture: the next export, EXPORT_GAP later, reads again.
+        log("map chart: the explored mask " .. info .. (spec and (": explored reads " .. spec)
+            or "; read again at a later opening"))
+        if not spec then
+            return
+        end
+        chart.spec = spec
+    end
+    startFog(stamps, regions, tag)
+end
+-- A new fog picture when the mask is to be read (before the map opens, or at an opening) or when the stamps, the area
+-- borders or the look changed (a pass: the same mask).
+local function remakeFog(ctx, screens, passes, key, krl, gi)
+    local tagged = territories()
+    local stamps, regions = fogStampsAndRegions(key, passes)
+    local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
+    if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
+       and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
+        readMaskEarly(ctx, krl, gi, stamps, regions, tag)
+    elseif chart.want and screens[#screens]
+           and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
+        readMaskOnOpening(ctx, screens[#screens], krl, gi, stamps, regions, tag)
+    elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions .. tag ~= chart.stampKey then
+        startFog(stamps, regions, tag)
+    end
+end
+-- 3. The fog picture loaded and handed to C++, which shows it from the next opening.
+local function loadFogPicture(krl, gi)
+    local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. fogFile())
+    if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
+    chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
+    chart.tex = tex
+    AP_MapScreen("fogpic", UTIL.objectPath(tex))
+    local whose = chart.old and chart.fog == "idle" and not chart.stampKey and "last session's" or "new"
+    log("map chart: the fog picture is ready (" .. whose .. ")")
+end
+-- Each map update: the fog art, then the fog picture (finished, made again, loaded) step by step.
 local function chartTick(ctx, screens, opening, passes, key)
     if W.chartOff or not (AP_ComposeChart and AP_ComposeFog and AP_SamplePNG and AP_MapScreen) then return end
     chart.ticks = chart.ticks + 1
@@ -240,81 +346,14 @@ local function chartTick(ctx, screens, opening, passes, key)
     local gi = owner()
     if not gi then return end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    if chart.state == "none" and territories() then                          -- 1. (the territories' fog art)
-        if terr.done and exists(W.dir .. "\\" .. TERR_FOG) then chart.state = "ready"; log("map territories: the fog art is ready") end
-        return
-    elseif chart.state == "none" then                                        -- 1. the chart
-        local colour = W.dir .. "\\" .. COLOUR_FILE
-        if not exists(colour) then return end
-        local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
-            W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), "0.4545")
-        if err == "" then chart.state = "composing"
-        elseif err ~= "busy" then chart.state = "failed"; log("map chart: could not start: " .. err) end
-        return
-    elseif chart.state == "composing" then
-        local st = AP_ChartStatus()
-        if st == "busy" then return end
-        if st ~= "done" then chart.state = "failed"; log("map chart: failed: " .. tostring(st)); return end
-        chart.state = "ready"
-        log("map chart: drawn (" .. CHART_SIZE .. " px)")
-    end
-    if chart.state ~= "ready" then return end
-    local load = false
-    if chart.fog == "composing" then                                         -- 2. the fog picture
-        local st = AP_FogStatus()
-        if st == "busy" then return end
-        chart.fog = "idle"
-        if st ~= "done" then once("fogerr" .. tostring(st), "map chart: the fog failed: " .. tostring(st)); return end
-        load = true
-    elseif not chart.old and not chart.tex and exists(W.dir .. "\\" .. fogFile()) then
-        chart.old, load = true, true                                         -- the last session's, until a new one
-    end
+    if not stepChartArt() then return end
+    local load = finishFog()
+    if load == nil then return end
     if chart.fog == "idle" and not load then
-        local tagged = territories()
-        local stamps, regions = fogStampsAndRegions(key, passes)
-        local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
-        if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
-           and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
-            chart.early = (chart.early or 0) + 1                              -- (before the map opens: see worldMask)
-            local rt = worldMask(ctx)
-            local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, "fog-mask.png") end)
-            local spec, info = chart.spec, nil
-            if okE and not spec then spec, info = maskSpec(ctx) end
-            if okE and spec then
-                chart.spec, chart.exportedAt = spec, chart.ticks
-                log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
-                startFog(stamps, regions, tag)
-            elseif chart.early == EARLY_MASK_TRIES then
-                log("map chart: the explored mask could not be read before the map opened (" .. (rt and tostring(info) or "no world map data")
-                    .. "); from the first opening instead")
-            end
-        elseif chart.want and screens[#screens] and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
-            chart.exportedAt, chart.want = chart.ticks, false
-            local ok, res = pcall(exportMask, screens[#screens], krl, gi)
-            if not ok or res ~= true then once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res)); return end
-            if not chart.spec then
-                local spec, info = maskSpec(ctx)
-                -- One reading that tells nothing apart (the player at the world's edge, no position yet) does not end the
-                -- fog picture: the next export, EXPORT_GAP later, reads again.
-                log("map chart: the explored mask " .. info .. (spec and (": explored reads " .. spec)
-                    or "; read again at a later opening"))
-                if not spec then
-                    return
-                end
-                chart.spec = spec
-            end
-            startFog(stamps, regions, tag)
-        elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions .. tag ~= chart.stampKey then
-            startFog(stamps, regions, tag)                                   -- a pass: the same mask, new stamps, hatch or look
-        end
+        remakeFog(ctx, screens, passes, key, krl, gi)
     end
-    if load then                                                             -- 3. shown from the next opening
-        local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. fogFile())
-        if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
-        chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
-        chart.tex = tex
-        AP_MapScreen("fogpic", UTIL.objectPath(tex))
-        log("map chart: the fog picture is ready (" .. (chart.old and chart.fog == "idle" and not chart.stampKey and "last session's" or "new") .. ")")
+    if load then
+        loadFogPicture(krl, gi)
     end
 end
 MAP_FOG.chartStatus = function() return chart end
