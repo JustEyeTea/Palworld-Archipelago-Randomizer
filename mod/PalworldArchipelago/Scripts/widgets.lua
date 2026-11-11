@@ -155,6 +155,13 @@ function WIDGETS.makeButton(owner, label)
     return button
 end
 
+-- Shows or collapses a widget (logged once when the game's widget won't take it).
+function WIDGETS.show(widget, shown)
+    UTIL.attempt("widgets: show or fold a widget", function()
+        widget:SetVisibility(shown and WIDGETS.VISIBILITY.visible or WIDGETS.VISIBILITY.collapsed)
+    end)
+end
+
 -- A widget's class name ("?" when it can't be read).
 function WIDGETS.className(object)
     local ok, name = pcall(function() return object:GetClass():GetFName():ToString() end)
@@ -198,9 +205,11 @@ end
 -- Sets the text of a text block the game binds to a row of its text table, which it would put back when the widget
 -- is rebuilt: the binding is undone first.
 function WIDGETS.setBoundText(block, words)
-    pcall(function() block.IsAutoTextSetWhenWidgetRebuilt = false end)
-    pcall(function() block.BindTextDatatableHandle.RowName = FName("None") end)
-    pcall(function() block:SetText(FText(words)) end)
+    UTIL.attempt("widgets: unbind a text from the game's text table", function()
+        block.IsAutoTextSetWhenWidgetRebuilt = false
+        block.BindTextDatatableHandle.RowName = FName("None")
+    end)
+    UTIL.attempt("widgets: set a bound text", function() block:SetText(FText(words)) end)
 end
 
 -- Sets a game button's label: the small labelled button's (and the Esc menu's) Text_Main, a text block bound to the
@@ -214,7 +223,13 @@ function WIDGETS.setLabel(button, words)
         WIDGETS.setBoundText(main, words)
         return
     end
-    pcall(function() button[WIDGETS.GAME.titleButtonLabel]:SetText(FText(words)) end)
+    local okTitle, title = pcall(function() return button[WIDGETS.GAME.titleButtonLabel] end)
+    if not (okTitle and title) then
+        UTIL.once("widgets nolabel", "widgets: a button has neither " .. WIDGETS.GAME.commonButtonLabel .. " nor "
+            .. WIDGETS.GAME.titleButtonLabel .. "; its label is not set")
+        return
+    end
+    UTIL.attempt("widgets: set a title button's label", function() title:SetText(FText(words)) end)
 end
 
 return WIDGETS

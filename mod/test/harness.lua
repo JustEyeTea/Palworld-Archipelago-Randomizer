@@ -3198,6 +3198,16 @@ end)()
     titleOpen = false
     run(1)
 end)()
+;(function()   -- a button whose label the mod can't set (the game's widget changed) says so, once
+    local WIDGETS = require("widgets")
+    WIDGETS.setLabel(Widget({}), "Archipelago Mailbox")
+    WIDGETS.setLabel(Widget({}), "Archipelago Mailbox")
+    local lines = 0
+    for _, l in ipairs(printed) do
+        if l:find("a button has neither Text_Main nor Test_Content", 1, true) then lines = lines + 1 end
+    end
+    expect(lines == 1, "a label that can't be set is logged once: " .. lines)
+end)()
 
 print("the other goals")
 local function newSeed(seed, extra)

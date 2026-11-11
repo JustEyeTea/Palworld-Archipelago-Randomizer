@@ -10,7 +10,7 @@ local UTIL = require("util")
 local WIDGETS = require("widgets")
 local log, once = UTIL.log, UTIL.onceIn("menu")
 local className, nameOf, setLabel = WIDGETS.className, WIDGETS.nameOf, WIDGETS.setLabel
-local VISIBLE, COLLAPSED = WIDGETS.VISIBILITY.visible, WIDGETS.VISIBILITY.collapsed
+local COLLAPSED = WIDGETS.VISIBILITY.collapsed
 local HALIGN, VALIGN = WIDGETS.HALIGN, WIDGETS.VALIGN
 
 -- Where the game's names below come from: "kdump", a tool that reads the game's Blueprints (widget trees, bound
@@ -28,6 +28,10 @@ local TITLE_BUTTON = WIDGETS.TITLE_BUTTON.path
 local TITLE_EVENT = ":BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_"
 local TEXT_WINDOW = TITLE_FOLDER .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C"
 local ESC_BUTTON = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Button_S.WBP_MenuESC_Button_S_C"
+-- Calls on the game's own fields and functions go through UTIL.attempt (or WIDGETS.setLabel, setBoundText and show),
+-- which log once when one fails: then the game is not as the mod expects. The plain pcalls left are styling
+-- (padding, alignment, colours, fonts, opacity): a failure there is harmless, the widget only looks plainer.
+
 -- The game's names this file depends on. After a Palworld update, check that each one still exists.
 local GAME = {
     titleMenuClass = "WBP_TitleMenu_C",                   -- the title screen's menu (its live copy, not its template)
@@ -342,7 +346,9 @@ local function setHeading(window, title)
     local okHeading, heading = pcall(function() return window[GAME.windowHeading] end)
     if okHeading and heading then
         WIDGETS.setBoundText(heading, title)
+        return
     end
+    once("noheading", "menu: the text window has no " .. GAME.windowHeading .. "; its heading is the game's")
 end
 
 local function openWindow(context)
@@ -758,7 +764,7 @@ local function addCrateButton(page, bar)
         if not button then
             error("the crate button was not made")
         end
-        pcall(function() box:SetVisibility(COLLAPSED) end)
+        WIDGETS.show(box, false)
         crate = { button = button, box = box }
     end)
     if not ok then
@@ -842,7 +848,7 @@ local function refreshPageLabels(entry, found)
     local label = api.crateLabel()
     if entry.crateLabel == label then return end
     entry.crateLabel = label
-    pcall(function() entry.crate.box:SetVisibility(label and VISIBLE or COLLAPSED) end)
+    WIDGETS.show(entry.crate.box, label ~= nil)
     if label then
         setLabel(entry.crate.button, label)
     end
@@ -1311,10 +1317,10 @@ local function quitLast(menu, list)
     list:RemoveChild(wrap)
     local slot = list:AddChild(wrap)
     if padding then
-        pcall(function() slot:SetPadding(padding) end)
+        UTIL.attempt("menu: Quit Game's padding", function() slot:SetPadding(padding) end)
     end
     if alignment then
-        pcall(function() slot:SetHorizontalAlignment(alignment) end)
+        UTIL.attempt("menu: Quit Game's alignment", function() slot:SetHorizontalAlignment(alignment) end)
     end
     return true
 end
@@ -1660,7 +1666,7 @@ local function makePickPanel(menu, list)
         slot:SetAutoSize(true)
         slot:SetZOrder(PICK_PANEL_Z)
     end)
-    pcall(function() over:SetVisibility(COLLAPSED) end)
+    WIDGETS.show(over, false)
     return { box = over, list = rows, slot = slot }
 end
 
@@ -1734,7 +1740,7 @@ local function refreshPickPanel(m, picking)
     local show = picking and #m.pickHosts > 0
     if panel.shown ~= show then
         panel.shown = show
-        pcall(function() panel.box:SetVisibility(show and VISIBLE or COLLAPSED) end)
+        WIDGETS.show(panel.box, show)
     end
     if not show then return end
     local ok, err = pcall(placePickPanel, m)
@@ -1758,7 +1764,7 @@ local function refreshRows(m)
         local show = kind.shows(m, row, picking)
         if row.shown ~= show then
             row.shown = show
-            pcall(function() row.box:SetVisibility(show and VISIBLE or COLLAPSED) end)
+            WIDGETS.show(row.box, show)
         end
         if show and row.button then
             setLabel(row.button, kind.label(m, row))
@@ -1804,7 +1810,7 @@ local function addRow(m, key, kind, index, box, button)
     if button then
         ownButton(m, button, row)
     end
-    pcall(function() box:SetVisibility(COLLAPSED) end)
+    WIDGETS.show(box, false)
     return row
 end
 
@@ -1997,9 +2003,9 @@ local function rowsAlive(m)
 end
 
 -- The live title menus, and whether they were looked for this update. At the title they are looked for every
--- update; in a world (playerInWorld, the one test of it) only every EVERY.titleLookInWorld, as a lookup walks the whole object
--- array and the menu is never there. If one is found in a world all the same, the in-world test is wrong for this
--- game: that is logged and the menu is looked for every update from then on.
+-- update; in a world (playerInWorld, the one test of it) only every EVERY.titleLookInWorld, as a lookup walks the
+-- whole object array and the menu is never there. If one is found in a world all the same, the in-world test is
+-- wrong for this game: that is logged and the menu is looked for every update from then on.
 function TITLE.find(inWorld)
     lookUpdates = lookUpdates + 1
     if inWorld and not titleInWorld and not UTIL.isDue(lookUpdates, EVERY.titleLookInWorld) then return false, {} end

@@ -91,6 +91,16 @@ function UTIL.safe(fn, ...)
     return nil
 end
 
+-- Calls fn, for a call on the game's own fields or functions, whose failure means the game is not as the mod
+-- expects: its results, or nil after logging the error once under `what` (UTIL.onceErr). Styling calls whose
+-- failure is harmless use a plain pcall instead.
+function UTIL.attempt(what, fn, ...)
+    local ok, a, b = pcall(fn, ...)
+    if ok then return a, b end
+    UTIL.onceErr(what, a, what .. ": " .. tostring(a))
+    return nil
+end
+
 -- A game object's address as text, or nil when it can't be read. The address is the object's identity in tables
 -- that track it. The engine reuses addresses, so every such table is emptied when the world changes.
 function UTIL.addr(obj)
