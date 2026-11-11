@@ -186,7 +186,7 @@ end
 --   kind         on arrival, on every connection (ITEMS.onItem)   once per seed, in index order (ITEMS.applyItems)
 --   tech         unlocks its tech (ap.techs)                      Nomad only: hands over what it makes (giveTechGift)
 --   progressive  unlocks the techs of every sphere tier received  -
---   pass         opens its area or region (ap.passes)             -
+--   pass         opens its lock (ap.passes)                       -
 --   trap         keeps who sent it (ap.from)                      queued for traps.lua to fire (TRAPS.add)
 --   relic        -                                                the "Palpagos Relic n/m found!" notice
 --   filler       -                                                its effect (giveFiller): a crate, points, a bundle
@@ -250,7 +250,7 @@ function ITEMS.onItem(indexText, itemText, _locationText, playerText, _flagsText
             ap.techs[DATA.spheres[k]] = true
         end
     elseif it.kind == "pass" then
-        ap.passes[it.area] = true
+        ap.passes[it.lock] = true
     elseif it.kind == "trap" then
         -- No "Received" line: the trap names itself when it fires (and a Fool Trap must not give itself away).
         ap.from[index] = player ~= ap.me and from or nil

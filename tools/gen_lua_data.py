@@ -76,7 +76,7 @@ for it in data.ITEMS:
         tech_id = next(t[0] for t in data.SHOP_TECHS if data.tech_item(t[0]) == it.name)
         items[it.id] = {'kind': 'tech', 'tech': tech_id, 'name': it.name}
     elif it.kind == 'pass':
-        items[it.id] = {'kind': 'pass', 'area': it.name.split(': ', 1)[1], 'name': it.name}
+        items[it.id] = {'kind': 'pass', 'lock': it.name.split(': ', 1)[1], 'name': it.name}   # the lock it opens
     else:
         items[it.id] = {'kind': it.kind, 'name': it.name}
 

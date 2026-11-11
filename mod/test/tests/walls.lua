@@ -98,7 +98,7 @@ group("area locks", function()
         run(1)
         local pm = a.Cube.mat
         local backs, colours = {}, { liveWalls.linearOf("9AA3B5"), liveWalls.linearOf("24E0CC") }
-        for _, hex in pairs(liveWalls.AREA_COLOURS) do
+        for _, hex in pairs(liveWalls.REGION_COLOURS) do
             colours[#colours + 1] = liveWalls.linearOf(hex)
         end
         local known = false
@@ -145,9 +145,9 @@ group("area locks", function()
         liveWalls.setSkin("red")
         run(1)
     end
-    expect(liveWalls.areaAt(-304485, 240071) == "Bamboo Groves" and liveWalls.areaAt(-342035, 236885) == WD.start,
+    expect(liveWalls.lockAt(-304485, 240071) == "Bamboo Groves" and liveWalls.lockAt(-342035, 236885) == WD.start,
            "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: "
-           .. tostring(liveWalls.areaAt(-304485, 240071)))
+           .. tostring(liveWalls.lockAt(-304485, 240071)))
     pawnAt = { X = -312819, Y = 84516, Z = -800 }                  -- deep in Bamboo Groves, still locked
     do
         local stageWas = ps.IsInStage

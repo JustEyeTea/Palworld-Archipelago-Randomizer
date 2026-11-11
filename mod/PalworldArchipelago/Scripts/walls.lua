@@ -1,21 +1,21 @@
 -- Area locks: the game's own blocking wall (BP_PalBlockingVolume, the red grid by the World Tree gate) stretched into
 -- pieces along every border between locked parts of the map; a piece stays up while either part it separates is locked.
 -- This file keeps the pieces (raising, hiding, opening, forgetting) and is the table main.lua sees (W). Its parts:
--- areas.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
+-- locks.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
 -- Tests: mod/test/tests/walls.lua, mod/test/tests/map.lua; groups "area locks", "the world map"
 --   (tools/lua_harness.sh, in CI).
 -- W, the table main.lua sees. Its fields:
 --   handed over by main.lua (W.install, from config.txt): keepAlive, keepInPlace, dir, radius, fade, tiling, scroll,
---     mapStyle, cppOff, testFogColour, chartOff, iconsOff, regionsOff, visited (main.lua's own set, again through
+--     mapStyle, cppOff, testFogColour, chartOff, iconsOff, chartBordersOff, visited (main.lua's own set, again through
 --     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
 --     install. The harness sets them on its copies directly
 --   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
---     setSkin, cycleSkin, perfMode, count, lockedNear, lockedAround, areaAt, passName, parentOf, slugOf, mapShown,
+--     setSkin, cycleSkin, perfMode, count, lockedNear, lockedAround, lockAt, passName, regionOf, slugOf, mapShown,
 --     mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS
---   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, AREA_COLOURS
+--   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, REGION_COLOURS
 local W = {}
-W.layout = "areas"
+W.layout = "regions"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
 -- once, and the harness loads it again (dofile) for each test that wants a fresh start, so each part is loaded afresh
 -- with it (require alone would hand back the copy already loaded).
@@ -27,7 +27,7 @@ end
 local HANDED_OVER = {
     keepAlive = true, keepInPlace = true, dir = true, visited = true, radius = true, fade = true, tiling = true,
     scroll = true, mapStyle = true, cppOff = true, testFogColour = true, chartOff = true, iconsOff = true,
-    regionsOff = true,
+    chartBordersOff = true,
 }
 
 -- Takes what main.lua hands over, each as the field of its name that the parts read. A name not in the list is an
@@ -41,20 +41,20 @@ function W.install(env)
     end
 end
 
--- The areas the player has stood in: main.lua's own set (in its save), handed over again when a new seed replaces it.
+-- The locks the player has stood in: main.lua's own set (in its save), handed over again when a new seed replaces it.
 function W.setVisited(set)
     W.visited = set
 end
 
-local AREAS = freshPart("locks")
-AREAS.install(W)
+local LOCKS = freshPart("locks")
+LOCKS.install(W)
 local WALL_SKINS = freshPart("wall_skins")
 local MAP_PICTURE = freshPart("map_picture")
 local MAP_ICONS = freshPart("map_icons")
 local MAP_FOG = freshPart("map_fog")
-local layout, isOpen = AREAS.layout, AREAS.isOpen
-W.passName, W.areaAt, W.lockedAround, W.parentOf = AREAS.passName, AREAS.areaAt, AREAS.lockedAround, AREAS.parentOf
-W.setBeyond, W.slugOf = AREAS.setBeyond, AREAS.slugOf
+local layout, isOpen = LOCKS.layout, LOCKS.isOpen
+W.passName, W.lockAt, W.lockedAround, W.regionOf = LOCKS.passName, LOCKS.lockAt, LOCKS.lockedAround, LOCKS.regionOf
+W.setBeyond, W.slugOf = LOCKS.setBeyond, LOCKS.slugOf
 W.start, W.home = layout.start, layout.map.home
 local P = require("perf")
 local UTIL = require("util")
@@ -358,7 +358,7 @@ local function showNear(pawn)
 end
 
 -- Each update (main.lua): checks a share of the pieces, raises missing pieces of locked borders and starts opening
--- pieces whose areas are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
+-- pieces whose locks are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
 -- pieces whose side opened and steps the opening pieces and the glow.
 function W.update(enabled, passes, pawn)
     checkSome()
@@ -371,7 +371,7 @@ function W.update(enabled, passes, pawn)
     local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
     for i, w in ipairs(layout.walls) do
         if budget <= 0 then break end
-        local up = enabled and AREAS.standing(w, passes)
+        local up = enabled and LOCKS.standing(w, passes)
         if up and not raised[i] and spawning then
             local ok, made = pcall(raise, i, pawn)
             -- One piece that fails does not hold up the others: the loop goes on (the try counts against the budget).
@@ -420,21 +420,21 @@ function W.perfMode(mode)
 end
 
 
--- The locked side of a wall row other than `here` (the area the player stands in), or nil; with both sides locked,
+-- The locked side of a wall row other than `here` (the lock the player stands in), or nil; with both sides locked,
 -- the second.
 local function lockedSide(row, here, passes)
     local side = nil
     for _, k in ipairs({ row[5], row[6] }) do
-        local name = layout.areas[k + 1]
+        local name = layout.locks[k + 1]
         if name ~= here and not isOpen(name, passes) then side = name end
     end
     return side
 end
--- The locked area across a wall within NEAR of a spot (a player walking up to it), or nil. A wall between two locked
--- areas names the one the player is not in.
+-- The lock across a wall within NEAR of a spot (a player walking up to it) while it is locked, or nil. A wall locked
+-- on both sides names the lock the player is not in.
 local NEAR = 3000             -- 30 m
 function W.lockedNear(x, y, passes)
-    local here = W.areaAt(x, y)
+    local here = W.lockAt(x, y)
     local best, bestD = nil, NEAR
     for i in pairs(raised) do
         local d = segDist(i, x, y)
@@ -452,23 +452,22 @@ function W.count()
 end
 
 
--- The seed's cut of the map ("areas" for the 15 regions, "regions" for the 75 areas: the older words, see the top of
--- this file; main.lua reads it from the seed's Lock Size), set once a connection is ready and before any wall goes up.
+-- The seed's cut of the map ("regions" for the 15 regions, "areas" for the 75 areas, as the seed's Lock Size, which
+-- connection.lua reads), set once a connection is ready and before any wall goes up.
 -- A change takes every wall down at once (their piece numbers mean other pieces in the other cut) and forgets the map
 -- pictures made for the old one; the update raises the new cut's walls.
 function W.setLayout(name)
-    name = name == "regions" and "regions" or "areas"
+    name = name == "areas" and "areas" or "regions"
     if name == W.layout then return false end
     for _, actor in pairs(raised) do pcall(function() if actor:IsValid() then actor:K2_DestroyActor() end end) end
     destroyOpening()
     forgetAll()
-    AREAS.useLayoutData(name)
+    LOCKS.useLayoutData(name)
     W.start, W.home = layout.start, layout.map.home
     W.layout = name
     buildTrig()
     MAP_PICTURE.forgetPictures()
-    local parts = name == "regions" and " areas" or " regions"         -- in the players' words
-    log("area locks: " .. (#layout.areas - 1) .. parts .. " (" .. #layout.walls .. " border pieces)")
+    log("area locks: " .. (#layout.locks - 1) .. " " .. name .. " (" .. #layout.walls .. " border pieces)")
     return true
 end
 
@@ -483,12 +482,12 @@ local pieces = {
     passes = function() return lastPasses end,
     pawn = function() return lastPawn end,
 }
-WALL_SKINS.install({ W = W, areas = AREAS, pieces = pieces, DISSOLVE_S = DISSOLVE_S })
+WALL_SKINS.install({ W = W, locks = LOCKS, pieces = pieces, DISSOLVE_S = DISSOLVE_S })
 W.SKINS, W.setSkin, W.cycleSkin = WALL_SKINS.SKINS, WALL_SKINS.setSkin, WALL_SKINS.cycleSkin
 W.linearOf, W.modAsset, W.pieceSkin = WALL_SKINS.linearOf, WALL_SKINS.modAsset, WALL_SKINS.pieceSkin  -- (the harness)
-MAP_ICONS.install({ W = W, areas = AREAS })
-MAP_PICTURE.install({ W = W, areas = AREAS, icons = MAP_ICONS, fog = MAP_FOG })
-MAP_FOG.install({ W = W, areas = AREAS, icons = MAP_ICONS, picture = MAP_PICTURE })
+MAP_ICONS.install({ W = W, locks = LOCKS })
+MAP_PICTURE.install({ W = W, locks = LOCKS, icons = MAP_ICONS, fog = MAP_FOG })
+MAP_FOG.install({ W = W, locks = LOCKS, icons = MAP_ICONS, picture = MAP_PICTURE })
 W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_FOG.mapShown, MAP_FOG.mapOff
 W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_ICONS.worldAt                              -- (for the harness)
 

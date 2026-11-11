@@ -184,7 +184,7 @@ local PHASE_STEPS = {
     [PHASE.records] = phaseRecords,         -- trap timers, the seed's-world check, the game's records
     [PHASE.techScan] = TECHSCAN.phase,      -- other mods' techs, until found
     [PHASE.items] = phaseItems,             -- techs, items, held notices, Death Link, traps
-    [PHASE.areas] = AREA_LOCKS.phaseAreas,  -- visited areas; sent home from inside a locked area
+    [PHASE.locks] = AREA_LOCKS.phaseLocks,  -- visited locks; sent home from inside a lock still locked
     [PHASE.wallNotice] = AREA_LOCKS.phaseWallNotice,   -- the chat notice and hint offer at a locked wall
 }
 

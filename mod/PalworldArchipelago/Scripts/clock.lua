@@ -25,7 +25,7 @@ local PHASE = {
     records = 0,                -- trap timers, the seed's-world check, the game's records (checks and the goal)
     techScan = 1,               -- other mods' techs, until found
     items = 2,                  -- techs, items, the run style's sync, held notices, Death Link, traps
-    areas = 3,                  -- visited areas; sent home from inside a locked area
+    locks = 3,                  -- visited locks; sent home from inside a lock still locked
     wallNotice = 5,             -- the chat notice and hint offer at a locked wall
 }
 CLOCK.WAIT, CLOCK.CYCLE, CLOCK.PHASE = WAIT, CYCLE, PHASE

@@ -1,7 +1,7 @@
--- The world map: the picture with the locked areas (composed by the C++ part, or drawn here without it), the C++ map
--- screen, the explored mask, the chart and the fog picture, and the locked areas' icons on the map screen. A part of
+-- The world map: the picture with the locks still locked (composed by the C++ part, or drawn here without it), the C++
+-- map screen, the explored mask, the chart and the fog picture, and their icons on the map screen. A part of
 -- walls.lua, which loads it (fresh for each copy of walls.lua) and hands it, by install, W (the table main.lua sees,
--- with the map's settings) and the areas part.
+-- with the map's settings) and the locks part.
 -- Tests: mod/test/tests/map.lua; group "the world map" (tools/lua_harness.sh, in CI).
 local MAP_PICTURE = {}
 local UTIL = require("util")
@@ -9,10 +9,10 @@ local MAP_ICONS = nil            -- the icons part (map_icons.lua; install)
 local MAP_FOG = nil              -- the C++ map screen and fog part (map_fog.lua; install)
 local log = UTIL.log
 local once = UTIL.onceIn("walls")
--- Handed over by install: W, and the areas part's layout, isOpen, SEA, AREA_COLOURS and lists.
-local W, layout, isOpen, SEA, AREA_COLOURS = nil, nil, nil, nil, nil
+-- Handed over by install: W, and the locks part's layout, isOpen, SEA, REGION_COLOURS and lists.
+local W, layout, isOpen, SEA, REGION_COLOURS = nil, nil, nil, nil, nil
 local slugOf, lockedList, lockedIndexes, openList, standing, beyondSig = nil, nil, nil, nil, nil, nil
-local PALETTE = nil           -- areas.lua's colours
+local PALETTE = nil           -- locks.lua's colours
 
 -- Render targets are owned by the game instance, never by something in the world: an object kept alive for the
 -- session that belongs to the world stops the world being freed when leaving it, and the game crashes on the way back
@@ -33,7 +33,7 @@ local COLOUR_FILE = "map-colour-1.png"
 local TEMP_COLOUR_FILE = "map-colour.png"
 local COMPOSED_FILE = "map-composed.png"
 local TERR_OVERLAY, TERR_FOG = "map-territories.png", "map-territories-fog.png"
--- The area labels of the cut in use (area_labels*.png, shipped: which area each pixel of the map is in).
+-- The lock labels of the cut in use (region_labels.png or area_labels.png, shipped: which lock each pixel is in).
 local function labelsFile() return W.dir .. "\\" .. layout.prefix .. "labels.png" end
 local RT_SIZE = 4096
 -- Engine enum values passed as numbers, with the engine's own name for each.
@@ -43,8 +43,8 @@ local BLEND_OPAQUE = 0        -- EBlendMode::BLEND_Opaque
 local BLEND_TRANSLUCENT = 2   -- EBlendMode::BLEND_Translucent
 -- The gamma (1 / 2.2) the C++ part applies to the PNGs the engine exports, which are in linear light.
 local GAMMA = "0.4545"
-local FIELD_SIZE = 4096       -- px: a Territories picture made from the distance field (area_field*.png is made for it)
-local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint without a greyscale copy
+local FIELD_SIZE = 4096       -- px: a Territories picture made from the distance field (*_field.png is made for it)
+local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- tint of locks still locked, no greyscale copy
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
 local BLACK = { R = 0, G = 0, B = 0, A = 1 }  -- a new render target's colour, before anything is drawn into it
 local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at all)
@@ -54,14 +54,14 @@ local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at
 -- greyTried (the greyscale copy is the game's own map, the same in every world), terr (keyed by its look, which a new
 -- cut changes), the fingerprint (the game's map does not change while it runs), and mapShownOn (a once-a-session log).
 local mapRT, mapKey, mapShownOn, greyTex, greyTried = nil, nil, nil, nil, false
-local triangles = {}          -- area index .. tint -> FCanvasUVTri list, built when first needed
-local bands = {}              -- area index .. tint -> FCanvasUVTri list of its edge band
+local triangles = {}          -- lock index .. tint -> FCanvasUVTri list, built when first needed
+local bands = {}              -- lock index .. tint -> FCanvasUVTri list of its edge band
 -- The two picture jobs, one per look (greyJob for map_style=chart, terr for Territories), keep the same three keys:
 -- composing (the look being composed in the background), done (the look last drawn into the map picture) and failed
 -- (a look whose composition failed, not tried again). A job answers "ready" (the map picture holds the look asked
 -- for), "busy" (not yet) or "failed" (it will not: the map is drawn without the compositor).
--- greyJob also keeps the composing look's locked area indexes, for the stamps (locked); terr the picture's size and
--- whether it is the whole map (made from the colour map) or an overlay.
+-- greyJob also keeps the composing look's indexes of locks still locked, for the stamps (locked); terr the picture's
+-- size and whether it is the whole map (made from the colour map) or an overlay.
 local greyJob = { composing = nil, done = nil, failed = nil, locked = {} }
 local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }
 local printChecked, printNow = false, nil   -- the fingerprint was read this session, and what it read
@@ -96,15 +96,16 @@ local function gameMapTexture()
     return tex and tex:IsValid() and tex or nil
 end
 
--- The locked-area stamps (art/ap-map-stamp-<area>.png per area; art/ap-map-stamp.png when an area has none), 256x256
--- tickets with a padlock, drawn on each locked area STAMP_PX across on the 4096 map, a whole stamp inside the area on
--- its side nearest the starting area (area_centres.lua, from tools/area_centres.py): at each area's deepest point all
--- 14 sat under the map's fog of war, which a locked area never clears.
+-- The stamps of locks still locked (art/ap-map-stamp-<region>.png per region, which its areas wear too;
+-- art/ap-map-stamp.png when a region has none), 256x256 tickets with a padlock, drawn on each such lock STAMP_PX across
+-- on the 4096 map, a whole stamp inside the lock on its side nearest the starting lock (*_centres.lua, from
+-- tools/lock_centres.py): at each lock's deepest point all 14 sat under the map's fog of war, which a lock never
+-- clears while it is locked.
 local ART = require("art")
 local STAMP_PX = 88
--- A region too small for the whole stamp gets a smaller one, about as wide as the region (its fifth field: how far the
--- stamp's point is from the region's edge), but never under STAMP_MIN_PX: the full 88 px padlock buried
--- Small Settlement's village. Data without the field (older area_centres files) keeps the full size.
+-- A lock too small for the whole stamp gets a smaller one, about as wide as the lock (its fifth field: how far the
+-- stamp's point is from the lock's edge), but never under STAMP_MIN_PX: the full 88 px padlock buried
+-- Small Settlement's village. Data without the field (older *_centres files) keeps the full size.
 local STAMP_MIN_PX = 28
 local function stampSize(c)
     local room = c.room
@@ -136,7 +137,7 @@ end
 -- The greyscale copy of the map, for drawMap: made once on the player's machine and kept in the mod folder (it is the
 -- game's own art, so it is never shipped): the map is drawn into a render target, saved as a PNG, turned grey by the
 -- C++ part (AP_GreyscalePNG; the saved PNG is in linear light, hence the gamma) and loaded back. nil without the C++
--- part: locked areas are then a dimmed copy of the colour map.
+-- part: locks still locked are then a dimmed copy of the colour map.
 local function greyscaleMap(rendering, tex)
     if greyTex and greyTex:IsValid() then return greyTex end
     if greyTried or not AP_GreyscalePNG then return nil end
@@ -170,7 +171,7 @@ local function greyscaleMap(rendering, tex)
     W.keepAlive(greyTex)
     return greyTex
 end
--- An area's shape as the canvas's triangles (area_shapes*.lua: 6 numbers a triangle, u, v of each of its 3 corners,
+-- A lock's shape as the canvas's triangles (*_shapes.lua: 6 numbers a triangle, u, v of each of its 3 corners,
 -- on the map square), tinted.
 local function trianglesOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
@@ -190,7 +191,7 @@ local function trianglesOf(k, tint)
     triangles[key] = out
     return out
 end
--- An area's edge band as triangles (area_shapes*.lua edges: 9 numbers a triangle, u, v and shade of each corner),
+-- A lock's edge band as triangles (*_shapes.lua edges: 9 numbers a triangle, u, v and shade of each corner),
 -- darkened toward the edge by the shade.
 local function bandOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
@@ -211,10 +212,10 @@ local function bandOf(k, tint)
     bands[key] = out
     return out
 end
--- The map picture drawn here, without the compositor: the game's map drawn into the render target, then each locked
--- area's outline (area_shapes.lua: smoothed, cut into triangles) drawn over it from the greyscale copy, darkening
+-- The map picture drawn here, without the compositor: the game's map drawn into the render target, then the outline of
+-- each lock still locked (*_shapes.lua: smoothed, cut into triangles) drawn over it from the greyscale copy, darkening
 -- softly toward its edge (a narrow band whose corners are shaded dark at the edge). True once drawn; drawn again when
--- the set of locked areas changes. (The exploration fog is a separate layer above the map image.)
+-- the set of locks still locked changes. (The exploration fog is a separate layer above the map image.)
 local function drawMap(passes)
     local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local tex = gameMapTexture()
@@ -233,13 +234,13 @@ local function drawMap(passes)
     local canvas = canvasOut.Canvas
     if not canvas then return false end
     drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
-    for k, name in ipairs(layout.areas) do
+    for k, name in ipairs(layout.locks) do
         if not isOpen(name, passes) then
             local tris = trianglesOf(k - 1, grey and WHITE or FADE)
             if #tris > 0 then canvas:K2_DrawTriangle(grey or tex, tris) end
         end
     end
-    for k, name in ipairs(layout.areas) do
+    for k, name in ipairs(layout.locks) do
         if not isOpen(name, passes) then
             local band = bandOf(k - 1, grey and WHITE or FADE)
             if #band > 0 then canvas:K2_DrawTriangle(grey or tex, band) end
@@ -251,7 +252,7 @@ local function drawMap(passes)
     return true
 end
 -- With the C++ compositor (AP_ComposeMap): the whole picture is made on the player's machine in the background, from
--- the colour map (saved once, map-colour-1.png) and area_labels.png, with soft anti-aliased boundaries and an inner
+-- the colour map (saved once, map-colour-1.png) and the lock labels, with soft anti-aliased boundaries and an inner
 -- shadow; when it is ready it is loaded and drawn into the render target. The picture is the game's own art: it stays
 -- in the mod folder and is never shipped.
 -- A fingerprint of the map the game shows: PRINT_GRID x PRINT_GRID pixels of it drawn PRINT_PX across. A mod that
@@ -310,9 +311,9 @@ local function colourMap(rendering, tex, gameInstance)
     return path
 end
 -- The "Territories" look (the default): the game's own
--- map and fog underneath; every area tinted in its colour by its state, with a soft rim inside its edge, over land and
--- sea alike (areas take in their waters, and so do their walls); the standing walls as a cream glow and core, drawn
--- from their own positions. The C++ part composes it (AP_ComposeTerritories) from the layout's labels, the areas'
+-- map and fog underneath; every lock tinted in its colour by its state, with a soft rim inside its edge, over land and
+-- sea alike (locks take in their waters, and so do their walls); the standing walls as a cream glow and core, drawn
+-- from their own positions. The C++ part composes it (AP_ComposeTerritories) from the layout's labels, the locks'
 -- states and the standing walls: an overlay for the map picture (drawn over the game's map) and the same over a dark
 -- fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the explorer's chart and
 -- greyscale instead.
@@ -321,18 +322,18 @@ local TERR_SIZE = 2048        -- px: a Territories picture from the label map (a
 -- shows through the walls.
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
--- Each area's state and colour. Format: image_tools.hpp, compose_territories, argument areas.
-local function areaSpec(passes)
+-- Each lock's state and colour. Format: image_tools.hpp, compose_territories, argument areas (these locks).
+local function lockSpec(passes)
     local out = {}
-    for k, name in ipairs(layout.areas) do
+    for k, name in ipairs(layout.locks) do
         if name ~= SEA then
             local st
             if W.beyond[name] then st = "s"
             elseif isOpen(name, passes) then st = (name == layout.start or W.visited[name]) and "v" or "u"
             else st = "l" end
-            local parent = W.parentOf(name)
-            local hex = st == "s" and PALETTE.mapSealed or AREA_COLOURS[parent]
-                or (parent == layout.start and PALETTE.teal) or PALETTE.noColour
+            local region = W.regionOf(name)
+            local hex = st == "s" and PALETTE.mapSealed or REGION_COLOURS[region]
+                or (region == layout.start and PALETTE.teal) or PALETTE.noColour
             out[#out + 1] = (k - 1) .. ":" .. st .. ":" .. hex
         end
     end
@@ -401,8 +402,8 @@ local function finishTerritories(rendering, gameInstance, key)
     terr.failed = k
     return "failed"
 end
--- Whether the saved colour map is there to compose from (the player's own map, saved once, so locked
--- areas show the map in greyscale), saving it from the game's map first if it is not.
+-- Whether the saved colour map is there to compose from (the player's own map, saved once, so locks still
+-- locked show the map in greyscale), saving it from the game's map first if it is not.
 local function haveColourMap(rendering, gameInstance)
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local hasColour = UTIL.exists(colour)
@@ -416,24 +417,24 @@ local function haveColourMap(rendering, gameInstance)
     return hasColour, colour
 end
 -- Starts a Territories composition for `key` in the background. From the distance field when the DLL has it (smooth at
--- 4096, where the 2048 label map gave stairs and octagons; area_field*.png, made from the label maps by
+-- 4096, where the 2048 label map gave stairs and octagons; *_field.png, made from the label maps by
 -- tools/map_fields.py), else from the label map at 2048.
 local function startTerritories(rendering, gameInstance, passes, key)
     local field = W.dir .. "\\" .. layout.prefix .. "field.png"
     local hasField = AP_ComposeField and UTIL.exists(field)
     local err, size, whole
     if hasField then
-        -- With the colour map: the whole map picture, greyscale where locked, the walls there in the area's colour.
+        -- With the colour map: the whole map picture, greyscale where locked, the walls there in the lock's colour.
         local colour
         whole, colour = haveColourMap(rendering, gameInstance)
         size = FIELD_SIZE
         -- AP_ComposeField(field, areas, walls, style, out, fogart, fog colour, size, colour, gamma): dllmain.cpp's list
-        err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
+        err = AP_ComposeField(field, lockSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
             W.dir .. "\\" .. TERR_FOG, PALETTE.fog, tostring(size), whole and colour or "", GAMMA)
     else
         size = TERR_SIZE
         -- AP_ComposeTerritories(labels, areas, walls, style, out, fogart, fog colour, size): dllmain.cpp's list
-        err = AP_ComposeTerritories(labelsFile(), areaSpec(passes),
+        err = AP_ComposeTerritories(labelsFile(), lockSpec(passes),
             wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, PALETTE.fog,
             tostring(size))
     end
@@ -513,7 +514,7 @@ local function finishCompose(rendering, gameInstance, key)
     return drawn and done == key and "ready" or "busy"
 end
 -- Starts a composition for `key` in the background, from the saved colour map (saved again from the game's map at the
--- first opening, or when there is none) and the area labels.
+-- first opening, or when there is none) and the lock labels.
 local function startCompose(rendering, gameInstance, passes, key, open)
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local saved = UTIL.exists(colour)
@@ -522,7 +523,7 @@ local function startCompose(rendering, gameInstance, passes, key, open)
         if not tex then return end
         colour = colourMap(rendering, tex, gameInstance)
     end
-    -- AP_ComposeMap(colour, labels, locked area indexes, out, gamma): dllmain.cpp's list; image_tools.hpp, compose_map
+    -- AP_ComposeMap(colour, labels, locked lock indexes, out, gamma): dllmain.cpp's list; image_tools.hpp, compose_map
     local err = AP_ComposeMap(colour, labelsFile(), lockedIndexes(passes), W.dir .. "\\" .. COMPOSED_FILE, GAMMA)
     if err == "" then
         greyJob.composing, greyJob.locked = key, lockedList(passes)
@@ -598,18 +599,18 @@ local function mainMapScreens()
 end
 
 -- The look the map picture must show, as a key that changes whenever the picture must be made again; and how many
--- areas are locked.
+-- locks are locked.
 local function pictureKey(passes)
     local locked = {}
-    for _, name in ipairs(layout.areas) do
+    for _, name in ipairs(layout.locks) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
     end
-    -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
+    -- The stamps differ for locks beyond the goal; and the picture has them drawn in only without the icons (so a
     -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
     local been = {}
     if territories() then
-        for area in pairs(W.visited) do
-            been[#been + 1] = area
+        for lock in pairs(W.visited) do
+            been[#been + 1] = lock
         end
         table.sort(been)
     end
@@ -684,7 +685,7 @@ local function putPictureBack(images, redrawn)
 end
 
 -- Each update (main.lua): the map picture, the C++ map screen, the fog and the icons brought in line with the passes
--- held. With area locks off (enabled false) C++ is switched off and nothing else is done.
+-- held. With Area Locks off (enabled false) C++ is switched off and nothing else is done.
 function MAP_PICTURE.updateMap(enabled, passes, pawn)
     local wasShown = MAP_FOG.forgetShown()        -- whether the map was on screen at the last update
     if not enabled then
@@ -716,17 +717,17 @@ end
 function MAP_PICTURE.install(env)
     W, MAP_ICONS, MAP_FOG = env.W, env.icons, env.fog
     iconsActive, stampTexture = MAP_ICONS.active, MAP_ICONS.stampTexture
-    local areas = env.areas
-    layout, isOpen, SEA, AREA_COLOURS = areas.layout, areas.isOpen, areas.SEA, areas.AREA_COLOURS
-    slugOf, lockedList, lockedIndexes, openList = areas.slugOf, areas.lockedList, areas.lockedIndexes, areas.openList
-    standing, beyondSig, PALETTE = areas.standing, areas.beyondSig, areas.PALETTE
+    local locks = env.locks
+    layout, isOpen, SEA, REGION_COLOURS = locks.layout, locks.isOpen, locks.SEA, locks.REGION_COLOURS
+    slugOf, lockedList, lockedIndexes, openList = locks.slugOf, locks.lockedList, locks.lockedIndexes, locks.openList
+    standing, beyondSig, PALETTE = locks.standing, locks.beyondSig, locks.PALETTE
     W.dir = "."
     W.iconsOff = false
     W.mapStyle = "territories"
     W.cppOff = false             -- config.txt map_cpp=0 (main.lua): C++ leaves the screen alone; Lua swaps the picture
     W.testFogColour = false      -- config.txt test_tools=1 (main.lua): the chart look's parchment fog colour is sent
     W.chartOff = false
-    W.regionsOff = false
+    W.chartBordersOff = false
 end
 
 -- What the fog part reads of the picture: the render target is replaced when it is made again, so it goes by function.

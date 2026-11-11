@@ -46,7 +46,7 @@ group("traps", function()
     -- Teleport waits in a dungeon; a later trap goes meanwhile.
     local liveWalls = require("walls")
     pawnAt = { X = -340000, Y = 236000, Z = -1500 }
-    expect(liveWalls.areaAt(pawnAt.X, pawnAt.Y) == shared.WD.start,
+    expect(liveWalls.lockAt(pawnAt.X, pawnAt.Y) == shared.WD.start,
            "(the player stands in the starting area, away from its spot)")
     teleported = nil
     game.inStage = true

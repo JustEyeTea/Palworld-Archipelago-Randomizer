@@ -32,7 +32,7 @@ end
 --   deaths=1                  own faints forgiven since a death was last sent (Death Link amnesty)
 --   goal=shown                the goal's banner and notice have been shown
 --   bought=123,456            checks the mod sent itself (ap.bought): sent again on connecting
---   visited=Area|Area         open areas the player has stood in (the map's open stamps)
+--   visited=Lock|Lock         open locks the player has stood in (the map's open stamps)
 --   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
 --   mail=id:n,...             mailbox.lua: the mailbox's items
 --   crates=kind,... and cratebag=id:n,...    crates.lua: unopened crates; crate gear the bag refused
@@ -76,8 +76,8 @@ local function loadLine(path, line)
     elseif d then
         ap.forgiven = tonumber(d)
     elseif v then
-        for area in v:gmatch("[^|]+") do
-            ap.visited[area] = true
+        for lock in v:gmatch("[^|]+") do
+            ap.visited[lock] = true
         end
     elseif b then
         for loc in b:gmatch("%d+") do
@@ -118,8 +118,8 @@ local saveWarned = false      -- the player was told the save file can't be writ
 -- what was applied, and the traps and mailbox items it left.
 local function saveText()
     local been = {}
-    for area in pairs(ap.visited) do
-        been[#been + 1] = area
+    for lock in pairs(ap.visited) do
+        been[#been + 1] = lock
     end
     table.sort(been)
     local bought = {}

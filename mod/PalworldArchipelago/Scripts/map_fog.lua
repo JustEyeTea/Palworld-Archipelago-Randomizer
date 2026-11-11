@@ -8,9 +8,9 @@ local ART = require("art")
 local log = UTIL.log
 local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance
--- Handed over by install: W (settings: dir, keepInPlace, cppOff, testFogColour, chartOff, regionsOff; data: beyond),
--- the areas part's layout and lists, the icons part's active and the picture part (target(), territories(), terr,
--- TERR_FOG, COLOUR_FILE, stampSize, drawInto, drawWhole).
+-- Handed over by install: W (settings: dir, keepInPlace, cppOff, testFogColour, chartOff, chartBordersOff; data:
+-- beyond), the locks part's layout and lists, the icons part's active and the picture part (target(), territories(),
+-- terr, TERR_FOG, COLOUR_FILE, stampSize, drawInto, drawWhole).
 local W, layout, slugOf, lockedList, lockedIndexes, iconsActive, picture = nil, nil, nil, nil, nil, nil, nil
 local territories, terr, TERR_FOG, COLOUR_FILE, stampSize = nil, nil, nil, nil, nil
 local GAMMA, RTF_RGBA8, BLEND_OPAQUE = nil, nil, nil
@@ -54,9 +54,9 @@ local chart = {
     old = false,        -- the last session's fog picture was loaded (until a new one)
     keptAt = nil,       -- the fog picture's place in the kept objects (W.keepInPlace)
 }
--- The stamps and area borders for the fog picture, made again only when the map's key changes: they test art files,
+-- The stamps and lock borders for the fog picture, made again only when the map's key changes: they test art files,
 -- which would otherwise be opened on every update while nothing changes.
-local fogParts = { key = nil, stamps = "", regions = "" }
+local fogParts = { key = nil, stamps = "", borders = "" }
 
 function MAP_FOG.mapShown() return mapScreensShown > 0 end
 -- A new world: its map has not been on screen yet, so its first showing is an opening.
@@ -109,7 +109,7 @@ local function tellCpp()
         end
     end
 end
--- Switches the C++ map screen off where the mod's map does not belong (a seed without area locks, a world that is
+-- Switches the C++ map screen off where the mod's map does not belong (a seed without Area Locks, a world that is
 -- not the seed's): C++ would otherwise show the seed's picture and fog there. Told once; tellCpp switches it on again.
 function MAP_FOG.mapOff()
     if not (AP_MapScreen and cpp.told) then
@@ -238,9 +238,9 @@ local function stampList(locked)
     if iconsActive() then return "" end
     local parts = {}
     for _, k in ipairs(locked) do
-        local centre, name = layout.centres[k], layout.areas[k + 1]
+        local centre, name = layout.centres[k], layout.locks[k + 1]
         if centre and name then
-            local file = W.beyond[name] and "ap-map-stamp-sealed" or ("ap-map-stamp-" .. slugOf(W.parentOf(name)))
+            local file = W.beyond[name] and "ap-map-stamp-sealed" or ("ap-map-stamp-" .. slugOf(W.regionOf(name)))
             local path = artFile(file)
             if path == "" then path = artFile("ap-map-stamp") end
             if path ~= "" then
@@ -250,41 +250,42 @@ local function stampList(locked)
     end
     return table.concat(parts, ";")
 end
--- The areas on the chart, so the regions on the unexplored map have clear boundaries: a border between neighbouring
--- areas and a hatch over locked ones, drawn by the C++ compositor from the area labels (an older DLL ignores them).
+-- The locks on the chart, so the unexplored map shows clear boundaries: a border between neighbouring locks and a
+-- hatch over locked ones, drawn by the C++ compositor from the lock labels (an older DLL ignores them).
 -- Dashed brown ink (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and a single diagonal hatch
--- (art/ap-chart-hatch.png; a plain hatch in the ink if the file is missing). Both are kept to land, since an area's
+-- (art/ap-chart-hatch.png; a plain hatch in the ink if the file is missing). Both are kept to land, since a lock's
 -- labels take in its waters (the colour map tells land from sea, as for the chart); the hatch is light, at 0.28, so
 -- the map does not look busy; and the line's edge is softened so it does not stair-step zoomed in.
--- config.txt map_regions=0: none. Format: image_tools.hpp, compose_fog, argument regions.
-local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.28
-local function regionSpec(passes)
-    if W.regionsOff then return "" end
+-- config.txt map_regions=0: none. Format: image_tools.hpp, compose_fog, argument regions (these borders).
+local BORDER_INK, BORDER_WIDTH, BORDER_DASH, BORDER_GAP, BORDER_HATCH = "59,42,26,210", 3, 14, 8, 0.28
+local function bordersSpec(passes)
+    if W.chartBordersOff then return "" end
     return table.concat({ picture.labelsFile(), lockedIndexes(passes),
         artFile("ap-chart-hatch"),
-        REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH),
+        BORDER_INK, tostring(BORDER_WIDTH), tostring(BORDER_DASH), tostring(BORDER_GAP), tostring(BORDER_HATCH),
         exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", GAMMA }, "|")
 end
-local function startFog(stamps, regions, tag)
+local function startFog(stamps, borders, tag)
     local def = W.dir .. "\\" .. DEFAULT_MASK_FILE
     local art = territories() and TERR_FOG or CHART_FILE
     local size = territories() and terr.size or CHART_SIZE                  -- (the fog art's own size: its 8-bit path)
-    -- AP_ComposeFog(fog art, mask, default mask, spec, out, size, stamps, regions): dllmain.cpp's list
+    -- AP_ComposeFog(fog art, mask, default mask, spec, out, size, stamps, regions): dllmain.cpp's list (regions: the
+    -- borders)
     local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\" .. MASK_FILE, exists(def) and def or "", chart.spec,
-        W.dir .. "\\" .. fogFile(), tostring(size), stamps, regions)
-    if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
+        W.dir .. "\\" .. fogFile(), tostring(size), stamps, borders)
+    if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. borders .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end
-local function fogStampsAndRegions(key, passes)
+local function fogStampsAndBorders(key, passes)
     if fogParts.key ~= key then
         local tagged = territories()
         fogParts = { key = key, stamps = tagged and "" or stampList(lockedList(passes)),
-                     regions = tagged and "" or regionSpec(passes) }
+                     borders = tagged and "" or bordersSpec(passes) }
     end
-    return fogParts.stamps, fogParts.regions
+    return fogParts.stamps, fogParts.borders
 end
--- The explorer's-chart fog: in place of the black fog, a basic map drawn like an explorer's chart, with the
--- locked-area stamps on it (art: ap-chart-*.png). All drawn on the player's machine by the C++ part from the game's
+-- The explorer's-chart fog: in place of the black fog, a basic map drawn like an explorer's chart, with the stamps of
+-- the locks still locked on it (art: ap-chart-*.png). All drawn on the player's machine by the C++ part from the game's
 -- own map (never shipped):
 --   1. the chart, once a session, from the saved colour map (compose_chart);
 --   2. when the map opens (at most every EXPORT_GAP updates) the explored mask is exported and the fog picture made
@@ -343,7 +344,7 @@ local function finishFog()
     return false
 end
 -- Before the map opens: the explored mask read from the world's map data (worldMask) and the fog picture made.
-local function readMaskEarly(pawn, rendering, gameInstance, stamps, regions, tag)
+local function readMaskEarly(pawn, rendering, gameInstance, stamps, borders, tag)
     chart.early = (chart.early or 0) + 1
     local rt = worldMask(pawn)
     local okE = rt and pcall(function() rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE) end)
@@ -352,7 +353,7 @@ local function readMaskEarly(pawn, rendering, gameInstance, stamps, regions, tag
     if okE and spec then
         chart.spec, chart.exportedAt = spec, chart.ticks
         log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
-        startFog(stamps, regions, tag)
+        startFog(stamps, borders, tag)
     elseif chart.early == EARLY_MASK_TRIES then
         log("map chart: the explored mask could not be read before the map opened ("
             .. (rt and tostring(info) or "no world map data") .. "); from the first opening instead")
@@ -360,7 +361,7 @@ local function readMaskEarly(pawn, rendering, gameInstance, stamps, regions, tag
 end
 -- At a map opening: the explored mask exported from the screen, read once to learn which channel means explored, and
 -- the fog picture made.
-local function readMaskOnOpening(pawn, screen, rendering, gameInstance, stamps, regions, tag)
+local function readMaskOnOpening(pawn, screen, rendering, gameInstance, stamps, borders, tag)
     chart.exportedAt, chart.want = chart.ticks, false
     local ok, res = pcall(exportMask, screen, rendering, gameInstance)
     if not ok or res ~= true then
@@ -378,22 +379,22 @@ local function readMaskOnOpening(pawn, screen, rendering, gameInstance, stamps, 
         end
         chart.spec = spec
     end
-    startFog(stamps, regions, tag)
+    startFog(stamps, borders, tag)
 end
--- A new fog picture when the mask is to be read (before the map opens, or at an opening) or when the stamps, the area
+-- A new fog picture when the mask is to be read (before the map opens, or at an opening) or when the stamps, the lock
 -- borders or the look changed (a pass: the same mask).
 local function remakeFog(pawn, screens, passes, key, rendering, gameInstance)
     local tagged = territories()
-    local stamps, regions = fogStampsAndRegions(key, passes)
+    local stamps, borders = fogStampsAndBorders(key, passes)
     local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
     if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
        and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
-        readMaskEarly(pawn, rendering, gameInstance, stamps, regions, tag)
+        readMaskEarly(pawn, rendering, gameInstance, stamps, borders, tag)
     elseif chart.want and screens[#screens]
            and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
-        readMaskOnOpening(pawn, screens[#screens], rendering, gameInstance, stamps, regions, tag)
-    elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions .. tag ~= chart.stampKey then
-        startFog(stamps, regions, tag)
+        readMaskOnOpening(pawn, screens[#screens], rendering, gameInstance, stamps, borders, tag)
+    elseif chart.spec and chart.stampKey and stamps .. "\n" .. borders .. tag ~= chart.stampKey then
+        startFog(stamps, borders, tag)
     end
 end
 -- 3. The fog picture loaded and handed to C++, which shows it from the next opening.
@@ -478,8 +479,8 @@ end
 -- Hands over what this part reads (see the top of the file).
 function MAP_FOG.install(env)
     W, picture, iconsActive = env.W, env.picture, env.icons.active
-    local areas = env.areas
-    layout, slugOf, lockedList, lockedIndexes = areas.layout, areas.slugOf, areas.lockedList, areas.lockedIndexes
+    local locks = env.locks
+    layout, slugOf, lockedList, lockedIndexes = locks.layout, locks.slugOf, locks.lockedList, locks.lockedIndexes
     territories, terr, TERR_FOG = picture.territories, picture.terr, picture.TERR_FOG
     COLOUR_FILE, stampSize = picture.COLOUR_FILE, picture.stampSize
     GAMMA, RTF_RGBA8, BLEND_OPAQUE = picture.GAMMA, picture.RTF_RGBA8, picture.BLEND_OPAQUE

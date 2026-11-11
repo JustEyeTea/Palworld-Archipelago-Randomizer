@@ -195,7 +195,7 @@ function h.spotBesideStart(wanted)
             for _, side in ipairs({ 1, -1 }) do
                 local x = row.x - side * math.sin(yaw) * SPOT_FROM_WALL
                 local y = row.y + side * math.cos(yaw) * SPOT_FROM_WALL
-                if liveWalls.areaAt(x, y) == start then
+                if liveWalls.lockAt(x, y) == start then
                     spot = { X = x, Y = y, Z = 0 }
                 end
             end

@@ -67,7 +67,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(#third == #first and hiddenOf(third) == #third,
                "after the test state that removes every piece, the pieces raised again are hidden again: "
                .. hiddenOf(third) .. " of " .. #third)
-        W.setLayout("regions") -- the other cut: every piece taken down, others raised
+        W.setLayout("areas") -- the other cut: every piece taken down, others raised
         for _ = 1, 2 * SETTLE_UPDATES do
             W.update(true, {}, offMap)
         end
@@ -518,7 +518,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         local W, mine = h.freshWalls()
         local opening = openingAfterAPass(W, mine)
-        W.setLayout("regions")
+        W.setLayout("areas")
         local afterCut = standing(opening)
         h.wallsGo(mine())
         local W2, mine2 = h.freshWalls()

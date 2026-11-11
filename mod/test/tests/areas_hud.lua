@@ -3,14 +3,13 @@
 
 group("Lock Size: areas", function()
     -- Slot data options.lock_size 1: every named area of the game on its own, opened by an Area Pass.
-    -- walls.lua still calls this cut "regions" (the older word).
     local RD = dofile(MOD .. "/Scripts/area_walls.lua")
     local liveWalls = require("walls")
     slotData["options.lock_size"] = "1"
     h.reconnect("Tester")
     h.replayItems()
     run(80)
-    expect(logged("area locks: 75 areas %(" .. #RD.walls .. " border pieces%)") and liveWalls.layout == "regions"
+    expect(logged("area locks: 75 areas %(" .. #RD.walls .. " border pieces%)") and liveWalls.layout == "areas"
            and liveWalls.passName("Golden Hills") == "Area Pass: Golden Hills",
            "a 75-areas seed: the areas' walls and passes")
     local up = wallCount()
@@ -18,8 +17,8 @@ group("Lock Size: areas", function()
     pushItem({ name = "Area Pass: Golden Hills", index = 9000 })
     run(60)
     expect(wallCount() < up, "an Area Pass takes its area's walls down: " .. up .. " -> " .. wallCount())
-    expect(liveWalls.parentOf("Golden Hills") == "Bamboo Groves"
-           and liveWalls.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
+    expect(liveWalls.regionOf("Golden Hills") == "Bamboo Groves"
+           and liveWalls.regionOf("Gobfin's Turf") == "Crescent Moon Shore",
            "an area wears its region's colour, ticket and stamp (area_regions.lua)")
     local perHex = {}
     for i in ipairs(RD.walls) do
@@ -46,11 +45,11 @@ group("Lock Size: areas", function()
     slotData["options.lock_size"], slotData["options.area_size"] = nil, "1"   -- a seed made before the rename
     h.reconnect("Tester")
     run(80)
-    expect(liveWalls.layout == "regions", "a seed from before the rename (options.area_size 1) still gets the 75 areas")
+    expect(liveWalls.layout == "areas", "a seed from before the rename (options.area_size 1) still gets the 75 areas")
     slotData["options.area_size"] = nil -- a 15-regions seed again (and seeds made before the option)
     h.reconnect("Tester")
     run(80)
-    expect(liveWalls.layout == "areas" and logged("area locks: 15 regions"),
+    expect(liveWalls.layout == "regions" and logged("area locks: 15 regions"),
            "back to a 15-regions seed: the regions' walls")
 end)
 
@@ -113,10 +112,10 @@ group("area-coloured walls and the hint pop-up", function()
     -- the start's side of one of its walls.
     -- (another wall than the hint test's: that one was opened)
     local popupAt, popupArea, popupWall = h.spotBesideStart(function(other, row)
-        return liveWalls.AREA_COLOURS[other] and actorOf(row)
+        return liveWalls.REGION_COLOURS[other] and actorOf(row)
     end)
     local piece = popupWall and actorOf(h.wallRow(popupWall))
-    local want = popupArea and liveWalls.linearOf(liveWalls.AREA_COLOURS[popupArea])
+    local want = popupArea and liveWalls.linearOf(liveWalls.REGION_COLOURS[popupArea])
     expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes"
            and h.sameColour(piece.Cube.mat.vectors.Color, want)
            and loggedSince(skinAt, "wall skin area: colours "),
@@ -160,13 +159,13 @@ group("area-coloured walls and the hint pop-up", function()
     for _, w in ipairs(WD.walls) do
         local row = h.wallRow(w)
         local x, y = row.areaA, row.areaB
-        if liveWalls.AREA_COLOURS[x] and liveWalls.AREA_COLOURS[y] and not shared.open[x] and not shared.open[y]
+        if liveWalls.REGION_COLOURS[x] and liveWalls.REGION_COLOURS[y] and not shared.open[x] and not shared.open[y]
            and x ~= openedBeyond and y ~= openedBeyond and actorOf(row) then
             a1, a2, between = x, y, actorOf(row)
             break
         end
     end
-    local colourOf = function(area) return liveWalls.linearOf(liveWalls.AREA_COLOURS[area]) end
+    local colourOf = function(area) return liveWalls.linearOf(liveWalls.REGION_COLOURS[area]) end
     local colourBefore = between and between.Cube.mat.vectors.Color
     pushItem({ name = "Region Pass: " .. tostring(a1), index = 9300 })
     run(80)
