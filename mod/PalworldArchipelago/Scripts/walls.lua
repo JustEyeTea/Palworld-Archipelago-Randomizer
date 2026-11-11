@@ -29,9 +29,11 @@ local once = UTIL.onceIn("walls")
 
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
-local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km above
-local MID_Z = 50000
-local THICK = 4               -- 4 m, so nothing fast slips through
+-- Sizes of one wall piece, all in centimetres (the game's unit).
+local CUBE_CM = 100           -- the blocking cube's side at scale 1: a piece's scale is its size / CUBE_CM
+local THICK_CM = 400          -- 4 m thick, so nothing fast slips through
+local HEIGHT_CM = 300000      -- 3 km tall: from 1 km below sea level to 2 km above
+local MID_Z_CM = 50000        -- the piece's middle, 500 m above sea level: halfway between those two
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
 local SHRINK_S = 2.0          -- an opened wall (not a dissolving one) shrinks away over 2 s of the game's clock
 -- Every piece is raised at world load, as before; only those near the player are shown (the user, 2026-11-08: fewer
@@ -140,8 +142,8 @@ local function raise(i, context)
     local w = layout.walls[i]
     local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
-                Translation = { X = x, Y = y, Z = MID_Z },
-                Scale3D = { X = length / 100, Y = THICK, Z = HEIGHT / 100 } }
+                Translation = { X = x, Y = y, Z = MID_Z_CM },
+                Scale3D = { X = length / CUBE_CM, Y = THICK_CM / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
     local a = gs:BeginDeferredActorSpawnFromClass(context, cls, t, 1, nil)
     if not a or not a:IsValid() then return false end
     gs:FinishSpawningActor(a, t)
@@ -176,7 +178,8 @@ local function stepOne(s, now)
     if not s.dissolving then                     -- shrinking: top and bottom towards the middle
         local t = math.min(1, (now - s[4]) / SHRINK_S)
         local eased = t * t * (3 - 2 * t)        -- slow, fast, slow
-        pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = math.max(0.01, HEIGHT / 100 * (1 - eased)) }) end)
+        local height = math.max(0.01, HEIGHT_CM / CUBE_CM * (1 - eased))
+        pcall(function() a:SetActorScale3D({ X = s[2], Y = s[3], Z = height }) end)
     end
     if half then s.open = true; pcall(function() a:SetActorEnableCollision(false) end) end
     if not done then
@@ -240,8 +243,8 @@ local function lower(i, context)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
     now = (m and start) or (okT and type(now) == "number" and now) or 0
-    sinking[#sinking + 1] = { a, layout.walls[i][3] / 100, THICK, now, addr = addr, dissolving = m and true or nil,
-                              mid = m and mid or nil }
+    sinking[#sinking + 1] = { a, layout.walls[i][3] / CUBE_CM, THICK_CM / CUBE_CM, now, addr = addr,
+                              dissolving = m and true or nil, mid = m and mid or nil }
 end
 
 
