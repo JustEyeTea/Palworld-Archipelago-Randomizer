@@ -59,6 +59,11 @@ function CLICKS.releaseAll(owner)
     waiting = kept
 end
 
+-- Whether a button is claimed, by any owner.
+function CLICKS.isClaimed(button)
+    return claimed[UTIL.addr(button) or ""] ~= nil
+end
+
 -- Whether a button is claimed by `owner`.
 function CLICKS.ownedBy(button, owner)
     local entry = claimed[UTIL.addr(button) or ""]
@@ -82,7 +87,7 @@ function CLICKS.note(button)
     return true
 end
 
--- Runs the work of an owner's clicks noted since its last run, in the order clicked.
+-- Runs the work of an owner's clicks noted since its last run, in the order clicked; how many there were.
 function CLICKS.run(owner)
     local due, kept = {}, {}
     for _, click in ipairs(waiting) do
@@ -99,6 +104,7 @@ function CLICKS.run(owner)
             UTIL.log(owner .. " click error: " .. tostring(err))
         end
     end
+    return #due
 end
 
 local function onClick(self)

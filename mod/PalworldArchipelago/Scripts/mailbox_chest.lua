@@ -706,9 +706,7 @@ end
 local function nameTheChestWindow(heading)
     local okRead, now = pcall(function() return heading:GetText():ToString() end)
     if okRead and now == LIST.TITLE then return end
-    pcall(function() heading.IsAutoTextSetWhenWidgetRebuilt = false end)
-    pcall(function() heading.BindTextDatatableHandle.RowName = FName("None") end)
-    pcall(function() heading:SetText(FText(LIST.TITLE)) end)
+    WIDGETS.setBoundText(heading, LIST.TITLE)
     once("heading", "mailbox: chest window heading was '" .. tostring(okRead and now or "?") .. "'; set to ours")
 end
 

@@ -2956,10 +2956,11 @@ expect(logged("Archipelago menu added to the title menu %(VerticalBox VerticalBo
        "found the box the Start Game button sits in")
 expect(logged("menu layout: WBP_Title_MenuButton_StartLocalGame | %?:SizeBox/0 < VerticalBox_Menu:VerticalBox"), "and logged the layout once")
 expect(hooks[CLICK] and hooks[WINDOW_OK], "their clicks and the text window's OK are hooked")
--- menu.lua's ExecuteInGameThread runs at the next game tick, as in the game (the rest of the harness runs it at once).
+-- The menu's ExecuteInGameThread runs at the next game tick, as in the game (the rest of the harness runs it at once).
 local queued, realGT = {}, ExecuteInGameThread
 ExecuteInGameThread = function(f)
-    if debug.getinfo(2, "S").source:find("menu.lua", 1, true) then queued[#queued + 1] = f else f() end
+    local source = debug.getinfo(2, "S").source             -- (the menu's files, and clicks.lua for its rows)
+    if source:find("menu", 1, true) or source:find("clicks.lua", 1, true) then queued[#queued + 1] = f else f() end
 end
 local function tick() local q = queued; queued = {}; for _, f in ipairs(q) do f() end end
 local HOVER, UNHOVER = CLICK:gsub("Event_0_", "Event_1_"), CLICK:gsub("Event_0_", "Event_2_")
