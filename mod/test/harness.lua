@@ -3125,6 +3125,20 @@ do
     run(2)
     expect(#menuChildren > before and logged("Archipelago menu added to the title menu"), "then made again once it can be")
 end
+;(function()   -- one test of "in a world": a pawn the lookup answers with, even one not valid, counts
+    local pawnWas, addressWas = playerController.K2_GetPawn, playerController.GetAddress
+    local notValid = Widget({ IsValid = function() return false end })
+    titleOpen = false                                       -- (no title menu up: it is only looked for)
+    playerController.K2_GetPawn, playerController.GetAddress = function() return notValid end, function() return 1001 end
+    run(1)
+    local looks = lookups.WBP_TitleMenu_C or 0
+    run(10)
+    local inTen = (lookups.WBP_TitleMenu_C or 0) - looks
+    playerController.K2_GetPawn, playerController.GetAddress = pawnWas, addressWas
+    titleOpen = true
+    run(2)
+    expect(inTen <= 1, "in a world, the title menu is looked for every 10th update, as the world buttons see it: " .. inTen)
+end)()
 -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
 -- 10 updates, logged, and looked for every update again.
 playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end

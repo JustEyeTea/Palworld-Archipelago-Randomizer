@@ -1997,12 +1997,12 @@ local function rowsAlive(m)
 end
 
 -- The live title menus, and whether they were looked for this update. At the title they are looked for every
--- update; in a world (the player's pawn there) only every EVERY.titleLookInWorld, as a lookup walks the whole object
+-- update; in a world (playerInWorld, the one test of it) only every EVERY.titleLookInWorld, as a lookup walks the whole object
 -- array and the menu is never there. If one is found in a world all the same, the in-world test is wrong for this
 -- game: that is logged and the menu is looked for every update from then on.
-function TITLE.find(ctx)
+function TITLE.find(inWorld)
     lookUpdates = lookUpdates + 1
-    if ctx.pawn and not titleInWorld and not UTIL.isDue(lookUpdates, EVERY.titleLookInWorld) then return false, {} end
+    if inWorld and not titleInWorld and not UTIL.isDue(lookUpdates, EVERY.titleLookInWorld) then return false, {} end
     -- Live title menus only: FindAllOf also gives the class's default object and the template the title screen's
     -- asset keeps; a template can't own new buttons, and its widget tree must not be touched. A live one is under
     -- /Engine/Transient.
@@ -2016,7 +2016,7 @@ function TITLE.find(ctx)
             found[#found + 1] = menu
         end
     end
-    if ctx.pawn and #found > 0 and not titleInWorld then
+    if inWorld and #found > 0 and not titleInWorld then
         titleInWorld = true
         log("menu: a title menu was found with the player's pawn in a world; looking for it every update again")
     end
@@ -2180,7 +2180,8 @@ end
 ------------------------------------------------------------------------------------------------------------------------
 -- The update, and what main.lua calls.
 
--- In a world: a live controller whose pawn lookup answered.
+-- In a world: a live controller whose pawn lookup answered. The one test of it: the title menu's lookup and the
+-- in-world buttons both use it.
 local function playerInWorld(ctx)
     return ctx.pc ~= nil and ctx.hasPawn == true
 end
@@ -2203,7 +2204,7 @@ end
 function M.update(ctx)
     CLICKS.run(CRATE_OWNER)
     local inWorld = playerInWorld(ctx)
-    local looked, titles = TITLE.find(ctx)
+    local looked, titles = TITLE.find(inWorld)
     SURVEY.ifNoMenu(looked, titles, inWorld, TITLE.rowsEverMade())
     WORLD.update(inWorld)
     registerHooks(inWorld)
