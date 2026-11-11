@@ -77,7 +77,7 @@ and the names are changed file by file during the code tour.
 | `apworld/palworld/` | The APWorld: `__init__.py` (the world and its logic), `options.py`, `data.py` (items and locations), `game_data.py` (generated), `docs/` (the game page and setup guide), `test/` |
 | `cppmod/APConnector/` | The C++ mod: `src/`, `test/` (Linux tests of the parts that need no Unreal), `third_party/` |
 | `mod/PalworldArchipelago/` | The Lua mod as installed in the game. Its `Scripts/` folder holds the code and the generated tables. |
-| `mod/test/` | The Lua test harness: the mod run against stand-ins for UE4SS, the game and the APConnector. `harness.lua` (the kit and the order the test files run in), `fakes.lua` and `fakes_menus.lua` (the stand-ins), `helpers.lua`, and `tests/` (the test groups, a file per topic) |
+| `mod/test/` | The Lua test harness: the mod run against stand-ins for UE4SS, the game and the APConnector. `harness.lua` (the kit and the order the test files run in), `fakes.lua`, `fakes_map.lua` and `fakes_menus.lua` (the stand-ins), `helpers.lua`, and `tests/` (the test groups, a file per topic) |
 | `logicmod/` | Python scripts the Modding Kit's editor runs to build the paks |
 | `tools/` | Generators, test runners and the server-side probe that dumps the game's tables |
 | `data/` | Facts derived from the game: the regions and areas (in the older names, `areas-1.0.5.json` is the 15 regions and `regions-1.0.5.json` the 75 areas), and where each Pal can be obtained |
@@ -316,7 +316,7 @@ How it works:
 - `tools/lua_harness.sh` runs the Lua mod's harness (`mod/test/harness.lua`), in CI too. It copies the mod to a
   fresh folder, writes its `config.txt`, and runs the harness twice: as a player runs the mod, and with the
   performance probe and its test hotkeys on. The harness loads the mod's Lua unchanged against stand-ins for UE4SS,
-  the game and the APConnector (`fakes.lua`, `fakes_menus.lua`), then runs the test files in `mod/test/tests/` in
+  the game and the APConnector (`fakes.lua`, `fakes_map.lua`, `fakes_menus.lua`), then runs the test files in `mod/test/tests/` in
   the order `harness.lua` lists them. Each file is a list of groups, `group(title, function() ... end)`, and each
   group starts from the state the ones before it left: the seed, the save file, the items received, the world. A
   failed check prints its group, its file and its line. The table of contents and the steps for adding a test are

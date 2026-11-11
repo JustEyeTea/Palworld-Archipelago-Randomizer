@@ -7,7 +7,8 @@
 -- Contents, in the order they run. A test file is a list of groups: grep -n 'group("' mod/test/tests/*.lua
 --   harness.lua              this file: the kit every test uses (expect, group, run, push, logged), then the files
 --   fakes.lua                the stand-ins: Unreal's values, the player and the world, the tech table, UE4SS, the
---                            shop's cards, the map and the walls, the APConnector
+--                            shop's cards, the APConnector
+--   fakes_map.lua            the stand-ins for the map screens, the map picture's libraries and the wall actors
 --   fakes_menus.lua          the stand-ins for widgets, the title, Esc and main menus, the HUD and the hidden chest
 --   helpers.lua              helpers several groups share, in the table h
 --   tests/core.lua           loading the mod, the first connection, research techs, other mods' techs
