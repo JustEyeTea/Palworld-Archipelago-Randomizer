@@ -85,6 +85,9 @@ end
 -- info: { title = line 1, line = line 2, have = points, cost = a hint's cost (the bar; nil for none), ready = enough
 -- points }, shown from update `tick`. Returns true when it is on screen.
 function H.show(info, tick)
+    if shown and shown.banner and tick < shown.untilTick then
+        return false                       -- the goal banner keeps its time on screen: the hint goes to chat only
+    end
     H.hide()
     local canvas, layout, why = hudCanvas()
     if not canvas then once("popupnohud" .. why, "hint pop-up: " .. why .. "; chat only"); return false end
@@ -144,7 +147,7 @@ function H.banner(line, tick)
     pcall(function() slot:SetAutoSize(true) end)
     pcall(function() slot:SetZOrder(1000) end)
     pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, untilTick = tick + BANNER_TICKS, hud = layout:GetAddress() }
+    shown = { box = box, untilTick = tick + BANNER_TICKS, hud = layout:GetAddress(), banner = true }
     log("goal banner: shown (" .. tostring(line) .. ")")
     return true
 end

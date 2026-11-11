@@ -4265,6 +4265,14 @@ end)()
     POP.tick = realTick
     expect(plate and plate.removed,
            "a hint plate on screen when the pawn reads nil for a moment (same world, same HUD) still comes down")
+    -- A wall hint while the goal banner is up: the banner keeps its 15 s; the hint goes to chat only.
+    run(1)
+    POP.banner("10 Pals registered", now)
+    local banner = hudKids[#hudKids]
+    local hintShown = POP.show({ title = "Bamboo Groves is sealed", line = "It needs Region Pass: Bamboo Groves" }, now + 1)
+    expect(banner and not banner.removed and hintShown == false and hudKids[#hudKids] == banner,
+           "a wall hint does not take the goal banner down early")
+    run(POP.SHOW_TICKS * 3)                                   -- (the banner's time runs out)
     FindAllOf = savedFAO
 end)()
 ;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time
