@@ -1783,6 +1783,29 @@ do  -- Ten passes in one session: no map overlay is kept (it is drawn into the m
     takeAway()
     putBack()
 end
+do  -- The Territories look, as the chart look above: a map mod (or a game update) changed the game's map art since the
+    -- colour map was saved; at the first opening it is saved again and the picture made again from it
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    local artBefore = mapArt
+    mapArt = mapArt + 7
+    local W = freshWalls()
+    mapOpen = false
+    for _ = 1, 5 do W.updateMap(true, {}, pawn) end
+    local made = fieldJobs or 0
+    mapOpen = true
+    for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    local f = io.open(colourFile .. ".txt", "rb")
+    local savedPrint = f and f:read("*a") or ""
+    if f then f:close() end
+    local madeAgain = (fieldJobs or 0) - made
+    expect(savedPrint:find("^" .. mapArt .. ",90,60;") and madeAgain > 0,
+           "Territories: a changed map art found at the first opening: the colour map is saved again and the picture "
+           .. "made again: saved print " .. savedPrint:sub(1, 12) .. ".., " .. madeAgain .. " made again")
+    mapArt, mapOpen = artBefore, false
+    takeAway()
+    putBack()
+end
 end
 end)()
 

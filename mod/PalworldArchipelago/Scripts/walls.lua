@@ -1223,6 +1223,21 @@ local function composeTerritories(ctx, passes, key)
     return false
 end
 
+-- At the first opening, once: the game's map checked against the saved colour map's fingerprint, and saved again if it
+-- changed. True when that saved it, so the picture is made again from the new colour map.
+local function colourMapRenewed()
+    if printChecked then
+        return false
+    end
+    pcall(LoadAsset, MAP_TEXTURE)
+    local tex = StaticFindObject(MAP_TEXTURE)
+    local gi = owner()
+    if not (tex and tex:IsValid() and gi) then
+        return false
+    end
+    colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
+    return colourSaved
+end
 -- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
 -- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
 -- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
@@ -1230,17 +1245,18 @@ end
 -- as it is, without loading the game's 8192 px map; at the first opening the game's map is checked against it once
 -- (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
 local function composeMap(ctx, passes, key, open)
-    if territories() then return composeTerritories(ctx, passes, key) end
+    if territories() then
+        -- (Only a picture made from the colour map: the overlay alone is drawn over the game's own map each time.)
+        if open and terr.whole and not terr.composing and colourMapRenewed() then
+            terr.done = nil
+        end
+        return composeTerritories(ctx, passes, key)
+    end
     if not composing then                    -- the usual case: nothing to do, nothing to look up
         if composedKey == key then
-            if open and not printChecked then
-                pcall(LoadAsset, MAP_TEXTURE)
-                local tex = StaticFindObject(MAP_TEXTURE)
-                local gi = owner()
-                if tex and tex:IsValid() and gi then
-                    colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
-                    if colourSaved then composedKey = nil; return false end     -- made again from the new colour map
-                end
+            if open and colourMapRenewed() then
+                composedKey = nil                    -- made again from the new colour map
+                return false
             end
             return true
         end
