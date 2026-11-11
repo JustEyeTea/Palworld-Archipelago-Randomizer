@@ -253,7 +253,7 @@ local function setTexts(widget)
     local kinds, items = LIST.count()
     local summary = items == 0 and "Nothing waiting. Items you receive from the multiworld arrive here."
         or (items .. " item(s) of " .. kinds .. " kind(s). Pick one to take it into your bag.")
-    pcall(function() widget.Title:SetText(FText(M.TITLE)) end)
+    pcall(function() widget.Title:SetText(FText(LIST.TITLE)) end)
     pcall(function() widget.Summary:SetText(FText(summary)) end)
     setLabel(widget.TakeAll, "Take all")
     setLabel(widget.Close, "Close")
@@ -1048,10 +1048,10 @@ end
 -- when the window rebuilds: it is unbound first.
 local function nameTheChestWindow(heading)
     local okRead, now = pcall(function() return heading:GetText():ToString() end)
-    if okRead and now == M.TITLE then return end
+    if okRead and now == LIST.TITLE then return end
     pcall(function() heading.IsAutoTextSetWhenWidgetRebuilt = false end)
     pcall(function() heading.BindTextDatatableHandle.RowName = FName("None") end)
-    pcall(function() heading:SetText(FText(M.TITLE)) end)
+    pcall(function() heading:SetText(FText(LIST.TITLE)) end)
     once("heading", "mailbox: chest window heading was '" .. tostring(okRead and now or "?") .. "'; set to ours")
 end
 
