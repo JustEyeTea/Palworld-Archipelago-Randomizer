@@ -105,12 +105,18 @@ local function missingForWalls()
     return "GameplayStatics"
 end
 
--- Forgets piece i was raised, with its look: a new actor raised for it starts shown and undressed.
+-- Forgets piece i was raised, with its look: a new actor raised for it starts shown and undressed. forget and
+-- forgetAll are the only code that removes a piece from raised, so what goes with it (address, look, hidden) goes too.
 local function forget(i)
     if raised[i] then raised[i], nRaised = nil, nRaised - 1 end
     raisedAt[i] = nil
     WALL_SKINS.forget(i)
     hiddenAt[i] = nil
+end
+-- Forgets every piece, as forget does one (the actors are destroyed by the caller, or went with their world).
+local function forgetAll()
+    raised, nRaised, raisedAt, hiddenAt = {}, 0, {}, {}
+    WALL_SKINS.forgetAll()
 end
 -- The addresses of the walls the game still has. FindAllOf lists live objects only, so a wall of a world that is gone
 -- is told apart without calling it (IsValid included: its memory may be freed).
@@ -373,7 +379,7 @@ function W.perfMode(mode)
         for _, a in pairs(raised) do
             if a:IsValid() then pcall(function() a:K2_DestroyActor() end) end
         end
-        raised, nRaised, raisedAt, hiddenAt = {}, 0, {}, {}
+        forgetAll()
         return
     end
     for _, a in pairs(raised) do
@@ -427,8 +433,7 @@ function W.setLayout(name)
     if name == W.layout then return false end
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
     destroyOpening()
-    raised, nRaised, raisedAt, hiddenAt = {}, 0, {}, {}
-    WALL_SKINS.forgetAll()
+    forgetAll()
     AREAS.useLayoutData(name)
     W.start, W.home = layout.start, layout.map.home
     W.layout = name

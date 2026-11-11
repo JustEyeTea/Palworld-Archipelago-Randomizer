@@ -2206,6 +2206,25 @@ do  -- A skin that cannot be made yet names what is missing
            "a skin that cannot be made yet names what is missing")
     worldGoes(mine())
 end
+do  -- The Ctrl+7 "none" test state forgets what every piece wore, as a change of cut does: a later skin change by area
+    -- lists only the colours of pieces that are up
+    local hadPak = logicMod
+    logicMod = true
+    local W, mine = freshWalls()
+    W.setSkin("area")
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    W.perfMode("none")
+    local since = #printed
+    W.setSkin("paws")
+    W.update(false, {}, offMap)                               -- (area locks off: nothing raised again yet)
+    local stale = false
+    for i = since + 1, #printed do
+        if printed[i]:find("wall skin paws: colours %S") then stale = true end
+    end
+    expect(not stale, "after the test state that removes every piece, no piece is still listed as wearing a colour")
+    logicMod = hadPak
+    worldGoes(mine())
+end
 end
 end)()
 
