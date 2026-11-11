@@ -145,7 +145,7 @@ end
 --      means explored, and which way round, is read once from the mask at the player and beyond the world's edge;
 --   3. the fog picture is handed to C++ (AP_MapScreen "fogpic"), which shows it in the fog image inside the screen's
 --      own Setup: from the next opening, never swapped in view. The last session's picture is used until a new one.
--- UNTESTED IN GAME. config.txt map_chart=0 keeps the game's fog.
+-- config.txt map_chart=0 keeps the game's fog.
 local CHART_SIZE = 2048
 -- Each look keeps its own fog picture (dev.32 playtest, 2026-11-08: the first opening showed dev.31's chart, the last
 -- session's map-fog.png, until the territories' one was made).

@@ -20,7 +20,7 @@ local dressedAs = {}           -- piece -> the material it wears with the area s
 -- targets, set on each piece's mesh; the game's own barriers keep the shared red material. The material's parameters
 -- (from the server pak): MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the
 -- engine's blue noise for the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day);
--- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0. Untested in game (2026-11-04).
+-- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0.
 -- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat). <skin>-dense: that pattern tiled 10x6,
 -- twice the material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
 -- colour-<x>: full-colour tiles (walls/ap-wall-colour-<x>.png, RGBA) on our own material, M_APWall, from the

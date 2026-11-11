@@ -4,7 +4,7 @@
 -- with two lines of text and the hint points bar filled to have/cost (the plate's own empty track; hint_prompt.py's
 -- SLOTS, halved). Without a plate file, a navy box in its place. The host is the HUD layout's canvas
 -- (WBP_PalHUDLayout_C: SafeZone_0 > CanvasPanel, found by the Ctrl+F4 probe and seen working in the v0.13.9 playtest).
--- The chat line is sent as before; this only shows it better. Untested in game.
+-- The chat line is sent as before; this only shows it better.
 local H = {}
 local ART = require("art")
 local UTIL = require("util")
@@ -34,7 +34,8 @@ local BANNER_INK = linear("CEE7E3")     -- the goal banner's text, on its pill
 -- Forgotten: when taken down (H.hide), when its time is up or its HUD is gone (H.tick), and at a new pawn (H.forget).
 local shown = nil
 
--- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed.
+-- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed
+-- (untested in game: that the last world's HUD layout is still listed and reads visible).
 local function hudCanvas()
     local layout
     for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
@@ -173,6 +174,7 @@ function H.tick(tick)
 end
 -- The core saw a new pawn, or none: the world may have gone (the title), or the pawn read nil for a moment in the same
 -- world (a faint, a respawn). Taken down while its HUD is still there, else forgotten without touching it.
+-- Untested in game: the taking down at a faint, and Return to title during the goal banner since it.
 function H.forget()
     if shown and hudLive(shown.hud) then
         H.hide()

@@ -32,7 +32,7 @@ end
 -- it, so it no longer needs the side nearest the start). It ignores the pointer: hovering would open the game's info box
 -- with nothing in it. The map screen lasts until the world closes (dev.17 log: built at the first opening, destroyed at
 -- Return to title), so the icons are added once per screen, and again when a pass changes the locked set or the game
--- drops them. UNTESTED IN GAME: if anything fails, the stamps are drawn into the picture again (iconsFailed).
+-- drops them. If anything fails, the stamps are drawn into the picture again (iconsFailed).
 local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon.WBP_WorldMap_IconBase_OnlyIcon"
 -- Unlocked areas the player has not stood in yet get an open stamp (the user, 2026-11-07: "some other image type ... to
 -- show that a region has been unlocked, even when it is unexplored"; go): the Art lane's ap-map-stamp-open-<area>.png
