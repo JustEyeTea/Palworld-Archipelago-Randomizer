@@ -1,5 +1,5 @@
 -- Palworld Crates and their window, and the run style (Nomad) and Speed Boost.
--- Tests crates.lua, crate_window.lua, items.lua, sync.lua.
+-- Tests crates.lua, crate_window.lua, items.lua, run_style.lua.
 
 group("Palworld Crates", function()
     -- Rolled on arrival, the same every time.

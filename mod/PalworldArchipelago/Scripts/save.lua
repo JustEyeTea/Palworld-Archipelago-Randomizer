@@ -10,7 +10,7 @@ local MAIL = require("mailbox")
 local PERF = require("perf")
 local PLAYER = require("player")
 local STATE = require("ap_state")
-local SYNC = require("sync")
+local RUN_STYLE = require("run_style")
 local TRAPS = require("traps")
 local UTIL = require("util")
 local ap = STATE.ap
@@ -36,7 +36,7 @@ end
 --   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
 --   mail=id:n,...             mailbox.lua: the mailbox's items
 --   crates=kind,... and cratebag=id:n,...    crates.lua: unopened crates; crate gear the bag refused
---   syncbase=Field:value,...  sync.lua: the world's own rates from before the run style changed them
+--   syncbase=Field:value,...  run_style.lua: the world's own rates from before the run style changed them
 --   end                       the last line: the file was written whole
 -- Named after the slot whose progress is in memory (set with the seed on connecting), not cfg.slot: the title menu
 -- changes that before the server has said yes, and a refused slot must not get this one's progress.
@@ -83,7 +83,7 @@ local function loadLine(path, line)
         for loc in b:gmatch("%d+") do
             ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true
         end
-    elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) and not MAIL.load(line) then
+    elseif not TRAPS.load(line) and not CRATES.load(line) and not RUN_STYLE.load(line) and not MAIL.load(line) then
         local kind = line:match("^[^=]*") or line
         once("saveline " .. kind, "save " .. path .. ": a line no part of the mod reads, left out: " .. kind .. "=")
     end
@@ -134,7 +134,7 @@ local function saveText()
         ap.goalShown and "goal=shown\n" or "",
         #been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "",
         #bought > 0 and ("bought=" .. table.concat(bought, ",") .. "\n") or "",
-        TRAPS.serialize(), MAIL.serialize(), CRATES.serialize(), SYNC.serialize(),
+        TRAPS.serialize(), MAIL.serialize(), CRATES.serialize(), RUN_STYLE.serialize(),
         "end\n",
     })
 end

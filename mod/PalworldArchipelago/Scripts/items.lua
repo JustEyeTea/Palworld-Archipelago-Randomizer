@@ -13,7 +13,7 @@ local PLAYER = require("player")
 local RECORDS = require("records")
 local SAVE = require("save")
 local STATE = require("ap_state")
-local SYNC = require("sync")
+local RUN_STYLE = require("run_style")
 local TECH_LOCK = require("tech_lock")
 local TRAPS = require("traps")
 local UTIL = require("util")
@@ -164,11 +164,11 @@ function ITEMS.openCrate(kind)
     return kind, out
 end
 
--- Run Style "Nomad": a received tech also hands over what it makes (sync.lua). Gear goes to the bag, like a
+-- Run Style "Nomad": a received tech also hands over what it makes (run_style.lua). Gear goes to the bag, like a
 -- crate's (what the bag refuses waits with the crates' and is tried again); a stack goes to the mailbox. The recipe
 -- unlocks as in every style, so a hand-over that fails still leaves the tech.
 local function giveTechGift(it)
-    local gifts = SYNC.gifts(AP_SlotData, it.tech)
+    local gifts = RUN_STYLE.gifts(AP_SlotData, it.tech)
     if not gifts then return end
     local parts = {}
     for _, gift in ipairs(gifts) do

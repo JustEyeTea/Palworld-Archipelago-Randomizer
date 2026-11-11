@@ -23,7 +23,7 @@ local notify, writeSave = PLAYER.notify, SAVE.write
 -- pawn can also change, or read nil for a moment, inside one world, so a forget function must leave alone what is
 -- still alive (WALLS.reset keeps the walls that still stand). The walls and the held notices were built on this key,
 -- so it stays. The frame's controllerKey (player.lua), the first live controller's address, is a second key: the
--- mailbox, Speed Boost's warning (sync.lua) and the perf probe use it to tell "the same controller", which a faint
+-- mailbox, Speed Boost's warning (run_style.lua) and the perf probe use it to tell "the same controller", which a faint
 -- keeps.
 
 -- State: the world (the world step, WORLD.note). Forgotten: never (the key is replaced at a world change, and the age

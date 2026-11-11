@@ -18,7 +18,7 @@ local PERF = require("perf")
 local PLAYER = require("player")
 local SAVE = require("save")
 local STATE = require("ap_state")
-local SYNC = require("sync")
+local RUN_STYLE = require("run_style")
 local TECH_LOCK = require("tech_lock")
 local TECHSCAN = require("techscan")
 local TRAPS = require("traps")
@@ -62,7 +62,7 @@ local function resetSeed(seed, slot)
     STATE.forgetSeed()
     WALLS.setVisited(ap.visited)              -- (the new table: the map reads it)
     CRATES.reset()
-    SYNC.reset()
+    RUN_STYLE.reset()
     MAIL.reset()
     TRAPS.reset()
     TECH_LOCK.techsChanged()
@@ -112,11 +112,11 @@ end
 
 -- The options that are only logged: the run style, Speed Boost and traps.
 local function logRunOptions()
-    local style = SYNC.style(AP_SlotData)
+    local style = RUN_STYLE.style(AP_SlotData)
     if style ~= 0 then
-        log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)")
+        log("run style: " .. RUN_STYLE.NAMES[style] .. " (techs also hand over what they make)")
     end
-    if SYNC.boost(AP_SlotData) then
+    if RUN_STYLE.boost(AP_SlotData) then
         log("speed boost: on (this seed changes the world's EXP, work speed and gathering)")
     end
     local chance = slotNumber("options.trap_chance", 0)
