@@ -30,12 +30,12 @@ local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECB
 
 local shown = nil                        -- { box, untilTick, hud = the HUD layout's address when shown }
 
--- The canvas of the HUD layout the player sees, or nil and why.
+-- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed.
 local function hudCanvas()
     local layout
     for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
         local ok, vis = pcall(function() return l:IsValid() and l:IsVisible() end)
-        if ok and vis then layout = l; break end
+        if ok and vis and not UTIL.ownerGone(l) then layout = l; break end
     end
     if not layout then return nil, nil, "no HUD layout on screen" end
     local root = layout.WidgetTree.RootWidget

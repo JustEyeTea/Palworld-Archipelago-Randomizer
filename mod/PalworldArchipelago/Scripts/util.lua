@@ -84,6 +84,15 @@ function UTIL.addr(obj)
     end)
 end
 
+-- Whether a widget belongs to a player who is gone: after Return to title and another world load, FindAllOf still
+-- lists the last world's widgets for a while. A widget whose owner cannot be read counts as not gone.
+function UTIL.ownerGone(widget)
+    local ok, owner = pcall(function()
+        return widget:GetOwningPlayer()
+    end)
+    return ok and not (owner and owner:IsValid())
+end
+
 ------------------------------------------------------------------------------------------------------------------------
 -- The clock. main.lua's LoopAsync runs the core update every UPDATE_MS. Every wait is written in seconds and turned
 -- into a count of updates here.

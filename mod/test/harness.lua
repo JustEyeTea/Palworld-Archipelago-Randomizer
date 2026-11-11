@@ -4273,6 +4273,34 @@ end)()
     expect(banner and not banner.removed and hintShown == false and hudKids[#hudKids] == banner,
            "a wall hint does not take the goal banner down early")
     run(POP.SHOW_TICKS * 3)                                   -- (the banner's time runs out)
+    -- After Return to title and another world load the last world's HUD layout is still listed, first, and reads
+    -- visible: the plate, the banner and the debuff icons go on the live one.
+    local oldKids = {}
+    local oldCanvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function oldCanvas:AddChildToCanvas(w)
+        oldKids[#oldKids + 1] = w
+        return canvas:AddChildToCanvas(w)                     -- (a slot like the live canvas's)
+    end
+    local oldSafe = Widget({ GetClass = function() return classed("SafeZone") end,
+                             GetChildAt = function() return oldCanvas end })
+    local oldLayout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = oldSafe },
+                               GetOwningPlayer = function() return { IsValid = function() return false end } end })
+    FindAllOf = function(class)
+        if class == "WBP_PalHUDLayout_C" then return { oldLayout, layout } end
+        return savedFAO(class)
+    end
+    local kidsBefore = #hudKids
+    local onPlate = POP.show({ title = "Bamboo Groves is sealed", line = "It needs Region Pass: Bamboo Groves" },
+                             now + 100)
+    POP.hide()
+    local DBF = require("debuffs")
+    DBF.set("test", "ap-debuff-slow", "SLOW", now + 200)
+    DBF.tick(now + 100)
+    DBF.clear("test")
+    DBF.tick(now + 101)
+    expect(onPlate and #hudKids >= kidsBefore + 2 and #oldKids == 0,
+           "the hint plate and the debuff icons go on the live HUD, not the last world's: " .. #oldKids
+           .. " on the old one")
     FindAllOf = savedFAO
 end)()
 ;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time

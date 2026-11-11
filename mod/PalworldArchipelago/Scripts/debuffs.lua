@@ -24,11 +24,12 @@ local CREAM, NAVY = linear("FFF4DC"), linear("17324D", 0.9)
 local list = {}                          -- { { key, icon, short, tint, untilTick } } in the order they started
 local shown = nil                        -- { box, layout, sig, timers = { key -> TextBlock }, left = { key -> seconds shown } }
 
+-- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed.
 local function hudCanvas()
     local layout
     for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
         local ok, vis = pcall(function() return l:IsValid() and l:IsVisible() end)
-        if ok and vis then layout = l; break end
+        if ok and vis and not UTIL.ownerGone(l) then layout = l; break end
     end
     if not layout then return nil, nil, "no HUD layout on screen" end
     local root = layout.WidgetTree.RootWidget
