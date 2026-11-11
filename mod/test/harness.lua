@@ -1932,6 +1932,30 @@ do  -- Territories with the saved colour map, the map never opened: the game's 8
     takeAway()
     putBack()
 end
+do  -- The second world of a session: its explored mask is read from its map data before its map opens, as the
+    -- first world's was
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    local reads = 0
+    local realExport = renderLib.ExportRenderTarget
+    renderLib.ExportRenderTarget = function(lib, gi, rt, dir, name)
+        if name == "fog-mask.png" then reads = reads + 1 end
+        return realExport(lib, gi, rt, dir, name)
+    end
+    util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
+        GetRenderTargetByMapName = function() return { IsValid = function() return true end } end } end
+    local W = freshWalls()
+    mapOpen = false
+    for _ = 1, 45 do W.updateMap(true, {}, pawn) end
+    local first = reads
+    W.reset()                                                 -- Return to title, another world loaded
+    for _ = 1, 45 do W.updateMap(true, {}, pawn) end
+    expect(first == 1 and reads == 2, "the second world's explored mask is read before its map opens too: " .. first
+           .. " read(s) in the first world, " .. (reads - first) .. " in the second")
+    util.GetLocalWorldMapData, renderLib.ExportRenderTarget = nil, realExport
+    takeAway()
+    putBack()
+end
 end
 end)()
 

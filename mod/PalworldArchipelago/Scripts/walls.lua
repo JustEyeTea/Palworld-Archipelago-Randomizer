@@ -111,6 +111,7 @@ function W.reset()
     W.lastContext = nil                                        -- (the glow's pawn: the core hands the new one over)
     W.dropCaches()
     W.resetMapShown()
+    W.resetMaskReads()
     local live = liveWallAddresses()
     for i in pairs(raised) do
         if not live[raisedAt[i]] then
@@ -1632,6 +1633,11 @@ local function chartTick(ctx, screens, opening, passes)
     end
 end
 W.chartStatus = function() return chart end
+-- A new world: its explored mask is read again before its map opens; what the last world's reads found says nothing
+-- of this one. (chart.spec, which channel of the mask means explored, holds for every world and is kept.)
+function W.resetMaskReads()
+    chart.exportedAt, chart.early, chart.want = nil, nil, false
+end
 
 -- The locked areas as the map's own icons (the user, 2026-11-07: stamps drawn into the picture grew and shrank with
 -- the zoom, unlike the game's icons, and many sat in odd places). The map screen's "Add Icon By Location" (pak, 2026-11-07)
