@@ -91,9 +91,9 @@ local function sendHomeIfLocked(pawn)
     lockedTicks = (okl and where) and lockedTicks + 1 or 0
     if lockedTicks < SENT_HOME_AFTER then return end
     lockedTicks = 0
-    local homeX, homeY, homeZ = WALLS.home[1], WALLS.home[2], WALLS.home[3]
+    local home = WALLS.homeLocation()
     local okt, errt = pcall(function()
-        pawn:K2_TeleportTo({ X = homeX, Y = homeY, Z = homeZ }, { Pitch = 0, Yaw = 0, Roll = 0 })
+        pawn:K2_TeleportTo(home, { Pitch = 0, Yaw = 0, Roll = 0 })
     end)
     log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
     notify(tostring(where) .. ((ap.beyond and ap.beyond[where]) and " is beyond this seed's goal."

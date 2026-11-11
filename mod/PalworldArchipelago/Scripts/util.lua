@@ -102,6 +102,14 @@ function UTIL.attempt(what, fn, ...)
     return nil
 end
 
+-- Whether a game object is there and answers IsValid() true. A missing component comes back from UE4SS as an object
+-- that is not valid, not as nil; an IsValid that raises counts as not valid.
+function UTIL.isValid(obj)
+    if obj == nil then return false end
+    local ok, valid = pcall(function() return obj:IsValid() end)
+    return ok and valid == true
+end
+
 -- A game object's address as text, or nil when it can't be read. The address is the object's identity in tables
 -- that track it. The engine reuses addresses, so every such table is emptied when the world changes.
 function UTIL.addr(obj)

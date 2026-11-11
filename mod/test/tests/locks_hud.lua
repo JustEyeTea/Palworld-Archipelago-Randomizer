@@ -187,7 +187,7 @@ group("debuff icons, the hint plate and the goal banner", function()
     local DB = require("debuffs")
     expect(DB.clock(200, 0) == "1:00" and DB.clock(100, 0) == "0:30" and DB.clock(5, 10) == "0:00",
            "the timer reads m:ss")
-    require("traps").test("Slow Trap")                     -- the test tools route: it goes on the next update
+    require("traps").fireNow("Slow Trap")                     -- the test tools route: it goes on the next update
     local row
     for _ = 1, 40 do
         for _, k in ipairs(hudKids) do

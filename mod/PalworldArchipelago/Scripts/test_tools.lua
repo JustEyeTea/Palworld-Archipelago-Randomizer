@@ -379,7 +379,7 @@ function T.install()
         local function onKey()
             log("--- " .. b[2])
             local ok, err = pcall(b[3] or function()
-                TRAPS.test(b[2])
+                TRAPS.fireNow(b[2])
                 log(b[2] .. " queued: fires on the next update the gates allow")
             end)
             if not ok then log(b[2] .. " error: " .. tostring(err)) end

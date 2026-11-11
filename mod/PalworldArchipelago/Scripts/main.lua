@@ -364,7 +364,7 @@ local function installWindows()
                    guardedHook = guardedHook })
     TRAPS.install({ notify = notify, save = writeSave, announce = announceTrap,
                     sender = function(index) return ap.from[index] end,
-                    home = function() return WALLS.home end, start = function() return WALLS.start end })
+                    home = function() return WALLS.homeLocation() end, start = function() return WALLS.start end })
 end
 
 -- What a world change forgets, in this order: whether this world is the seed's (looked at again in the records phase

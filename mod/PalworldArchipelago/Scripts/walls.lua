@@ -56,6 +56,10 @@ local layout, isOpen = LOCKS.layout, LOCKS.isOpen
 W.passName, W.lockAt, W.lockedAround, W.regionOf = LOCKS.passName, LOCKS.lockAt, LOCKS.lockedAround, LOCKS.regionOf
 W.setBeyond, W.slugOf = LOCKS.setBeyond, LOCKS.slugOf
 W.start, W.home = layout.start, layout.map.home
+-- Where a player found in a closed lock (or hit by a Teleport Trap) is sent: the layout's home as a location in cm.
+function W.homeLocation()
+    return { X = W.home[1], Y = W.home[2], Z = W.home[3] }
+end
 local P = require("perf")
 local UTIL = require("util")
 local log = UTIL.log

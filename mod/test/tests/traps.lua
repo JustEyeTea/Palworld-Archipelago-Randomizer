@@ -107,7 +107,9 @@ group("traps", function()
     expect(h.updatesUntil("trap #" .. waiting .. " Slow Trap from Friend fizzled: waited too long", 260),
            "then fizzles after a minute")
     pawn.GetPalCharacterMovementComponent = function() return movement end
-    -- Riding: the mount is slowed and set back too.
+    -- Riding: the mount is slowed and set back too. (The mount is read through this update's controller, the frame
+    -- record's, which needs a live controller as in any world; the groups before left none.)
+    controllerAgain()
     local mountMovement = Movement(6160)
     local mountPal = { IsValid = function() return true end, GetAddress = function() return 7777 end,
                        GetPalCharacterMovementComponent = function() return mountMovement end }
@@ -118,6 +120,7 @@ group("traps", function()
                           .. "1%.0 %-> 0%.5", 80), "riding, the mount is slowed too")
     expect(h.updatesUntil("Slow Trap ended; multiplier now player 1%.0, mount 1%.0", 220)
            and mountMovement:GetWalkSpeedMultiplier() == 1.0, "and both are set back")
+    noController()
     playerController.GetControlPalCharacter = function() return pawn end
     -- The player character changes (fainted, world reloaded) during a Slow Trap: nothing to set back on the new one.
     h.updatesUntil("trap #" .. trap("Slow Trap", "Friend") .. " Slow Trap", 80)
