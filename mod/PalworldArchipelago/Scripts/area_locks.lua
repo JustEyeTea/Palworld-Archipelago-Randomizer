@@ -64,10 +64,9 @@ end
 
 -- The open areas the player stands in, remembered for the map (an unlocked area not yet visited shows an open stamp).
 local function rememberVisited(pawn)
-    local okv, here = pcall(function()
-        local loc = pawn:K2_GetActorLocation()
-        return WALLS.areaAt(loc.X, loc.Y)
-    end)
+    local x, y = PLAYER.pawnXY(pawn)
+    if not x then return end
+    local okv, here = pcall(WALLS.areaAt, x, y)
     if not (okv and here) or ap.visited[here] or here == "Open sea" then return end
     if here == WALLS.start or ap.passes[here] then
         ap.visited[here] = true
@@ -78,10 +77,11 @@ end
 -- A player inside a locked area (loaded there, or past a wall) for SENT_HOME_AFTER looks in a row goes back to the
 -- starting area.
 local function sendHomeIfLocked(pawn)
-    local okl, where = pcall(function()
-        local loc = pawn:K2_GetActorLocation()
-        return WALLS.lockedAround(loc.X, loc.Y, ap.passes)
-    end)
+    local x, y = PLAYER.pawnXY(pawn)
+    local okl, where = false, nil
+    if x then
+        okl, where = pcall(WALLS.lockedAround, x, y, ap.passes)
+    end
     lockedTicks = (okl and where) and lockedTicks + 1 or 0
     if lockedTicks < SENT_HOME_AFTER then return end
     lockedTicks = 0

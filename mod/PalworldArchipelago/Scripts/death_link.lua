@@ -12,7 +12,7 @@ local WORLD = require("world")
 local WAIT = CLOCK.WAIT
 local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
 local cfg = CONFIG.cfg
-local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
+local log, once = UTIL.log, UTIL.once
 local notify, writeSave = PLAYER.notify, SAVE.write
 local LETHAL_DAMAGE = 999999    -- more than any character's health and shield: one hit faints the player
 local DEAD_TYPE_POISON = 5      -- EPalDeadType Poison: an ordinary death to the game, so its Death Penalty applies
@@ -139,7 +139,7 @@ end
 -- Applies a death received from the link. It waits for a settled world with a character (as the traps do), and one
 -- older than WAIT.deathLate is dropped.
 local function applyIncomingDeath(ps, dead)
-    local character = safe(function() return ps:GetPawn() end)
+    local character = PLAYER.playerPawn()
     local settled = WORLD.settled() and character and character:IsValid()
     if not (death.incoming and (settled or CLOCK.now() - death.at > WAIT.deathLate)) then return end
     local cause = death.incoming

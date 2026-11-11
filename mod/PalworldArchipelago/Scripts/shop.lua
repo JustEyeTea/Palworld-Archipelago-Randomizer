@@ -123,7 +123,7 @@ local function buy(tech)
         return
     end
     if WORLD.seedWorld() == false then
-        notify("This is not the world this Archipelago seed is played in: nothing bought.")
+        notify(WORLD.NOT_SEED_WORLD .. ": nothing bought.")
         return
     end
     if bought(tech) then return end

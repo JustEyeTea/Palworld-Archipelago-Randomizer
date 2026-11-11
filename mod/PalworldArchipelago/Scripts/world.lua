@@ -13,8 +13,8 @@ local TECH_LOCK = require("tech_lock")
 local UTIL = require("util")
 local WAIT = CLOCK.WAIT
 local ap = STATE.ap
-local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
-local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
+local log, once = UTIL.log, UTIL.once
+local notify, writeSave = PLAYER.notify, SAVE.write
 
 -- The world step: which world the player is in, how long ago it loaded, and whether it just changed. WORLD.note runs
 -- in every update once the connection is ready (before anything reads the world), so the age counts from the first
@@ -38,7 +38,7 @@ end
 
 -- Notes which world this update is in, and when it changed, calls every forget function. Returns the pawn.
 function WORLD.note()
-    local pawn = safe(function() local ps = playerState(); return ps and ps:GetPawn() end)
+    local pawn = PLAYER.playerPawn()
     local world = pawn and pawn:IsValid() and UTIL.addr(pawn)
     if world ~= worldKey then
         worldKey, worldAge = world, 0
@@ -67,6 +67,9 @@ end
 
 ------------------------------------------------------------------------------------------------------------------------
 -- The seed's world.
+
+-- What the player is told in a world that is not the seed's, before what is not done there.
+WORLD.NOT_SEED_WORLD = "This is not the world this Archipelago seed is played in"
 
 -- Which world save is loaded: the game instance's selected world folder (PalGameInstance, a pure UFunction returning
 -- an FString). Untested from Lua: its first answer is logged. Nil when it can't be read.
@@ -148,7 +151,7 @@ local function isSeedWorld(ps)
     if seedWorld ~= false then
         log("world: " .. id .. " is not this seed's world (" .. ap.world .. "): nothing is locked, sent or given here"
             .. " (to move the seed to this world, delete the world= line from " .. tostring(SAVE.path()) .. ")")
-        notify("This is not the world this Archipelago seed is played in: nothing is locked, sent or given here.")
+        notify(WORLD.NOT_SEED_WORLD .. ": nothing is locked, sent or given here.")
     end
     return false
 end

@@ -61,6 +61,13 @@ function WALL_HINTS.onMessage(textField, kindOf)
     end
 end
 
+-- The player's hint points and what a hint costs (the connector's AP_HintPoints answers "points,cost"), or nil.
+local function hintPoints()
+    local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
+    if not points then return nil end
+    return tonumber(points), tonumber(cost)
+end
+
 -- Hints for Region and Area Passes, bought with the server's hint points (!hint), offered at the walls.
 -- Returns the chat line, and what the hint pop-up shows (hint_popup.lua: two short lines and the points bar).
 local function wallNotice(area)
@@ -76,9 +83,8 @@ local function wallNotice(area)
         return area .. " is sealed. " .. hint.sentence, { title = area .. " is sealed", line = line, ready = true }
     end
     local text = "The way into " .. area .. " is sealed: it needs " .. pass .. "."
-    local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
+    local points, cost = hintPoints()
     if not points then return text, { title = area .. " is sealed", line = "It needs " .. pass .. "." } end
-    points, cost = tonumber(points), tonumber(cost)
     hints.offer, hints.offeredAt = area, CLOCK.now()
     -- Both cases say what the player has and what a hint costs, with the configured key.
     if points >= cost then
@@ -94,8 +100,8 @@ end
 local function askHint()
     local area = hints.offer
     if not area or CLOCK.now() - hints.offeredAt > WAIT.hintOffer then return end
-    local points, cost = (AP_HintPoints() or ""):match("^(%d+),(%d+)$")
-    if points and tonumber(points) < tonumber(cost) then
+    local points, cost = hintPoints()
+    if points and points < cost then
         notify("Not enough hint points: you have " .. points .. ", a hint costs " .. cost .. ".")
         return
     end
@@ -119,10 +125,9 @@ end
 -- Walking up to a wall: chat names the pass it needs and where it is if a hint said so, or offers to buy that hint
 -- with the hint key (once per area every WAIT.wallNotice).
 function WALL_HINTS.noticeLockedWall(pawn)
-    local okn, area = pcall(function()
-        local loc = pawn:K2_GetActorLocation()
-        return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
-    end)
+    local x, y = PLAYER.pawnXY(pawn)
+    if not x then return end
+    local okn, area = pcall(WALLS.lockedNear, x, y, ap.passes)
     if not (okn and area) then return end
     local lastShown = hints.shown[area]
     if lastShown and lastShown + WAIT.wallNotice > CLOCK.now() then return end

@@ -87,7 +87,7 @@ end
 local function phaseRecords()
     PERF.start("e7")
     local ps = playerState()
-    local pawn = ps and safe(function() return ps:GetPawn() end)
+    local pawn = ps and PLAYER.playerPawn()
     -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
     local okk, errk = pcall(TRAPS.tick, { tick = CLOCK.now(), pawn = pawn })
     if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
@@ -121,14 +121,14 @@ local function phaseItems()
         elseif news then
             writeSave()
         end
-        local okl, errl = pcall(HELD.showHeldNotices, safe(function() return ps:GetPawn() end))
+        local okl, errl = pcall(HELD.showHeldNotices, PLAYER.playerPawn())
         if not okl then onceErr("heldNotices", errl, "notice error: " .. tostring(errl)) end
     end
     local okdl, errdl = pcall(DEATH_LINK.step, ps)
     if not okdl then onceErr("death", errdl, "death link error: " .. tostring(errdl)) end
     -- Traps fire only once the world has settled (the walls' count), never while fainted or in the mailbox.
     local okt, errt = pcall(function()
-        local pawn = safe(function() return ps:GetPawn() end)
+        local pawn = PLAYER.playerPawn()
         local okd, dead = pcall(function() return ps:IsPlayerDead() end)
         -- (Not WORLD.settled(): a pawn that is there but not valid makes the key false, which counts as settled here.)
         TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = WORLD.key() ~= nil and WORLD.age() >= WAIT.settle,

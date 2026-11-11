@@ -161,12 +161,18 @@ local function onEvent(line)
 end
 
 -- Connecting: at start from config.txt, and from the title menu's Archipelago menu (menu.lua), which saves it.
-function CONNECTION.connectTo(server, slot, password)
-    cfg.server, cfg.slot, cfg.password = server, slot, password or ""
-    writeConfig()
+-- Asks the connector to connect, and says so: the one way the mod connects.
+local function connect(server, slot, password)
     log("connecting to " .. server .. " as " .. slot)
     STATE.setStatus("connecting")
     AP_Connect(server, slot, password or "")
+end
+
+-- Connects to what the title menu gives, and keeps it in config.txt.
+function CONNECTION.connectTo(server, slot, password)
+    cfg.server, cfg.slot, cfg.password = server, slot, password or ""
+    writeConfig()
+    connect(server, slot, password)
 end
 -- Disconnects at the player's asking (the title menu's Disconnect).
 function CONNECTION.disconnect()
@@ -180,8 +186,7 @@ end
 -- Connects at start-up to the server and slot config.txt names, if it names both.
 function CONNECTION.connectFromConfig()
     if cfg.server and cfg.server ~= "" and cfg.slot and cfg.slot ~= "" then
-        log("connecting to " .. cfg.server .. " as " .. cfg.slot)
-        AP_Connect(cfg.server, cfg.slot, cfg.password or "")
+        connect(cfg.server, cfg.slot, cfg.password)
     else
         log("not connected: click the Archipelago banner on the title menu (or set server and slot in config.txt)")
     end

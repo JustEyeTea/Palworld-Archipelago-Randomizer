@@ -59,6 +59,19 @@ function PLAYER.playerState()
     return PLAYER.findPlayerState()
 end
 
+-- Where a pawn stands on the map: its X and Y in centimetres, or nil when they can't be read.
+function PLAYER.pawnXY(pawn)
+    local ok, at = pcall(function() return pawn:K2_GetActorLocation() end)
+    if not (ok and at and at.X) then return nil end
+    return at.X, at.Y
+end
+
+-- The pawn of this update's player state, or nil (no player state, or none read).
+function PLAYER.playerPawn()
+    local ps = PLAYER.playerState()
+    return ps and UTIL.safe(function() return ps:GetPawn() end)
+end
+
 -- This update's frame record, or nil between updates.
 function PLAYER.frame()
     return frame

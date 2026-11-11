@@ -36,11 +36,11 @@ function HELD.showHeldNotices(pawn)
         held.list, held.from = {}, nil
         return
     end
-    local ok, at = pcall(function() return pawn:K2_GetActorLocation() end)
+    local x, y = PLAYER.pawnXY(pawn)
     local moved = false
-    if ok and at and at.X then
-        if not held.from then held.from = { X = at.X, Y = at.Y } end
-        local dx, dy = at.X - held.from.X, at.Y - held.from.Y
+    if x then
+        if not held.from then held.from = { X = x, Y = y } end
+        local dx, dy = x - held.from.X, y - held.from.Y
         moved = dx * dx + dy * dy >= MOVED_CM * MOVED_CM
     end
     if moved or WORLD.age() >= WAIT.settle + WAIT.heldNotice then

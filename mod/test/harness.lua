@@ -627,6 +627,8 @@ else
     expect(not bound and not logged("%[perf%]"), "and no test keys are bound, no probe lines")
 end
 expect(loop ~= nil, "update loop registered")
+expect(require("ap_state").ap.status == "connecting" and logged("connecting to localhost:38281 as Tester"),
+       "the start-up connect from config.txt says it is connecting, as the title menu's does")
 expect(hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"] ~= nil, "research hook registered")
 expect(logged("shop: hooked RequestUnlockTechnology_ToServer") and logged("shop: hooked IsUnlockableRecipeTechnology")
        and logged("shop: hooked IsUnlockRecipeTechnology"), "each native shop hook's log line names the function hooked")
