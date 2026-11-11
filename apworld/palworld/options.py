@@ -199,6 +199,8 @@ class LevelChecks(Choice):
     """A check for reaching player levels: every level (79 checks), every 5 (levels 5, 10, 15...), every 10 (levels
     10, 20, 30...), or none."""
     display_name = "Level Checks"
+    # Each choice's number is also its step: wanted() in __init__.py keeps the levels the number divides. A new choice
+    # needs a number that works as a step, or its own branch there.
     option_off = 0
     option_every_level = 1
     option_every_5 = 5
@@ -306,6 +308,8 @@ class FoolTrapWeight(Range):
     default = 25
 
 
+# The field order is the order Archipelago rolls option values from a YAML and prints them in the spoiler. Reordering
+# changes seeds (a YAML with random or weighted options rolls differently), so it is not a readability change.
 @dataclass
 class PalworldOptions(PerGameCommonOptions):
     goal: Goal
