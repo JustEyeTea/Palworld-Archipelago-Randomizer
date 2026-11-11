@@ -297,6 +297,8 @@ end
 -- is compared, not ap.given alone: mail that arrives (MAIL.add) is saved only by this write. always: write it anyway
 -- (the perf probe's Ctrl+0 replay of the old load).
 local lastSave = nil          -- path and text of the last write: the same again is not written
+local saveWarned = false      -- the player was told the save file can't be written (once a session)
+local notify                  -- a notice in the game's chat (defined with the game side, below)
 local function writeSave(always)
     local path = saveFile()
     if not path then return end
@@ -319,8 +321,17 @@ local function writeSave(always)
     })
     if not always and lastSave == path .. "\n" .. text then return end
     P.start("save")
-    local f = io.open(path .. ".tmp", "w")
-    if not f then P.stop("save"); return end
+    local f, errOpen = io.open(path .. ".tmp", "w")
+    if not f then
+        P.stop("save")
+        if not saveWarned then
+            saveWarned = true
+            log("could not write " .. path .. ".tmp: " .. tostring(errOpen))
+            notify("Can't write the mod's save file: items you receive will be given again next time."
+                .. " Check that the game may write to its Mods folder.")
+        end
+        return
+    end
     local okw = f:write(text)
     f:close()
     if not okw then P.stop("save"); once("savewrite", "could not write " .. path .. ".tmp"); return end
@@ -446,7 +457,7 @@ local function syncTechs(ps)
     return changed
 end
 
-local function notify(text)
+function notify(text)                          -- (the local declared above writeSave)
     log(text)
     R.notify("[Archipelago] " .. text, playerState())
 end

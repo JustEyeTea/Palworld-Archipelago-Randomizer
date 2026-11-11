@@ -1781,6 +1781,23 @@ expect(f and f:read("*a"):match("given=7"), "save file records items applied")
 
 local MB = require("mailbox")
 do   -- (its own block, as above)
+;(function()
+    print("a save file that can't be written is logged, and the player told once")
+    local openWas = io.open
+    io.open = function(path, mode)
+        if (mode or ""):find("w", 1, true) and path:find("save%-[^\\/]*%.txt") then return nil, "Permission denied" end
+        return openWas(path, mode)
+    end
+    MB.add("Stone", 1)                                        -- something new to save (as the test below does)
+    run(14)
+    run(14)                                                   -- (tried again: the text was never written)
+    io.open = openWas
+    local told = 0
+    for _, a in ipairs(announced) do if a:find("Can't write the mod's save file", 1, true) then told = told + 1 end end
+    expect(logged("could not write .*save%-12345%-Tester%.txt%.tmp: Permission denied") and told == 1,
+           "the failure is logged with the reason, and the player is told once: " .. told)
+    table.remove(MB.queue)
+end)()
 print("the save file is written only when it changes")
 run(14)                                                      -- (the purchase above is saved first: bought=)
 local writes = saveWrites
