@@ -9,47 +9,8 @@ group("the mailbox", function()
     expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox.", 1, true)
            and not table.concat(announced, "|"):find("Inventory", 1, true),
            "the player is told where it is: the Esc menu (the Inventory button is not named until a playtest has seen it)")
-    -- The Esc menu (the client's WBP_MenuESC_C, from kdump): Canvas_Buttons holds vertical boxes of WBP_MenuESC_Button_C.
-    -- Its WidgetTree has RootWidget but no GetAllWidgets (C++ only in the game; calling it errors).
     playerController.K2_GetPawn = function() return pawn end
     playerController.GetAddress = function() return 998 end
-    escChildren = {}
-    local function escButton()
-        local b = Widget({ GetClass = function() return classed("WBP_MenuESC_Button_C") end })
-        return Widget({ GetClass = function() return classed("SizeBox") end, GetChildAt = function() return b end })
-    end
-    for i = 1, 3 do escChildren[i] = escButton() end
-    local escBox = Widget({ GetClass = function() return classed("VerticalBox") end, GetFName = function() return FNameOf("VerticalBox_Esc") end,
-                            GetChildrenCount = function() return #escChildren end, GetChildAt = function(_, i) return escChildren[i + 1] end,
-                            AddChild = function(_, box) escChildren[#escChildren + 1] = box
-                                           return { SetPadding = function(_, p) box.padding = p end, SetHorizontalAlignment = function() end } end })
-    function panel(name, kids)
-        return Widget({ GetClass = function() return classed(name) end, GetChildrenCount = function() return #kids end,
-                        GetChildAt = function(_, i) return kids[i + 1] end })
-    end
-    local escRoot = panel("CanvasPanel", { panel("CanvasPanel", {}), panel("CanvasPanel", { escBox }) })
-    -- Its Close shuts only its tab of the main menu; CloseAction closes the main menu (v0.11.3 playtest).
-    escMenu = Widget({ GetClass = function() return classed("WBP_MenuESC_C") end,
-                       WidgetTree = { RootWidget = escRoot },
-                       Close = function(self) self.tabOnly = true end,
-                       CloseAction = function(self) self.closed = true end })
-    -- v0.11.2 playtest: the HUD's mission list (its name holds "gamemenu") has a box of buttons too, and got ours.
-    local taskChildren = {}
-    for i = 1, 3 do taskChildren[i] = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_Simple_Button_C") end }) end
-    local taskBox = Widget({ GetClass = function() return classed("HorizontalBox") end,
-                             GetChildrenCount = function() return #taskChildren end, GetChildAt = function(_, i) return taskChildren[i + 1] end,
-                             AddChild = function(_, box) taskChildren[#taskChildren + 1] = box
-                                            return { SetPadding = function() end, SetHorizontalAlignment = function() end } end })
-    taskList = Widget({ GetClass = function() return classed("WBP_IngameMenu_Task_SimpleList_C") end,
-                        WidgetTree = { RootWidget = panel("CanvasPanel", { taskBox }) } })
-    -- The in-game main menu (WBP_InGameMainMenu_C; the client has it, 2026-11-03 log): the Esc menu is its Options tab,
-    -- its CurrentContentWidget. Its class default object is found too.
-    defaultMainMenu = Widget({ GetClass = function() return classed("WBP_InGameMainMenu_C") end,
-        GetFullName = function() return "WBP_InGameMainMenu_C /Game/Pal/Blueprint/UI/InGameMainMenu/WBP_InGameMainMenu.Default__WBP_InGameMainMenu_C" end })
-    escMain = setmetatable(Widget({ GetClass = function() return classed("WBP_InGameMainMenu_C") end, CurrentTabType = 7,
-        GetFullName = function() return "WBP_InGameMainMenu_C /Engine/Transient.GameEngine_0:PalGameInstance_0.WBP_InGameMainMenu_C_0" end,
-        IsVisible = function() return not escMenu.closed end, IsInViewport = function() return not escMenu.closed end }),
-        { __index = function(_, k) if k == "CurrentContentWidget" then return escMenu end end })
     -- First a client where no main menu is found by that class: the Esc menu is still looked for by its own, every 4th
     -- update (a fallback that costs a scan; v0.11.4 showed every 4th update is a second late, not never).
     escOpen, escNoMain = true, true
@@ -79,97 +40,20 @@ group("the mailbox", function()
     for _, l in ipairs(printed) do if l:find("Mailbox button added", 1, true) then addLines = addLines + 1 end end
     expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and addLines == 1, "a new Esc menu gets its button; logged once: " .. addLines)
     -- No LogicMod: the hidden chest. It is made on first use, 300 slots, with the chest template put back after.
-    chests, chestTemplates = {}, { { SlotNum = 54, GetFullName = function()
-        return "PalMapObjectItemChestParameterComponent /Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04.BP_BuildObject_ItemChest_04_C:ItemChestParameter_GEN_VARIABLE" end } }
-    local function Permission()
-        return { PermissionTypeA = TArray({}), PermissionTypeB = TArray({}), PermissionItemStaticIds = TArray({}) }
-    end
-    local function Slot(index)
-        local slot = { ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }, StackCount = 0,
-                       Permission = Permission() }
-        function slot:GetSlotId() return { ContainerId = { ID = { A = 9, B = 9, C = 9, D = 9 } }, SlotIndex = index } end
-        function slot:OnRep_Permission() end
-        function slot:IsValid() return true end
-        function slot:IsEmpty() return self.StackCount == 0 or self.ItemId.StaticId:ToString() == "None" end
-        function slot:GetItemId() return self.ItemId end
-        function slot:GetStackCount() return self.StackCount end
-        function slot:OnRep_ItemId() end
-        function slot:OnRep_StackCount() end
-        return slot
-    end
-    local spawnAsked = nil
-    local mapObjects = { RequestSpawnMapObjectByPlayer_Server = function(_, id, at)
-        spawnAsked = id:ToString()
-        local slots = {}
-        for i = 1, chestTemplates[1].SlotNum do slots[i] = Slot(i - 1) end
-        local c = { Num = function() return #slots end, Get = function(_, i) return slots[i + 1] end, slots = slots,
-                    Permission = Permission(), OnRep_Permission = function() end,
-                    GetLastNotEmptyIndex = function()
-                        for i = #slots, 1, -1 do if not slots[i]:IsEmpty() then return i - 1 end end
-                        return -1
-                    end }
-        local model = { DeteriorationDamage = 0.15, DamagableType = 0 }
-        chests[#chests + 1] = { IsValid = function() return true end, at = at, c = c, model = model,
-            GetTransform = function(self) return { Translation = self.at } end,
-            GetItemContainerModule = function(self) return { GetContainer = function() return self.c end } end,
-            GetModelInstanceId = function() return "m" end, GetActor = function() return nil end,
-            RequestLockPrivate_ServerInternal = function(self) self.locked = true end }
-        return true end,
-        FindModel = function() return chests[1].model end }
-    util.GetMapObjectManager = function() return mapObjects end
-    util.GetLocalPlayerID = function() return 1 end
-    util.GetItemIDManager = function() return { GetStaticItemData = function() return { GetMaxStackCount = function() return 9999 end } end } end
-    uiUtil = { GetItemName = function(_, _, id, out) out.outName = { ToString = function() return ({ Wood = "Wood", Stone = "Stone" })[id:ToString()] end } end }
-    shown = {}
-    hud.CreateDispatchParameterForK2Node = function() return {} end
-    hud.ShowCommonUI = function(_, kind, param)
-        local id = "chest" .. (#shown + 1)
-        shown[#shown + 1] = { kind = kind, param = param }
-        -- the heading's row; v0.13.5 playtest: the heading sits in a SizeBox in it
-        local row = Widget({ GetClass = function() return classed("HorizontalBox") end, GetFName = function() return FNameOf("HorizontalBox_Title") end, children = {} })
-        local headBox = Widget({ GetClass = function() return classed("SizeBox") end, GetFName = function() return FNameOf("SizeBox_Title") end,
-                                 GetParent = function() return row end })
-        function row:AddChild(c) self.children[#self.children + 1] = c; return { SetVerticalAlignment = function() end, SetPadding = function() end } end
-        chestRow = row
-        local head = { IsValid = function() return true end, text = "Advanced Chest", BindTextDatatableHandle = {},
-                       GetParent = function() return headBox end }
-        function head:SetText(t) self.text = t.text end
-        function head:GetText() local t = self.text; return { ToString = function() return t end } end
-        hudWindows[id] = Widget({ WBP_IngameMenu_Chest = { Text_TargetContainerName = head } })
-        return id end
-    -- The game's move from a chest slot to the bag (the Item part of the player's network transmitter).
-    movesWork, moves = true, {}
-    util.GetNetworkTransmitter = function() return { Item = { IsValid = function() return true end,
-        RequestMoveToContainer_ToServer = function(_, guid, to, froms)
-            for _, f in ipairs(froms) do
-                moves[#moves + 1] = { to = to.ID.A, index = f.SlotId.SlotIndex, n = f.Num }
-                if movesWork then
-                    local slot = chests[1].c.slots[f.SlotId.SlotIndex + 1]
-                    local id = slot.ItemId.StaticId:ToString()
-                    bagHas[id] = (bagHas[id] or 0) + f.Num
-                    slot.StackCount = slot.StackCount - f.Num
-                    if slot.StackCount <= 0 then                -- an emptied slot holds no item at all
-                        slot.ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }
-                        slot.StackCount = 0
-                    end
-                end
-            end
-        end } } end
-    hud.Close = function(_, id) if hudWindows[id] then hudWindows[id].gone = true end end
-    ps.PlayerUId = { A = 1, B = 2, C = 3, D = 4 }
+    installChest()
     hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
     expect(not escMenu.closed, "nothing is closed inside the click's hook")
     run(1)
     expect(escMenu.closed and not escMenu.tabOnly and logged("Esc menu closed for the mailbox %(CloseAction%)"),
            "the mailbox button closes the whole menu on the next update")
     run(3)
-    expect(spawnAsked == "ItemChest_04" and chests[1] and #chests[1].c.slots == 300, "a 300-slot chest is made: " .. tostring(chests[1] and #chests[1].c.slots))
+    expect(chestSpawnAsked == "ItemChest_04" and chests[1] and #chests[1].c.slots == 300, "a 300-slot chest is made: " .. tostring(chests[1] and #chests[1].c.slots))
     expect(chestTemplates[1].SlotNum == 54, "the chests players build keep their size")
     expect(chests[1].at.X == -1050000 and chests[1].at.Z == -40000, "far outside the map, under the ground")
     expect(logged("chest spawn asked, the game answered true"), "the spawn's answer is logged")
     run(2)
     local slots = chests[1].c.slots
-    expect(#shown == 1 and shown[1].kind == 7 and shown[1].param.MapObjectConcreteModel == chests[1], "the game's chest window opens on it")
+    expect(#chestWindowsShown == 1 and chestWindowsShown[1].kind == 7 and chestWindowsShown[1].param.MapObjectConcreteModel == chests[1], "the game's chest window opens on it")
     expect(slots[1].ItemId.StaticId:ToString() == "Wood" and slots[1].StackCount == 50, "filled from the mailbox")
     expect(chests[1].model.DeteriorationDamage == 0 and chests[1].model.DamagableType == 2 and chests[1].locked, "kept from decay and locked")
     expect(not io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview", 1, true),
@@ -230,7 +114,7 @@ group("the mailbox", function()
     slots[1].StackCount = 21                                   -- put in just before closing (the move does nothing)
     hudWindows["chest1"].gone = true                           -- the player closes it
     run(1)
-    expect(#shown == 1, "closed, it stays closed (the key pressed while it was open did nothing)")
+    expect(#chestWindowsShown == 1, "closed, it stays closed (the key pressed while it was open did nothing)")
     movesWork = true
     kinds, items = require("mailbox").count()
     expect(kinds == 2 and items == 70, "closed: what is left goes back into the mailbox, with what arrived meanwhile: " .. items)
@@ -244,7 +128,7 @@ group("the mailbox", function()
     slots[5].ItemId.StaticId, slots[5].StackCount = FNameOf("Wood"), 20
     hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
     run(3)
-    expect(#chests == 1 and #shown == 2 and slots[1].ItemId.StaticId:ToString() == "Wood" and slots[2].ItemId.StaticId:ToString() == "Stone",
+    expect(#chests == 1 and #chestWindowsShown == 2 and slots[1].ItemId.StaticId:ToString() == "Wood" and slots[2].ItemId.StaticId:ToString() == "Stone",
            "found again by its place and filled")
     expect(slots[5]:IsEmpty(), "a leftover copy is cleared, not counted twice")
     run(1)
@@ -263,7 +147,7 @@ group("the mailbox", function()
     run(3)
     kinds, items = require("mailbox").count()
     expect(items == 55 and slots[1].StackCount == 5 and logged("followed by id"), "the next open settles it first: " .. items)
-    hudWindows["chest" .. #shown].gone = true
+    hudWindows["chest" .. #chestWindowsShown].gone = true
     run(2)
     -- The world changes while a view the mod can't follow is open: it is dropped, and the next open fills afresh.
     hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
@@ -286,7 +170,7 @@ group("the mailbox", function()
         expect(permissionLines == 2, "a new world logs its own findings again (the chest's permission): " .. permissionLines)
     end
     run(1)
-    hudWindows["chest" .. #shown].gone = true
+    hudWindows["chest" .. #chestWindowsShown].gone = true
     run(2)
     -- Taken during a view it can't follow, then the world changes before that view is settled: what was taken left the
     -- list at once, so the next fill does not give it again.
@@ -307,7 +191,7 @@ group("the mailbox", function()
     expect(woodListed == 1 and slots[1].StackCount == 1 and bagHas.Wood - bagWoodBefore + woodListed == 5,
            "a take is off the list at once: 5 Wood in all, not 9: " .. woodListed .. " listed")
     run(1)
-    hudWindows["chest" .. #shown].gone = true
+    hudWindows["chest" .. #chestWindowsShown].gone = true
     run(2)
     -- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
     logicMod = true

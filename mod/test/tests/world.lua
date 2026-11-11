@@ -22,8 +22,8 @@ end)
 group("another world", function()
     expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("world=AP_WORLD\n", 1, true), "the seed keeps the world it is played in")
     -- A world this seed is not played in (config.txt connects at every start): nothing is locked, sent or given there.
-    mapScreenCalls = {}                                            -- (global) what the core's walls told C++'s map screen
-    AP_MapScreen = function(cmd, v) mapScreenCalls[#mapScreenCalls + 1] = cmd .. "=" .. tostring(v); return "" end
+    local mapScreenCalls = {}                                      -- what the core's walls told C++'s map screen
+    recordMapScreen(mapScreenCalls)
     run(3)                                                         -- (the seed's world: C++ switched on)
     worldDir, pawnAddress = "VANILLA", 12288
     h.leaveWorld()

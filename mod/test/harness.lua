@@ -6,8 +6,9 @@
 --
 -- Contents, in the order they run. A test file is a list of groups: grep -n 'group("' mod/test/tests/*.lua
 --   harness.lua              this file: the kit every test uses (expect, group, run, push, logged), then the files
---   fakes.lua                the stand-ins: Unreal values, the player and the world, UE4SS, the map, the menus and
---                            the HUD, the APConnector
+--   fakes.lua                the stand-ins: Unreal's values, the player and the world, the tech table, UE4SS, the
+--                            shop's cards, the map and the walls, the APConnector
+--   fakes_menus.lua          the stand-ins for widgets, the title, Esc and main menus, the HUD and the hidden chest
 --   helpers.lua              helpers several groups share, in the table h
 --   tests/core.lua           loading the mod, the first connection, research techs, other mods' techs
 --   tests/shop.lua           the shop's cards, their tooltips, which slots can be bought
@@ -53,7 +54,8 @@ do
     local cfgFile = io.open(MOD .. "/config.txt")
     local cfgText = cfgFile and cfgFile:read("a") or ""
     if cfgFile then cfgFile:close() end
-    assert(cfgText:find("slot=Tester", 1, true), "no config.txt with slot=Tester: run this through tools/lua_harness.sh")
+    assert(cfgText:find("slot=Tester", 1, true),
+           "no config.txt with slot=Tester: run this through tools/lua_harness.sh")
     local old = io.open(MOD .. "/save-12345-Tester.txt")
     if old then old:close() end
     assert(not old, "this folder was used by an earlier run: run this through tools/lua_harness.sh")
@@ -119,6 +121,13 @@ function logged(pattern) for _, l in ipairs(printed) do if l:find(pattern) then 
 function countLogged(pattern)
     local n = 0
     for _, l in ipairs(printed) do if l:find(pattern) then n = n + 1 end end
+    return n
+end
+
+-- How many lines printed so far in the whole run hold the text (plain, not a pattern).
+function countLoggedText(text)
+    local n = 0
+    for _, l in ipairs(printed) do if l:find(text, 1, true) then n = n + 1 end end
     return n
 end
 

@@ -2,23 +2,6 @@
 
 group("test tools", function()
     -- Test tools: the trap hotkeys go through the queue; the probes log what they read.
-    ModifierKey = { CONTROL = "ctrl" }
-    local sp = { Value = 900000 }
-    local cpStub = { IsValid = function() return true end, GetLevel = function() return playerLevel end, GetIndividualParameter = function() return individual end,
-                     GetSP = function() return sp end, GetMaxSP = function() return { Value = 1000000 } end,
-                     SetSP = function(_, v) sp = { Value = v.Value } end, GetHPRate = function() return 0.9 end }
-    pawn.GetCharacterParameterComponent = function() return cpStub end
-    movement.IsMovingOnGround = function() return true end
-    local hour = 9
-    util.GetTimeManager = function() return { GetCurrentPalWorldTime_Hour = function() return hour end,
-                                               SetGameTime_FixDay = function(_, h) hour = h end } end
-    local statuses = {}
-    pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
-                             GetExecutionStatus = function(_, id)            -- not running: an invalid object, not nil
-                                 if not statuses[id] then return NullObject() end
-                                 return { IsValid = function() return true end, GetFullName = function() return "BP_Status" end }
-                             end,
-                             RemoveStatus = function(_, id) statuses[id] = nil end }
     require("test_tools").install()
     expect(keyBinds["key:F3"] ~= nil and logged("Ctrl%+F3 wall skin"), "test tools bind Ctrl+F3 to the wall skins")
     do  -- Ctrl+F1: EXP for testing through PalUtility:GiveExpToAroundPlayerCharacter
@@ -35,20 +18,8 @@ group("test tools", function()
                "Ctrl+F2 cycles the player's speed x3, x6, back to x1: " .. table.concat(seen, ", "))
     end
     do  -- Ctrl+F4, the HUD probe
-        local canvasKids, angles, removed = {}, {}, false
-        local root = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("Canvas_Root") end,
-                              GetChildrenCount = function() return #canvasKids end, GetChildAt = function(_, i) return canvasKids[i + 1] end })
-        function root:AddChildToCanvas(w)
-            canvasKids[#canvasKids + 1] = w
-            w.RemoveFromParent = function() removed = true end
-            local slot = {}
-            for _, f in ipairs({ "SetAnchors", "SetAlignment", "SetPosition", "SetAutoSize", "SetZOrder" }) do slot[f] = function() end end
-            return slot
-        end
-        -- As on the client (v0.13.5 playtest): the root is a SafeZone holding the canvas.
-        local safe = Widget({ GetClass = function() return classed("SafeZone") end, GetFName = function() return FNameOf("SafeZone_0") end,
-                              GetChildrenCount = function() return 1 end, GetChildAt = function() return root end })
-        local layout = Widget({ IsVisible = function() return true end, WidgetTree = { RootWidget = safe } })
+        local angles = {}
+        local layout, _, canvasKids = fakeHud("Canvas_Root")
         local savedFAO = FindAllOf
         FindAllOf = function(class) if class == "WBP_PalHUDLayout_C" then return { layout } end return savedFAO(class) end
         keyBinds["key:F4"]()
@@ -68,6 +39,7 @@ group("test tools", function()
         expect(goal and goal.width == 600 and goal.child and goal.child.children[1].texture.path == "ap-goal-banner"
                and goal.child.children[2].text == "All 14 areas open | 2,431 checks | 12h 08m" and logged("HUD probe: goal banner added"),
                "and the goal banner, centred, with a sample line in its pill")
+        local removed = canvasKids[1] and canvasKids[1].removed or canvasKids[2] and canvasKids[2].removed
         expect(#angles == 20 and angles[20] == 360 and removed and logged("HUD probe: spun 20 steps; removed"),
                "spins it once around in 20 core updates (6 s), then takes it away: " .. #angles)
     end
@@ -75,7 +47,7 @@ group("test tools", function()
     keyBinds["key:F8"]()
     expect(h.updatesUntil("trap #%-1 Fool Trap: fake notice", 20), "Ctrl+F8 fires a Fool Trap through the queue")
     keyBinds["key:F9"]()
-    expect(sp.Value == 0 and logged("exhaustion: stamina 900000 of 1000000 %-> 0"), "Ctrl+F9: stamina probe logs before and after")
+    expect(stamina.Value == 0 and logged("exhaustion: stamina 900000 of 1000000 %-> 0"), "Ctrl+F9: stamina probe logs before and after")
     keyBinds["key:F10"]()
     expect(hour == 22 and logged("nightfall: hour 9 %-> 22"), "Ctrl+F10: nightfall probe logs the hour")
     keyBinds["key:F11"]()
@@ -86,5 +58,4 @@ group("test tools", function()
     pawn.StatusComponent = nil
     keyBinds["key:F11"]()
     expect(logged("AddStatus%(Wetness 20%): FAILED"), "a failing probe is logged, not raised")
-    pawn.GetCharacterParameterComponent = ParamComponent
 end)

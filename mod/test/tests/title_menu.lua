@@ -181,7 +181,7 @@ group("the title menu's Archipelago menu", function()
     click(btn(R.go))
     run(1)
     local c = connects[#connects]
-    expect(#connects == connectsBefore + 1 and c[1] == "archipelago.gg:40000" and c[2] == "Other" and c[3] == "secret",
+    expect(#connects == connectsBefore + 1 and c.server == "archipelago.gg:40000" and c.slot == "Other" and c.password == "secret",
            "Connect connects with them, replacing the connection there was")
     local cfgText = io.open(MOD .. "/config.txt"):read("*a")
     expect(cfgText:find("server=archipelago.gg:40000", 1, true) and cfgText:find("slot=Other", 1, true) and cfgText:find("servers=localhost", 1, true),

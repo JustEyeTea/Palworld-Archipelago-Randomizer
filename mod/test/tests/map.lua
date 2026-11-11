@@ -76,10 +76,7 @@ group("the world map", function()
     -- its status when the map opens, and probes the fog once (its material, the explored mask exported to fog-mask.png).
     do
         local calls = {}
-        AP_MapScreen = function(cmd, v)
-            calls[#calls + 1] = cmd .. "=" .. tostring(v)
-            return cmd == "status" and "hooked; Setup ran 1x, picture set 1x, fog set 1x" or ""
-        end
+        recordMapScreen(calls, "hooked; Setup ran 1x, picture set 1x, fog set 1x")
         local maskRT = { IsValid = function() return true end, SizeX = 1024, SizeY = 1024, RenderTargetFormat = 2,
                          GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.TextureRenderTarget2D_9" end }
         mapBody.MaskTextureMaterial = { IsValid = function() return true end,
@@ -119,7 +116,7 @@ group("the world map", function()
     -- from the same mask with one stamp fewer.
     do
         local calls, jobs = {}, {}
-        AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+        recordMapScreen(calls)
         AP_ComposeChart = function(colour, paper, sea, compass, out, size, gamma)
             jobs[#jobs + 1] = { kind = "chart", colour = colour, paper = paper, compass = compass, out = out, size = size }
             local f = io.open(out, "w"); f:write("chart"); f:close()
@@ -138,14 +135,7 @@ group("the world map", function()
             return u == "0.02" and "0,0,0,255" or "0,0,0,40"         -- explored where alpha is LOW (the made-up mask)
         end
         os.remove(MOD .. "/map-fog.png")
-        mapBody.MaskTextureMaterial = { IsValid = function() return true end,
-            GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_2" end,
-            K2_GetTextureParameterValue = function(_, name)
-                if name:ToString() == "TargetTexture" then
-                    return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
-                             GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
-                end
-            end }
+        mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_2")
         local W6 = dofile(MOD .. "/Scripts/walls.lua")
         W6.dir, W6.keepAlive = MOD, function() end
         W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
@@ -203,7 +193,7 @@ group("the world map", function()
     -- is told its path; at the first opening the game's map is checked against the saved one once, and nothing is redone.
     do
         local calls = {}
-        AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+        recordMapScreen(calls)
         local saved = MOD .. "\\map-colour-1.png"                    -- (the mod's Windows path, as a file name here)
         local f = io.open(saved, "w"); f:write("png"); f:close()
         local fp = {}
@@ -247,7 +237,7 @@ group("the world map", function()
     -- main map's screen: the World Tree's keeps its own picture and gets none.
     do
         local calls = {}
-        AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+        recordMapScreen(calls)
         mapBody.icons, mapBody.iconUpdates = {}, 0
         treeBody.icons, treeBody.Image_MapBody.shown = {}, nil
         local stampsBefore = {}
@@ -347,14 +337,7 @@ group("the world map: the Territories look", function()
     AP_ComposeChart = function() error("Territories draws no chart") end
     AP_ChartStatus = function() return "done" end
     AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
-    mapBody.MaskTextureMaterial = { IsValid = function() return true end,      -- (the fog's explored mask, as in the chart test)
-        GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_3" end,
-        K2_GetTextureParameterValue = function(_, name)
-            if name:ToString() == "TargetTexture" then
-                return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
-                         GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
-            end
-        end }
+    mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_3")
     local AW = require("area_walls")
     local area4, sealedArea = AW.areas[4], AW.areas[16]
     local T = dofile(MOD .. "/Scripts/walls.lua")

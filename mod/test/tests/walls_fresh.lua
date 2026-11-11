@@ -24,45 +24,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         for _, a in ipairs(walls) do if a.hidden then n = n + 1 end end
         return n
     end
-    -- A player 20 km off the map: every piece is past the hiding radius.
-    local offMap = { IsValid = function() return true end,
-                     K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
     local SETTLE_UPDATES = 60          -- enough updates to raise every piece of a cut (30 an update) and hide it (120)
-    -- The C++ part's map functions for the Territories look, as the Territories tests above give them, with the fog's
-    -- explored mask on the map screen. calls lists what Lua told AP_MapScreen. Returns a function that takes them away.
-    local function territoriesStandIns(calls)
-        local function write(f) local h = io.open(f, "w"); h:write("png"); h:close() end
-        AP_ComposeTerritories = function() error("with AP_ComposeField the label map is not used") end
-        AP_TerritoriesStatus = function() return "done" end
-        AP_ComposeField = function(_, _, _, _, out, fogart)
-            write(out); write(fogart)
-            fieldJobs = (fieldJobs or 0) + 1                      -- (global) map pictures composed from the distance field
-            return ""
-        end
-        AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
-        AP_ComposeFog = function(_, _, _, _, out)
-            write(out)
-            fogJobs = (fogJobs or 0) + 1                          -- (global) fog pictures composed
-            return ""
-        end
-        AP_FogStatus = function() return "done" end
-        AP_ComposeChart = function() error("Territories draws no chart") end
-        AP_ChartStatus = function() return "done" end
-        AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
-        mapBody.MaskTextureMaterial = { IsValid = function() return true end,
-            GetFullName = function() return "MaterialInstanceDynamic /Engine/Transient.MaterialInstanceDynamic_4" end,
-            K2_GetTextureParameterValue = function(_, name)
-                if name:ToString() ~= "TargetTexture" then return nil end
-                return { IsValid = function() return true end, SizeX = 1024, SizeY = 1024,
-                         GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end }
-            end }
-        return function()
-            AP_ComposeTerritories, AP_TerritoriesStatus, AP_ComposeField, AP_MapScreen = nil, nil, nil, nil
-            AP_ComposeFog, AP_FogStatus, AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil, nil, nil
-            mapBody.MaskTextureMaterial = nil
-            os.remove(MOD .. "/map-fog-territories.png")
-        end
-    end
     -- A colour map saved by an earlier session, with its fingerprint of the game's map art `art`. Returns a function that
     -- puts back what was there before.
     local colourFile = MOD .. "\\map-colour-1.png"                  -- (the mod's Windows path, as a file name here)
@@ -179,7 +141,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- Ten passes in one session: no map overlay is kept (it is drawn into the map picture and done with), and the fog
         -- pictures keep one place among the kept objects, not one more each
         local calls = {}
-        local takeAway = territoriesStandIns(calls)
+        local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(mapArt)
         local W = freshWalls()
         local core = require("walls")                        -- (the core gave its keepAlive and keepInPlace to this one)
@@ -210,7 +172,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- The Territories look, as the chart look above: a map mod (or a game update) changed the game's map art since the
         -- colour map was saved; at the first opening it is saved again and the picture made again from it
-        local takeAway = territoriesStandIns({})
+        local takeAway = plugInTerritories({})
         local putBack = savedColourMap(mapArt)
         local artBefore = mapArt
         mapArt = mapArt + 7
@@ -234,7 +196,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- The map screen stays listed from its first opening until Return to title: an opening is the screen coming on
         -- screen, so each later opening reads the explored mask again (the fog picture follows what the player explored)
         local calls = {}
-        local takeAway = territoriesStandIns(calls)
+        local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(mapArt)
         local maskExports = 0
         local realExport = renderLib.ExportRenderTarget
@@ -272,7 +234,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- A seed with area locks, then one without in the same session: C++ is told to leave the map screen alone, once,
         -- and switched on again with the picture when area locks are back
         local calls = {}
-        local takeAway = territoriesStandIns(calls)
+        local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(mapArt)
         local W = freshWalls()
         for _ = 1, 6 do W.updateMap(true, {}, pawn) end
@@ -315,7 +277,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         -- every update: the key is marked failed, for both looks
         local realBegin = renderLib.BeginDrawCanvasToRenderTarget
         renderLib.BeginDrawCanvasToRenderTarget = function(_, _, _, _, contextOut) contextOut.RenderTarget = true end
-        local takeAway = territoriesStandIns({})
+        local takeAway = plugInTerritories({})
         local putBack = savedColourMap(mapArt)
         local made = fieldJobs or 0
         local W = freshWalls()
@@ -335,7 +297,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
                .. territoriesMade .. "x, chart " .. chartMade .. "x in 12 updates")
     end
     do  -- Territories with the saved colour map, the map never opened: the game's 8192 px map is never loaded
-        local takeAway = territoriesStandIns({})
+        local takeAway = plugInTerritories({})
         local putBack = savedColourMap(mapArt)
         local wasLoaded = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
         loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
@@ -351,7 +313,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- The second world of a session: its explored mask is read from its map data before its map opens, as the
         -- first world's was
-        local takeAway = territoriesStandIns({})
+        local takeAway = plugInTerritories({})
         local putBack = savedColourMap(mapArt)
         local reads = 0
         local realExport = renderLib.ExportRenderTarget
@@ -396,7 +358,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- One explored-mask reading that tells nothing apart does not switch the fog picture off for the session: a later
         -- opening reads it again
-        local takeAway = territoriesStandIns({})
+        local takeAway = plugInTerritories({})
         local putBack = savedColourMap(mapArt)
         local apart = AP_SamplePNG
         AP_SamplePNG = function() return "0,0,0,40" end           -- the player and the world's edge read the same
@@ -467,7 +429,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- The chart look's parchment fog colour is sent only with the test tools, and never with map_chart=0
         local function fogSent(testTools, chartOff)
             local calls = {}
-            AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
+            recordMapScreen(calls)
             local W = freshWalls()
             W.mapStyle, W.testFogColour, W.chartOff = "chart", testTools, chartOff
             W.updateMap(true, {}, pawn)
@@ -480,7 +442,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
                .. tostring(tools) .. ", " .. tostring(toolsNoChart))
     end
     do  -- The chart look with its stamps drawn in (map_icons=0): while nothing changes, the map update opens no file
-        local takeAway = territoriesStandIns({})
+        local takeAway = plugInTerritories({})
         local putBack = savedColourMap(mapArt)
         AP_ComposeChart = function(_, _, _, _, out) local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
         for _ = 1, 3 do AP_ComposeStatus() end                    -- (an earlier copy's composition, finished)
@@ -565,7 +527,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         W.setSkin("red")
         W.update(true, {}, offMap)
         worldGoes(mine())
-        local takeAway = territoriesStandIns({})
+        local takeAway = plugInTerritories({})
         local putBack = savedColourMap(mapArt)
         util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
             GetRenderTargetByMapName = function() return nil end,

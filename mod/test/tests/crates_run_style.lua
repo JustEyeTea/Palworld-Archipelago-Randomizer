@@ -3,123 +3,100 @@
 
 group("Palworld Crates", function()
     -- Rolled on arrival, the same every time.
-        local CR = require("crates")
-        slotData.seed = "70200"                     -- a seed of its own (as newSeed in the goals tests)
-        push("status", "connected", "Other")
-        run(14)
-        keyBinds[Key.H]()                           -- yes to playing it in this world, which has progress
-        run(14)
-        local before = CR.count()
-        push("item", "0", tostring(itemId["Palworld Crate"]), "1", "1", "1", "Palworld Crate", "Friend")
-        run(20)
-        expect(CR.count() == before + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
-               "a Palworld Crate arrives as one of the five crates, and says which")
-        expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS), "the same seed and index roll the same crate")
-        local n = {}
-        for i = 1, 10000 do local k = CR.kindFor("seed", i, CR.DEFAULT_WEIGHTS); n[k] = (n[k] or 0) + 1 end
-        expect(math.abs(n.sphere - 3000) < 300 and math.abs(n.food - 2500) < 300 and math.abs(n.rare - 1200) < 200
-               and math.abs(n.jackpot - 300) < 120, string.format("over 10,000 the chances hold: %d %d %d %d %d",
-               n.sphere, n.food, n.common, n.rare, n.jackpot))
-        expect(CR.kindFor("x", 1, { sphere = 0, food = 0, common = 0, rare = 0, jackpot = 5 }) == "jackpot", "the slot's weights are used")
-        local ok = true
-        for _, kind in ipairs(CR.KINDS) do
-            for _, lv in ipairs({ 1, 20, 50 }) do
-                CR.list = { kind }
-                local k, out = CR.openNext(lv)
-                if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then ok = false; print("  bad roll: " .. kind .. " at level " .. lv) end
-            end
+    local CR = require("crates")
+    slotData.seed = "70200"                     -- a seed of its own (as newSeed in the goals tests)
+    push("status", "connected", "Other")
+    run(14)
+    keyBinds[Key.H]()                           -- yes to playing it in this world, which has progress
+    run(14)
+    local before = CR.count()
+    push("item", "0", tostring(itemId["Palworld Crate"]), "1", "1", "1", "Palworld Crate", "Friend")
+    run(20)
+    expect(CR.count() == before + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
+           "a Palworld Crate arrives as one of the five crates, and says which")
+    expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS), "the same seed and index roll the same crate")
+    local n = {}
+    for i = 1, 10000 do local k = CR.kindFor("seed", i, CR.DEFAULT_WEIGHTS); n[k] = (n[k] or 0) + 1 end
+    expect(math.abs(n.sphere - 3000) < 300 and math.abs(n.food - 2500) < 300 and math.abs(n.rare - 1200) < 200
+           and math.abs(n.jackpot - 300) < 120, string.format("over 10,000 the chances hold: %d %d %d %d %d",
+           n.sphere, n.food, n.common, n.rare, n.jackpot))
+    expect(CR.kindFor("x", 1, { sphere = 0, food = 0, common = 0, rare = 0, jackpot = 5 }) == "jackpot", "the slot's weights are used")
+    local ok = true
+    for _, kind in ipairs(CR.KINDS) do
+        for _, lv in ipairs({ 1, 20, 50 }) do
+            CR.list = { kind }
+            local k, out = CR.openNext(lv)
+            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then ok = false; print("  bad roll: " .. kind .. " at level " .. lv) end
         end
-        expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
+    end
+    expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
 end)
 
 group("the crate window", function()
     -- The Palworld Crates window over the mailbox's chest window.
-        local CR, MB = require("crates"), require("mailbox")
-        local kids = {}
-        local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
-        function canvas:AddChildToCanvas(w)
-            kids[#kids + 1] = w
-            w.RemoveFromParent = function(self) self.removed = true end
-            local slot = { SetAnchors = function(sl, v) sl.anchors = v end, SetAlignment = function(sl, v) sl.alignment = v end,
-                           SetPosition = function(sl, v) sl.position = v end, SetAutoSize = function() end, SetZOrder = function() end }
-            w.canvasSlot = slot
-            return slot
+    local CR, MB = require("crates"), require("mailbox")
+    local canvas, kids = fakeCanvas("CanvasPanel_0")      -- the chest window's canvas
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedCW, savedList = MB.chestWidget, CR.list
+    MB.chestWidget = function() return chestWin end
+    CR.list = { "rare", "sphere", "rare", "jackpot" }
+    run(1)
+    local panel = kids[#kids]
+    local over = panel and panel.child
+    local function texts(o)
+        local t = {}
+        for _, c in ipairs(o and o.children or {}) do
+            if c.text then t[#t + 1] = c.text end
+            if c.child and c.child.text then t[#t + 1] = c.child.text end
         end
-        local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
-        local savedCW, savedList = MB.chestWidget, CR.list
-        MB.chestWidget = function() return chestWin end
-        CR.list = { "rare", "sphere", "rare", "jackpot" }
-        run(1)
-        local panel = kids[#kids]
-        local over = panel and panel.child
-        local function texts(o)
-            local t = {}
-            for _, c in ipairs(o and o.children or {}) do
-                if c.text then t[#t + 1] = c.text end
-                if c.child and c.child.text then t[#t + 1] = c.child.text end
-            end
-            return table.concat(t, "|")
-        end
-        local all = texts(over)
-        expect(panel and panel.width == 800 and panel.height == 500 and panel.canvasSlot.anchors.Minimum.X == 0.5
-               and logged("crate window: shown over the mailbox %(4 crate%(s%)%)"),
-               "with crates waiting, the mailbox shows the crate window, 800x500, centred")
-        expect(over and over.children[1].child and over.children[1].child.texture and over.children[1].child.texture.path == "ap-mailbox-window",
-               "on the Art lane's window plate")
-        expect(all:find("Sphere Crate|1 waiting", 1, true) and all:find("Rare Supply Crate|2 waiting", 1, true)
-               and all:find("Jackpot Supply Crate|1 waiting", 1, true) and not all:find("Food Crate", 1, true),
-               "one row per kind waiting, with its count: " .. all)
-        -- The rows' Open buttons: find the Rare row's and click it.
-        local clickHook
-        for k, f in pairs(hooks) do if k:find("WBP_CommonButton_C:BndEvt", 1, true) then clickHook = f end end
-        local rareOpen
-        for _, c in ipairs(over.children) do
-            local b = c.child
-            if b and b.Text_Main and b.Text_Main.text == "Open" and not rareOpen then
-                -- rows follow the kinds' order: sphere first, then rare
-            end
-        end
-        local opens = {}
-        for _, c in ipairs(over.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then opens[#opens + 1] = c.child end end
-        rareOpen = opens[2]
-        expect(#opens == 3 and clickHook, "each row has the game's button to open one: " .. #opens)
-        clickHook({ get = function() return rareOpen end })
-        expect(#CR.list == 4, "nothing opens inside the click's hook")
-        run(1)
-        run(1)
-        local n = 0
-        for _, k in ipairs(CR.list) do if k == "rare" then n = n + 1 end end
-        expect(#CR.list == 3 and n == 1 and logged("crate: opened a Rare Supply Crate"), "the row's Open opens one of its kind")
-        local panel2 = kids[#kids]
-        local all2 = texts(panel2 and panel2.child)
-        expect(panel ~= panel2 and panel.removed and all2:find("Last opened: Rare Supply Crate", 1, true),
-               "the window is rebuilt with the contents of the crate just opened: " .. all2)
-        -- Close: the small button brings it back.
-        local closeBtn
-        for _, c in ipairs(panel2.child.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "X" then closeBtn = c.child end end
-        clickHook({ get = function() return closeBtn end })
-        run(2)
-        local toggle = kids[#kids]
-        expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
-               "Close leaves the chest with an Open Palworld Crates (3) button")
-        expect(not toggle.slot or not toggle.slot.anchors or (toggle.slot.anchors.Minimum.X == 0.5 and toggle.slot.anchors.Minimum.Y == 0),
-               "at the top centre, where the player sees it (not the screen's corner)")
-        clickHook({ get = function() return toggle.child end })
-        run(2)
-        expect(toggle.removed and kids[#kids].width == 800, "which brings the window back")
-        MB.chestWidget, CR.list = savedCW, savedList
-        run(1)
-        expect(kids[#kids].removed, "and it all goes with the chest window")
+        return table.concat(t, "|")
+    end
+    local all = texts(over)
+    expect(panel and panel.width == 800 and panel.height == 500 and panel.canvasSlot.anchors.Minimum.X == 0.5
+           and logged("crate window: shown over the mailbox %(4 crate%(s%)%)"),
+           "with crates waiting, the mailbox shows the crate window, 800x500, centred")
+    expect(over and over.children[1].child and over.children[1].child.texture and over.children[1].child.texture.path == "ap-mailbox-window",
+           "on the Art lane's window plate")
+    expect(all:find("Sphere Crate|1 waiting", 1, true) and all:find("Rare Supply Crate|2 waiting", 1, true)
+           and all:find("Jackpot Supply Crate|1 waiting", 1, true) and not all:find("Food Crate", 1, true),
+           "one row per kind waiting, with its count: " .. all)
+    -- The rows' Open buttons: find the Rare row's and click it.
+    local clickHook
+    for k, f in pairs(hooks) do if k:find("WBP_CommonButton_C:BndEvt", 1, true) then clickHook = f end end
+    local opens = {}
+    for _, c in ipairs(over.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then opens[#opens + 1] = c.child end end
+    local rareOpen = opens[2]                  -- rows follow the kinds' order: sphere first, then rare
+    expect(#opens == 3 and clickHook, "each row has the game's button to open one: " .. #opens)
+    clickHook({ get = function() return rareOpen end })
+    expect(#CR.list == 4, "nothing opens inside the click's hook")
+    run(1)
+    run(1)
+    local n = 0
+    for _, k in ipairs(CR.list) do if k == "rare" then n = n + 1 end end
+    expect(#CR.list == 3 and n == 1 and logged("crate: opened a Rare Supply Crate"), "the row's Open opens one of its kind")
+    local panel2 = kids[#kids]
+    local all2 = texts(panel2 and panel2.child)
+    expect(panel ~= panel2 and panel.removed and all2:find("Last opened: Rare Supply Crate", 1, true),
+           "the window is rebuilt with the contents of the crate just opened: " .. all2)
+    -- Close: the small button brings it back.
+    local closeBtn
+    for _, c in ipairs(panel2.child.children) do if c.child and c.child.Text_Main and c.child.Text_Main.text == "X" then closeBtn = c.child end end
+    clickHook({ get = function() return closeBtn end })
+    run(2)
+    local toggle = kids[#kids]
+    expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
+           "Close leaves the chest with an Open Palworld Crates (3) button")
+    expect(not toggle.slot or not toggle.slot.anchors or (toggle.slot.anchors.Minimum.X == 0.5 and toggle.slot.anchors.Minimum.Y == 0),
+           "at the top centre, where the player sees it (not the screen's corner)")
+    clickHook({ get = function() return toggle.child end })
+    run(2)
+    expect(toggle.removed and kids[#kids].width == 800, "which brings the window back")
+    MB.chestWidget, CR.list = savedCW, savedList
+    run(1)
+    expect(kids[#kids].removed, "and it all goes with the chest window")
     do   -- a crate the window asks for and can't open (none of that kind left) is logged
         local CR, MB = require("crates"), require("mailbox")
-        local kids = {}
-        local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
-        function canvas:AddChildToCanvas(w)
-            kids[#kids + 1] = w
-            w.RemoveFromParent = function(self) self.removed = true end
-            return { SetAnchors = function() end, SetAlignment = function() end, SetPosition = function() end,
-                     SetAutoSize = function() end, SetZOrder = function() end }
-        end
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
         local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
         local savedWidget, savedList = MB.chestWidget, CR.list
         MB.chestWidget = function() return chestWin end
@@ -142,12 +119,7 @@ group("the crate window", function()
     end
     do   -- a text whose font can't be set is scaled to its size instead, and that is said once
         local CR, MB = require("crates"), require("mailbox")
-        local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
-        function canvas:AddChildToCanvas(w)
-            w.RemoveFromParent = function() end
-            return { SetAnchors = function() end, SetAlignment = function() end, SetPosition = function() end,
-                     SetAutoSize = function() end, SetZOrder = function() end }
-        end
+        local canvas = fakeCanvas("CanvasPanel_0")
         local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
         local savedWidget, savedList, construct = MB.chestWidget, CR.list, StaticConstructObject
         StaticConstructObject = function(class, owner)

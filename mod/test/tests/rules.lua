@@ -60,27 +60,27 @@ end)
 
 group("every config.txt key the mod reads is kept when the title menu rewrites the file", function()
     -- Every config.txt key the mod reads is one the title menu keeps when it rewrites the file (CONFIG_KEYS).
-        local fh = io.open(MOD .. "/Scripts/config.lua")
-        local src = fh and fh:read("a") or ""
-        if fh then fh:close() end
-        local listed = {}
-        for key in (src:match("local CONFIG_KEYS = (%b{})") or ""):gmatch('"([%w_]+)"') do listed[key] = true end
-        local missing, seen = {}, {}
-        local ls = io.popen('ls "' .. MOD .. '/Scripts"')
-        for name in ls:lines() do
-            local h = name:match("%.lua$") and io.open(MOD .. "/Scripts/" .. name)
-            local text = h and h:read("a") or ""
-            if h then h:close() end
-            for key in text:gmatch("cfg%.([%w_]+)") do
-                if not listed[key] and not seen[key] then
-                    seen[key] = true
-                    missing[#missing + 1] = name .. ": " .. key
-                end
+    local fh = io.open(MOD .. "/Scripts/config.lua")
+    local src = fh and fh:read("a") or ""
+    if fh then fh:close() end
+    local listed = {}
+    for key in (src:match("local CONFIG_KEYS = (%b{})") or ""):gmatch('"([%w_]+)"') do listed[key] = true end
+    local missing, seen = {}, {}
+    local ls = io.popen('ls "' .. MOD .. '/Scripts"')
+    for name in ls:lines() do
+        local h = name:match("%.lua$") and io.open(MOD .. "/Scripts/" .. name)
+        local text = h and h:read("a") or ""
+        if h then h:close() end
+        for key in text:gmatch("cfg%.([%w_]+)") do
+            if not listed[key] and not seen[key] then
+                seen[key] = true
+                missing[#missing + 1] = name .. ": " .. key
             end
         end
-        ls:close()
-        expect(next(listed) ~= nil and #missing == 0,
-               "every config.txt key the mod reads is kept when the title menu rewrites the file: " .. table.concat(missing, ", "))
+    end
+    ls:close()
+    expect(next(listed) ~= nil and #missing == 0,
+           "every config.txt key the mod reads is kept when the title menu rewrites the file: " .. table.concat(missing, ", "))
 end)
 
 group("the whole run", function()

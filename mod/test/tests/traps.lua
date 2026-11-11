@@ -2,38 +2,6 @@
 -- Tests traps.lua and death_link.lua.
 
 group("traps", function()
-    -- The game's side, limited to what LuaTypes lists: the movement component's named walk-speed multipliers (the game
-    -- multiplies them), the individual parameter's satiety, the player state's IsInStage, the controller's controlled
-    -- character. GetLastInsideRegionNameID is left out: its out-parameter's shape is unknown, so it fails here.
-    local function Movement(address)
-        local m = { mult = {} }
-        function m:IsValid() return true end
-        function m:GetAddress() return address end
-        function m:SetWalkSpeedMultiplier(name, v) self.mult[name:ToString()] = v end
-        function m:GetWalkSpeedMultiplier() local p = 1.0; for _, v in pairs(self.mult) do p = p * v end; return p end
-        return m
-    end
-    movement = Movement(5150)
-    pawn.GetPalCharacterMovementComponent = function() return movement end
-    -- What UE4SS returns for a null object: a wrapper that is not nil, whose IsValid is false and whose calls fail.
-    function NullObject()
-        return setmetatable({ IsValid = function() return false end }, { __index = function()
-            return function() error("Tried calling a member function but the UObject instance is nullptr") end
-        end })
-    end
-    local stomach = { cur = 80, max = 100 }
-    individual = { IsValid = function() return true end,
-                         GetFullStomach = function() return stomach.cur end, GetMaxFullStomach = function() return stomach.max end,
-                         SetFullStomach = function(_, v) stomach.cur = v end }
-    function ParamComponent()
-        return { IsValid = function() return true end, GetLevel = function() return playerLevel end,
-                 GetIndividualParameter = function() return individual end }
-    end
-    pawn.GetCharacterParameterComponent = ParamComponent
-    local inStage = false
-    ps.IsInStage = function() return inStage end
-    setInStage = function(v) inStage = v end         -- (global: for tests outside this section)
-    playerController.GetControlPalCharacter = function() return pawn end
     local trapAt = 9                                               -- items 0-8 are in; traps follow
     local function trap(name, sender)
         push("item", tostring(trapAt), tostring(itemId[name]), "1", sender and "2" or "1", "4", name, sender or "Tester")
@@ -105,7 +73,7 @@ group("traps", function()
     run(110)
     expect(not logged("trap #17 "), "no trap while the mailbox is open")
     expect(countLogged("trap: 1 trap%(s%) held back for 30 s while the mailbox is open") == 1, "held back 30 s: logged once")
-    hudWindows["chest" .. #shown].gone = true
+    hudWindows["chest" .. #chestWindowsShown].gone = true
     expect(h.updatesUntil("trap #17 Fool Trap", 20), "and it comes once the mailbox closes")
     playerController.K2_GetPawn, playerController.GetAddress = nil, nil
     -- A failure: the trap fizzles, says so, and is not retried.
@@ -195,7 +163,7 @@ group("traps", function()
     hud.GetWidget = getWidget
     require("mailbox").open(pawn)                                  -- the next open settles the old view
     run(4)
-    hudWindows["chest" .. #shown].gone = true
+    hudWindows["chest" .. #chestWindowsShown].gone = true
     run(4)
     expect(not require("mailbox").busy(), "(the mailbox is closed again)")
     playerController.K2_GetPawn, playerController.GetAddress = nil, nil

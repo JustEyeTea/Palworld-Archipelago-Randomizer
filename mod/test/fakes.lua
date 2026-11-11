@@ -1,10 +1,16 @@
--- The stand-ins the mod runs against: Unreal's values, the player and the world, UE4SS's functions, the map, the
--- menus and the HUD, and the APConnector's functions. They are globals: the mod reads the UE4SS and connector ones by
--- those names, and the test files read and change the rest. A test changes the fake game through them (a field, a
--- switch, a function swapped for one test); the lookups (FindAllOf, FindFirstOf, StaticFindObject) return them.
--- Windows paths -> this machine's. Writes of the mod's save file are counted.
+-- The stand-ins the mod runs against: this machine's files as the mod's Windows paths, Unreal's values, the player
+-- and the world, the tech table, UE4SS's functions, the shop's cards, the map and the walls, and the APConnector's
+-- functions. fakes_menus.lua adds the widgets, menus, HUD and the hidden chest.
+-- They are globals: the mod reads the UE4SS and connector ones by those names, and the test files read and change
+-- the rest. A test changes the fake game through them (a field, a switch, a function swapped for one test); the
+-- lookups (FindAllOf, FindFirstOf, StaticFindObject) return them. A stub that records what only one test reads is
+-- written in that test.
+
+-- This machine ------------------------------------------------------------------------------------------------------
+
+-- The mod's Windows paths, as this machine's. Writes of the mod's save file are counted.
 local realOpen = io.open
-saveWrites = 0                                             -- (global) the mod's save file written (by its .tmp)
+saveWrites = 0                                             -- the mod's save file written (by its .tmp)
 io.open = function(p, m)
     if (m or ""):find("w", 1, true) and p:find("save%-[^\\/]*%.txt") then saveWrites = saveWrites + 1 end
     return realOpen((p:gsub("\\", "/")), m)
@@ -12,30 +18,48 @@ end
 local realRemove, realRename = os.remove, os.rename
 os.remove = function(p) return realRemove((p:gsub("\\", "/"))) end
 os.rename = function(a, b) return realRename((a:gsub("\\", "/")), (b:gsub("\\", "/"))) end
--- The probe's clock (os.clock) and the engine's frame counter move with the updates: 0.3 s and 20 frames each.
+-- The probe's clock (os.clock) and the engine's frame counter: run() moves them with the updates.
 clock, frameCount = 0, 0
 if PERF then os.clock = function() return clock end end
 package.path = MOD .. "/Scripts/?.lua;" .. package.path
+D = dofile(MOD .. "/Scripts/ap_data.lua")                  -- the mod's data: items, locations, the shop
+package.loaded["ap_data"] = D                              -- the mod's require gets this same table
 
--- Unreal values.
+-- Unreal's values ---------------------------------------------------------------------------------------------------
+
 function FNameOf(s) return { ToString = function() return s end, s = s } end
 FName = FNameOf
 FText = function(s) return { text = s } end
+-- A text as a widget's Text field or a getter holds it: an object whose ToString gives it.
+function TextOf(s) return { ToString = function() return s end } end
+-- A TArray as UE4SS hands it to Lua: ForEach gives (index, element), each element read with get().
 function TArray(list)
     local a = { list = list }
-    function a:ForEach(fn) for i, v in ipairs(self.list) do fn(i, { get = function() return v end }) end end
+    function a:ForEach(fn)
+        for i, v in ipairs(self.list) do fn(i, { get = function() return v end }) end
+    end
     function a:Empty() self.list = {} end
     function a:GetArrayNum() return #self.list end
     return setmetatable(a, { __newindex = function(t, i, v) rawget(t, "list")[i] = v end })
 end
+-- A fast array of key-value pairs (the player's records), each pair { name, value }.
 function FastArray(pairsList)
     local items = {}
     for _, kv in ipairs(pairsList) do items[#items + 1] = { Key = FNameOf(kv[1]), Value = kv[2] } end
     return { Items = TArray(items), ArrayReplicationKey = 1 }
 end
+-- What UE4SS returns for a null object: a wrapper that is not nil, whose IsValid is false and whose calls fail.
+function NullObject()
+    return setmetatable({ IsValid = function() return false end }, { __index = function()
+        return function() error("Tried calling a member function but the UObject instance is nullptr") end
+    end })
+end
 
--- The player.
-unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Product_Cooking_Grade_01"), FNameOf("ModdedTech_Rocket"), FNameOf("Torch") })
+-- The player and the world --------------------------------------------------------------------------------------------
+
+-- The tech data: the techs researched, the points.
+unlocked = TArray({ FNameOf("Workbench"), FNameOf("PalBox"), FNameOf("Product_Cooking_Grade_01"),
+                    FNameOf("ModdedTech_Rocket"), FNameOf("Torch") })
 td = { TechnologyPoint = 10, bossTechnologyPoint = 0, UnlockedTechnologyNameArray = unlocked, reps = 0 }
 td.valid = true
 function td:IsValid() return self.valid end
@@ -44,16 +68,19 @@ function td:GetAddress() return tdAddress end
 function td:OnRep_UnlockedTechnologyNameArray() self.reps = self.reps + 1 end
 function td:OnRep_TechnologyPoint() end
 function td:OnRep_BossTechnologyPoint() end
-given = {}
+-- The bag.
+given = {}                                                 -- every item given, as "<id> x<count>"
 bagFull = false
-bagHas = {}
-inv = { AddItem_ServerInternal = function(_, name, n)
-    if bagFull then return 16 end                            -- EPalItemOperationResult FailedNotEnoughSlotSpace
+bagHas = {}                                                -- item id -> how many the bag holds
+local BAG_FULL = 16                                        -- EPalItemOperationResult FailedNotEnoughSlotSpace
+inv = { MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 } } } }
+function inv.AddItem_ServerInternal(_, name, n)
+    if bagFull then return BAG_FULL end
     given[#given + 1] = name:ToString() .. " x" .. n
     bagHas[name:ToString()] = (bagHas[name:ToString()] or 0) + n
     return 0
-end }
-inv.MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 } } }
+end
+-- The player's records: captures, the Paldeck, towers, alphas, fast-travel points.
 record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
     PaldeckUnlockFlag = FastArray({ { "Blueplatypus", true } }),
@@ -62,25 +89,75 @@ record = {
     FastTravelPointUnlockFlag = FastArray({ { "6E03F8464BAD9E458B843AA30BE1CC8F", true } }),
 }
 playerLevel = 4
-pawnAt = { X = -342035, Y = 236885, Z = -1700 }        -- the starting area (FTPoint21)
-teleported = nil
+-- The pawn: where it stands, a teleport, its address (a new pawn is a new world).
+pawnAt = { X = -342035, Y = 236885, Z = -1700 }            -- the starting area (FTPoint21)
+teleported = nil                                           -- where the last teleport sent the pawn
 pawnAddress = 4096
 pawn = { IsValid = function() return true end, GetAddress = function() return pawnAddress end,
-               K2_GetActorLocation = function() return pawnAt end,
-               K2_TeleportTo = function(_, loc) teleported = loc; pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z } end,
-               GetCharacterParameterComponent = function() return { GetLevel = function() return playerLevel end } end }
+         K2_GetActorLocation = function() return pawnAt end }
+function pawn.K2_TeleportTo(_, loc)
+    teleported = loc
+    pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z }
+end
 playerDead = false
 -- How the mod fainted the player: "poison" (lethal slip damage on the pawn's damage component), "drop" (the Death
--- Penalty manager's bag), "self" (the self-kill). poisonWorks false: the slip damage runs but kills nobody. The old
--- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer is not offered: in game it fainted nobody (dev.17, 2026-11-07).
+-- Penalty manager's bag), "self" (the self-kill). poisonWorks false: the slip damage runs but kills nobody. The
+-- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer route is not offered: in game it fainted nobody.
 DL = { calls = {}, poisonWorks = true }
-pawn.DamageReactionComponent = { SlipDamage = function(_, damage, shieldIgnore, deadType, clearShield)
+pawn.DamageReactionComponent = {}
+function pawn.DamageReactionComponent.SlipDamage(_, damage, shieldIgnore, deadType, clearShield)
     DL.calls[#DL.calls + 1] = "poison"
     DL.slip = { damage = damage, shieldIgnore = shieldIgnore, deadType = deadType, clearShield = clearShield }
     if DL.poisonWorks then playerDead = true end
-end }
-playerController = { IsValid = function() return true end,
-    SelfKillPlayer = function() DL.calls[#DL.calls + 1] = "self"; playerDead = true end }
+end
+-- The movement component's named walk-speed multipliers (the game multiplies them), as LuaTypes lists them.
+function Movement(address)
+    local m = { mult = {} }
+    function m:IsValid() return true end
+    function m:GetAddress() return address end
+    function m:SetWalkSpeedMultiplier(name, v) self.mult[name:ToString()] = v end
+    function m:GetWalkSpeedMultiplier()
+        local p = 1.0
+        for _, v in pairs(self.mult) do p = p * v end
+        return p
+    end
+    function m:IsMovingOnGround() return true end
+    return m
+end
+movement = Movement(5150)
+pawn.GetPalCharacterMovementComponent = function() return movement end
+-- The individual parameter's satiety, and the stamina the test tools' probe empties.
+stomach = { cur = 80, max = 100 }
+individual = { IsValid = function() return true end,
+               GetFullStomach = function() return stomach.cur end,
+               GetMaxFullStomach = function() return stomach.max end,
+               SetFullStomach = function(_, v) stomach.cur = v end }
+stamina = { Value = 900000 }
+local FULL_STAMINA = 1000000
+-- The pawn's parameter component: its level, the individual parameter, stamina and health.
+function ParamComponent()
+    return { IsValid = function() return true end, GetLevel = function() return playerLevel end,
+             GetIndividualParameter = function() return individual end,
+             GetSP = function() return stamina end, GetMaxSP = function() return { Value = FULL_STAMINA } end,
+             SetSP = function(_, v) stamina = { Value = v.Value } end, GetHPRate = function() return 0.9 end }
+end
+pawn.GetCharacterParameterComponent = ParamComponent
+-- The pawn's status component: the statuses running (an invalid object, not nil, for one that is not).
+statuses = {}
+pawn.StatusComponent = { AddStatus = function(_, id) statuses[id] = true end,
+                         RemoveStatus = function(_, id) statuses[id] = nil end }
+function pawn.StatusComponent.GetExecutionStatus(_, id)
+    if not statuses[id] then return NullObject() end
+    return { IsValid = function() return true end, GetFullName = function() return "BP_Status" end }
+end
+-- The player controller and the player state. inStage: the player is in a dungeon's or arena's stage.
+playerController = { IsValid = function() return true end }
+function playerController.SelfKillPlayer()
+    DL.calls[#DL.calls + 1] = "self"
+    playerDead = true
+end
+playerController.GetControlPalCharacter = function() return pawn end
+inStage = false
 ps = {
     IsValid = function() return true end,
     IsPlayerDead = function() return playerDead end,
@@ -89,154 +166,192 @@ ps = {
     GetInventoryData = function() return inv end,
     GetRecordData = function() return record end,
     GetPawn = function() return not pawnGone and pawn or nil end,   -- (pawnGone: a moment without one, same world)
+    IsInStage = function() return inStage end,
 }
+-- A player 20 km off the map: every wall piece is past the hiding radius.
+offMap = { IsValid = function() return true end,
+           K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
 ftActor = { IsValid = function() return true end, FastTravelPointID = FNameOf("FTPoint101"), bUnlocked = false,
-                  LevelObjectInstanceId = { A = 0x6E03F846, B = 0x4BAD9E45, C = 0x8B843AA3, D = 0x0BE1CC8F } }
-announced = {}
-util = { IsValid = function() return true end, SendSystemAnnounce = function(_, _, text) announced[#announced + 1] = text end }
+            LevelObjectInstanceId = { A = 0x6E03F846, B = 0x4BAD9E45, C = 0x8B843AA3, D = 0x0BE1CC8F } }
+-- PalUtility: notices in chat, the player's objects, the party, the world's clock.
+announced = {}                                             -- every notice shown in chat
+util = { IsValid = function() return true end }
+function util.SendSystemAnnounce(_, _, text) announced[#announced + 1] = text end
 util.GetLocalPlayerController = function() return playerController end
 util.GetLocalPlayerState = function() return ps end
-
--- UE4SS.
-hooks, postHooks, loop, extraLoops = {}, {}, nil, {}
-gameSeconds = 1234.5                                         -- the game's clock: 33 ms a turn of the 33 ms loops
-function Card(tech)
-    local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
-    c.GetAddress = function() return c end                   -- (its address: the table, as a texture's)
-    local function text(field)
-        return { SetText = function(_, t) c.shown[field] = t.text end,
-                 GetText = function() return { ToString = function() return c.shown[field] or "" end } end }
-    end
-    c.RichText_TechnologyName_Lock, c.RichText_TechnologyName_Unlock = text("name"), text("name")
-    c.BP_PalTextBlock_Category = text("category")
-    c.Image_Icon = { Brush = {}, SetBrushFromTexture = function(self, t) c.shown.icon = t.path; self.Brush.ResourceObject = t end }
-    c.WBP_PalInvisibleButton = { SetIsInteractionEnabled = function(_, on) c.shown.clickable = on end,
-                                 IsInteractionEnabled = function() return c.shown.clickable ~= false end }
-    local setText = c.RichText_TechnologyName_Lock.SetText
-    c.RichText_TechnologyName_Lock.SetText = function(self, t) cardSets = cardSets + 1; return setText(self, t) end
-    return c
+partySize = 3
+function util.GetOtomoHolderComponent(_, who)
+    assert(who == pawn, "the party of the player's pawn")
+    return { GetOtomoCount = function() return partySize end }
 end
-cardSets = 0                                                 -- name texts the mod set on cards
-cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade_01"), Card("Workbench") }
-cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
-function Texture(path) return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end,
-                                       SRGB = true, UpdateResource = function(self) self.updated = true end,
-                                       -- (no GetSurfaceWidth: C++ only, not callable from Lua on the client; v0.13.5 playtest)
-                                       Blueprint_GetSizeX = function() return 512 end, Blueprint_GetSizeY = function() return 512 end,
-                                       GetFullName = function() return "Texture2D /Engine/Transient." .. tostring(path) end } end
+hour = 9                                                   -- the world's hour of day
+function util.GetTimeManager()
+    return { GetCurrentPalWorldTime_Hour = function() return hour end,
+             SetGameTime_FixDay = function(_, h) hour = h end }
+end
+-- The game instance: the world's save folder, and the objects kept alive in it.
 kept = {}
-worldDir = "AP_WORLD"                                        -- the loaded world's save folder
+worldDir = "AP_WORLD"                                      -- the loaded world's save folder
 gameInstance = { IsValid = function() return true end,
-                       GetSelectedWorldSaveDirectoryName = function() return { ToString = function() return worldDir end } end,
-                       ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
-                                                         { __newindex = function(_, i, v) kept[i] = v end }) }
--- As on the client: LoadAsset needs "/Game/Dir/Asset.Asset"; a package path or a class path ("_C") loads nothing
--- (v0.4.3 playtest). The LogicMod's assets and the chest Blueprint exist only once their package is loaded properly.
+                 GetSelectedWorldSaveDirectoryName = function() return TextOf(worldDir) end,
+                 ReferencedObjects = setmetatable({ GetArrayNum = function() return #kept end },
+                                                  { __newindex = function(_, i, v) kept[i] = v end }) }
+
+-- The tech table ------------------------------------------------------------------------------------------------------
+
+-- The game's live tech table as other mods left it: one tech added, one vanilla tech moved up 12 levels, one removed.
+liveTechs = { "ModdedTech_Rocket" }
+for id in pairs(D.shop) do
+    if id ~= "Product_Pickaxe_Grade_02" then liveTechs[#liveTechs + 1] = id end
+end
+for id in pairs(D.starters) do liveTechs[#liveTechs + 1] = id end
+techRows = { ModdedTech_Rocket = { LevelCap = 12, Cost = 3, RequireTechnology = FNameOf("Workbench"),
+                                   IsBossTechnology = false } }
+local MOVED_UP_LEVELS = 12                                 -- how far another mod moved AutoMealPouch_Tier3
+function td:GetTechlonogyBaseData(name)
+    local id = name:ToString()
+    if techRows[id] then return techRows[id] end
+    local slot = D.shop[id]
+    if not slot then return { LevelCap = 1, Cost = 1, RequireTechnology = FNameOf("None") } end
+    return { LevelCap = id == "AutoMealPouch_Tier3" and slot.level + MOVED_UP_LEVELS or slot.level, Cost = slot.cost,
+             RequireTechnology = FNameOf(slot.prereq or "None"), IsBossTechnology = slot.ancient }
+end
+techTable = { IsValid = function() return true end }
+dataTableLib = { IsValid = function() return true end }
+function dataTableLib.GetDataTableRowNames(_, dt, out)
+    assert(dt == techTable, "reads the table the game uses")
+    for i, n in ipairs(liveTechs) do out[i] = { get = function() return FNameOf(n) end } end   -- as UE4SS does
+end
+
+-- UE4SS -----------------------------------------------------------------------------------------------------------
+
+hooks, postHooks = {}, {}                                  -- hook path -> the mod's callback (and its post callback)
+loop = nil                                                 -- the mod's core update (its LoopAsync callback)
+extraLoops = {}                                            -- any other LoopAsync callback
+gameSeconds = 1234.5                                       -- the game's clock (GetTimeSeconds); run() moves it
+okHookFails = 1        -- as on the client: the text window's OK hook fails while its class loads
+-- Plain text in a hook's path -> how many more registrations of it fail, as a Blueprint class still loading.
+hookFailures = { OnUnhoveredAnyTechnology_Internal = 1 }
+local HOOK_ERROR = "Was unable to register a hook with Lua function 'RegisterHook', information:\nUFunction::Func: 0x0"
+RegisterHook = function(path, fn, post)
+    for text, n in pairs(hookFailures) do
+        if n > 0 and path:find(text, 1, true) then
+            hookFailures[text] = n - 1
+            error(HOOK_ERROR)
+        end
+    end
+    if path:find("NameWindow", 1, true) and okHookFails > 0 then
+        okHookFails = okHookFails - 1
+        error(HOOK_ERROR)
+    end
+    hooks[path], postHooks[path] = fn, post
+end
+loopIntervals = {}                                         -- every interval the mod gave LoopAsync, in ms
+LoopAsync = function(ms, fn)
+    loopIntervals[#loopIntervals + 1] = ms
+    if ms == require("util").UPDATE_MS then
+        loop = fn
+    else
+        extraLoops[#extraLoops + 1] = fn
+    end
+end
+-- Runs at once here. onGameThread says whether a call is inside it: the gift connector refuses game calls outside,
+-- as pal_gift.cpp does.
+onGameThread = false
+ExecuteInGameThread = function(fn)
+    local outer = onGameThread
+    onGameThread = true
+    local ok, err = pcall(fn)
+    onGameThread = outer
+    if not ok then error(err, 0) end
+end
+ExecuteWithDelay = function()
+    error("the mod must never call ExecuteWithDelay: its callback runs off the game thread")
+end
+-- Key binds take modifiers, as UE4SS does: Ctrl+Shift+F5 and Ctrl+F5 are different binds.
+Key = setmetatable({}, { __index = function(_, k) return "key:" .. k end })
+ModifierKey = { CONTROL = "ctrl", SHIFT = "shift" }
+keyBinds = {}                                              -- "key:F5" (or "key:F5+shift") -> its callback
+keyMods = {}                                               -- the same keys -> the modifiers they were bound with
+-- (key, fn) or (key, { modifiers }, fn), as UE4SS takes them.
+RegisterKeyBind = function(key, a, b)
+    local k = key
+    for _, m in ipairs(b and a or {}) do
+        if m == "shift" then k = key .. "+shift" end
+    end
+    keyBinds[k] = b or a
+    keyMods[k] = b and a or nil
+end
+-- NotifyOnNewObject (docs/lua-api: a full class path and a callback given the new object).
+notifies = {}
+NotifyOnNewObject = function(path, cb) notifies[path] = cb end
+-- LoadAsset needs "/Game/Dir/Asset.Asset", as on the client; a package path or a class path ("_C") loads nothing.
+-- The LogicMod's assets and the chest Blueprint exist only once their package is loaded properly.
 loaded, badLoads = {}, {}
 LoadAsset = function(path)
     local pkg, asset = path:match("^(/[^.]+)%.([^./:]+)$")
-    if not pkg or asset:match("_C$") or asset ~= pkg:match("([^/]+)$") then badLoads[#badLoads + 1] = path; return end
-    -- dev.39 playtest: the PalworldArchipelagoArt pak was mounted (BPModLoader spawned its ModActor) but LoadAsset never
-    -- found M_APWall in it; the asset registry's GetAsset, as BPModLoader uses, is what loads it.
+    if not pkg or asset:match("_C$") or asset ~= pkg:match("([^/]+)$") then
+        badLoads[#badLoads + 1] = path
+        return
+    end
+    -- The PalworldArchipelagoArt pak, mounted, still gives LoadAsset nothing (as in game): the asset registry's
+    -- GetAsset, as BPModLoader uses, is what loads it.
     if pkg:find("^/Game/Mods/PalworldArchipelagoArt/") then return end
     loaded[pkg] = true
 end
-assetRegistryHelpers = { IsValid = function() return true end,
-    GetAsset = function(_, data)
-        local pkg, name = data.PackageName:ToString(), data.AssetName:ToString()
-        if not (logicMod and pkg:find("^/Game/Mods/") and pkg:match("([^/]+)$") == name) then return { IsValid = function() return false end } end
-        loaded[pkg] = true
-        return Texture(pkg .. "." .. name)
-    end }
-greyBoxes, mapDraws, mapOpen = 0, 0, false
-stampAt = {}                                                 -- global: stamp texture -> where it was last drawn
-drawLog = {}                                                  -- global: the textures drawn into render targets, in order
-canvas = { K2_DrawTexture = function(_, tex, pos, size, uv0, uvSize, colour, blend)
-                     drawLog[#drawLog + 1] = { path = tex and tex.path, blend = blend }
-                     if tex == nil then greyBoxes = greyBoxes + 1 else mapDraws = mapDraws + 1 end
-                     if tex and tostring(tex.path):find("ap%-map%-stamp") then stampAt[tex.path] = pos end
-                 end,
-                 K2_DrawLine = function() edgeLines = (edgeLines or 0) + 1 end,
-                 K2_DrawTriangle = function(_, tex, tris)
-                     lastTriTex = tex
-                     if tris[1].V0_Color.R < 1 or tris[1].V1_Color.R < 1 or tris[1].V2_Color.R < 1 then
-                         edgeTris = (edgeTris or 0) + #tris
-                     end
-                     assert(tex and tris[1].V2_UV and tris[1].V0_Pos.X, "triangles carry the map, positions and UVs")
-                     greyBoxes = greyBoxes + #tris end }
-materialLib = { IsValid = function() return true end, CreateDynamicMaterialInstance = function(_, _, parent)
-    return { IsValid = function() return true end, parent = parent, textures = {}, scalars = {}, vectors = {},
-             SetTextureParameterValue = function(self, name, t)
-                 self.textures[name:ToString()] = t
-                 if name:ToString() == "Texture" then self.texture = t end end,
-             SetScalarParameterValue = function(self, name, v)
-                 self.scalars[name:ToString()] = v
-                 if name:ToString() == "Saturation" then self.saturation = v end end,
-             SetVectorParameterValue = function(self, name, c) self.vectors[name:ToString()] = c end } end }
-mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end,
-                  Image_MapBody = { IsValid = function() return true end,
-                                    Brush = { ResourceObject = { IsValid = function() return true end,      -- as the game
-                                        GetAddress = function() return 8 end,                               -- opens it
-                                        GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
-                                    SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end },
-                  MapName = FNameOf("MainMap"), icons = {}, iconUpdates = 0 }
--- The screen's icon canvases (pak, 2026-11-07): Add Icon By Location puts the icon on Canvas_ForIcon_NoMask when it
--- ignores the mask, Canvas_ForIcon_Mask when not; Update Map Icons sets every icon's scale for the zoom.
-mapBody.Canvas_ForIcon_NoMask = { IsValid = function() return true end, GetFName = function() return FNameOf("Canvas_ForIcon_NoMask") end }
-mapBody.Canvas_ForIcon_Mask = { IsValid = function() return true end, GetFName = function() return FNameOf("Canvas_ForIcon_Mask") end }
-mapBody["Add Icon By Location"] = function(self, icon, loc, ignoreMask, toPriority, out)
-    assert(type(loc) == "table" and loc.X and loc.Y and loc.Z, "a world location")
-    icon.loc, icon.ignoreMask, icon.priority = loc, ignoreMask, toPriority
-    icon.parent = ignoreMask and self.Canvas_ForIcon_NoMask or self.Canvas_ForIcon_Mask
-    self.icons[#self.icons + 1] = icon
-    out.Added = true
+assetRegistryHelpers = { IsValid = function() return true end }
+function assetRegistryHelpers.GetAsset(_, data)
+    local pkg, name = data.PackageName:ToString(), data.AssetName:ToString()
+    if not (logicMod and pkg:find("^/Game/Mods/") and pkg:match("([^/]+)$") == name) then
+        return { IsValid = function() return false end }
+    end
+    loaded[pkg] = true
+    return Texture(pkg .. "." .. name)
 end
-mapBody["Update Map Icons"] = function(self) self.iconUpdates = self.iconUpdates + 1 end
--- The World Tree's own screen (MapName "Tree"), built beside the main one; it shows T_WorldMap while it is set up.
-treeBody = { IsValid = function() return true end, GetAddress = function() return 78 end, MapName = FNameOf("Tree"), icons = {},
-             Image_MapBody = { IsValid = function() return true end,
-                               Brush = { ResourceObject = { IsValid = function() return true end, GetAddress = function() return 8 end,
-                                   GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end } },
-                               SetBrushResourceObject = function(self, rt) self.shown = rt; self.Brush.ResourceObject = rt end } }
-treeBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
-treeBody["Update Map Icons"] = function() end
-lookups = {}                   -- global: class -> FindAllOf calls, "first:" .. class -> FindFirstOf calls
-wallsUp = {}             -- the wall actors standing (spawned and not destroyed): wall actor -> true
+lookups = {}                                               -- class -> FindAllOf calls, "first:" .. class -> FindFirstOf
+-- The game's map screens: its template first (it has no map image), then the live ones.
+local function mapScreens()
+    if not mapOpen then return {} end
+    local list = { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody }
+    if treeOpen then list[#list + 1] = treeBody end          -- the World Tree's screen too
+    if staleBody then list[#list + 1] = staleBody end        -- the last world's, not yet collected
+    return list
+end
+-- The player controllers: the class default object first, as in the game.
+local function controllers()
+    return { { IsValid = function() return true end, GetAddress = function() return 1 end,
+               GetFullName = function()
+                   return "BP_PalPlayerController_C /Script/Pal.Default__PalPlayerController"
+               end },
+             playerController }
+end
+-- The main menu shown: the Esc menu shows as its Options tab.
+local function mainMenus()
+    local up = mainMenuOpen and mainMenu or (escOpen and not escNoMain and escMain) or nil
+    return up and { defaultMainMenu, up } or {}
+end
+local function liveWalls()
+    local list = {}
+    for a in pairs(wallsUp) do list[#list + 1] = a end
+    return list
+end
+local CHEST_PACKAGE = "/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"
 FindAllOf = function(class)
     lookups[class] = (lookups[class] or 0) + 1
-    if class == "BP_PalBlockingVolume_C" then                 -- live walls only, as FindAllOf lists live objects
-        local list = {}
-        for a in pairs(wallsUp) do list[#list + 1] = a end
-        return list
-    end
+    if class == "BP_PalBlockingVolume_C" then return liveWalls() end   -- live walls only, as FindAllOf lists
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
-    -- (the template the title screen's asset keeps comes first, as FindAllOf can give it: dev.25 log)
+    -- (the template the title screen's asset keeps comes first, as FindAllOf can give it)
     if class == "WBP_TitleMenu_C" then return titleOpen and { titleTemplate, titleMenu } or {} end
     if class == "WBP_Title_MenuButton_C" then return titleOpen and { gameTitleButton } or {} end
-    if class == "WBP_Map_Body_C" then                       -- the game's template first: it has no map image
-        if not mapOpen then return {} end
-        local list = { { IsValid = function() return true end, GetAddress = function() return 1 end }, mapBody }
-        if treeOpen then list[#list + 1] = treeBody end              -- (global treeOpen: the World Tree's screen too)
-        if staleBody then list[#list + 1] = staleBody end            -- (global: the last world's, not yet collected)
-        return list
-    end
+    if class == "WBP_Map_Body_C" then return mapScreens() end
     if class == "PalPlayerState" then return noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
-    if class == "PalPlayerController" then                   -- the class default object comes first, as in the game
-        return { { IsValid = function() return true end, GetAddress = function() return 1 end,
-                   GetFullName = function() return "BP_PalPlayerController_C /Script/Pal.Default__PalPlayerController" end },
-                 playerController }
-    end
+    if class == "PalPlayerController" then return controllers() end
     if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
     if class == "PalMapObjectItemChestModel" then return chests end
-    if class == "PalMapObjectItemChestParameterComponent" then
-        return loaded["/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"] and chestTemplates or {}
-    end
+    if class == "PalMapObjectItemChestParameterComponent" then return loaded[CHEST_PACKAGE] and chestTemplates or {} end
     if class == "WBP_MenuESC_C" then return escOpen and { escMenu } or {} end
     if class == "UserWidget" then return escOpen and { taskList, escMenu } or {} end   -- the HUD's mission list too
-    if class == "WBP_InGameMainMenu_C" then                   -- the Esc menu shows as the main menu's Options tab
-        local up = mainMenuOpen and mainMenu or (escOpen and not escNoMain and escMain) or nil
-        return up and { defaultMainMenu, up } or {}
-    end
+    if class == "WBP_InGameMainMenu_C" then return mainMenus() end
     if class == "CommonInputSubsystem" then return inputSubsystems or {} end
     return nil
 end
@@ -248,46 +363,7 @@ FindFirstOf = function(class)
     if class == "WBP_Map_Body_C" then return mapOpen and mapBody or nil end
     return nil
 end
-renderLib = { IsValid = function() return true end,
-                    ImportFileAsTexture2D = function(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end,
-                    CreateRenderTarget2D = function(_, owner) rtOwners = rtOwners or {}; rtOwners[#rtOwners + 1] = owner
-                                               return { IsValid = function() return true end, rt = true,
-                                                        GetAddress = function() return 555 end,
-                                                        GetFullName = function() return "TextureRenderTarget2D /Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3" end } end,
-                    ReadRenderTargetPixel = function() return { R = mapArt, G = 90, B = 60, A = 255 } end,
-                    ExportRenderTarget = function(_, _, _, dir, name) exports = (exports or 0) + 1
-                                             local f = io.open(dir .. "/" .. name, "w"); f:write("png"); f:close() end,
-                    BeginDrawCanvasToRenderTarget = function(_, _, rt, canvasOut, contextOut)
-                        canvasOut.Canvas = canvas; contextOut.RenderTarget = rt end,
-                    EndDrawCanvasToRenderTarget = function() end }
-systemLib = { IsValid = function() return true end, GetFrameCount = function() return frameCount end,
-              GetConsoleVariableFloatValue = function(_, name) return name == "r.ShadowQuality" and 3 or 1 end }
--- UE4SS: NotifyOnNewObject (docs/lua-api: a full class path and a callback given the new object).
-notifies = {}
-NotifyOnNewObject = function(path, cb) notifies[path] = cb end
-wallRed = { IsValid = function() return true end, name = "MI_AirBlock_v2" }   -- the walls' shared red material
-lastGone = nil
-mapArt = 40                                                  -- the map picture the game shows (its fingerprint)
-gameplay = { IsValid = function() return true end,
-                   BeginDeferredActorSpawnFromClass = function(_, _, _, t)
-                       spawned = (spawned or 0) + 1
-                       local address = 0x500000 + spawned
-                       local a = { IsValid = function(self) return not self.gone end, t = t,
-                                   GetAddress = function() return address end }
-                       a.Cube = { IsValid = function() return true end, GetMaterial = function(self) return self.mat or wallRed end,
-                                  SetMaterial = function(self, _, m) self.mat = m end }      -- the wall's mesh
-                       function a:K2_DestroyActor() self.gone = true; wallsUp[self] = nil; lastGone = self end
-                       function a:SetActorEnableCollision(on) self.collision = on end
-                       function a:SetActorHiddenInGame(on) self.hidden = on end
-                       function a:K2_SetActorLocation() error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS (2026-11-05)") end
-                       function a:SetActorScale3D(sc) self.shrunkTo = sc.Z; assert(sc.X > 0 and sc.Y > 0, "only the height shrinks") end
-                       return a
-                   end,
-                   FinishSpawningActor = function(_, a) wallsUp[a] = true end,
-                   GetWorldDeltaSeconds = function() return 0.016 end,
-                   GetTimeSeconds = function() return gameSeconds end,
-                   SpawnObject = function() return Widget() end }
-function wallCount() local n = 0; for _ in pairs(wallsUp) do n = n + 1 end; return n end
+-- A class or object the mod finds by its path: the game's libraries, the mod's own pak's assets, UMG's classes.
 StaticFindObject = function(path)
     if path:find("PalUtility") then return util end
     if path:find("PalUIUtility") then return uiUtil end
@@ -296,250 +372,259 @@ StaticFindObject = function(path)
     end
     if path == "/Script/AssetRegistry.Default__AssetRegistryHelpers" then return assetRegistryHelpers end
     if path:find("^/Game/Mods/") then return logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
-    if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then return loaded[path:match("^[^.]+")] and Texture(path) or nil end
+    if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then
+        return loaded[path:match("^[^.]+")] and Texture(path) or nil
+    end
     if path:find("BP_BuildObject_ItemChest_04_C:", 1, true) then
         return loaded[path:match("^[^.]+")] and chestTemplates and chestTemplates[1] or nil
     end
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
     if path:find("WidgetBlueprintLibrary") then return wbl end
-    -- The text boxes (globals palEditOk / umgEditOk false: the class is not there, as the fallback test needs).
-    if path == "/Script/Pal.PalEditableTextBox" then return palEditOk ~= false and Widget({ umg = "PalEditableTextBox" }) or nil end
+    -- The text boxes (palEditOk / umgEditOk false: the class is not there, as the fallback test needs).
+    if path == "/Script/Pal.PalEditableTextBox" then
+        return palEditOk ~= false and Widget({ umg = "PalEditableTextBox" }) or nil
+    end
     if path == "/Script/UMG.EditableTextBox" and umgEditOk == false then return nil end
-    if path:match("^/Script/UMG%.%a+$") then return Widget({ umg = path:match("%.(%a+)$") }) end   -- SizeBox, Image, ...
+    if path:match("^/Script/UMG%.%a+$") then return Widget({ umg = path:match("%.(%a+)$") }) end   -- SizeBox, Image ...
     -- The world-name window's own text box, as its class keeps it (its look is copied).
-    if path:find(":WidgetTree.PalEditableTextBox_0", 1, true) then return Widget({ WidgetStyle = { look = "world-name" } }) end
+    if path:find(":WidgetTree.PalEditableTextBox_0", 1, true) then
+        return Widget({ WidgetStyle = { look = "world-name" } })
+    end
     if path:find("KismetMaterialLibrary") then return materialLib end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("KismetSystemLibrary") then return systemLib end
     if path:find("^/Game/") then return Texture(path) end
     return nil
 end
-okHookFails = 1        -- as on the client (v0.10.3 playtest): the text window's OK hook fails while its class loads
--- (global) plain text in a hook's path -> how many more registrations of it fail, as a Blueprint class still loading
-hookFailures = { OnUnhoveredAnyTechnology_Internal = 1 }
-RegisterHook = function(path, fn, post)
-    for text, n in pairs(hookFailures) do
-        if n > 0 and path:find(text, 1, true) then
-            hookFailures[text] = n - 1
-            error("Was unable to register a hook with Lua function 'RegisterHook', information:\nUFunction::Func: 0x0")
-        end
-    end
-    if path:find("NameWindow", 1, true) and okHookFails > 0 then
-        okHookFails = okHookFails - 1
-        error("Was unable to register a hook with Lua function 'RegisterHook', information:\nUFunction::Func: 0x0")
-    end
-    hooks[path], postHooks[path] = fn, post
-end
-loopIntervals = {}                                           -- (global) every interval the mod gave LoopAsync, in ms
-LoopAsync = function(ms, fn)                                 -- UTIL.UPDATE_MS: the core update
-    loopIntervals[#loopIntervals + 1] = ms
-    if ms == require("util").UPDATE_MS then loop = fn else extraLoops[#extraLoops + 1] = fn end
-end
-ExecuteInGameThread = function(fn) fn() end
-ExecuteWithDelay = function() error("the mod must never call ExecuteWithDelay: its callback runs off the game thread") end
+systemLib = { IsValid = function() return true end, GetFrameCount = function() return frameCount end,
+              GetConsoleVariableFloatValue = function(_, name) return name == "r.ShadowQuality" and 3 or 1 end }
 
--- APConnector.
-D = dofile(MOD .. "/Scripts/ap_data.lua")
-package.loaded["ap_data"] = D            -- the mod's require gets this same table
-events, checks, goals = {}, {}, 0
+-- The shop's cards and the textures on them ---------------------------------------------------------------------------
 
--- (globals: the lookups above use them) The game's live tech table as other mods left it: one tech added, one vanilla tech moved up 12 levels, one removed.
-liveTechs = { "ModdedTech_Rocket" }
-for id in pairs(D.shop) do if id ~= "Product_Pickaxe_Grade_02" then liveTechs[#liveTechs + 1] = id end end
-for id in pairs(D.starters) do liveTechs[#liveTechs + 1] = id end
-techRows = { ModdedTech_Rocket = { LevelCap = 12, Cost = 3, RequireTechnology = FNameOf("Workbench"), IsBossTechnology = false } }
-function td:GetTechlonogyBaseData(name)
-    local id = name:ToString()
-    if techRows[id] then return techRows[id] end
-    local slot = D.shop[id]
-    if not slot then return { LevelCap = 1, Cost = 1, RequireTechnology = FNameOf("None") } end
-    return { LevelCap = id == "AutoMealPouch_Tier3" and slot.level + 12 or slot.level, Cost = slot.cost,
-             RequireTechnology = FNameOf(slot.prereq or "None"), IsBossTechnology = slot.ancient }
+cardSets = 0                                               -- name texts the mod set on cards
+-- A card of the Technology menu showing `tech`; what the mod writes on it is kept in card.shown.
+function Card(tech)
+    local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
+    c.GetAddress = function() return c end                 -- (its address: the table, as a texture's)
+    local function text(field)
+        return { SetText = function(_, t) c.shown[field] = t.text end,
+                 GetText = function() return { ToString = function() return c.shown[field] or "" end } end }
+    end
+    c.RichText_TechnologyName_Lock, c.RichText_TechnologyName_Unlock = text("name"), text("name")
+    c.BP_PalTextBlock_Category = text("category")
+    c.Image_Icon = { Brush = {} }
+    function c.Image_Icon:SetBrushFromTexture(t)
+        c.shown.icon = t.path
+        self.Brush.ResourceObject = t
+    end
+    c.WBP_PalInvisibleButton = { SetIsInteractionEnabled = function(_, on) c.shown.clickable = on end,
+                                 IsInteractionEnabled = function() return c.shown.clickable ~= false end }
+    local setText = c.RichText_TechnologyName_Lock.SetText
+    c.RichText_TechnologyName_Lock.SetText = function(self, t)
+        cardSets = cardSets + 1
+        return setText(self, t)
+    end
+    return c
 end
-techTable = { IsValid = function() return true end }
-dataTableLib = { IsValid = function() return true end,
-                       GetDataTableRowNames = function(_, dt, out)
-                           assert(dt == techTable, "reads the table the game uses")
-                           for i, n in ipairs(liveTechs) do out[i] = { get = function() return FNameOf(n) end } end   -- as UE4SS does
-                       end }
+cards = { Card("RepairBench"), Card("PalBox"), Card("Product_Cooking_Grade_01"), Card("Workbench") }
+cards[4].shown.category = "Estructuras"   -- a level-1 card, as the game labels it (here in Spanish)
+local TEXTURE_SIZE = 512                                   -- px: every texture here, wide and high
+-- A texture. It has no GetSurfaceWidth: that is C++ only, not callable from Lua on the client.
+function Texture(path)
+    return { IsValid = function() return true end, path = path, GetAddress = function(self) return self end,
+             SRGB = true, UpdateResource = function(self) self.updated = true end,
+             Blueprint_GetSizeX = function() return TEXTURE_SIZE end,
+             Blueprint_GetSizeY = function() return TEXTURE_SIZE end,
+             GetFullName = function() return "Texture2D /Engine/Transient." .. tostring(path) end }
+end
+
+-- The map and the walls ---------------------------------------------------------------------------------------------
+
+greyBoxes = 0                                              -- untextured boxes and triangles drawn
+stampAt = {}                                               -- stamp texture -> where it was last drawn
+drawLog = {}                                               -- the textures drawn into render targets, in order
+canvas = {}
+function canvas.K2_DrawTexture(_, tex, pos, size, uv0, uvSize, colour, blend)
+    drawLog[#drawLog + 1] = { path = tex and tex.path, blend = blend }
+    if tex == nil then greyBoxes = greyBoxes + 1 end
+    if tex and tostring(tex.path):find("ap%-map%-stamp") then stampAt[tex.path] = pos end
+end
+function canvas.K2_DrawLine() end
+function canvas.K2_DrawTriangle(_, tex, tris)
+    assert(tex and tris[1].V2_UV and tris[1].V0_Pos.X, "triangles carry the map, positions and UVs")
+    greyBoxes = greyBoxes + #tris
+end
+-- A material instance records the parameters the mod sets on it.
+materialLib = { IsValid = function() return true end }
+function materialLib.CreateDynamicMaterialInstance(_, _, parent)
+    local m = { IsValid = function() return true end, parent = parent, textures = {}, scalars = {}, vectors = {} }
+    function m:SetTextureParameterValue(name, t)
+        self.textures[name:ToString()] = t
+        if name:ToString() == "Texture" then self.texture = t end
+    end
+    function m:SetScalarParameterValue(name, v)
+        self.scalars[name:ToString()] = v
+        if name:ToString() == "Saturation" then self.saturation = v end
+    end
+    function m:SetVectorParameterValue(name, c) self.vectors[name:ToString()] = c end
+    return m
+end
+local WORLD_MAP = "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap"
+-- The map picture a screen opens with: the game's T_WorldMap.
+function gameMapPicture(address)
+    return { IsValid = function() return true end, GetAddress = function() return address end,
+             GetFullName = function() return WORLD_MAP end }
+end
+-- A map screen's picture: what the mod sets on it is in .shown.
+local function mapImage()
+    local image = { IsValid = function() return true end, Brush = { ResourceObject = gameMapPicture(8) } }
+    function image:SetBrushResourceObject(rt)
+        self.shown = rt
+        self.Brush.ResourceObject = rt
+    end
+    return image
+end
+-- The main map's screen. Add Icon By Location puts an icon on Canvas_ForIcon_NoMask when it ignores the mask,
+-- Canvas_ForIcon_Mask when not (as the pak's); Update Map Icons sets every icon's scale for the zoom.
+mapBody = { IsValid = function() return true end, GetAddress = function() return 77 end, Image_MapBody = mapImage(),
+            MapName = FNameOf("MainMap"), icons = {}, iconUpdates = 0 }
+mapBody.Canvas_ForIcon_NoMask = { IsValid = function() return true end,
+                                  GetFName = function() return FNameOf("Canvas_ForIcon_NoMask") end }
+mapBody.Canvas_ForIcon_Mask = { IsValid = function() return true end,
+                                GetFName = function() return FNameOf("Canvas_ForIcon_Mask") end }
+mapBody["Add Icon By Location"] = function(self, icon, loc, ignoreMask, toPriority, out)
+    assert(type(loc) == "table" and loc.X and loc.Y and loc.Z, "a world location")
+    icon.loc, icon.ignoreMask, icon.priority = loc, ignoreMask, toPriority
+    icon.parent = ignoreMask and self.Canvas_ForIcon_NoMask or self.Canvas_ForIcon_Mask
+    self.icons[#self.icons + 1] = icon
+    out.Added = true
+end
+mapBody["Update Map Icons"] = function(self) self.iconUpdates = self.iconUpdates + 1 end
+-- The World Tree's own screen (MapName "Tree"), built beside the main one; it shows T_WorldMap while it is set up.
+treeBody = { IsValid = function() return true end, GetAddress = function() return 78 end, MapName = FNameOf("Tree"),
+             icons = {}, Image_MapBody = mapImage() }
+treeBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
+treeBody["Update Map Icons"] = function() end
+-- The fog's material on a map screen, named `name`: its explored mask (TargetTexture) is a 1024 px render target.
+local MASK_SIZE = 1024                                     -- px
+function maskMaterial(name)
+    local mask = { IsValid = function() return true end, SizeX = MASK_SIZE, SizeY = MASK_SIZE }
+    function mask:GetFullName() return "TextureRenderTarget2D /Engine/Transient.RT_Mask" end
+    local material = { IsValid = function() return true end }
+    function material:GetFullName() return "MaterialInstanceDynamic /Engine/Transient." .. name end
+    function material.K2_GetTextureParameterValue(_, param)
+        if param:ToString() == "TargetTexture" then return mask end
+    end
+    return material
+end
+rtOwners = {}                                              -- the owner given for every render target made
+exports = 0                                                -- render targets exported to files
+renderLib = { IsValid = function() return true end,
+              ReadRenderTargetPixel = function() return { R = mapArt, G = 90, B = 60, A = 255 } end,
+              EndDrawCanvasToRenderTarget = function() end }
+function renderLib.ImportFileAsTexture2D(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end
+function renderLib.CreateRenderTarget2D(_, owner)
+    rtOwners[#rtOwners + 1] = owner
+    return { IsValid = function() return true end, rt = true, GetAddress = function() return 555 end,
+             GetFullName = function()
+                 return "TextureRenderTarget2D /Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3"
+             end }
+end
+function renderLib.ExportRenderTarget(_, _, _, dir, name)
+    exports = exports + 1
+    local f = io.open(dir .. "/" .. name, "w")
+    f:write("png")
+    f:close()
+end
+function renderLib.BeginDrawCanvasToRenderTarget(_, _, rt, canvasOut, contextOut)
+    canvasOut.Canvas = canvas
+    contextOut.RenderTarget = rt
+end
+wallRed = { IsValid = function() return true end, name = "MI_AirBlock_v2" }   -- the walls' shared red material
+wallsUp = {}                                               -- the wall actors standing: wall actor -> true
+lastGone = nil                                             -- the wall actor destroyed last
+mapArt = 40                                                -- the map picture the game shows (its fingerprint)
+spawned = 0                                                -- wall actors spawned
+local FIRST_WALL_ADDRESS = 0x500000
+-- A wall actor, as BeginDeferredActorSpawnFromClass makes it: its mesh (Cube) wears the walls' red until a skin.
+local function WallActor(t)
+    spawned = spawned + 1
+    local address = FIRST_WALL_ADDRESS + spawned
+    local a = { IsValid = function(self) return not self.gone end, t = t, GetAddress = function() return address end }
+    a.Cube = { IsValid = function() return true end, GetMaterial = function(self) return self.mat or wallRed end,
+               SetMaterial = function(self, _, m) self.mat = m end }
+    function a:K2_DestroyActor()
+        self.gone = true
+        wallsUp[self] = nil
+        lastGone = self
+    end
+    function a:SetActorEnableCollision(on) self.collision = on end
+    function a:SetActorHiddenInGame(on) self.hidden = on end
+    function a:K2_SetActorLocation()
+        error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS")
+    end
+    function a:SetActorScale3D(sc)
+        self.shrunkTo = sc.Z
+        assert(sc.X > 0 and sc.Y > 0, "only the height shrinks")
+    end
+    return a
+end
+local FRAME_SECONDS = 0.016                                -- the engine's frame time here: 60 frames a second
+gameplay = { IsValid = function() return true end,
+             FinishSpawningActor = function(_, a) wallsUp[a] = true end,
+             GetWorldDeltaSeconds = function() return FRAME_SECONDS end,
+             GetTimeSeconds = function() return gameSeconds end,
+             SpawnObject = function() return Widget() end }
+function gameplay.BeginDeferredActorSpawnFromClass(_, _, _, t) return WallActor(t) end
+-- How many wall actors stand now.
+function wallCount()
+    local n = 0
+    for _ in pairs(wallsUp) do n = n + 1 end
+    return n
+end
+
+-- The APConnector ---------------------------------------------------------------------------------------------------
+
+events, checks, goals = {}, {}, 0                          -- event lines waiting; locations checked; goals sent
 slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1",
-                   ["options.death_link"] = "1", research_techs = "Torch,WallTorch" }
-connects, disconnects = {}, 0
-AP_Connect = function(server, slot, password) connects[#connects + 1] = { server, slot, password } end
+             ["options.death_link"] = "1", research_techs = "Torch,WallTorch" }
+connects, disconnects = {}, 0                              -- every connect asked for: { server =, slot =, password = }
+AP_Connect = function(server, slot, password)
+    connects[#connects + 1] = { server = server, slot = slot, password = password }
+end
 AP_Disconnect = function() disconnects = disconnects + 1 end
--- The title menu, the button factory, the HUD and its text window, as menu.lua uses them.
-function Widget(extra)   -- global: the stubs above use it
-    local w = { IsValid = function(self) return not self.gone end, addr = math.random(1, 1e9) }
-    function w:GetAddress() return self.addr end
-    for k, v in pairs(extra or {}) do w[k] = v end
-    return w
+AP_Poll = function()
+    local out = table.concat(events, "\n")
+    events = {}
+    return out
 end
-menuChildren = {}
--- As on the client (v0.10.0 playtest): the title menu has no VerticalBox_0; its buttons sit in a vertical box.
-function classed(name) return { GetFName = function() return FNameOf(name) end } end
-buttonBox = Widget({ GetClass = function() return classed("VerticalBox") end,
-                           GetFName = function() return FNameOf("VerticalBox_Menu") end,
-                           AddChild = function(_, box)
-                               menuChildren[#menuChildren + 1] = box
-                               return { SetPadding = function(_, p) box.padding = p end, SetHorizontalAlignment = function() end } end,
-                           RemoveChild = function(_, box)
-                               for i, c in ipairs(menuChildren) do if c == box then table.remove(menuChildren, i); return true end end
-                               return false end })
--- As on the client (v0.13.5 log): the list sits on a canvas, CanvasPanelMenu; here anchored bottom-centre, its bottom
--- 80 above the anchor, 600x500 with our buttons in it.
-titleCanvasKids = {}                                          -- global: what the mod puts on that canvas
-titleCanvas = Widget({ GetClass = function() return classed("CanvasPanel") end, GetFName = function() return FNameOf("CanvasPanelMenu") end })
-function titleCanvas:AddChildToCanvas(w)
-    local slot = { SetAnchors = function(s, a) s.anchors = a end, SetAlignment = function(s, a) s.alignment = a end,
-                   SetPosition = function(s, p) s.position = p; s.moves = (s.moves or 0) + 1 end,
-                   SetAutoSize = function(s, v) s.auto = v end, SetSize = function(s, v) s.size = v end,
-                   SetZOrder = function(s, z) s.zorder = z end }
-    w.canvasSlot = slot
-    titleCanvasKids[#titleCanvasKids + 1] = w
-    return slot
-end
-buttonBox.GetParent = function() return titleCanvas end
-buttonBox.desired = { X = 600, Y = 500 }
-buttonBox.GetDesiredSize = function(self) return self.desired end
-buttonBox.ForceLayoutPrepass = function(self) self.prepassed = true end
-buttonBox.Slot = { GetAnchors = function() return { Minimum = { X = 0.5, Y = 1 }, Maximum = { X = 0.5, Y = 1 } } end,
-                   GetAlignment = function() return { X = 0.5, Y = 1 } end, GetPosition = function() return { X = 0, Y = -80 } end }
-function visible(w)              -- a widget whose visibility can be read back (0 Visible until set)
-    w.GetVisibility = function(self) return self.vis or 0 end
-    w.SetVisibility = function(self, v) self.vis = v end
-    return w
-end
-gameButtonWrap = visible(Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end }))   -- global: the title tests look at it
-gameTitleButton = Widget({ GetParent = function() return gameButtonWrap end })   -- global: FindAllOf above returns it
--- Quit Game, last in the list until our buttons go in (v0.11.2 playtest: ours sat below it).
-quitWrap = visible(Widget({ GetClass = function() return classed("SizeBox") end, GetParent = function() return buttonBox end,
-                          Slot = { Padding = { Left = 0, Top = 0, Right = 0, Bottom = 7 }, HorizontalAlignment = 2 } }))
-menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap    -- Start Game (and the rest), then Quit Game, last
-function buttonBox:GetChildrenCount() return #menuChildren end
-function buttonBox:GetChildAt(i) return menuChildren[i + 1] end
-titleMenu = Widget({ WBP_Title_MenuButton_StartLocalGame = gameTitleButton,
-                     WBP_Title_MenuButton_ExitGame = Widget({ GetParent = function() return quitWrap end }),
-                     VerticalBox_0 = Widget({ AddChild = function() error("buttons belong with the game's") end }) })
--- The title screen asset's own WBP_TitleMenu (a template): not live, never to be touched.
-titleTemplate = Widget({ GetFullName = function() return "WBP_TitleMenu_C /Game/Pal/Blueprint/UI/UserInterface/Title/WBP_Title.WBP_Title_C:WidgetTree.WBP_TitleMenu" end,
-                         WBP_Title_MenuButton_StartLocalGame = gameTitleButton })
-titleOpen = false
--- A widget that can take focus (UWidget:HasAnyUserFocus and HasFocusedDescendants, both in LuaTypes).
-function Focusable()   -- global: wbl.Create below and the inventory page use it
-    return Widget({ HasAnyUserFocus = function(self) return self.focused == true end, HasFocusedDescendants = function() return false end })
-end
-wbl = { IsValid = function() return true end,   -- global: StaticFindObject above returns it
-              Create = function(_, _, cls)
-                  -- The game's small labelled button (WBP_CommonButton, kdump): label Text_Main, focus on its inner
-                  -- WBP_PalInvisibleButton (GetFocusTarget).
-                  if cls and tostring(cls.path):find("/Common/WBP_CommonButton.", 1, true) then
-                      return Widget({ GetClass = function() return classed("WBP_CommonButton_C") end,
-                                      Text_Main = { IsValid = function() return true end, BindTextDatatableHandle = {},
-                                                    SetText = function(self, t) self.text = t.text end },
-                                      WBP_PalInvisibleButton = Focusable() })
-                  end
-                  if cls and tostring(cls.path):find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then   -- the map's plain icon
-                      local icon = Widget({ ChangeTexture = function(self, tex) self.tex = tex end,
-                                            SetVisibility = function(self, v) self.visibility = v end })
-                      function icon:GetParent() return self.parent end
-                      function icon:RemoveFromParent() self.parent = nil; self.removed = true end
-                      return icon
-                  end
-                  if cls and tostring(cls.path):find("WBP_MenuESC_Button_S", 1, true) then   -- the Esc menu's small button
-                      return Widget({ GetClass = function() return { GetFName = function() return FNameOf("WBP_MenuESC_Button_S_C") end } end,
-                                      Text_Main = { IsValid = function() return true end, BindTextDatatableHandle = {},
-                                                    SetText = function(self, t) self.text = t.text end } })
-                  end
-                  return Widget({ Test_Content = { SetText = function(self, t) self.text = t.text end },
-                                  SetVisibility = function(self, v) self.visibility = v end,
-                                  SetRenderOpacity = function(self, o) self.opacity = o end,
-                                  IsHovered = function(self) return self.hovered == true end,
-                                  HasAnyUserFocus = function() return false end,
-                                  HasFocusedDescendants = function(self) return self.focused == true end }) end }
--- UMG widgets the mod makes (SizeBox, Overlay, Image, TextBlock): one stand-in that records what is done to it.
-bannerTexts = {}                                             -- every text a made TextBlock was given, in order
--- A text box: what is in it reads back from its Text (an FText); typing is the test setting Text; focus the test's.
-function TextOf(s) return { ToString = function() return s end } end
--- Assigning its WidgetStyle from another box crashed the game (dev.21, 2026-11-07): an error here, as strict as that.
-function EditBox(kind)   -- global: StaticConstructObject below makes them
-    local e = Widget({ GetClass = function() return classed(kind) end, kind = kind, Text = TextOf(""),
-                       SetText = function(self, t) self.Text = TextOf(t.text) end,
-                       SetIsPassword = function(self, on) self.password = on end,
-                       SetForegroundColor = function(self, c) self.colour = c end,
-                       HasKeyboardFocus = function(self) return self.focus == true end,
-                       SetVisibility = function(self, v) self.vis = v end, GetVisibility = function(self) return self.vis or 0 end })
-    -- its own style, whose colours the mod writes field by field (FSlateColor: SpecifiedColor and ColorUseRule)
-    local function slate() return { SpecifiedColor = { R = 1, G = 1, B = 1, A = 1 }, ColorUseRule = 1 } end
-    rawset(e, "WidgetStyle", { BackgroundColor = slate(), ForegroundColor = slate(), FocusedForegroundColor = slate() })
-    return setmetatable(e, { __newindex = function(self, k, v)
-        if k == "WidgetStyle" then styleAssigned = true; error("WidgetStyle assigned from Lua: this crashed the game (dev.21)") end
-        rawset(self, k, v)
-    end })
-end
-StaticConstructObject = function(cls)
-    local kind = type(cls) == "table" and cls.umg or "SizeBox"
-    if kind == "PalEditableTextBox" or kind == "EditableTextBox" then return EditBox(kind) end
-    local box = Widget({ GetClass = function() return classed(kind) end, kind = kind, children = {}, Font = { Size = 24 },
-                         Background = { Margin = {}, ImageSize = {} },      -- (a Border's brush, written field by field)
-                         SetWidthOverride = function(self, w) self.width = w end, SetHeightOverride = function(self, h) self.height = h end,
-                         SetBrushFromTexture = function(self, t) self.texture = t end,
-                         SetFont = function(self, f) self.fontSize = f.Size end,
-                         SetColorAndOpacity = function(self, c) self.colour = c end,
-                         SetRenderOpacity = function(self, o) self.opacity = o end, SetVisibility = function(self, v) self.vis = v end,
-                         GetVisibility = function(self) return self.vis or 0 end,
-                         SetRenderTransformPivot = function(self, v) self.pivot = v end,
-                         SetRenderScale = function(self, v) self.scale = v end,
-                         SetBrushColor = function(self, c) self.brush = c end, SetPadding = function(self, p) self.pad = p end,
-                         RemoveFromParent = function(self) self.removedFromParent = true end,
-                         SetText = function(self, t) self.text = t.text; bannerTexts[#bannerTexts + 1] = t.text end })
-    function box:AddChild(c)
-        self.child = c
-        self.children[#self.children + 1] = c
-        c.GetParent = function() return self end
-        local slot = { SetPadding = function(s, pad) s.padding = pad end, SetHorizontalAlignment = function(s, a) s.h = a end,
-                       SetVerticalAlignment = function(s, a) s.v = a end }
-        c.slot = slot
-        return slot
-    end
-    function box:RemoveChild(c)
-        for i, x in ipairs(self.children) do if x == c then table.remove(self.children, i) end end
-        if self.child == c then self.child = nil end
-        return true
-    end
-    return box
-end
-hudWindows, pushed = {}, {}
-hud = { Push = function(_, cls, param)
-                  local id = "w" .. (#pushed + 1)
-                  pushed[#pushed + 1] = param
-                  -- Text_Head as the game's: its Text field reads back as a value with no ToString (dev.16 log); GetText()
-                  -- gives the FText
-                  hudWindows[id] = Widget({ Text_Head = { SetText = function(self, t) self.text = t.text end, Text = 0,
-                                                          GetText = function(self) local s = self.text or ""; return { ToString = function() return s end } end,
-                                                          BindTextDatatableHandle = { RowName = FName("WorldName") } },
-                                            PalEditableTextBox_0 = { SetIsPassword = function(self, on) self.password = on end } })
-                  return id end,
-              GetWidget = function(_, id) return hudWindows[id] end }
-util.GetHUDService = function() return hud end
-gameplayStaticsSpawn = function() return Widget() end
-AP_Poll = function() local out = table.concat(events, "\n"); events = {}; return out end
 AP_SlotData = function(k) return slotData[k] or "" end
-scoutAsked = ""
+scoutAsked = ""                                            -- the locations the last scout asked for
 AP_Scout = function(csv) scoutAsked = csv end
-AP_Check = function(csv) for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end end
+AP_Check = function(csv)
+    for id in csv:gmatch("%d+") do checks[tonumber(id)] = true end
+end
 AP_Goal = function() goals = goals + 1 end
-said, hintPoints, keyBinds = {}, "200,121", {}
-tagsSet, bounces = nil, {}
+said = {}                                                  -- every chat line or server command sent
+hintPoints = "200,121"                                     -- the player's hint points, and what a hint costs
+tagsSet, bounces = nil, {}                                 -- the connection's tags; every bounce sent
 AP_SetTags = function(t) tagsSet = t end
 AP_Bounce = function(json, tags) bounces[#bounces + 1] = { json = json, tags = tags } end
 AP_Say = function(text) said[#said + 1] = text end
 AP_HintPoints = function() return hintPoints end
-Key = setmetatable({}, { __index = function(_, k) return "key:" .. k end })
-ModifierKey = { CONTROL = "ctrl" }
-RegisterKeyBind = function(key, a, b) keyBinds[key] = b or a end   -- (key, fn) or (key, { modifiers }, fn), as UE4SS takes them
-AP_GreyscalePNG = function(_, out) local f = io.open(out, "w"); f:write("grey"); f:close(); return "" end
-composeJob, composeState, composeJobs = nil, "", {}
+-- Writes `text` as the file at `path`, as the connector's image calls write their pictures.
+function writeFile(path, text)
+    local f = io.open(path, "w")
+    f:write(text)
+    f:close()
+end
+AP_GreyscalePNG = function(_, out)
+    writeFile(out, "grey")
+    return ""
+end
+-- The map picture's compositor: a job runs in the background and is done by the next look at its status.
+composeJob, composeState, composeJobs = nil, "", {}        -- the job running, its state, every job asked for
 AP_ComposeMap = function(colour, labels, locked, out)
     if composeState == "busy" then return "busy" end
     composeJob = { colour = colour, labels = labels, locked = locked, out = out }
@@ -549,18 +634,75 @@ AP_ComposeMap = function(colour, labels, locked, out)
 end
 AP_ComposeStatus = function()
     local s = composeState
-    if s == "busy" and composeFails then                      -- (composeFails: the job fails, as when its file is locked)
+    if s == "busy" and composeFails then              -- (composeFails: the job fails, as when its file is locked)
         composeState = ""
         return "error: could not write map-composed.png"
-    elseif s == "busy" then                                   -- the background job finishes by the next look
-        local f = io.open(composeJob.out, "w"); f:write("map"); f:close()
+    elseif s == "busy" then
+        writeFile(composeJob.out, "map")
         composeState = "done"
-    elseif s ~= "" then composeState = "" end
+    elseif s ~= "" then
+        composeState = ""
+    end
     return s
 end
+-- The map screen from C++ (AP_MapScreen): every command and value it is given is added to `calls`, as "cmd=value".
+-- Returns `status` for a status command.
+function recordMapScreen(calls, status)
+    AP_MapScreen = function(cmd, v)
+        calls[#calls + 1] = cmd .. "=" .. tostring(v)
+        return cmd == "status" and status or ""
+    end
+end
+fieldJobs, fogJobs = 0, 0                                  -- Territories pictures and fog pictures composed
+-- The connector's map functions for the Territories look (AP_ComposeField and the fog), with the fog's explored mask
+-- on the map screen. `calls` lists what Lua told AP_MapScreen. Returns a function that takes them away again.
+function plugInTerritories(calls)
+    AP_ComposeTerritories = function() error("with AP_ComposeField the label map is not used") end
+    AP_TerritoriesStatus = function() return "done" end
+    AP_ComposeField = function(_, _, _, _, out, fogart)
+        writeFile(out, "png")
+        writeFile(fogart, "png")
+        fieldJobs = fieldJobs + 1
+        return ""
+    end
+    recordMapScreen(calls)
+    AP_ComposeFog = function(_, _, _, _, out)
+        writeFile(out, "png")
+        fogJobs = fogJobs + 1
+        return ""
+    end
+    AP_FogStatus = function() return "done" end
+    AP_ComposeChart = function() error("Territories draws no chart") end
+    AP_ChartStatus = function() return "done" end
+    AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
+    mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_4")
+    return function()
+        AP_ComposeTerritories, AP_TerritoriesStatus, AP_ComposeField, AP_MapScreen = nil, nil, nil, nil
+        AP_ComposeFog, AP_FogStatus, AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil, nil, nil
+        mapBody.MaskTextureMaterial = nil
+        os.remove(MOD .. "/map-fog-territories.png")
+    end
+end
+-- The connector's Pal gift (pal_gift.cpp), answering as its report does: lines of "step: detail", the last one the
+-- result. gift.reply is the next AP_GivePal answer ("throw": it raises); gift.pollReplies the next AP_GivePalPoll
+-- answers. A connector older than the gift has neither function: plugInGiftConnector() adds them.
+gift = { made = {}, reply = nil, pollReplies = {}, polls = 0 }   -- made: every gift asked for
+local NOT_ON_GAME_THREAD = "result: fail not on the game thread (call inside ExecuteInGameThread)"
+function plugInGiftConnector()
+    AP_GivePal = function(species, level, route, options)
+        if not onGameThread then return NOT_ON_GAME_THREAD end
+        gift.made[#gift.made + 1] = { species = species, level = level, route = route, options = options }
+        if gift.reply == "throw" then error("boom") end
+        return gift.reply
+            or ("route=" .. route .. "\nparty: 3/5\ncreate: handle=PalIndividualCharacterHandle_1\nresult: ok party")
+    end
+    AP_GivePalPoll = function()
+        gift.polls = gift.polls + 1
+        if not onGameThread then
+            return "poll: not on the game thread (call inside ExecuteInGameThread); the gift is kept\nresult: pending"
+        end
+        return table.remove(gift.pollReplies, 1) or ""
+    end
+end
 
--- The game's functions the tests call as the game would, through the hooks the mod registered on them.
-GAME_PATH = {}
-GAME_PATH.title = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
-GAME_PATH.titleClick = GAME_PATH.title .. "WBP_Title_MenuButton.WBP_Title_MenuButton_C:BndEvt__WBP_Title_MenuButton_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
-GAME_PATH.escClick = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Button_S.WBP_MenuESC_Button_S_C:BndEvt__WBP_MenuESC_Button_WBP_PalInvisibleButton_K2Node_ComponentBoundEvent_0_CommonButtonBaseClicked__DelegateSignature"
+dofile(HARNESS_DIR .. "fakes_menus.lua")

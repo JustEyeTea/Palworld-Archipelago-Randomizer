@@ -72,3 +72,15 @@ function h.leaveWorld()
         wallsUp[a] = nil
     end
 end
+
+-- A click on a game's WBP_CommonButton_C, as the game calls the hook on its click (if the mod hooked it).
+function h.clickCommonButton(button)
+    if hooks[GAME_PATH.commonClick] then hooks[GAME_PATH.commonClick](h.param(button)) end
+end
+
+-- Closes the chest window shown last, as the player does: one update while it is open (followed first), then closed.
+function h.closeChest()
+    run(1)
+    hudWindows["chest" .. #chestWindowsShown].gone = true
+    run(2)
+end
