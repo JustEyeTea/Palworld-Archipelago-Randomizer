@@ -2305,6 +2305,19 @@ expect(#shown == shownBefore + 1 and shown[#shown].kind == 7, "and the mailbox o
 expect(logged("in%-game main menu after closing from the inventory: gone"), "then looks whether the main menu went")
 closeChest()
 mainMenuOpen = false
+;(function()
+    print("a card still remembered as hovered is forgotten once the main menu is closed")
+    local slot = "Product_Cooking_Grade_01"                     -- owned through its item, not bought
+    mainMenuOpen = true
+    info["Setup by Technology Name"](info, FNameOf(slot))       -- no un-hover follows
+    run(1)
+    local whileOpen = isResearched(slot)
+    mainMenuOpen, escOpen = false, false                        -- closed under the pointer
+    run(1)
+    mainMenuOpen = nil
+    expect(whileOpen == false and isResearched(slot) == nil,
+           "the game's answer again, for crafting and building: " .. tostring(whileOpen) .. ", " .. tostring(isResearched(slot)))
+end)()
 -- The main menu on its Inventory tab.
 local page, barKids, editName = inventoryPage()
 mainMenu = MainMenu(inventoryTab(page), 8)

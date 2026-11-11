@@ -1708,6 +1708,8 @@ end
 local function updateWindows(ctx)
     P.start("menu")
     local okm, errm = pcall(MENU.update, ctx)
+    -- The un-hover event may not come when the menu closes under the pointer: a card can't be hovered with no menu.
+    if hoveredTech and MENU.mainMenuUp() == false then hoveredTech = nil end
     P.stop("menu")
     if not okm then onceErr("menu", errm, "menu error: " .. tostring(errm)) end
     P.start("mail")

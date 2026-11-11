@@ -822,12 +822,14 @@ end
 -- Until a main menu was ever seen, the Esc menu is also looked for by its class every 4th update, in case the client
 -- names the main menu differently: the Esc button would then come up to a second late, not never.
 local mainMenuSeen, fallbackTicks = false, 0
+local mainMenuNow = nil       -- whether a live main menu was up at this update's look (nil: not looked yet)
 local function menusUp()
     local mains = {}
     for _, mm in ipairs(FindAllOf(MAIN_MENU) or {}) do
         if notDefault(mm) then mains[#mains + 1] = mm end
     end
     if mains[1] then mainMenuSeen = true end
+    mainMenuNow = mains[1] ~= nil
     local esc = {}                                         -- nil: not looked this update, keep what we have
     if mains[1] then
         esc = findEscMenus()
@@ -1252,6 +1254,9 @@ local function bannerButton(menu, m)
     m.keys[#m.keys + 1] = tostring(button:GetAddress())
 end
 
+-- Whether the in-game main menu (its tabs hold the Technology menu and the Esc menu) was up at the last look; nil
+-- before the first look. main.lua forgets the hovered shop card once it is closed.
+function M.mainMenuUp() return mainMenuNow end
 function M.claim(button, action) ours[tostring(button:GetAddress())] = "cw:" .. action end
 function M.unclaim(button) ours[tostring(button:GetAddress())] = nil end
 
