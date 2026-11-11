@@ -14,6 +14,7 @@
 -- game's. The Inventory button is untested in game: it is placed from the dedicated server's pak (kdump, 2026-11-04).
 local M = {}
 local UTIL = require("util")
+local CLICKS = require("clicks")
 local log, once = UTIL.log, UTIL.onceIn("menu")
 
 local UI = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
@@ -51,7 +52,6 @@ local addFails = 0             -- failed attempts at the rows (logged, the first
 local fails = {}               -- title menu address -> failed attempts in a row (ten, then every 10th look)
 local applySoon                -- (below) a click or hover on our title buttons, acted on at the next game tick
 local crateWanted = false      -- the Inventory page's Open (crate) button was pressed: opened on the next update
-local cwAction = nil           -- a crate window button was pressed (crate_window.lua): its action, run on the next update
 local lastCrate = nil          -- the crate button addInventoryButton made last
 local closing = nil            -- a mailbox button was pressed: { from = "esc" | "inventory", menu or main, button },
                                -- handled on the next update
@@ -400,6 +400,7 @@ local function openWindow(context)
 end
 
 local function clicked(button)
+    if CLICKS.note(button) then return end   -- a button another file claimed (the crate window's)
     local kind = ours[tostring(button:GetAddress())]
     if not kind then return end
     if kind == "mailbox" then
@@ -413,8 +414,6 @@ local function clicked(button)
         crateWanted = true                     -- opened on the next update, outside this click's hook
         return
     end
-    local cw = kind:match("^cw:(.+)$")
-    if cw then cwAction = cw; return end
     if kind == "inventory" then
         -- The same for the Inventory page's button: only noted here; the main menu closes on the next update.
         local main
@@ -864,7 +863,6 @@ end
 
 -- Called from the mod's update loop (game thread). ctx: this update's player (main.lua): ctx.pc, the first live
 -- controller, as FindFirstOf("PalPlayerController") found it; ctx.hasPawn, what its K2_GetPawn gave (an object).
--- Buttons other modules make (crate_window.lua): their clicks come here like ours, as cw:<action>.
 -- The Archipelago menu on the title screen (see the top of this file).
 local writeEdit, fillEdits                -- (the typed fields, below; setOpen and act use them)
 local function splitServer(server)
@@ -1246,18 +1244,11 @@ end
 -- Whether the in-game main menu (its tabs hold the Technology menu and the Esc menu) was up at the last look; nil
 -- before the first look. main.lua forgets the hovered shop card once it is closed.
 function M.mainMenuUp() return mainMenuNow end
-function M.claim(button, action) ours[tostring(button:GetAddress())] = "cw:" .. action end
-function M.unclaim(button) ours[tostring(button:GetAddress())] = nil end
 
 function M.update(ctx)
     if crateWanted then
         crateWanted = false
         if api.openCrate then api.openCrate() end
-    end
-    if cwAction then
-        local a = cwAction
-        cwAction = nil
-        if api.crateWindow then api.crateWindow(a) end
     end
     -- In a world: a live controller whose pawn lookup answered (6dd356e's test, now from the shared lookup).
     local inWorld = false

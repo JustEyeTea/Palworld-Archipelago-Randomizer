@@ -111,6 +111,18 @@ function UTIL.findClass(path)
     return nil
 end
 
+-- An sRGB colour "RRGGBB" (as the art and the brand palette give it, a leading # allowed) as the linear R/G/B/A colour
+-- UMG takes. `alpha` is 1 when left out.
+function UTIL.linear(hex, alpha)
+    local digits = hex:gsub("^#", "")
+    local colour = { A = alpha or 1 }
+    for channel, at in pairs({ R = 1, G = 3, B = 5 }) do
+        local srgb = tonumber(digits:sub(at, at + 1), 16) / 255
+        colour[channel] = srgb <= 0.04045 and srgb / 12.92 or ((srgb + 0.055) / 1.055) ^ 2.4
+    end
+    return colour
+end
+
 ------------------------------------------------------------------------------------------------------------------------
 -- The clock. main.lua's LoopAsync runs the core update every UPDATE_MS. Every wait is written in seconds and turned
 -- into a count of updates here.

@@ -1468,13 +1468,12 @@ MENU.install({
     mailboxLabel = MAIL.label,
     crateLabel = CRATES.label,
     openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
-    crateWindow = function(action) local ok, err = pcall(CWIN.action, action); if not ok then log("crate window error: " .. tostring(err)) end end,
     openMailbox = function() MAIL.open() end,
     guardedHook = guardedHook,
 })
 MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end,
                guardedHook = guardedHook })
-CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, nameOf = function(id) return BAG.nameOf(id) end, claim = MENU.claim, unclaim = MENU.unclaim,
+CWIN.install({ chestWidget = function() return MAIL.chestWidget() end,
                openCrate = function(kind)
                    local ok, k, out = pcall(openCrate, kind)
                    if not ok then log("crate error: " .. tostring(k)); return nil end
