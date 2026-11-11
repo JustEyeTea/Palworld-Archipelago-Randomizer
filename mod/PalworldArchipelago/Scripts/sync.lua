@@ -72,8 +72,11 @@ end
 -- Every applying update in the seed's world: sets each speed that differs from its target. `world` names the world
 -- (a new subsystem each load) so each world's changes are logged once; `say` shows the player, once a world, what
 -- Speed Boost changed (or, already changed, that it's on) and the world's own values. True when a base value was new
--- (save it).
+-- (save it). `world` is the player controller's address (the frame's controllerKey): a new one at every world load,
+-- and the same through a faint, which brings a new pawn and so a new WORLD.key(). Untested in game: that a faint keeps
+-- the controller.
 function S.apply(ps, get, world, say)
+    world = tostring(world)
     if not S.boost(get) then return false end
     local ok, sub, ws = pcall(settings, ps)
     if not ok then

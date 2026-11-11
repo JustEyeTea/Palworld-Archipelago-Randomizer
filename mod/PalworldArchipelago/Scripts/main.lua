@@ -123,7 +123,7 @@ end
 -- The run style's sync (Speed Boost's world settings) and the notices held through the loading screen, once the
 -- world has settled.
 local function syncRunStyle(ps)
-    local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.holdNotice)
+    local oks, news = pcall(SYNC.apply, ps, AP_SlotData, PLAYER.frame().controllerKey, HELD.holdNotice)
     if not oks then
         onceErr("sync", news, "sync error: " .. tostring(news))
     elseif news then

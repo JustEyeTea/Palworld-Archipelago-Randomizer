@@ -428,6 +428,25 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
            and not loggedSince(readBackAt, "sync error")
            and h.saveText("70017", "Other"):find("syncbase=ExpRate:1,", 1, true),
            "a read-back that fails is logged as nothing read, and the world's own values are saved")
+    -- A faint gives a new character (a new pawn) in the same world: the warning is not shown again.
+    local function warnings()
+        local n = 0
+        for _, t in ipairs(announced) do
+            if t:find("Speed Boost changed your World Settings", 1, true) or t:find("Speed Boost is on", 1, true) then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    local warnedOnce = warnings()
+    for _ = 1, 2 do
+        newPawn()
+        runSeconds(70)
+    end
+    pawnAddress = pawnWas
+    runSeconds(70)
+    expect(warnings() == warnedOnce, "a new character in the same world brings no second Speed Boost warning: "
+           .. warnedOnce .. " then " .. warnings())
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     inWorld(false)
 end)
