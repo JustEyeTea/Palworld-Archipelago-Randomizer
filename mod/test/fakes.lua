@@ -203,6 +203,47 @@ ps = {
     GetPawn = function() return not game.pawnGone and pawn or nil end,   -- (pawnGone: a moment without one, same world)
     IsInStage = function() return game.inStage end,
 }
+-- A new world, or a new player character, without an address typed in a test. What the mod tells apart by which
+-- object (a new one is a new world, or a new character, to it):
+--   the pawn's address         world.lua's world step (the walls, the hint pop-up, the seed's world, Speed Boost,
+--                              held notices), and traps.lua (a Slow Trap sets back only the character it slowed)
+--   the controller's address   the mailbox and the perf probe; with no address, no live controller (the title)
+--   the tech data's address    tech_lock.lua: a new TechnologyData's list is compared again
+--   the pawn being there       menu.lua's "in a world", bag.lua, death_link.lua (K2_GetPawn answers)
+local PAWN_ADDRESS_STEP = 4096                             -- any step: only that a new pawn's address differs
+local TECH_DATA_ADDRESS_STEP = 8
+local FIRST_CONTROLLER_ADDRESS = 998                       -- an address none of the other stand-ins has
+local controllerAddress = FIRST_CONTROLLER_ADDRESS - 1     -- the controller made last
+-- Whether the player is in a world: the controller's K2_GetPawn answers with the pawn, or is not there at all.
+function inWorld(yes)
+    playerController.K2_GetPawn = yes and function() return pawn end or nil
+end
+-- The controller of a world just loaded: an address of its own. Returns it.
+function newController()
+    controllerAddress = controllerAddress + 1
+    local address = controllerAddress
+    playerController.GetAddress = function() return address end
+    return address
+end
+-- The controller made last, live again.
+function controllerAgain()
+    local address = controllerAddress
+    playerController.GetAddress = function() return address end
+end
+-- No live controller, as at the title screen: the controller's address can't be read.
+function noController()
+    playerController.GetAddress = nil
+end
+-- A new pawn: the player character of a world loaded again, or after a faint. Returns its address.
+function newPawn()
+    pawnAddress = pawnAddress + PAWN_ADDRESS_STEP
+    return pawnAddress
+end
+-- Another world's TechnologyData. Returns its address.
+function newTechData()
+    tdAddress = tdAddress + TECH_DATA_ADDRESS_STEP
+    return tdAddress
+end
 -- A player 20 km off the map: every wall piece is past the hiding radius.
 offMap = { IsValid = function() return true end,
            K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
@@ -620,8 +661,11 @@ end
 -- The APConnector ---------------------------------------------------------------------------------------------------
 
 events, checks, goals = {}, {}, 0                          -- event lines waiting; locations checked; goals sent
-slotData = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1",
-             ["options.death_link"] = "1", research_techs = "Torch,WallTorch" }
+-- The slot data of the first seed. A test that switches seeds starts the new one from a copy (h.switchSeed).
+SLOT_DATA_START = { slot = "1", seed = "12345", ["options.tower_count"] = "1", ["options.area_locks"] = "1",
+                    ["options.death_link"] = "1", research_techs = "Torch,WallTorch" }
+slotData = {}                                              -- the slot data of the seed connected now
+for k, v in pairs(SLOT_DATA_START) do slotData[k] = v end
 connects, disconnects = {}, 0                              -- every connect asked for: { server =, slot =, password = }
 AP_Connect = function(server, slot, password)
     connects[#connects + 1] = { server = server, slot = slot, password = password }

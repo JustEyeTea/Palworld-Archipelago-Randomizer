@@ -2,6 +2,7 @@
 -- what happens when its rows can't be made. Tests menu.lua, menu_title.lua, menu_survey.lua, text_window.lua.
 
 group("the title menu's Archipelago menu", function()
+    local MB = require("mailbox")
     -- The banner opens one Archipelago menu (the user, 2026-11-07), the game's own title buttons swapped for ours in the same
     -- list. dev.21 (the user, dev.20 test: "those should just be typable in the menu"): Server, Port, Slot and Password are
     -- the game's own text box in the menu; the saved servers show under Server while it has the keyboard; the banner
@@ -189,14 +190,12 @@ group("the title menu's Archipelago menu", function()
     slotData.seed = "67890"
     push("status", "connected", "Other")
     run(1)
-    local forgot = false
-    for _, l in ipairs(printed) do if l:find("progress of the last one forgotten", 1, true) then forgot = true end end
-    expect(forgot, "a different seed starts afresh")
+    expect(logged("progress of the last one forgotten"), "a different seed starts afresh")
     run(1)
     expect(gameButtonWrap.vis == 0 and rowBox(R.server).vis == 1 and logged("Archipelago menu closed"), "connected: back to the title's own buttons")
     expect(not io.open(MOD .. "/config.txt"):read("*a"):find("archipelago.gg,", 1, true), "archipelago.gg is not saved: it is always there")
     -- A slot the server refuses: what is in memory is still Other's, and is saved as Other's, not under the refused name.
-    require("mailbox").add("Wood", 10)
+    MB.add("Wood", 10)
     run(7)
     click(openBtn); run(1)
     typeInto(R.slot, "Typo"); typeInto(R.password, "")
@@ -205,11 +204,11 @@ group("the title menu's Archipelago menu", function()
     push("status", "refused", "InvalidSlot")
     run(1)
     expect(gameButtonWrap.vis == 1, "refused: the menu stays open to fix it")
-    playerController.K2_GetPawn = function() return pawn end
-    local took = require("mailbox").takeAll()
-    playerController.K2_GetPawn = nil
-    expect(took == 10 and io.open(MOD .. "/save-67890-Other.txt"):read("*a"):find("mail=\n", 1, true)
-           and not io.open(MOD .. "/save-67890-Typo.txt"), "a refused slot: the take is saved in the connected slot's file")
+    inWorld(true)
+    local took = MB.takeAll()
+    inWorld(false)
+    expect(took == 10 and h.saveText("67890", "Other"):find("mail=\n", 1, true)
+           and not io.open(h.saveFile("67890", "Typo")), "a refused slot: the take is saved in the connected slot's file")
     typeInto(R.slot, "Other")
     run(1)
     click(btn(R.go)); run(1)
@@ -260,30 +259,33 @@ group("the title menu's Archipelago menu", function()
         expect(not deadTouched and logged("our rows are gone from a title menu still there") and logged("could not add the Archipelago menu's rows: .*%(try %d%)") and logged("the old banner taken away"),
                "our rows gone and the remake failing: logged, and the old rows never touched again")
         wbl.Create = create
-        local before = #menuChildren
+        local rowsBefore = #menuChildren
         run(2)
-        expect(#menuChildren > before and logged("Archipelago menu added to the title menu"), "then made again once it can be")
+        expect(#menuChildren > rowsBefore and logged("Archipelago menu added to the title menu"), "then made again once it can be")
     end
     do   -- one test of "in a world": a pawn the lookup answers with, even one not valid, counts
-        local pawnWas, addressWas = playerController.K2_GetPawn, playerController.GetAddress
         local notValid = Widget({ IsValid = function() return false end })
         game.titleOpen = false                                       -- (no title menu up: it is only looked for)
-        playerController.K2_GetPawn, playerController.GetAddress = function() return notValid end, function() return 1001 end
+        playerController.K2_GetPawn = function() return notValid end
+        newController()
         run(1)
         local looks = lookups.WBP_TitleMenu_C or 0
         run(10)
         local inTen = (lookups.WBP_TitleMenu_C or 0) - looks
-        playerController.K2_GetPawn, playerController.GetAddress = pawnWas, addressWas
+        inWorld(false)
+        noController()
         game.titleOpen = true
         run(2)
         expect(inTen <= 1, "in a world, the title menu is looked for every 10th update, as the world buttons see it: " .. inTen)
     end
     -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
     -- 10 updates, logged, and looked for every update again.
-    playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 1000 end
+    inWorld(true)
+    controllerAgain()
     run(10)
     expect(logged("a title menu was found with the player's pawn in a world"), "a title menu seen in a world is logged")
-    playerController.K2_GetPawn, playerController.GetAddress = nil, nil
+    inWorld(false)
+    noController()
     game.titleOpen = false
     run(1)
     -- In a world the title menu is gone; a game title button made later at a freed address of ours is not ours.
@@ -312,13 +314,7 @@ group("the title menu's Archipelago menu", function()
     game.palEditOk, game.umgEditOk = nil, nil
     ExecuteInGameThread = realGT
     do   -- a title menu whose rows kept failing, gone and back at the same address: tried again at once
-        local function added()
-            local n = 0
-            for _, l in ipairs(printed) do
-                if l:find("Archipelago menu added to the title menu", 1, true) then n = n + 1 end
-            end
-            return n
-        end
+        local function added() return countLoggedText("Archipelago menu added to the title menu") end
         local create = wbl.Create
         wbl.Create = function() return nil end
         game.titleOpen = true
@@ -330,9 +326,9 @@ group("the title menu's Archipelago menu", function()
         menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
         gameButtonWrap.vis, quitWrap.vis = 0, 0
         game.titleOpen = true                                        -- back, at the address it had
-        local before = added()
+        local addedBefore = added()
         run(1)
-        expect(added() == before + 1, "its rows are made on the first update it is back, not after a backoff")
+        expect(added() == addedBefore + 1, "its rows are made on the first update it is back, not after a backoff")
         game.titleOpen = false
         run(1)
     end
@@ -340,10 +336,7 @@ group("the title menu's Archipelago menu", function()
         local WIDGETS = require("widgets")
         WIDGETS.setLabel(Widget({}), "Archipelago Mailbox")
         WIDGETS.setLabel(Widget({}), "Archipelago Mailbox")
-        local lines = 0
-        for _, l in ipairs(printed) do
-            if l:find("a button has neither Text_Main nor Test_Content", 1, true) then lines = lines + 1 end
-        end
+        local lines = countLoggedText("a button has neither Text_Main nor Test_Content")
         expect(lines == 1, "a label that can't be set is logged once: " .. lines)
     end
     do   -- the fallback chains say once which branch they took

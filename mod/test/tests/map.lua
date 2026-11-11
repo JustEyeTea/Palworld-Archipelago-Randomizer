@@ -16,15 +16,15 @@ group("the world map", function()
                and (c[3] ~= c[1] or c[4] ~= c[2]), "a locked area's stamp goes on its side nearest the start, not its middle")
     end
     do  -- 2026-11-06 run: the full 88 px stamp buried a small region (Small Settlement); a small one is drawn smaller
-        local W = require("walls")
-        expect(W.stampSize({}) == 88 and W.stampSize({ room = 120 }) == 88,
+        local liveWalls = require("walls")
+        expect(liveWalls.stampSize({}) == 88 and liveWalls.stampSize({ room = 120 }) == 88,
                "an area with room (or data without the field) keeps the full 88 px stamp")
-        expect(W.stampSize({ room = 30 }) == 60 and W.stampSize({ room = 9 }) == 28,
+        expect(liveWalls.stampSize({ room = 30 }) == 60 and liveWalls.stampSize({ room = 9 }) == 28,
                "a small region's stamp is about as wide as the region, but at least 28 px")
         local small, tiny = 0, 0
         for _, c in pairs(dofile(MOD .. "/Scripts/area_centres_regions.lua")) do
             expect(c[5], "every region's centre carries its room")
-            if c[5] and W.stampSize({ room = c[5] }) < 88 then small = small + 1 end
+            if c[5] and liveWalls.stampSize({ room = c[5] }) < 88 then small = small + 1 end
             if c[5] and c[5] < 14 then tiny = tiny + 1 end
         end
         expect(small > 0 and tiny > 0, "the regions set has small regions that get a smaller stamp")
@@ -50,8 +50,7 @@ group("the world map", function()
     expect(not mapBody.Image_MapBody.Brush.ResourceObject.rt, "the World Tree's own map is left alone")
     -- A later session: the same map picture keeps the saved colour map; a mod that replaces the map art gets it saved again.
     local function nextSession()
-        local W2 = dofile(MOD .. "/Scripts/walls.lua")
-        W2.dir, W2.keepAlive = MOD, function() end
+        local W2 = h.freshWalls()
         for _ = 1, 3 do W2.updateMap(true, {}, pawn) end
     end
     nextSession()
@@ -65,8 +64,7 @@ group("the world map", function()
     game.composeFails = true
     mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 11 end,
                                                    GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end }
-    local W3 = dofile(MOD .. "/Scripts/walls.lua")
-    W3.dir, W3.keepAlive = MOD, function() end
+    local W3 = h.freshWalls()
     local drawn = greyBoxes
     for _ = 1, 4 do W3.updateMap(true, {}, pawn) end
     game.composeFails = false
@@ -89,22 +87,21 @@ group("the world map", function()
                              GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_MainWorld5_DefaultMask.T_MainWorld5_DefaultMask" end }
                 end
             end }
-        local W5 = dofile(MOD .. "/Scripts/walls.lua")
-        W5.dir, W5.keepAlive = MOD, function() end
-        local before = exports
+        local W5 = h.freshWalls()
+        local exportsBefore = exports
         for _ = 1, 4 do W5.updateMap(true, {}, pawn) end
-        local said = table.concat(calls, " | ")
-        expect(said:find("enable=1", 1, true), "C++ is switched on (config.txt has no map_cpp=0)")
-        expect(said:find("fog= |", 1, true)
-               and said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
-               "C++ is told the fog colour (none: the game's own) and the picture's path (without its class): " .. said)
+        local callsText = table.concat(calls, " | ")
+        expect(callsText:find("enable=1", 1, true), "C++ is switched on (config.txt has no map_cpp=0)")
+        expect(callsText:find("fog= |", 1, true)
+               and callsText:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
+               "C++ is told the fog colour (none: the game's own) and the picture's path (without its class): " .. callsText)
         expect(logged("map screen %(C%+%+%): hooked; Setup ran 1x") and logged("map fog: fog material .*MaterialInstanceDynamic_1; mask .*1024x1024.*exported to fog%-mask%.png")
                and logged("default mask 512x512 exported to fog%-default%-mask%.png")
-               and exports == before + 2, "the map's opening logs C++'s status, and the fog is probed and both masks exported once")
+               and exports == exportsBefore + 2, "the map's opening logs C++'s status, and the fog is probed and both masks exported once")
         for _ = 1, 3 do W5.updateMap(true, {}, pawn) end
         local bodies = 0
         for _, c in ipairs(calls) do if c:find("^body=") then bodies = bodies + 1 end end
-        expect(bodies == 1 and exports == before + 2, "told the picture once, not every update; the masks exported once")
+        expect(bodies == 1 and exports == exportsBefore + 2, "told the picture once, not every update; the masks exported once")
         local statuses = 0
         for _, c in ipairs(calls) do if c:find("^status=") then statuses = statuses + 1 end end
         expect(statuses == 1, "C++'s status is logged when the map opens, not every update: " .. statuses)
@@ -136,8 +133,7 @@ group("the world map", function()
         end
         os.remove(MOD .. "/map-fog.png")
         mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_2")
-        local W6 = dofile(MOD .. "/Scripts/walls.lua")
-        W6.dir, W6.keepAlive = MOD, function() end
+        local W6 = h.freshWalls()
         W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
         game.mapOpen = false
         W6.updateMap(true, {}, pawn)                                 -- closed: the chart is drawn in the background
@@ -188,7 +184,7 @@ group("the world map", function()
     end
     game.mapOpen = false
     -- dev.16 playtest (2026-11-07): the picture was only started once the map opened, so the first opening showed the
-    -- game's map for ~3 s, and C++ was still off ("OFF; Setup ran 0x"). Now, before the map ever opens: C++ is switched on,
+    -- game's map for ~3 s, and C++ was still off ("OFF; Setup ran 0x"). Now, exportsBefore the map ever opens: C++ is switched on,
     -- the picture is composed from the colour map saved in an earlier session (the game's 8192 px map not loaded), and C++
     -- is told its path; at the first opening the game's map is checked against the saved one once, and nothing is redone.
     do
@@ -201,26 +197,24 @@ group("the world map", function()
         f = io.open(saved .. ".txt", "w"); f:write(table.concat(fp, ";")); f:close()
         loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
         local jobsBefore = #composeJobs
-        local W7 = dofile(MOD .. "/Scripts/walls.lua")
-        W7.dir, W7.keepAlive = MOD, function() end
+        local W7 = h.freshWalls()
         W7.updateMap(true, {}, pawn)
-        local said = table.concat(calls, " | ")
-        expect(said:find("enable=1", 1, true), "C++ is switched on at the first update, before any picture or map: " .. said)
+        local callsText = table.concat(calls, " | ")
+        expect(callsText:find("enable=1", 1, true), "C++ is switched on at the first update, before any picture or map: " .. callsText)
         for _ = 1, 3 do W7.updateMap(true, {}, pawn) end
-        said = table.concat(calls, " | ")
+        callsText = table.concat(calls, " | ")
         local job = composeJobs[jobsBefore + 1]
         expect(job and job.colour == saved and not loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"],
                "the map closed: the picture is composed from the saved colour map, without loading the game's map")
-        expect(said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
-               "and C++ has the picture before the map first opens: " .. said)
+        expect(callsText:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
+               "and C++ has the picture before the map first opens: " .. callsText)
         game.mapOpen = true
         for _ = 1, 3 do W7.updateMap(true, {}, pawn) end
         expect(loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] and #composeJobs == jobsBefore + 1,
                "at the first opening the game's map is checked against the saved one, and an unchanged map is not composed again")
         game.mapOpen = false
         game.mapArt = game.mapArt + 1                                            -- another session, another mod's map art
-        local W8 = dofile(MOD .. "/Scripts/walls.lua")
-        W8.dir, W8.keepAlive = MOD, function() end
+        local W8 = h.freshWalls()
         for _ = 1, 3 do W8.updateMap(true, {}, pawn) end
         local early = #composeJobs
         game.mapOpen = true
@@ -242,8 +236,7 @@ group("the world map", function()
         treeBody.icons, treeBody.Image_MapBody.shown = {}, nil
         local stampsBefore = {}
         for k, v in pairs(stampAt) do stampsBefore[k] = v end
-        local W9 = dofile(MOD .. "/Scripts/walls.lua")
-        W9.dir, W9.keepAlive = MOD, function() end
+        local W9 = h.freshWalls()
         for _ = 1, 3 do W9.updateMap(true, {}, pawn) end           -- the map not built yet: the picture is made, no icons
         expect(#mapBody.icons == 0, "no icons before the map screen exists")
         -- dev.35 playtest: after Return to title and a second world load, the first world's screen was still about (last in
@@ -303,8 +296,7 @@ group("the world map", function()
         mapBody.icons = {}
         local add = mapBody["Add Icon By Location"]
         mapBody["Add Icon By Location"] = nil
-        local W10 = dofile(MOD .. "/Scripts/walls.lua")
-        W10.dir, W10.keepAlive = MOD, function() end
+        local W10 = h.freshWalls()
         local jobs = #composeJobs
         for _ = 1, 4 do W10.updateMap(true, {}, pawn) end
         expect(logged("map icons: could not add them") and #composeJobs > jobs and composeJobs[#composeJobs].locked ~= nil,
@@ -340,8 +332,7 @@ group("the world map: the Territories look", function()
     mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_3")
     local AW = require("area_walls")
     local area4, sealedArea = AW.areas[4], AW.areas[16]
-    local T = dofile(MOD .. "/Scripts/walls.lua")
-    T.dir, T.keepAlive = MOD, function() end
+    local T = h.freshWalls()
     T.beyond = { [sealedArea] = true }
     T.visited = {}
     local passes = { [area4] = true }
@@ -403,8 +394,7 @@ group("the world map: the Territories look", function()
     local askedMap
     util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
         GetRenderTargetByMapName = function(_, name) askedMap = name:ToString(); return { IsValid = function() return true end } end } end
-    local F = dofile(MOD .. "/Scripts/walls.lua")
-    F.dir, F.keepAlive = MOD, function() end
+    local F = h.freshWalls()
     F.beyond, F.visited = { [sealedArea] = true }, {}
     n = #jobs
     drawLog = {}
@@ -432,8 +422,7 @@ group("the world map: the Territories look", function()
            "with AP_ComposeField: the shipped distance field at 4096 (same areas, walls and look), not the label map; the fog at 4096")
     -- No colour map (and no game map to save one from): the overlay, drawn over the game's map as before.
     os.remove(colourFile)
-    local G2 = dofile(MOD .. "/Scripts/walls.lua")
-    G2.dir, G2.keepAlive = MOD, function() end
+    local G2 = h.freshWalls()
     G2.beyond, G2.visited = { [sealedArea] = true }, {}
     local savedLoad = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
     game.mapOpen, drawLog = false, {}
@@ -449,8 +438,8 @@ group("the world map: the Territories look", function()
     if hadColour then cf = io.open(colourFile, "w"); cf:write("png"); cf:close() else os.remove(colourFile) end
     AP_ComposeField = nil
     game.mapOpen = false
-    local C = dofile(MOD .. "/Scripts/walls.lua")
-    C.dir, C.keepAlive, C.mapStyle = MOD, function() end, "chart"
+    local C = h.freshWalls()
+    C.mapStyle = "chart"
     n = #jobs
     for _ = 1, 3 do C.updateMap(true, {}, pawn) end
     expect(#jobs == n, "map_style=chart: no territories")

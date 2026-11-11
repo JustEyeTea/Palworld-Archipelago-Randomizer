@@ -3,14 +3,14 @@
 
 group("the mailbox", function()
     local MB = require("mailbox")
-    local kinds, items = require("mailbox").count()
+    local kinds, items = MB.count()
     expect(kinds == 1 and items == 50, "the Wood Bundle waits in the mailbox: " .. items)
-    expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\n", 1, true), "kept in the save file")
+    expect(h.saveText():find("mail=Wood:50\n", 1, true), "kept in the save file")
     expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox.", 1, true)
            and not table.concat(announced, "|"):find("Inventory", 1, true),
            "the player is told where it is: the Esc menu (the Inventory button is not named until a playtest has seen it)")
-    playerController.K2_GetPawn = function() return pawn end
-    playerController.GetAddress = function() return 998 end
+    inWorld(true)
+    newController()
     -- First a client where no main menu is found by that class: the Esc menu is still looked for by its own, every 4th
     -- update (a fallback that costs a scan; v0.11.4 showed every 4th update is a second late, not never).
     game.escOpen, game.escNoMain = true, true
@@ -36,12 +36,11 @@ group("the mailbox", function()
     expect(escChildren[4], "a new Esc menu gets its button on the first update")
     run(3)
     mailBtn = escChildren[4]
-    local addLines = 0
-    for _, l in ipairs(printed) do if l:find("Mailbox button added", 1, true) then addLines = addLines + 1 end end
+    local addLines = countLoggedText("Mailbox button added")
     expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and addLines == 1, "a new Esc menu gets its button; logged once: " .. addLines)
     -- No LogicMod: the hidden chest. It is made on first use, 300 slots, with the chest template put back after.
     installChest()
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     expect(not escMenu.closed, "nothing is closed inside the click's hook")
     run(1)
     expect(escMenu.closed and not escMenu.tabOnly and logged("Esc menu closed for the mailbox %(CloseAction%)"),
@@ -56,7 +55,7 @@ group("the mailbox", function()
     expect(#chestWindowsShown == 1 and chestWindowsShown[1].kind == 7 and chestWindowsShown[1].param.MapObjectConcreteModel == chests[1], "the game's chest window opens on it")
     expect(slots[1].ItemId.StaticId:ToString() == "Wood" and slots[1].StackCount == 50, "filled from the mailbox")
     expect(chests[1].model.DeteriorationDamage == 0 and chests[1].model.DamagableType == 2 and chests[1].locked, "kept from decay and locked")
-    expect(not io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview", 1, true),
+    expect(not h.saveText():find("mailview", 1, true),
            "the save holds the list only, with no line for an open view (nothing read it)")
     expect(chests[1].c.Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
            and slots[7].Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
@@ -109,24 +108,24 @@ group("the mailbox", function()
     run(5)
     expect(slots[2].StackCount == 50 and given[#given] == "Stone x3" and #given == givenBefore + 1 and logged("did nothing; deposits are returned by hand"),
            "a deposit the move left is returned by hand, once: " .. slots[2].StackCount)
-    require("mailbox").open(pawn)                              -- the mailbox key pressed again while it is open
+    MB.open(pawn)                              -- the mailbox key pressed again while it is open
     run(3)
     slots[1].StackCount = 21                                   -- put in just before closing (the move does nothing)
     hudWindows["chest1"].gone = true                           -- the player closes it
     run(1)
     expect(#chestWindowsShown == 1, "closed, it stays closed (the key pressed while it was open did nothing)")
     game.movesWork = true
-    kinds, items = require("mailbox").count()
+    kinds, items = MB.count()
     expect(kinds == 2 and items == 70, "closed: what is left goes back into the mailbox, with what arrived meanwhile: " .. items)
     expect(given[#given] == "Wood x1" and logged("put in at the last moment went back to the bag"), "a last-moment deposit goes to the bag")
     expect(slots[1]:IsEmpty() and slots[2]:IsEmpty(), "the chest is emptied")
     expect(not logged("no chest window heading found"), "the heading is not looked for as the window closes")
-    local saved = io.open(MOD .. "/save-12345-Tester.txt"):read("*a")
+    local saved = h.saveText()
     expect(saved:find("mail=Wood:20,Stone:50\n", 1, true), "saved: " .. saved)
     -- Open again: the chest is found, not made again. A plain stack left in it (a world save older than the mod's save,
     -- after a crash) is a copy: it goes before filling.
     slots[5].ItemId.StaticId, slots[5].StackCount = FNameOf("Wood"), 20
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(3)
     expect(#chests == 1 and #chestWindowsShown == 2 and slots[1].ItemId.StaticId:ToString() == "Wood" and slots[2].ItemId.StaticId:ToString() == "Stone",
            "found again by its place and filled")
@@ -138,60 +137,57 @@ group("the mailbox", function()
     -- open settles it first.
     local showPlain = hud.ShowCommonUI
     hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(11)
     expect(logged("followed by unknown") and slots[1].StackCount == 20, "a window it can't follow is left alone")
     slots[1].StackCount = 5                                    -- the player takes 15 Wood
     hud.ShowCommonUI = showPlain
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(3)
-    kinds, items = require("mailbox").count()
+    kinds, items = MB.count()
     expect(items == 55 and slots[1].StackCount == 5 and logged("followed by id"), "the next open settles it first: " .. items)
-    hudWindows["chest" .. #chestWindowsShown].gone = true
+    h.closeChestWindow()
     run(2)
     -- The world changes while a view the mod can't follow is open: it is dropped, and the next open fills afresh.
     hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(11)
     slots[1].StackCount = 1                                    -- the copy left in the chest
-    playerController.GetAddress = function() return 999 end    -- a new world
+    newController()                                            -- a new world
     run(1)
     hud.ShowCommonUI = showPlain
     expect(logged("the world changed; the open chest view is settled on the next open"), "a world change drops the view")
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(3)
-    kinds, items = require("mailbox").count()
+    kinds, items = MB.count()
     expect(items == 55 and slots[1].StackCount == 5, "the next open fills from the list, not the copy: " .. slots[1].StackCount)
     do   -- what the mailbox found out in one world is logged again in the next
-        local permissionLines = 0
-        for _, l in ipairs(printed) do
-            if l:find("deposits refused by permission", 1, true) then permissionLines = permissionLines + 1 end
-        end
+        local permissionLines = countLoggedText("deposits refused by permission")
         expect(permissionLines == 2, "a new world logs its own findings again (the chest's permission): " .. permissionLines)
     end
     run(1)
-    hudWindows["chest" .. #chestWindowsShown].gone = true
+    h.closeChestWindow()
     run(2)
     -- Taken during a view it can't follow, then the world changes before that view is settled: what was taken left the
     -- list at once, so the next fill does not give it again.
     hud.ShowCommonUI = function(self, k, p) showPlain(self, k, p); return "untracked" end
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(11)
     local bagWoodBefore = bagHas.Wood or 0
     slots[1].StackCount = 1                                    -- the player takes 4 Wood
     bagHas.Wood = bagWoodBefore + 4
     run(1)
-    playerController.GetAddress = function() return 1000 end  -- a new world
+    newController()                                            -- a new world
     run(1)
     hud.ShowCommonUI = showPlain
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(3)
     local woodListed = 0
-    for _, e in ipairs(require("mailbox").queue) do if e.id == "Wood" then woodListed = e.n end end
+    for _, e in ipairs(MB.queue) do if e.id == "Wood" then woodListed = e.n end end
     expect(woodListed == 1 and slots[1].StackCount == 1 and bagHas.Wood - bagWoodBefore + woodListed == 5,
            "a take is off the list at once: 5 Wood in all, not 9: " .. woodListed .. " listed")
     run(1)
-    hudWindows["chest" .. #chestWindowsShown].gone = true
+    h.closeChestWindow()
     run(2)
     -- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
     game.logicMod = true
@@ -212,7 +208,7 @@ group("the mailbox", function()
     local wblCreate = wbl.Create
     wbl.Create = function(_, _, cls) if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end return wblCreate() end
     hookFailures.AP_Clicked = 1                                  -- its first opening: the button class still loading
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(3)
     local ROW_CLICK = "/Game/Mods/PalworldArchipelagoUI/WBP_APButton.WBP_APButton_C:AP_Clicked"
     expect(logged("mailbox: could not hook AP_Clicked yet") and not hooks[ROW_CLICK], "a failed hook of its buttons is logged")
@@ -251,8 +247,8 @@ group("the mailbox", function()
     expect(given[#given] == "Wood x1" and #winRows == 1, "a row takes its item into the bag")
     hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
     run(1)
-    expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
-    expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\n", 1, true), "and the save")
+    expect(given[#given] == "Stone x50" and #winRows == 0 and MB.count() == 0, "Take all empties it")
+    expect(h.saveText():find("mail=\n", 1, true), "and the save")
     do   -- an item whose id reads like a button's action ("close") is still an item
         MB.add("close", 2)
         game.bagFull = true

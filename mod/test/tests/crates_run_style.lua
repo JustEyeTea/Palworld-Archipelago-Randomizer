@@ -4,15 +4,11 @@
 group("Palworld Crates", function()
     -- Rolled on arrival, the same every time.
     local CR = require("crates")
-    slotData.seed = "70200"                     -- a seed of its own (as newSeed in the goals tests)
-    push("status", "connected", "Other")
-    run(14)
-    keyBinds[Key.H]()                           -- yes to playing it in this world, which has progress
-    run(14)
-    local before = CR.count()
+    h.switchSeed("70200", {})                   -- a seed of its own
+    local cratesBefore = CR.count()
     push("item", "0", tostring(itemId["Palworld Crate"]), "1", "1", "1", "Palworld Crate", "Friend")
     run(20)
-    expect(CR.count() == before + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
+    expect(CR.count() == cratesBefore + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
            "a Palworld Crate arrives as one of the five crates, and says which")
     expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS), "the same seed and index roll the same crate")
     local n = {}
@@ -144,20 +140,11 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     function optionSub:IsValid() return true end
     function optionSub:SetOptionWorldSettings() self.sets = self.sets + 1; error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer") end
     util.GetOptionSubsystem = function() return optionSub end
-    local pawnWas = playerController.K2_GetPawn
-    playerController.K2_GetPawn = function() return pawn end      -- the bag is reached through the pawn
+    inWorld(true)                                                 -- the bag is reached through the pawn
     local function mailHas(id) local n = 0; for _, e in ipairs(MB.queue) do if e.id == id then n = n + e.n end end; return n end
     local function warned(pattern) for _, t in ipairs(announced) do if t:find(pattern) then return true end end end
-    local function newSeed(seed, extra)          -- as "the other goals" does (its helper is local to that part)
-        slotData.seed = seed
-        for k, v in pairs(extra) do slotData[k] = v end
-        push("status", "connected", "Other")
-        run(14)
-        keyBinds[Key.H]()         -- the world already has progress: the player says yes to playing this seed in it
-        run(14)
-    end
     -- The defaults (Standard, no Speed Boost): the world's settings are never touched, and a tech is a recipe only.
-    newSeed("70012", { ["options.run_style"] = "0", ["options.speed_boost"] = "0" })
+    h.switchSeed("70012", { ["options.run_style"] = "0", ["options.speed_boost"] = "0" })
     local bows = bagHas.WeakerBow or 0
     push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
     run(40)
@@ -165,7 +152,7 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
            and not warned("Speed Boost"), "defaults: world settings untouched, no warning, no bow handed over")
     -- Speed Boost: the world's own values times the multipliers, the base kept in the save, never compounding, and
     -- the player told in game what changed and the values to set back.
-    newSeed("70010", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3", ["options.boost_work_speed"] = "3",
+    h.switchSeed("70015", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3", ["options.boost_work_speed"] = "3",
                        ["options.boost_gather_rate"] = "2" })
     run(40)
     expect(ws.ExpRate == 3 and ws.WorkSpeedRate == 3 and ws.CollectionDropRate == 2
@@ -174,7 +161,7 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     expect(warned("Speed Boost changed your World Settings: EXP Rate 3, Work Speed Multiplier 3, Gatherable Items "
                   .. "Multiplier 2 %(your world's own: 1, 1, 1%)%. Your world keeps these in its save; set them back"),
            "the player is warned in game, with the values to set back")
-    expect(io.open(MOD .. "/save-70010-Other.txt"):read("*a"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
+    expect(h.saveText("70015", "Other"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
            "the world's own values are in the save")
     local warnings = #announced
     run(40)
@@ -196,7 +183,7 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     util.GetOptionSubsystem = function() return optionSub end
     -- Nomad without Speed Boost: gear into the bag, a stack into the mailbox, the recipe as always; speeds untouched.
     ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
-    newSeed("70011", { ["options.run_style"] = "1", ["options.speed_boost"] = "0" })
+    h.switchSeed("70016", { ["options.run_style"] = "1", ["options.speed_boost"] = "0" })
     local spheres = mailHas("PalSphere")
     push("item", "0", tostring(itemId["Tech: Old Bow"]), "5", "2", "1", "Tech: Old Bow", "Friend")
     push("item", "1", tostring(itemId["Tech: Pal Sphere"]), "6", "2", "1", "Tech: Pal Sphere", "Friend")
@@ -208,28 +195,29 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     expect((bagHas.WeakerBow or 0) == bows + 1 and mailHas("PalSphere") == spheres + 10, "handed over once, not every update")
     -- The Nomad Sync preset (Nomad and Speed Boost) in a world already sped up from before: a reminder, not a change.
     ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 5, 3, 2
-    newSeed("70013", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "5" })
+    h.switchSeed("70013", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "5" })
     run(40)
     expect(ws.ExpRate == 25 and warned("Speed Boost changed your World Settings: EXP Rate 25"),
            "a world already sped up by hand is taken as its own (5 x5), and the warning says so")
     -- dev.17 test (2026-11-07): the warning came 2 s after the world loaded, behind the loading screen. Now the speeds
     -- change at once but the warning waits until the character has moved 3 m (or a minute has passed).
-    local addrWas, atWas = pawnAddress, pawnAt
-    pawnAddress, pawnAt = 16400, { X = atWas.X, Y = atWas.Y, Z = atWas.Z }   -- the world loaded again (a new pawn), where it stood
+    local pawnWas, atWas = pawnAddress, pawnAt
+    newPawn()                                                     -- the world loaded again: a new pawn
+    pawnAt = { X = atWas.X, Y = atWas.Y, Z = atWas.Z }            -- where the last one stood
     ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
-    local before = #announced
+    local noticesBefore = #announced
     local function newWarning()
-        for i = before + 1, #announced do
+        for i = noticesBefore + 1, #announced do
             if announced[i]:find("Speed Boost changed your World Settings: EXP Rate 3,", 1, true) then return true end
         end
     end
-    newSeed("70014", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
+    h.switchSeed("70014", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
     run(40)
     expect(ws.ExpRate == 3 and not newWarning(), "a world just loaded: the speeds change at once, the warning waits")
     pawnAt = { X = atWas.X + 500, Y = atWas.Y, Z = atWas.Z }
     run(14)
     expect(newWarning() and logged("held notice%(s%) shown %(the player moved%)"), "and is shown once the player moves")
-    pawnAddress, pawnAt = addrWas, atWas
+    pawnAddress, pawnAt = pawnWas, atWas
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
-    playerController.K2_GetPawn = pawnWas
+    inWorld(false)
 end)

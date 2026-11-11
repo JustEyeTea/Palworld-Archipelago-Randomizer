@@ -12,32 +12,23 @@ group("checks earned while not connected", function()
 end)
 
 group("errors that repeat every update are logged once each", function()
-    local function linesWith(text)
-        local n = 0
-        for _, l in ipairs(printed) do if l:find(text, 1, true) then n = n + 1 end end
-        return n
-    end
     local DB, CW, tries = require("debuffs"), require("crate_window"), 0
     local dbTick, cwUpdate = DB.tick, CW.update
     DB.tick = function() tries = tries + 1; error(string.format("debuff boom at 0x%x", 8192 + tries)) end
     CW.update = function() error(string.format("crate window boom at 0x%x", 8192 + tries)) end
     run(5)
     DB.tick, CW.update = dbTick, cwUpdate
-    expect(tries == 5 and linesWith("debuff boom at") == 1 and linesWith("crate window boom at") == 1,
+    expect(tries == 5 and countLoggedText("debuff boom at") == 1 and countLoggedText("crate window boom at") == 1,
            "the debuff icons' and the crate window's errors, each naming a new address: one line each")
     local MB, BAGM = require("mailbox"), require("bag")
     local mailOn, give = MB.on, BAGM.give
     MB.on = function() return false end
     BAGM.give = function(id) tries = tries + 1; error(string.format("give boom at 0x%x", 8192 + tries)) end
-    slotData.seed = "70031"                                    -- a new seed, played in this world (as newSeed does)
-    push("status", "connected", "Other")
-    run(14)
-    keyBinds[Key.H]()
-    run(14)
+    h.switchSeed("70031", {})                                  -- a new seed, played in this world
     push("item", "0", tostring(itemId["Stone Bundle"]), "3", "2", "0", "Stone Bundle", "Friend")
     run(28)
     MB.on, BAGM.give = mailOn, give
-    expect(linesWith("give boom at") == 1, "a bundle the bag keeps failing on, a new address each time: one line")
+    expect(countLoggedText("give boom at") == 1, "a bundle the bag keeps failing on, a new address each time: one line")
 end)
 
 group("small failures of the core files say so in the log", function()
@@ -45,9 +36,7 @@ group("small failures of the core files say so in the log", function()
     TS2.install({ version = "test", dir = MOD .. "/no-such-folder" })
     TS2.phase()
     expect(logged("tech scan: could not write .*mod_techs%.txt"), "a mod_techs.txt that can't be written is logged")
-    local f = io.open(MOD .. "/save-70032-Other.txt", "w")
-    f:write("given=-1\nfrobnicate=1\nend\n")
-    f:close()
+    writeFile(h.saveFile("70032", "Other"), "given=-1\nfrobnicate=1\nend\n")
     slotData.seed = "70032"
     push("status", "connected", "Other")
     run(14)
@@ -113,12 +102,12 @@ end)
 
 group("one way to give to the bag", function()
     local CR, MB, BAGM, ITEMS = require("crates"), require("mailbox"), require("bag"), require("items")
-    local told, mailOn, give, mailAdd = #announced, MB.on, BAGM.give, MB.add
+    local noticesBefore, mailOn, give, mailAdd = #announced, MB.on, BAGM.give, MB.add
     MB.on, MB.add = function() return true end, function() end
     CR.list = { "sphere" }
     ITEMS.openCrate()
     MB.on, MB.add = mailOn, mailAdd
-    expect(table.concat(announced, "|", told + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
+    expect(table.concat(announced, "|", noticesBefore + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
            "a crate's stack says it went to the mailbox, as a Nomad gift's does")
     MB.on = function() return false end
     BAGM.give = function() error("the bag broke") end

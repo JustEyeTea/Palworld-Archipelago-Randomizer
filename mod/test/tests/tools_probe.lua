@@ -88,11 +88,6 @@ end)
 
 if PERF then
     group("the performance probe (perf_log=1, test_tools=1)", function()
-        local function count(pattern)
-            local n = 0
-            for _, l in ipairs(printed) do if l:find(pattern) then n = n + 1 end end
-            return n
-        end
         expect(logged("%[perf%] on %(perf%-1%)") and logged("%[perf%] probe perf%-1 start cvars r%.DistanceFieldAO=1 .* r%.ShadowQuality=3"),
                "the probe says it is on, and logs the engine settings")
         expect(logged("%[perf%] 30s win=30") and logged("fps=66%.7 ft=15%.0 dt=16%.0/16%.0") and logged("| hk=H1:%d+,H2:%d+")
@@ -118,16 +113,16 @@ if PERF then
 
         -- Ctrl+7: the walls' test states. The pawn waits deep inside a locked area: nobody is sent home while the walls
         -- are held, and the check is back once they are full again.
-        local W3 = dofile(MOD .. "/Scripts/walls.lua")
+        local freshCopy = h.freshWalls()
         local deep
         for x = -500000, 300000, 10000 do
             for y = -400000, 700000, 10000 do
-                if not deep and W3.lockedAround(x, y, {}) then deep = { X = x, Y = y, Z = 0 } end
+                if not deep and freshCopy.lockedAround(x, y, {}) then deep = { X = x, Y = y, Z = 0 } end
             end
         end
         -- (wallsUp also holds the pieces of the worlds left earlier, which the game would have removed: counted by state)
-        local WM = require("walls")
-        local full = WM.count()
+        local liveWalls = require("walls")
+        local full = liveWalls.count()
         local function inState(hidden, collision)
             local n = 0
             for a in pairs(wallsUp) do if (a.hidden == true) == hidden and (a.collision ~= false) == collision then n = n + 1 end end
@@ -146,13 +141,13 @@ if PERF then
         run(21)
         expect(deep and teleported == nil, "nobody is sent home while the walls are held")
         keyBinds["key:SEVEN"]()
-        expect(WM.count() == 0 and inState(false, false) == 0 and logged("ab walls hidden%->nocoll interrupted"),
+        expect(liveWalls.count() == 0 and inState(false, false) == 0 and logged("ab walls hidden%->nocoll interrupted"),
                "none: every piece removed at once (a switch within 13 s says so)")
         run(21)
-        expect(WM.count() == 0 and teleported == nil, "and nothing is raised again while held")
+        expect(liveWalls.count() == 0 and teleported == nil, "and nothing is raised again while held")
         keyBinds["key:SEVEN"]()
         run(60)
-        expect(WM.count() == full and logged("%[perf%] walls full again: " .. full .. " raised"), "full: every piece raised again by the normal path: " .. WM.count())
+        expect(liveWalls.count() == full and logged("%[perf%] walls full again: " .. full .. " raised"), "full: every piece raised again by the normal path: " .. liveWalls.count())
         run(21)
         expect(teleported ~= nil, "and the send-home check is back")
         teleported = nil
@@ -170,13 +165,13 @@ if PERF then
 
         local isUnlocked = hooks["/Game/Pal/Blueprint/UI/UserInterface/MainMenu/Technology/WBP_MainMenu_Technology_Content.WBP_MainMenu_Technology_Content_C:IsUnlocked"]
         local function cardUnlocked() return isUnlocked({ get = function() return cards[1] end }, { set = function() end }) end
-        local before = cardUnlocked()
+        local unlockedBefore = cardUnlocked()
         keyBinds["key:NINE"]()
-        expect(before == false and cardUnlocked() == nil, "Ctrl+9: the check hooks answer nothing (the game's answer stands)")
-        local boughtBefore = count("BOUGHT RepairBench")
+        expect(unlockedBefore == false and cardUnlocked() == nil, "Ctrl+9: the check hooks answer nothing (the game's answer stands)")
+        local boughtBefore = countLogged("BOUGHT RepairBench")
         shared.req.v = FNameOf("RepairBench"); shared.research(nil, shared.req)
         expect(shared.req.v:ToString() == "AP_ShopSlot", "but research requests are still rewritten (nothing unlocks for real)")
-        expect(logged("purchase of RepairBench ignored while the hook bypass") and count("BOUGHT RepairBench") == boughtBefore,
+        expect(logged("purchase of RepairBench ignored while the hook bypass") and countLogged("BOUGHT RepairBench") == boughtBefore,
                "and a confirm during the bypass buys nothing (the dialog showed the game's text)")
         keyBinds["key:NINE"]()
         expect(cardUnlocked() == false, "and back to the mod's answer (the slot still unbought)")
@@ -202,7 +197,7 @@ if PERF then
         expect(#registered == 1 and registered[1]:find("^/Script/") and a == 0 and logged("Blueprint hook skipped %(perf_no_bp_hooks=1%)"),
                "perf_no_bp_hooks=1 skips the Blueprint hooks only")
         RegisterHook, FindAllOf, FindFirstOf = saved.RegisterHook, saved.FindAllOf, saved.FindFirstOf
-        expect(count("update error") == 0, "no update errors with the probe on")
+        expect(countLogged("update error") == 0, "no update errors with the probe on")
     end)
 end
 

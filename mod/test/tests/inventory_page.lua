@@ -2,9 +2,10 @@
 -- Tests menu_world.lua, menu.lua, clicks.lua.
 
 group("the Inventory page's mailbox button", function()
+    local MB = require("mailbox")
     -- The main menu, its Inventory tab and the page are fakes_menus.lua's MainMenu, inventoryTab and inventoryPage.
     game.escOpen = false
-    require("mailbox").add("Wood", 5)                          -- something to count on the button
+    MB.add("Wood", 5)                          -- something to count on the button
     run(1)
     -- Menus closed: one object scan per update, for the main menu only (open-questions: the FPS drop and FindAllOf).
     local escScans, mainScans = lookups.WBP_MenuESC_C or 0, lookups.WBP_InGameMainMenu_C or 0
@@ -99,7 +100,7 @@ group("the Inventory page's mailbox button", function()
            and countLoggedText("Mailbox button added to the inventory page") == 1, "a new page gets its button, quietly; the old one none again")
     -- Palworld Crates: with a crate waiting, the page's Open button shows it, and a click opens it on the next update.
     do
-        local CR, MB = require("crates"), require("mailbox")
+        local CR = require("crates")
         local saved, mailSaved = CR.list, {}
         for _, e in ipairs(MB.queue) do mailSaved[#mailSaved + 1] = { id = e.id, n = e.n } end
         CR.list = { "sphere" }
@@ -140,7 +141,7 @@ group("the Inventory page's mailbox button", function()
     expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and countLoggedText("Mailbox button added to the inventory page") == 1,
            "the Esc menu still gets its button; the Options tab no inventory one")
     shownBefore = #chestWindowsShown
-    hooks[GAME_PATH.escClick]({ get = function() return mailBtn end })
+    h.clickEscButton(mailBtn)
     run(1)
     expect(escMenu.closed and not escMenu.tabOnly and mainMenu.closed, "the Esc button still closes the menu by CloseAction")
     run(2)
@@ -161,7 +162,7 @@ group("the Inventory page's mailbox button", function()
     mainMenu = MainMenu(inventoryTab(lastPage), 8)
     run(1)
     local lastBtn = lastKids[1] and lastKids[1].child
-    playerController.K2_GetPawn = function() return nil end
+    playerController.K2_GetPawn = function() return nil end      -- the world ended: the pawn reads nil
     run(1)
     local closeLines = countLoggedText("main menu closed for the mailbox")
     shownBefore = #chestWindowsShown
@@ -170,7 +171,7 @@ group("the Inventory page's mailbox button", function()
     expect(lastBtn and not mainMenu.closed and countLoggedText("main menu closed for the mailbox") == closeLines and #chestWindowsShown == shownBefore,
            "out of a world, a click at an old button's address does nothing")
     do   -- an error every update that names a new address each time is logged once
-        playerController.K2_GetPawn = function() return pawn end
+        inWorld(true)
         local raised, was = 0, mainMenu
         mainMenu = MainMenu(inventoryTab((inventoryPage())), 8)
         mainMenu.IsValid = function()
@@ -180,14 +181,12 @@ group("the Inventory page's mailbox button", function()
         game.mainMenuOpen = true
         run(5)
         mainMenu = was
-        local lines = 0
-        for _, l in ipairs(printed) do
-            if l:find("menu: main menu error", 1, true) and l:find("boom at", 1, true) then lines = lines + 1 end
-        end
+        local lines = countLogged("menu: main menu error.*boom at")
         expect(raised >= 5 and lines == 1, "one line, not one an update: " .. lines .. " for " .. raised .. " errors")
     end
     game.mainMenuOpen, game.inputSubsystems = false, nil
     game.escOpen = false
-    playerController.K2_GetPawn, playerController.GetAddress = nil, nil
+    inWorld(false)
+    noController()
 
 end)

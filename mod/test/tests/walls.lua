@@ -2,6 +2,7 @@
 -- wall, the wall skins and how an opened wall goes. Tests area_locks.lua and walls.lua.
 
 group("area locks", function()
+    local liveWalls = require("walls")
     local WD = dofile(MOD .. "/Scripts/area_walls.lua")
     shared.WD = WD                   -- the walls data (area_walls.lua), for the walls and map tests after this
     local function expected(open)
@@ -20,60 +21,58 @@ group("area locks", function()
     run(15)
     expect(wallCount() == expected(open), "a piece the game removed is noticed (a share checked each update) and raised again")
     do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their material with the Art lane's pattern
-        local W = require("walls")
         local a = next(wallsUp)
-        W.setSkin("a"); run(1)
+        liveWalls.setSkin("a"); run(1)
         local mid = a.Cube.mat
         expect(logged("wall skin a: on %d+ pieces") and mid and mid ~= wallRed and mid.parent == wallRed
                and mid.textures.MainTexture01 and mid.textures.MainTexture01.path == "ap-wall-pattern-a"
                and mid.textures.MainTexture01.SRGB == false and mid.textures.MainTexture02 == nil
                and mid.vectors.DayColor.G > 0.7
-               and math.abs(mid.vectors.NightColor.G - W.linearOf("24E0CC").G * 0.421875) < 1e-6,
+               and math.abs(mid.vectors.NightColor.G - liveWalls.linearOf("24E0CC").G * 0.421875) < 1e-6,
                "wall skin a: a teal material with pattern a (linear) on the AP walls; the dither noise left alone")
         next(wallsUp):K2_DestroyActor(); run(3)
         local fresh = 0
         for w in pairs(wallsUp) do if w.Cube.mat == mid then fresh = fresh + 1 end end
         expect(fresh == wallCount(), "pieces raised later wear the skin too")
         a = next(wallsUp)                         -- (the piece removed above may have been a)
-        W.cycleSkin(); run(1)                      -- what Ctrl+F3 does (test_tools: bound below)
+        liveWalls.cycleSkin(); run(1)                      -- what Ctrl+F3 does (test_tools: bound below)
         expect(a.Cube.mat ~= mid and a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b", "the next skin is b")
-        W.cycleSkin(); run(1)
+        liveWalls.cycleSkin(); run(1)
         expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-a3d", "then a3d")
-        W.cycleSkin(); run(1)
+        liveWalls.cycleSkin(); run(1)
         expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d", "then b3d")
-        W.cycleSkin(); run(1)
+        liveWalls.cycleSkin(); run(1)
         local m = a.Cube.mat
         expect(m.textures.MainTexture01.path == "ap-wall-pattern-a3d" and m.scalars.TilingU_01 == 10 and m.scalars.TilingV_01 == 6
                and logged("wall skin a3d%-dense: material made %(512x512, linear, tiling 10x6%)"), "then a3d tiled 10x6")
-        W.cycleSkin(); run(1)
+        liveWalls.cycleSkin(); run(1)
         expect(a.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-b3d" and a.Cube.mat.scalars.TilingU_01 == 10, "then b3d tiled 10x6")
-        W.cycleSkin(); run(1)
+        liveWalls.cycleSkin(); run(1)
         expect(logged("wall skin area: colours ") and a.Cube.mat ~= wallRed, "then the area colours")
-        W.cycleSkin(); run(1)
+        liveWalls.cycleSkin(); run(1)
         expect(a.Cube.mat == wallRed and logged("wall skin red: on"), "and back to the game's red")
-        W.setSkin("c")
+        liveWalls.setSkin("c")
         expect(logged("wall skin c: unknown"), "an unknown skin is refused")
         -- colour skins: our own material from the PalworldArchipelagoArt pak, a full-colour tile on it
         local hadPak = game.logicMod
         game.logicMod = true
-        W.setSkin("colour-paws"); run(1)
+        liveWalls.setSkin("colour-paws"); run(1)
         local cm = a.Cube.mat
         expect(cm ~= wallRed and cm.parent and tostring(cm.parent.path):find("PalworldArchipelagoArt/M_APWall", 1, true)
                and cm.textures.Pattern and cm.textures.Pattern.path == "ap-wall-colour-paws" and cm.textures.Pattern.SRGB == true
                and logged("wall skin colour%-paws: material made on M_APWall"),
                "a colour skin: M_APWall from the pak with the colour tile (left sRGB)")
-        W.setSkin("colour-rainbow-flow"); run(1)
+        liveWalls.setSkin("colour-rainbow-flow"); run(1)
         local fm = a.Cube.mat
         expect(fm.textures.Pattern.path == "ap-wall-colour-rainbow" and fm.scalars.ScrollU == 0.05 and fm.scalars.ScrollV == 0,
                "the -flow skin: the same tile, drifting sideways")
         -- paws: the Art lane's cream-paw layer (cooked in the pak) over each piece's area colour at 0.34, on M_APWall
-        W.setSkin("paws"); run(1)
+        liveWalls.setSkin("paws"); run(1)
         local pm = a.Cube.mat
-        local function close(c, d) return c and d and math.abs(c.R - d.R) < 1e-3 and math.abs(c.G - d.G) < 1e-3 and math.abs(c.B - d.B) < 1e-3 end
-        local backs, colours = {}, { W.linearOf("9AA3B5"), W.linearOf("24E0CC") }
-        for _, hex in pairs(W.AREA_COLOURS) do colours[#colours + 1] = W.linearOf(hex) end
+        local backs, colours = {}, { liveWalls.linearOf("9AA3B5"), liveWalls.linearOf("24E0CC") }
+        for _, hex in pairs(liveWalls.AREA_COLOURS) do colours[#colours + 1] = liveWalls.linearOf(hex) end
         local known = false
-        for _, c in ipairs(colours) do if pm.vectors and pm.vectors.Back and close(pm.vectors.Back, c) then known = true end end
+        for _, c in ipairs(colours) do if pm.vectors and pm.vectors.Back and h.sameColour(pm.vectors.Back, c) then known = true end end
         for w in pairs(wallsUp) do
             local b = w.Cube.mat.vectors and w.Cube.mat.vectors.Back
             if b then backs[string.format("%.3f,%.3f,%.3f", b.R, b.G, b.B)] = true end
@@ -84,24 +83,23 @@ group("area locks", function()
                and known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
                and logged("wall skin paws: the paw layer from the pak, with mips") and logged("wall skin paws: colours paws:"),
                "the paws skin: the cooked paw layer on M_APWall over each piece's area colour (" .. nBacks .. " colours)")
-        local notes, before = {}, #badLoads
-        local fresh = W.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
-        expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry" and #badLoads == before,
+        local notes, badLoadsBefore = {}, #badLoads
+        local fresh = liveWalls.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
+        expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry" and #badLoads == badLoadsBefore,
                "a pak asset LoadAsset can't find (dev.39 playtest) comes through the asset registry, as BPModLoader's ModActor does")
-        W.setSkin("colour-paws"); run(1)
+        liveWalls.setSkin("colour-paws"); run(1)
         cm.parent.IsValid = function() return false end            -- now without the pak
         game.logicMod = false
-        expect(W.cycleSkin() == "colour-routes", "Ctrl+F3 goes on to the next colour skin"); run(1)
+        expect(liveWalls.cycleSkin() == "colour-routes", "Ctrl+F3 goes on to the next colour skin"); run(1)
         expect(logged("wall skin colour%-routes: needs the PalworldArchipelagoArt pak") and a.Cube.mat == cm,
                "without the pak it is refused and the wall keeps its skin")
-        expect(W.cycleSkin() == "colour-grid", "the refused one is skipped"); run(1)
-        expect(W.cycleSkin() == "a", "and every refused one after it")
+        expect(liveWalls.cycleSkin() == "colour-grid", "the refused one is skipped"); run(1)
+        expect(liveWalls.cycleSkin() == "a", "and every refused one after it")
         game.logicMod = hadPak
-        W.setSkin("red"); run(1)
+        liveWalls.setSkin("red"); run(1)
     end
-    local WALLS = dofile(MOD .. "/Scripts/walls.lua")
-    expect(WALLS.areaAt(-304485, 240071) == "Bamboo Groves" and WALLS.areaAt(-342035, 236885) == WD.start,
-           "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: " .. tostring(WALLS.areaAt(-304485, 240071)))
+    expect(liveWalls.areaAt(-304485, 240071) == "Bamboo Groves" and liveWalls.areaAt(-342035, 236885) == WD.start,
+           "area lookup: Fort Ruins is Bamboo Groves, FTPoint21 the start: " .. tostring(liveWalls.areaAt(-304485, 240071)))
     pawnAt = { X = -312819, Y = 84516, Z = -800 }                  -- deep in Bamboo Groves, still locked
     do
         local stageWas = ps.IsInStage
@@ -111,7 +109,7 @@ group("area locks", function()
         expect(teleported == nil, "a player in a stage is not sent home by where the stage sits on the map")
     end
     run(21)
-    expect(teleported and teleported.X == WALLS.home[1], "a player inside a locked area is sent home")
+    expect(teleported and teleported.X == liveWalls.home[1], "a player inside a locked area is sent home")
     local sent = false
     for _, t in ipairs(announced) do if t:find("Bamboo Groves is locked") then sent = true end end
     expect(sent, "and told why")
@@ -131,17 +129,17 @@ group("area locks", function()
             local yaw = math.rad(w[4])
             for _, side in ipairs({ 1, -1 }) do
                 local x, y = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
-                if WALLS.areaAt(x, y) == WD.start then hintAt, hintArea = { X = x, Y = y, Z = 0 }, other end
+                if liveWalls.areaAt(x, y) == WD.start then hintAt, hintArea = { X = x, Y = y, Z = 0 }, other end
             end
             if hintAt then break end
         end
     end
     shared.hintAt, shared.hintArea = hintAt, hintArea   -- a spot at a locked wall beside the start, and its area
-    local before = #announced
+    local noticesBefore = #announced
     pawnAt = hintAt
     run(14)
     local offered
-    for i = before + 1, #announced do
+    for i = noticesBefore + 1, #announced do
         if announced[i]:find("needs Region Pass: " .. hintArea, 1, true)
            and announced[i]:find("Press H for a hint: you have 200 points, a hint costs 121.", 1, true) then offered = true end
     end
@@ -182,7 +180,7 @@ group("area locks", function()
                 local yaw = math.rad(w[4])
                 for _, side in ipairs({ 1, -1 }) do
                     local x, y = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
-                    if WALLS.areaAt(x, y) == WD.start then at, area = { X = x, Y = y, Z = 0 }, other end
+                    if liveWalls.areaAt(x, y) == WD.start then at, area = { X = x, Y = y, Z = 0 }, other end
                 end
                 if at then break end
             end
@@ -208,24 +206,23 @@ group("area locks", function()
     expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
     do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
         -- module is driven directly with one extra pass, so no real pass is given (later tests count on which areas are open).
-        local W = require("walls")
         local hadPak = game.logicMod
         game.logicMod = true
-        W.setSkin("paws"); run(2)
+        liveWalls.setSkin("paws"); run(2)
         local target
         for _, w in ipairs(WD.walls) do
             local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
             local other = (a1 == WD.start and a2) or (a2 == WD.start and a1)
             if other and other ~= "Open sea" and not open[other] then target = other; break end
         end
-        local before = {}
-        for wa in pairs(wallsUp) do before[wa] = true end
+        local standingBefore = {}
+        for wa in pairs(wallsUp) do standingBefore[wa] = true end
         local passes = { [target] = true }
         for k in pairs(open) do passes[k] = true end
         local standIn = { IsValid = function() return true end, K2_GetActorLocation = function() return pawnAt end }
-        for _ = 1, 40 do W.update(true, passes, standIn) end
+        for _ = 1, 40 do liveWalls.update(true, passes, standIn) end
         local fading, shrunk = nil, 0
-        for wa in pairs(before) do
+        for wa in pairs(standingBefore) do
             local m = wa.Cube.mat
             if m and m.scalars and m.scalars.DissolveStart and not fading then fading = wa end
             if wa.shrunkTo then shrunk = shrunk + 1 end
@@ -247,18 +244,17 @@ group("area locks", function()
                .. tostring(seen.open) .. " / " .. tostring(seen.gone))
         expect(fading and fading.Cube.mat.vectors and fading.Cube.mat.vectors.PlayerPos,
                "the glow follows the player: the dissolving material has the player's position too")
-        if fading then fading.Cube.mat.parent.IsValid = function() return false end end   -- the pak "gone" again, as before
+        if fading then fading.Cube.mat.parent.IsValid = function() return false end end   -- the pak "gone" again, as standingBefore
         game.logicMod = hadPak
-        W.setSkin("red"); run(40)
+        liveWalls.setSkin("red"); run(40)
         expect(wallCount() == expected(open), "(the core's own passes put that area's walls back up: " .. wallCount() .. ")")
     end
     do  -- dev.42 crash (a dead object called at a wall, after Return to title and a new world): after a world change no
-        -- material of the world before is called again, by the glow or anything else
-        local W = require("walls")
+        -- material of the world standingBefore is called again, by the glow or anything else
         local hadPak = game.logicMod
         game.logicMod = true
-        W.radius = 0
-        W.setSkin("paws"); run(3)
+        liveWalls.radius = 0
+        liveWalls.setSkin("paws"); run(3)
         pawnAt = { X = pawnAt.X + 300, Y = pawnAt.Y, Z = pawnAt.Z }; run(2)          -- the glow tells the materials
         local old, deadCalls = {}, 0
         for wa in pairs(wallsUp) do local m = wa.Cube.mat; if m and m.parent then old[m] = true end end
@@ -270,7 +266,7 @@ group("area locks", function()
             m.SetScalarParameterValue = m.SetVectorParameterValue
         end
         for wa in pairs(wallsUp) do wa:K2_DestroyActor() end                       -- the world went
-        W.reset()                                                                  -- the core, on the new pawn
+        liveWalls.reset()                                                                  -- the core, on the new pawn
         run(40)
         pawnAt = { X = pawnAt.X + 300, Y = pawnAt.Y, Z = pawnAt.Z }; run(5)
         local fresh = next(wallsUp)
@@ -278,13 +274,12 @@ group("area locks", function()
                "after a world change the old world's materials are never called again (" .. nOld .. " old, " .. deadCalls
                .. " calls); the new pieces get new ones, which the glow tells")
         pawnAt = { X = pawnAt.X - 600, Y = pawnAt.Y, Z = pawnAt.Z }
-        for m in pairs(old) do m.parent.IsValid = function() return false end end -- the pak "gone" again, as before
+        for m in pairs(old) do m.parent.IsValid = function() return false end end -- the pak "gone" again, as standingBefore
         game.logicMod = hadPak
-        W.setSkin("red"); run(40)
+        liveWalls.setSkin("red"); run(40)
     end
-    do  -- dev.43: every piece is raised at load (as before); only those within 75 m are shown, past 100 m hidden
-        local W = require("walls")
-        W.radius = 7500
+    do  -- dev.43: every piece is raised at load (as standingBefore); only those within 75 m are shown, past 100 m hidden
+        liveWalls.radius = 7500
         local spot
         for k, w in ipairs(WD.walls) do
             local a1, a2 = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
@@ -299,7 +294,7 @@ group("area locks", function()
             for wa in pairs(wallsUp) do
                 local i
                 for k, w in ipairs(WD.walls) do if w[1] == wa.t.Translation.X and w[2] == wa.t.Translation.Y then i = k; break end end
-                local d = i and W.segDist(i, pawnAt.X, pawnAt.Y) or 1e9
+                local d = i and liveWalls.segDist(i, pawnAt.X, pawnAt.Y) or 1e9
                 if wa.hidden then hiddenN = hiddenN + 1; if d <= 7500 then wrong = wrong + 1 end
                 else shown = shown + 1; if d > 10000 then wrong = wrong + 1 end end
             end
@@ -315,7 +310,7 @@ group("area locks", function()
         expect(wallCount() == expected(open) and wrong2 == 0 and spawned == spawnedBefore,
                "walking 600 m away hides those and shows any near there, still none spawned or destroyed: " .. shown2 .. " shown")
         pawnAt = home
-        W.radius = 0
+        liveWalls.radius = 0
         run(40)
         local shown3, hidden3 = tally()
         expect(hidden3 == 0 and shown3 == expected(open), "wall_radius 0: every piece shown: " .. shown3)

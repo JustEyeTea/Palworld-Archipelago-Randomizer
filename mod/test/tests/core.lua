@@ -97,9 +97,9 @@ group("other mods' techs", function()
     expect(mtText:find("changed\tAutoMealPouch_Tier3\tlevel 23 -> 35", 1, true) and mtText:find("removed\tProduct_Pickaxe_Grade_02", 1, true),
            "and the changed and removed ones")
     expect(checks[D.shop.Product_Pickaxe_Grade_02.loc], "a removed tech's shop slot is sent (it can never be bought)")
-    local told = table.concat(announced, " | ")
-    expect(told:find("from other mods", 1, true) and told:find("much higher levels", 1, true) and told:find("checks were sent", 1, true),
-           "and the player is told: " .. told)
+    local notices = table.concat(announced, " | ")
+    expect(notices:find("from other mods", 1, true) and notices:find("much higher levels", 1, true) and notices:find("checks were sent", 1, true),
+           "and the player is told: " .. notices)
     local TS = dofile(MOD .. "/Scripts/techscan.lua")
     local saved = liveTechs
     liveTechs = { "Workbench", "PalBox", "ModdedTech_Rocket" }

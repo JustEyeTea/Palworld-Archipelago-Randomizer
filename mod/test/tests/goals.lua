@@ -4,69 +4,67 @@
 group("the other goals", function()
     local relic = tostring(itemId["Palpagos Relic"])
     h.switchSeed("70001", { ["options.goal"] = "1", relics_needed = "2", relics = "3" })
-    local before = goals
+    local goalsBefore = goals
     push("item", "0", relic, "1", "1", "1", "Palpagos Relic", "Friend")
     run(14)
-    expect(goals == before and table.concat(announced, "|"):find("Palpagos Relic 1/2 found!", 1, true), "Relic Hunt: one relic of two")
+    expect(goals == goalsBefore and table.concat(announced, "|"):find("Palpagos Relic 1/2 found!", 1, true), "Relic Hunt: one relic of two")
     push("item", "1", relic, "2", "1", "1", "Palpagos Relic", "Friend")
     run(14)
-    expect(goals == before + 1 and logged("Goal complete: 2 Palpagos Relics found!"), "Relic Hunt: the second relic wins")
+    expect(goals == goalsBefore + 1 and logged("Goal complete: 2 Palpagos Relics found!"), "Relic Hunt: the second relic wins")
     h.switchSeed("70002", { ["options.goal"] = "2", ["options.paldeck_count"] = "3" })
-    before = goals
+    goalsBefore = goals
     run(14)
-    expect(goals == before, "Paldeck: two Pals registered of three")
+    expect(goals == goalsBefore, "Paldeck: two Pals registered of three")
     record.PaldeckUnlockFlag.Items.list[2] = { Key = FNameOf("SheepBall"), Value = true }   -- the third: SheepBall hatched
     run(14)
-    expect(goals == before + 1 and logged("Goal complete: 3 Pals registered!"), "Paldeck: the third Pal wins")
+    expect(goals == goalsBefore + 1 and logged("Goal complete: 3 Pals registered!"), "Paldeck: the third Pal wins")
     h.switchSeed("70003", { ["options.goal"] = "3" })
-    before = goals
+    goalsBefore = goals
     run(14)
-    expect(goals == before, "World Tree: not beaten yet")
+    expect(goals == goalsBefore, "World Tree: not beaten yet")
     local towerList = record.TowerBossDefeatFlag.Items.list
     towerList[#towerList + 1] = { Key = FNameOf("EPalBossType::WorldTreeBoss"), Value = true }
     run(14)
-    expect(goals == before + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
+    expect(goals == goalsBefore + 1 and logged("Goal complete: the World Tree's boss beaten!"), "World Tree: its boss wins")
     -- 2026-11-05 run: a two-tower seed, both towers beaten, keys as 1.0.5 writes them; the goal never went out.
     h.switchSeed("70009", { ["options.goal"] = "0", ["options.tower_count"] = "2" })
-    before = goals
+    goalsBefore = goals
     run(14)
-    expect(goals == before, "two towers: one beaten is not the goal")
+    expect(goals == goalsBefore, "two towers: one beaten is not the goal")
     towerList[#towerList + 1] = { Key = FNameOf("BOSS_BATTLE_NAME_ForestBoss"), Value = true }
     run(14)
-    expect(goals == before + 1 and logged("Goal complete: 2 tower%(s%) beaten!") and checks[D.towers.ForestBoss],
+    expect(goals == goalsBefore + 1 and logged("Goal complete: 2 tower%(s%) beaten!") and checks[D.towers.ForestBoss],
            "two towers: the second (BOSS_BATTLE_NAME_ForestBoss) is counted, checked, and wins")
     -- 2026-11-08 run: the tower goal went out mid-arena and its line was lost in the release's flood. Now it waits for the
     -- player to be out of the stage (the boss's arena), then goes with the goal banner.
     game.inStage = true
     h.switchSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
-    before = goals
+    goalsBefore = goals
     run(14)
-    expect(goals == before and logged("goal reached %(1 tower%(s%) beaten%): sent once the player is out of the arena"),
+    expect(goals == goalsBefore and logged("goal reached %(1 tower%(s%) beaten%): sent once the player is out of the arena"),
            "a goal reached inside the boss's arena waits")
     run(40)
-    expect(goals == before, "and keeps waiting while the player is in the arena")
+    expect(goals == goalsBefore, "and keeps waiting while the player is in the arena")
     game.inStage = false
     run(14)
-    expect(goals == before + 1 and logged("goal sent: 1 tower%(s%) beaten") and logged("goal banner:"),
+    expect(goals == goalsBefore + 1 and logged("goal sent: 1 tower%(s%) beaten") and logged("goal banner:"),
            "out of the arena, the goal goes, with the goal banner (or a log line saying why not)")
     -- 2026-11-08: loading a won world showed the goal banner again. Once per seed (goal=shown in the save).
     do
-        local function n(pat) local c = 0; for _, l in ipairs(printed) do if l:find(pat) then c = c + 1 end end; return c end
         -- (Another seed and back: the won seed's state comes from its save again, as in a new session.)
         h.switchSeed("70011", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
         run(14)
-        local banners, sends = n("goal banner"), n("goal sent: ")
+        local banners, sends = countLogged("goal banner"), countLogged("goal sent: ")
         h.switchSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
         run(14)
-        expect(n("goal sent: ") > sends and n("goal banner") == banners,
+        expect(countLogged("goal sent: ") > sends and countLogged("goal banner") == banners,
                "a won seed loaded again: the goal is sent again (the server takes it once), the banner not shown again")
     end
 end)
 
 group("a goal sent on a dead connection is sent again after reconnecting", function()
     local sent = goals
-    push("status", "disconnected")
-    push("status", "connected", "Other")
+    h.reconnect("Other")
     run(14)
     expect(goals > sent, "after reconnecting, the goal is sent again: " .. (goals - sent) .. " sent")
 end)
@@ -96,13 +94,13 @@ group("mailbox off: bundles straight to the bag", function()
     local MB = require("mailbox")
     local mailOn = MB.on
     MB.on = function() return false end
-    playerController.K2_GetPawn = function() return pawn end
+    inWorld(true)
     h.switchSeed("70004", {})
     game.bagFull = true
     local woodBefore = bagHas.Wood or 0
     push("item", "0", tostring(itemId["Wood Bundle"]), "3", "2", "0", "Wood Bundle", "Friend")
     run(14)
-    local save4 = MOD .. "/save-70004-Other.txt"
+    local save4 = h.saveFile("70004", "Other")
     expect((bagHas.Wood or 0) == woodBefore and io.open(save4):read("*a"):find("given=-1", 1, true)
            and table.concat(announced, "|"):find("Wood Bundle waits until there is room", 1, true), "a full bag: the bundle waits, not counted as given")
     game.bagFull = false
@@ -121,5 +119,6 @@ group("mailbox off: bundles straight to the bag", function()
         run(14)
         expect(bagHas.Wood == woodBefore + 50 and logged("using the copy written last"), "a save cut off: the .tmp copy is used, nothing given twice")
     end)
-    MB.on, playerController.K2_GetPawn = mailOn, nil
+    MB.on = mailOn
+    inWorld(false)
 end)

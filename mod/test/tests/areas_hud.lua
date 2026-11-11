@@ -5,24 +5,23 @@ group("Lock Size: areas", function()
     -- Slot data options.lock_size 1: every named area of the game on its own, opened by an Area Pass.
     -- walls.lua still calls this cut "regions" (the older word).
     local RD = dofile(MOD .. "/Scripts/area_walls_regions.lua")
-    local W = require("walls")
+    local liveWalls = require("walls")
     slotData["options.lock_size"] = "1"
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
-    for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+    h.reconnect("Tester")
+    h.replayItems()
     run(80)
-    expect(logged("area locks: 75 areas %(" .. #RD.walls .. " border pieces%)") and W.layout == "regions"
-           and W.passName("Golden Hills") == "Area Pass: Golden Hills", "a 75-areas seed: the areas' walls and passes")
+    expect(logged("area locks: 75 areas %(" .. #RD.walls .. " border pieces%)") and liveWalls.layout == "regions"
+           and liveWalls.passName("Golden Hills") == "Area Pass: Golden Hills", "a 75-areas seed: the areas' walls and passes")
     local up = wallCount()
     expect(up > 1000 and up <= #RD.walls, "the 75 areas' walls go up (the 15 regions' came down): " .. up)
     push("item", "9000", tostring(itemId["Area Pass: Golden Hills"]), "1", "1", "1", "Area Pass: Golden Hills", "Tester")
     run(60)
     expect(wallCount() < up, "an Area Pass takes its area's walls down: " .. up .. " -> " .. wallCount())
-    expect(W.parentOf("Golden Hills") == "Bamboo Groves" and W.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
+    expect(liveWalls.parentOf("Golden Hills") == "Bamboo Groves" and liveWalls.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
            "an area wears its region's colour, ticket and stamp (area_parents_regions.lua)")
     local perHex = {}
     for i in ipairs(RD.walls) do
-        local name = W.pieceSkin(i, {}, "paws")
+        local name = liveWalls.pieceSkin(i, {}, "paws")
         local hex, own = name:match("^paws:(%x+):(%d+)$")
         if hex then perHex[hex] = perHex[hex] or {}; perHex[hex][own] = true end
     end
@@ -31,37 +30,33 @@ group("Lock Size: areas", function()
     expect(sisters >= 5, "75 Areas, paws: sister Areas wear their Region's colour, each its own variant (paws:<colour>:<area>): "
            .. sisters .. " regions with several")
     slotData["options.lock_size"], slotData["options.area_size"] = nil, "1"   -- a seed made before the rename
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
+    h.reconnect("Tester")
     run(80)
-    expect(W.layout == "regions", "a seed from before the rename (options.area_size 1) still gets the 75 areas")
+    expect(liveWalls.layout == "regions", "a seed from before the rename (options.area_size 1) still gets the 75 areas")
     slotData["options.area_size"] = nil                          -- a 15-regions seed again (and seeds made before the option)
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
+    h.reconnect("Tester")
     run(80)
-    expect(W.layout == "areas" and logged("area locks: 15 regions"), "back to a 15-regions seed: the regions' walls")
+    expect(liveWalls.layout == "areas" and logged("area locks: 15 regions"), "back to a 15-regions seed: the regions' walls")
 end)
 
 group("areas beyond the goal", function()
     -- Slot data beyond_goal_areas and options.beyond_goal: sealed for good, or open from the start.
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = shared.hintArea, "0"
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
+    h.reconnect("Tester")
     run(80)
     expect(logged("areas beyond the goal: 1, sealed for good"), "a locked area beyond the goal is logged")
     local up = wallCount()
-    local before = #announced
+    local noticesBefore = #announced
     pawnAt = shared.hintAt
     run(420)
-    local said, offered = false, false
-    for i = before + 1, #announced do
-        if announced[i]:find(shared.hintArea .. " is beyond this seed's goal: its walls stay up.", 1, true) then said = true end
+    local toldBeyond, offered = false, false
+    for i = noticesBefore + 1, #announced do
+        if announced[i]:find(shared.hintArea .. " is beyond this seed's goal: its walls stay up.", 1, true) then toldBeyond = true end
         if announced[i]:find("needs Region Pass: " .. shared.hintArea, 1, true) then offered = true end
     end
-    expect(said and not offered, "its wall says it is beyond the goal, and offers no hint for a pass that isn't there")
+    expect(toldBeyond and not offered, "its wall says it is beyond the goal, and offers no hint for a pass that isn't there")
     slotData["options.beyond_goal"] = "2"
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
+    h.reconnect("Tester")
     run(80)
     expect(logged("areas beyond the goal: 1, open from the start") and wallCount() < up,
            "open: its walls come down without a pass: " .. up .. " -> " .. wallCount())
@@ -71,7 +66,7 @@ end)
 group("area-coloured walls and the hint pop-up", function()
     local WD = shared.WD
     -- Area-coloured walls, sealed walls beyond the goal, the hint pop-up.
-    local W = require("walls")
+    local liveWalls = require("walls")
     local openedBeyond = shared.hintArea                -- the open-beyond test above opened it
     local layout, canvas, hudKids = fakeHud("CanvasPanel_179")
     local savedFAO = FindAllOf
@@ -88,32 +83,31 @@ group("area-coloured walls and the hint pop-up", function()
             end
         end
     end
-    local function close(c, d) return c and d and math.abs(c.R - d.R) < 1e-3 and math.abs(c.G - d.G) < 1e-3 and math.abs(c.B - d.B) < 1e-3 end
     local function popupAfter(n)
         for _ = 1, 450 do
             if #hudKids > n then return hudKids[n + 1] end
             run(1)
         end
     end
-    W.setSkin(nil); run(3)
+    liveWalls.setSkin(nil); run(3)
     -- An area beside the start still locked (the open-beyond test above opened the hint test's area), and a spot on
     -- the start's side of one of its walls.
     local area, at, piece
     for _, w in ipairs(WD.walls) do
         local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
         local other = (x == WD.start and y) or (y == WD.start and x)
-        if other and W.AREA_COLOURS[other] and w[3] > 5000 and actorOf(w) then
+        if other and liveWalls.AREA_COLOURS[other] and w[3] > 5000 and actorOf(w) then
             local yaw = math.rad(w[4])
             for _, side in ipairs({ 1, -1 }) do
                 local px, py = w[1] - side * math.sin(yaw) * 1500, w[2] + side * math.cos(yaw) * 1500
-                if W.areaAt(px, py) == WD.start then area, at, piece = other, { X = px, Y = py, Z = 0 }, actorOf(w) end
+                if liveWalls.areaAt(px, py) == WD.start then area, at, piece = other, { X = px, Y = py, Z = 0 }, actorOf(w) end
             end
             if area then break end
         end
     end
     local popupArea, popupAt = area, at   -- (another wall: the one above was opened)
-    local want = popupArea and W.linearOf(W.AREA_COLOURS[popupArea])
-    expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes" and close(piece.Cube.mat.vectors.Color, want)
+    local want = popupArea and liveWalls.linearOf(liveWalls.AREA_COLOURS[popupArea])
+    expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes" and h.sameColour(piece.Cube.mat.vectors.Color, want)
            and logged("wall skin area: colours "), "by default a wall wears the paw holes in the colour of the area it keeps you out of")
     -- The hint pop-up at that wall: centred, a little transparent, gone after 6 s.
     pawnAt = popupAt
@@ -131,37 +125,35 @@ group("area-coloured walls and the hint pop-up", function()
     expect(box and box.removed, "and goes away after 6 s")
     -- Beyond the goal: the sealed walls (slate grey; the sealed pattern when its file is found) and the pop-up says so.
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = popupArea, "0"
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
+    h.reconnect("Tester")
     run(80)
     local m = piece.Cube.mat
     expect(m and (m.textures.MainTexture01.path == "ap-wall-pattern-sealed" or m.textures.MainTexture01.path == "ap-wall-pattern-a")
-           and close(m.vectors.Color, require("walls").linearOf("9AA3B5")),
+           and h.sameColour(m.vectors.Color, require("walls").linearOf("9AA3B5")),
            "a wall to an area beyond the goal wears the sealed grey, #9AA3B5")
     local sealedBox = popupAfter(#hudKids)
     expect(sealedBox and sealedBox.child.children[2].text == popupArea .. " is beyond the goal"
            and sealedBox.child.children[3].text == "Its walls stay up for good." and not sealedBox.child.children[4],
            "its pop-up says it is beyond the goal, with no points bar")
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
+    h.reconnect("Tester")
     run(80)
-    expect(close(piece.Cube.mat.vectors.Color, want), "and back to its area's colour when it is not")
+    expect(h.sameColour(piece.Cube.mat.vectors.Color, want), "and back to its area's colour when it is not")
     -- A pass that opens one side of a piece still up turns it to the other side's colour.
     local a1, a2, between
     for _, w in ipairs(WD.walls) do
         local x, y = WD.areas[w[5] + 1], WD.areas[w[6] + 1]
-        if W.AREA_COLOURS[x] and W.AREA_COLOURS[y] and not shared.open[x] and not shared.open[y] and x ~= openedBeyond
+        if liveWalls.AREA_COLOURS[x] and liveWalls.AREA_COLOURS[y] and not shared.open[x] and not shared.open[y] and x ~= openedBeyond
            and y ~= openedBeyond and actorOf(w) then
             a1, a2, between = x, y, actorOf(w)
             break
         end
     end
-    local colourOf = function(area) return W.linearOf(W.AREA_COLOURS[area]) end
-    local before = between and between.Cube.mat.vectors.Color
+    local colourOf = function(area) return liveWalls.linearOf(liveWalls.AREA_COLOURS[area]) end
+    local colourBefore = between and between.Cube.mat.vectors.Color
     push("item", "9300", tostring(itemId["Region Pass: " .. tostring(a1)]), "1", "1", "1", "Region Pass: " .. tostring(a1), "Tester")
     run(80)
-    expect(between and (close(before, colourOf(a1)) or close(before, colourOf(a2))) and close(between.Cube.mat.vectors.Color, colourOf(a2))
+    expect(between and (h.sameColour(colourBefore, colourOf(a1)) or h.sameColour(colourBefore, colourOf(a2))) and h.sameColour(between.Cube.mat.vectors.Color, colourOf(a2))
            and not between.gone, "a piece between " .. tostring(a1) .. " and " .. tostring(a2) .. " turns to "
            .. tostring(a2) .. "'s colour when " .. tostring(a1) .. " opens")
     FindAllOf = savedFAO

@@ -2,13 +2,14 @@
 -- Tests traps.lua and death_link.lua.
 
 group("traps", function()
+    local MB = require("mailbox")
     local trapAt = 9                                               -- items 0-8 are in; traps follow
     local function trap(name, sender)
         push("item", tostring(trapAt), tostring(itemId[name]), "1", sender and "2" or "1", "4", name, sender or "Tester")
         trapAt = trapAt + 1
         return trapAt - 1
     end
-    expect(not require("mailbox").busy(), "the mailbox is closed")
+    expect(not MB.busy(), "the mailbox is closed")
     local said0 = #announced
     trap("Slow Trap", "Friend")
     local t = h.updatesUntil("trap #9 Slow Trap from Friend: player multiplier 1%.0 %-> 0%.5", 20)
@@ -41,9 +42,9 @@ group("traps", function()
     h.updatesUntil("trap #13 Hunger Trap", 100)
     expect(stomach.cur == 25 and h.told("your stomach growls, but you were already starving"), "and leaves a quarter alone")
     -- Teleport waits in a dungeon; a later trap goes meanwhile.
-    local WALLS = require("walls")
+    local liveWalls = require("walls")
     pawnAt = { X = -340000, Y = 236000, Z = -1500 }
-    expect(WALLS.areaAt(pawnAt.X, pawnAt.Y) == shared.WD.start, "(the player stands in the starting area, away from its spot)")
+    expect(liveWalls.areaAt(pawnAt.X, pawnAt.Y) == shared.WD.start, "(the player stands in the starting area, away from its spot)")
     teleported = nil
     game.inStage = true
     trap("Teleport Trap")
@@ -53,7 +54,7 @@ group("traps", function()
     expect(logged("trap #15 Fool Trap from Friend: fake notice"), "and a trap after it goes meanwhile")
     game.inStage = false
     expect(h.updatesUntil("trap #14 Teleport Trap: from %-340000, 236000, %-1500 %(region unreadable", 100) and teleported
-           and teleported.X == WALLS.home[1] and teleported.Y == WALLS.home[2], "out of the dungeon, it sends the player home")
+           and teleported.X == liveWalls.home[1] and teleported.Y == liveWalls.home[2], "out of the dungeon, it sends the player home")
     expect(h.told("Teleport Trap: whisked back to " .. shared.WD.start .. "."), "your own trap names no sender")
     -- Waiting while fainted. (Death Link sends this faint: amnesty is 0 here.)
     local bounced = #bounces
@@ -64,18 +65,20 @@ group("traps", function()
     game.playerDead = false
     expect(h.updatesUntil("trap #16 Fool Trap", 20) and #bounces == bounced + 1, "and it comes after reviving")
     -- Waiting while the mailbox is open.
-    playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 999 end
+    inWorld(true)
+    controllerAgain()
     run(1)                                                         -- (the mailbox notes the controller first)
-    require("mailbox").open(pawn)
+    MB.open(pawn)
     run(4)
-    expect(require("mailbox").busy(), "(the mailbox's chest window is open)")
+    expect(MB.busy(), "(the mailbox's chest window is open)")
     trap("Fool Trap", "Friend")
     run(110)
     expect(not logged("trap #17 "), "no trap while the mailbox is open")
     expect(countLogged("trap: 1 trap%(s%) held back for 30 s while the mailbox is open") == 1, "held back 30 s: logged once")
-    hudWindows["chest" .. #chestWindowsShown].gone = true
+    h.closeChestWindow()
     expect(h.updatesUntil("trap #17 Fool Trap", 20), "and it comes once the mailbox closes")
-    playerController.K2_GetPawn, playerController.GetAddress = nil, nil
+    inWorld(false)
+    noController()
     -- A failure: the trap fizzles, says so, and is not retried.
     individual.GetFullStomach = function() error("Tried calling a member function but the UObject instance is nullptr") end
     trap("Hunger Trap", "Friend")
@@ -104,7 +107,7 @@ group("traps", function()
     -- The player character changes (fainted, world reloaded) during a Slow Trap: nothing to set back on the new one.
     trap("Slow Trap", "Friend")
     h.updatesUntil("trap #21 Slow Trap", 80)
-    pawnAddress = 12288
+    newPawn()
     expect(h.updatesUntil("Slow Trap ended; the player character changed, nothing to restore", 220), "a new character is left alone")
     movement.mult = {}
     -- Queued when the game quits: it is in the save file, and fires once after loading. (A Teleport Trap waiting in a
@@ -123,9 +126,8 @@ group("traps", function()
     expect(countLogged("trap #23 Teleport Trap from") == 1 and countLogged("trap #22 Fool Trap from") == 1, "each trap fired once")
     -- A reconnect sends every item again: no trap fires twice.
     local fired = countLogged("^%[PalworldAP%] trap #")
-    push("status", "disconnected")
-    push("status", "connected", "Tester")
-    for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+    h.reconnect("Tester")
+    h.replayItems()
     run(200)
     expect(countLogged("^%[PalworldAP%] trap #") == fired, "after a reconnect no trap fires again")
     -- A mass release: at most 10 wait.
@@ -148,25 +150,27 @@ group("traps", function()
     expect(h.updatesUntilAgain("Slow Trap ended; multiplier now player 1%.0", 220) and movement:GetWalkSpeedMultiplier() == 1.0,
            "and the Slow Trap still ends: walking speed is back")
     push("status", "connected", "Tester")
-    for _, line in ipairs(itemHistory) do events[#events + 1] = line end
+    h.replayItems()
     run(20)
     -- A chest view that can't be followed (neither the HUD id nor a WBP_ItemChest_C shows it): traps are not held back.
-    playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 999 end
+    inWorld(true)
+    controllerAgain()
     local getWidget = hud.GetWidget
     hud.GetWidget = function() return nil end
     run(1)                                                         -- (the mailbox notes the controller first)
-    require("mailbox").open(pawn)
+    MB.open(pawn)
     expect(h.updatesUntilAgain("mailbox: chest window followed by unknown", 20), "(the chest view could not be followed)")
-    expect(not require("mailbox").busy(), "an unfollowable view does not count as the mailbox being open")
+    expect(not MB.busy(), "an unfollowable view does not count as the mailbox being open")
     trap("Fool Trap", "Friend")
     expect(h.updatesUntil("trap #38 Fool Trap from Friend: fake notice", 80), "so a trap still fires")
     hud.GetWidget = getWidget
-    require("mailbox").open(pawn)                                  -- the next open settles the old view
+    MB.open(pawn)                                  -- the next open settles the old view
     run(4)
-    hudWindows["chest" .. #chestWindowsShown].gone = true
+    h.closeChestWindow()
     run(4)
-    expect(not require("mailbox").busy(), "(the mailbox is closed again)")
-    playerController.K2_GetPawn, playerController.GetAddress = nil, nil
+    expect(not MB.busy(), "(the mailbox is closed again)")
+    inWorld(false)
+    noController()
 end)
 
 group("death link amnesty", function()

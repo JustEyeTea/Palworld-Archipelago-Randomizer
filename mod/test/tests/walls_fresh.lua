@@ -3,22 +3,6 @@
 
 group("walls and the map, on fresh copies of walls.lua", function()
     local WD = shared.WD
-    -- A walls module of its own, driven directly (no core update runs here). mine() lists the walls it raised: those
-    -- standing now that were not standing when it was made.
-    local function freshWalls()
-        local W = dofile(MOD .. "/Scripts/walls.lua")
-        W.dir, W.keepAlive = MOD, function() end
-        local before = {}
-        for a in pairs(wallsUp) do before[a] = true end
-        local function mine()
-            local out = {}
-            for a in pairs(wallsUp) do if not before[a] then out[#out + 1] = a end end
-            return out
-        end
-        return W, mine
-    end
-    -- The world went: these walls went with it (the game destroyed them; nothing destroyed them through the mod).
-    local function worldGoes(walls) for _, a in ipairs(walls) do a.gone = true; wallsUp[a] = nil end end
     local function hiddenOf(walls)
         local n = 0
         for _, a in ipairs(walls) do if a.hidden then n = n + 1 end end
@@ -42,12 +26,12 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
 
     do  -- Return to title and a new world: the new world's far pieces are hidden again (no hidden flag kept from before)
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         W.radius = 7500
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         local first = mine()
         local hidden1 = hiddenOf(first)
-        worldGoes(first)
+        h.wallsGo(first)
         W.reset()
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         local second = mine()
@@ -67,11 +51,11 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local regions = mine()
         expect(#regions > #first and hiddenOf(regions) == #regions,
                "after a change of cut the new cut's far pieces are hidden: " .. hiddenOf(regions) .. " of " .. #regions)
-        worldGoes(regions)
+        h.wallsGo(regions)
         end
     do  -- Walls opening when the pawn reads nil for a moment (same world) still open; when the world goes, none of its
         -- walls is called again (IsValid included), opening ones neither
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         W.radius = 0
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         local beside = {}                                         -- two areas next to the start
@@ -101,18 +85,18 @@ group("walls and the map, on fresh copies of walls.lua", function()
             a.IsValid, a.SetActorScale3D, a.SetActorEnableCollision, a.K2_DestroyActor = dead, dead, dead, dead
             a.SetActorHiddenInGame = dead
         end
-        worldGoes(old)
+        h.wallsGo(old)
         W.reset()                                                 -- the core, on the new world's pawn
         for _ = 1, 3 do gameSeconds = gameSeconds + 0.3; W.update(true, passes, offMap) end
         expect(openingNow > 0 and calls == 0,
                "after a world change no wall of the world that went is called: " .. calls .. " calls on " .. #old
                .. " old walls, " .. openingNow .. " of them opening")
-        worldGoes(mine())
+        h.wallsGo(mine())
     end
     do  -- The locked-area icons on the map: a moment without a pawn (same world, same screen) adds none twice; a new
         -- world's screen gets new ones, and the last world's are forgotten without a call (IsValid included)
         mapBody.icons, mapBody.iconUpdates = {}, 0
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = false
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
         game.mapOpen = true
@@ -143,7 +127,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local calls = {}
         local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(game.mapArt)
-        local W = freshWalls()
+        local W = h.freshWalls()
         local core = require("walls")                        -- (the core gave its keepAlive and keepInPlace to this one)
         W.keepAlive, W.keepInPlace = core.keepAlive, core.keepInPlace
         local function keptOf(path)
@@ -176,7 +160,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local putBack = savedColourMap(game.mapArt)
         local artBefore = game.mapArt
         game.mapArt = game.mapArt + 7
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = false
         for _ = 1, 5 do W.updateMap(true, {}, pawn) end
         local made = fieldJobs or 0
@@ -206,7 +190,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         local onScreen = true
         mapBody.IsVisible = function() return onScreen end
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = true                                            -- the first opening: the screen is built
         for _ = 1, 10 do W.updateMap(true, {}, pawn) end
         local first = maskExports
@@ -220,7 +204,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "the explored mask is read again at each later opening of the same map screen: " .. first
                .. " by the first opening, " .. maskExports .. " after three more")
         local statuses, callsBefore = 0, #calls
-        local W2 = freshWalls()
+        local W2 = h.freshWalls()
         for _ = 1, 2 do W2.updateMap(true, {}, pawn) end         -- the map on screen as the world goes
         W2.reset()
         for _ = 1, 2 do W2.updateMap(true, {}, pawn) end         -- the next world's map, opened at once
@@ -236,7 +220,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local calls = {}
         local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(game.mapArt)
-        local W = freshWalls()
+        local W = h.freshWalls()
         for _ = 1, 6 do W.updateMap(true, {}, pawn) end
         local n = #calls
         for _ = 1, 6 do W.updateMap(false, {}, pawn) end
@@ -257,7 +241,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             tries = tries + 1
             return { IsValid = function() return false end }
         end
-        local W = freshWalls()
+        local W = h.freshWalls()
         for _ = 1, 20 do W.update(true, {}, offMap) end
         gameplay.BeginDeferredActorSpawnFromClass = realSpawn
         expect(logged("could not raise wall %d+: the spawn gave no actor") and tries == 20,
@@ -267,7 +251,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             if path:find("BP_PalBlockingVolume", 1, true) then return nil end
             return realFind(path)
         end
-        local W2, mine = freshWalls()
+        local W2, mine = h.freshWalls()
         for _ = 1, 40 do W2.update(true, {}, offMap) end
         StaticFindObject = realFind
         expect(#mine() == 0 and logged("area locks: no walls: the wall class .*BP_PalBlockingVolume_C was not found"),
@@ -280,13 +264,13 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local takeAway = plugInTerritories({})
         local putBack = savedColourMap(game.mapArt)
         local made = fieldJobs or 0
-        local W = freshWalls()
+        local W = h.freshWalls()
         for _ = 1, 12 do W.updateMap(true, {}, pawn) end
         local territoriesMade = (fieldJobs or 0) - made
         takeAway()
         putBack()
         local jobs = #composeJobs
-        local W2 = freshWalls()
+        local W2 = h.freshWalls()
         W2.mapStyle = "chart"
         for _ = 1, 12 do W2.updateMap(true, {}, pawn) end
         local chartMade = #composeJobs - jobs
@@ -302,7 +286,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local wasLoaded = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
         loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
         local made = fieldJobs or 0
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = false
         for _ = 1, 6 do W.updateMap(true, {}, pawn) end
         expect((fieldJobs or 0) > made and not loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"],
@@ -323,7 +307,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
             GetRenderTargetByMapName = function() return { IsValid = function() return true end } end } end
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = false
         for _ = 1, 45 do W.updateMap(true, {}, pawn) end
         local first = reads
@@ -346,7 +330,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             if t.Translation.X == first[1] and t.Translation.Y == first[2] then error("spawn failed for this piece") end
             return realSpawn(self, ctx, cls, t, ...)
         end
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         W.radius = 7500
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         gameplay.BeginDeferredActorSpawnFromClass = realSpawn
@@ -354,7 +338,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(#up >= 800 and hiddenOf(up) == #up and logged("could not raise wall " .. firstAt .. ": .*spawn failed"),
                "a piece whose spawn errors is logged and the others go up and are hidden as usual: " .. #up .. " up, "
                .. hiddenOf(up) .. " hidden")
-        worldGoes(up)
+        h.wallsGo(up)
     end
     do  -- One explored-mask reading that tells nothing apart does not switch the fog picture off for the session: a later
         -- opening reads it again
@@ -364,7 +348,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         AP_SamplePNG = function() return "0,0,0,40" end           -- the player and the world's edge read the same
         local onScreen = true
         mapBody.IsVisible = function() return onScreen end
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = true
         for _ = 1, 10 do W.updateMap(true, {}, pawn) end
         local fogsBefore = fogJobs or 0
@@ -393,12 +377,12 @@ group("walls and the map, on fresh copies of walls.lua", function()
             for _, a in ipairs(list) do if not a.gone then n = n + 1 end end
             return n
         end
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         local opening = openingAfterAPass(W, mine)
         W.setLayout("regions")
         local afterCut = standing(opening)
-        worldGoes(mine())
-        local W2, mine2 = freshWalls()
+        h.wallsGo(mine())
+        local W2, mine2 = h.freshWalls()
         local opening2 = openingAfterAPass(W2, mine2)
         opening2[1].IsValid = function() error("the opening step errors") end
         W2.update(true, { [WD.areas[4]] = true }, offMap)
@@ -408,7 +392,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(#opening > 0 and afterCut == 0 and #opening2 > 1 and afterError == 0,
                "opening walls are taken down at a change of cut (" .. afterCut .. " of " .. #opening .. " left) and after an"
                .. " error in the opening step (" .. afterError .. " of " .. (#opening2 - 1) .. " left)")
-        worldGoes(mine2())
+        h.wallsGo(mine2())
     end
     do  -- The game's template of the map screen (no map image, no player) is not taken for a screen of the last world
         local asked = 0
@@ -420,7 +404,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             end
             return list
         end
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = true
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
         FindAllOf, game.mapOpen = realFAO, false
@@ -430,7 +414,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local function fogSent(testTools, chartOff)
             local calls = {}
             recordMapScreen(calls)
-            local W = freshWalls()
+            local W = h.freshWalls()
             W.mapStyle, W.testFogColour, W.chartOff = "chart", testTools, chartOff
             W.updateMap(true, {}, pawn)
             AP_MapScreen = nil
@@ -446,7 +430,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local putBack = savedColourMap(game.mapArt)
         AP_ComposeChart = function(_, _, _, _, out) local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
         for _ = 1, 3 do AP_ComposeStatus() end                    -- (an earlier copy's composition, finished)
-        local W = freshWalls()
+        local W = h.freshWalls()
         W.mapStyle, W.iconsOff = "chart", true
         game.mapOpen = true
         for _ = 1, 30 do W.updateMap(true, {}, pawn) end         -- the chart, the first fog picture
@@ -461,7 +445,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         putBack()
     end
     do  -- A wall piece that cannot be dressed in a skin is logged with the error, not counted as "without a mesh"
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         W.radius = 0
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         local up = mine()
@@ -480,7 +464,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(logged("wall skin a: on %d+ pieces, 1 not dressed %(the first error: .*the material was refused%)")
                and logged("wall skin a: could not dress a new piece: .*a new piece's material was refused"),
                "a piece that cannot be dressed is logged with its error, at a skin change and when it is raised")
-        worldGoes(mine())
+        h.wallsGo(mine())
     end
     do  -- With two live main-map screens (two menus), each gets the locked-area icons
         local second = { IsValid = function() return true end, GetAddress = function() return 88 end, icons = {},
@@ -498,7 +482,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             return list
         end
         mapBody.icons = {}
-        local W = freshWalls()
+        local W = h.freshWalls()
         game.mapOpen = false
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
         game.mapOpen = true
@@ -511,7 +495,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- A fallback that is taken says so once: a wall's mesh found the second way, an opening piece without the game's
         -- clock, the explored mask from the world map data's current render target
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         W.radius = 0
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         local odd = mine()[1]
@@ -526,13 +510,13 @@ group("walls and the map, on fresh copies of walls.lua", function()
         gameplay.GetTimeSeconds = realClock
         W.setSkin("red")
         W.update(true, {}, offMap)
-        worldGoes(mine())
+        h.wallsGo(mine())
         local takeAway = plugInTerritories({})
         local putBack = savedColourMap(game.mapArt)
         util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
             GetRenderTargetByMapName = function() return nil end,
             GetCurrentRenderTarget = function() return { IsValid = function() return true end } end } end
-        local M = freshWalls()
+        local M = h.freshWalls()
         game.mapOpen = false
         for _ = 1, 45 do M.updateMap(true, {}, pawn) end
         util.GetLocalWorldMapData = nil
@@ -545,7 +529,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "fallbacks taken are logged once: the mesh, the opening clock, the explored mask")
     end
     do  -- A skin that cannot be made yet names what is missing
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         local realFind = StaticFindObject
         StaticFindObject = function(path)
             if path:find("KismetMaterialLibrary", 1, true) then return nil end
@@ -557,13 +541,13 @@ group("walls and the map, on fresh copies of walls.lua", function()
         StaticFindObject = realFind
         expect(logged("wall skin b: no KismetMaterialLibrary yet; tried again later"),
                "a skin that cannot be made yet names what is missing")
-        worldGoes(mine())
+        h.wallsGo(mine())
     end
     do  -- The Ctrl+7 "none" test state forgets what every piece wore, as a change of cut does: a later skin change by area
         -- lists only the colours of pieces that are up
         local hadPak = game.logicMod
         game.logicMod = true
-        local W, mine = freshWalls()
+        local W, mine = h.freshWalls()
         W.setSkin("area")
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
         W.perfMode("none")
@@ -576,6 +560,6 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         expect(not stale, "after the test state that removes every piece, no piece is still listed as wearing a colour")
         game.logicMod = hadPak
-        worldGoes(mine())
+        h.wallsGo(mine())
     end
 end)
