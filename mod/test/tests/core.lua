@@ -132,5 +132,17 @@ group("other mods' techs", function()
     expect(r and #r.changed == 0 and #r.warn == 0 and #r.removed == 1 and #r.added == 1 and r.unread,
            "rows read back empty: levels not compared, added and removed still reported")
     td.GetTechlonogyBaseData = realRow
+    -- A tech this seed leaves as research, removed by another mod: still in the report, so a later seed in this
+    -- session that has it as a shop slot sends its check (the scan runs once a session).
+    liveTechs = {}
+    for _, id in ipairs(saved) do
+        if id ~= "Torch" then
+            liveTechs[#liveTechs + 1] = id
+        end
+    end
+    r = TS.scan(td, D)
+    local removed = r and table.concat(r.removed, ",") or "no report"
+    expect(D.research.Torch and ("," .. removed .. ","):find(",Torch,", 1, true),
+           "a removed tech the seed leaves as research is reported removed too: " .. removed)
     liveTechs = saved
 end)

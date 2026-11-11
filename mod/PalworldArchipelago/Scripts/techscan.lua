@@ -76,7 +76,8 @@ local function row(td, name)
 end
 
 -- Returns a report, or nil and why: the table isn't readable yet (title screen, loading), or the read looks wrong.
--- report = { total, added = { {id, level, cost, prereq, ancient} }, changed = { {id, what} }, removed = { ids }, warn }
+-- report = { total, added = { {id, level, cost, prereq, ancient} }, changed = { {id, what} }, removed = { ids of vanilla
+-- techs missing: shop slots, starters and research alike }, warn }
 function S.scan(td, D)
     local dt = liveTable()
     if not dt then return nil, "tech table not found" end
@@ -102,10 +103,15 @@ function S.scan(td, D)
         end
     end
     table.sort(report.added, function(a, b) return a.id < b.id end)
-    for id, slot in pairs(D.shop) do
+    -- Every vanilla tech missing, not only this seed's shop slots: the scan runs once a session, and a tech this seed
+    -- leaves as research can be a shop slot of the next seed connected to. S.sendRemovedSlots keeps the shop's.
+    for id in pairs(vanilla) do
         if not live[id] then
             report.removed[#report.removed + 1] = id
-        else
+        end
+    end
+    for id, slot in pairs(D.shop) do
+        if live[id] then
             local r, what = row(td, id), {}
             if r.level and r.level ~= slot.level then what[#what + 1] = "level " .. slot.level .. " -> " .. r.level end
             if r.cost and r.cost ~= slot.cost then what[#what + 1] = "cost " .. slot.cost .. " -> " .. r.cost end
