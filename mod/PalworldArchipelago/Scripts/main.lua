@@ -148,7 +148,9 @@ local function tieWorld(ps, id)
     log("world: this seed is played in world " .. id)
     return true
 end
-local function checkWorld(ps)
+-- Whether the loaded world is the seed's: true in the seed's world, and also when the world cannot be told (a seed
+-- with no world yet is then not tied to one); false while asking about a world with progress.
+local function isSeedWorld(ps)
     local id = worldId()
     if not id and ap.world then
         once("worldunread", "world: the loaded world's folder can't be read, so it is not taken as this seed's ("
@@ -164,6 +166,11 @@ local function checkWorld(ps)
         notify("This is not the world this Archipelago seed is played in: nothing is locked, sent or given here.")
     end
     return false
+end
+-- Looks at whether the loaded world is the seed's (the records phase) and keeps the answer in seedWorld. The notice
+-- that it is not is given once, while seedWorld still says otherwise.
+local function checkWorld(ps)
+    seedWorld = isSeedWorld(ps)
 end
 
 -- One-off effects of items, in index order; each is applied once per seed. False when it could not be applied yet (a
@@ -1663,7 +1670,7 @@ local function phaseRecords()
     -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
     local okk, errk = pcall(TRAPS.tick, { tick = CLOCK.now(), pawn = pawn })
     if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
-    if ps and ap.ready then seedWorld = checkWorld(ps) end
+    if ps and ap.ready then checkWorld(ps) end
     if ps and ap.ready and seedWorld then
         P.start("rec")
         pollRecords(ps, CLOCK.now())
