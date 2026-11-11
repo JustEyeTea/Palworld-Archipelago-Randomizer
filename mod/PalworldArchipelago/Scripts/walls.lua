@@ -1612,8 +1612,13 @@ local function chartTick(ctx, screens, opening, passes)
             if not ok or res ~= true then once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res)); return end
             if not chart.spec then
                 local spec, info = maskSpec(ctx)
-                log("map chart: the explored mask " .. info .. (spec and (": explored reads " .. spec) or ""))
-                if not spec then chart.state = "failed"; return end
+                -- One reading that tells nothing apart (the player at the world's edge, no position yet) does not end the
+                -- fog picture: the next export, EXPORT_GAP later, reads again.
+                log("map chart: the explored mask " .. info .. (spec and (": explored reads " .. spec)
+                    or "; read again at a later opening"))
+                if not spec then
+                    return
+                end
                 chart.spec = spec
             end
             startFog(stamps, regions, tag)

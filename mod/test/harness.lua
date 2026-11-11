@@ -1628,7 +1628,11 @@ local function territoriesStandIns(calls)
         return ""
     end
     AP_MapScreen = function(cmd, v) calls[#calls + 1] = cmd .. "=" .. tostring(v); return "" end
-    AP_ComposeFog = function(_, _, _, _, out) write(out); return "" end
+    AP_ComposeFog = function(_, _, _, _, out)
+        write(out)
+        fogJobs = (fogJobs or 0) + 1                          -- (global) fog pictures composed
+        return ""
+    end
     AP_FogStatus = function() return "done" end
     AP_ComposeChart = function() error("Territories draws no chart") end
     AP_ChartStatus = function() return "done" end
@@ -1976,6 +1980,29 @@ do  -- One piece whose spawn raises an error holds up no other piece, and the re
            "a piece whose spawn errors is logged and the others go up and are hidden as usual: " .. #up .. " up, "
            .. hiddenOf(up) .. " hidden")
     worldGoes(up)
+end
+do  -- One explored-mask reading that tells nothing apart does not switch the fog picture off for the session: a later
+    -- opening reads it again
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    local apart = AP_SamplePNG
+    AP_SamplePNG = function() return "0,0,0,40" end           -- the player and the world's edge read the same
+    local onScreen = true
+    mapBody.IsVisible = function() return onScreen end
+    local W = freshWalls()
+    mapOpen = true
+    for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    local fogsBefore = fogJobs or 0
+    AP_SamplePNG = apart
+    onScreen = false
+    for _ = 1, 210 do W.updateMap(true, {}, pawn) end         -- a minute and more with the map closed
+    onScreen = true
+    for _ = 1, 10 do W.updateMap(true, {}, pawn) end
+    expect(logged("read again at a later opening") and (fogJobs or 0) > fogsBefore,
+           "a mask reading that tells nothing apart is tried again at a later opening, and the fog picture made")
+    mapBody.IsVisible, mapOpen = nil, false
+    takeAway()
+    putBack()
 end
 end
 end)()
