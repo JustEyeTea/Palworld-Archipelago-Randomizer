@@ -66,6 +66,7 @@ local function fogColour()
     end
     return ""
 end
+-- C++'s map screen is told through AP_MapScreen(command, value): the commands are listed in map_screen.hpp, command.
 local function tellCpp()
     if not AP_MapScreen then return end
     if not cpp.told then
@@ -183,7 +184,8 @@ end
 local exists = UTIL.exists
 local artFile = ART.file
 -- "explored" in the mask: the channel that differs most between the player (explored) and a corner beyond the world's
--- edge (never), and which way. nil (and why) when no channel tells them apart.
+-- edge (never), and which way. Format: image_tools.hpp, compose_fog, argument spec. nil (and why) when no channel tells
+-- them apart.
 local function maskSpec(pawn)
     local okp, at = pcall(function() return pawn:K2_GetActorLocation() end)
     if not (okp and at) then return nil, "no player position" end
@@ -225,7 +227,8 @@ local function worldMask(pawn)
     end)
     return ok and rt or nil
 end
--- The stamps for the fog picture: "path|u|v|px;..." (as drawStamps places them on the 4096 map).
+-- The stamps for the fog picture, placed as drawStamps places them on the 4096 map. Format: image_tools.hpp,
+-- compose_fog, argument stamps.
 local function stampList(locked)
     if iconsActive() then return "" end
     local parts = {}
@@ -249,7 +252,7 @@ end
 -- plain hatch in the ink if the file is missing). dev.30 test: both ran out over the sea (an area's labels take in its
 -- waters), the hatch made the map busy, and the line stair-stepped zoomed in: now on land only (the colour map tells
 -- land from sea, as for the chart), the hatch at 0.28 (was 0.45), and the line's edge softened (dev.31's DLL).
--- config.txt map_regions=0: none.
+-- config.txt map_regions=0: none. Format: image_tools.hpp, compose_fog, argument regions.
 local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.28
 local function regionSpec(passes)
     if W.regionsOff then return "" end
@@ -262,6 +265,7 @@ local function startFog(stamps, regions, tag)
     local def = W.dir .. "\\" .. DEFAULT_MASK_FILE
     local art = territories() and TERR_FOG or CHART_FILE
     local size = territories() and terr.size or CHART_SIZE                  -- (the fog art's own size: its 8-bit path)
+    -- AP_ComposeFog(fog art, mask, default mask, spec, out, size, stamps, regions): dllmain.cpp's list
     local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\" .. MASK_FILE, exists(def) and def or "", chart.spec,
         W.dir .. "\\" .. fogFile(), tostring(size), stamps, regions)
     if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
@@ -287,6 +291,7 @@ local function stepChartArt()
     elseif chart.state == "none" then                                        -- the chart
         local colour = W.dir .. "\\" .. COLOUR_FILE
         if not exists(colour) then return false end
+        -- AP_ComposeChart(colour, paper, sea, compass, out, size, gamma): dllmain.cpp's list
         local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"), artFile("ap-chart-compass"),
             W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), GAMMA)
         if err == "" then chart.state = "composing"

@@ -281,14 +281,14 @@ end
 local TERR_SIZE = 2048        -- px: a Territories picture from the label map (an older DLL, without AP_ComposeField)
 local TERR_FOG_COLOUR = "0E1A24"
 local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
--- The walls: "glow colour,alpha,core colour,alpha,glow px,blur sigma,core px" (px of a 4096 map). The Art lane's colours;
--- see-through (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the
--- core was solid, the glow 0.55).
+-- The walls' look. Format: image_tools.hpp, compose_territories, argument style. The Art lane's colours; see-through
+-- (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the core was
+-- solid, the glow 0.55).
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
 local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }   -- (and the picture's size, and
                                                                                      -- whether it is the whole map)
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
--- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
+-- Each area's state and colour. Format: image_tools.hpp, compose_territories, argument areas.
 local function areaSpec(passes)
     local out = {}
     for k, name in ipairs(layout.areas) do
@@ -305,8 +305,9 @@ local function areaSpec(passes)
     end
     return table.concat(out, ",")
 end
--- The standing walls (up unless both sides are open; open sea counts as open) as "u1,v1,u2,v2;..." on the map square.
--- A piece runs along its yaw: (sin yaw, -cos yaw) in map u, v (the Art lane's mock lined them up with the labels so).
+-- The standing walls (up unless both sides are open; open sea counts as open), each as its two ends on the map square.
+-- Format: image_tools.hpp, compose_territories, argument walls. A piece runs along its yaw: (sin yaw, -cos yaw) in map
+-- u, v (the Art lane's mock lined them up with the labels so).
 local function wallSpec(passes)
     local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local out = {}
@@ -390,10 +391,12 @@ local function startTerritories(krl, gi, passes, key)
         local colour
         whole, colour = haveColourMap(krl, gi)
         size = FIELD_SIZE
+        -- AP_ComposeField(field, areas, walls, style, out, fogart, fog colour, size, colour, gamma): dllmain.cpp's list
         err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
             W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", GAMMA)
     else
         size = TERR_SIZE
+        -- AP_ComposeTerritories(labels, areas, walls, style, out, fogart, fog colour, size): dllmain.cpp's list
         err = AP_ComposeTerritories(labelsFile(), areaSpec(passes),
             wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR,
             tostring(size))
@@ -483,6 +486,7 @@ local function startCompose(krl, gi, passes, key, open)
         if not tex then return end
         colour = colourMap(krl, tex, gi)
     end
+    -- AP_ComposeMap(colour, labels, locked area indexes, out, gamma): dllmain.cpp's list; image_tools.hpp, compose_map
     local err = AP_ComposeMap(colour, labelsFile(), lockedIndexes(passes), W.dir .. "\\" .. COMPOSED_FILE, GAMMA)
     if err == "" then
         greyJob.composing, greyJob.locked = key, lockedList(passes)
