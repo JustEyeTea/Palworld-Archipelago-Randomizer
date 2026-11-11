@@ -95,6 +95,11 @@ jobs:
           path: palworld-archipelago
       - uses: actions/setup-python@v7
         with:
+          python-version: "3.11"
+      - name: The APWorld parses on Python 3.11, the oldest Archipelago 0.6.8 runs on
+        run: python -m compileall -q palworld-archipelago/apworld/palworld
+      - uses: actions/setup-python@v7
+        with:
           python-version: "3.12"
       - name: Install Archipelago ${{ matrix.archipelago }}
         run: |

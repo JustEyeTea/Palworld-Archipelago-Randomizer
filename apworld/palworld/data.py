@@ -90,7 +90,8 @@ TECH_SLOT = _tech_slots()
 def shop_location(tech: Tech) -> str:
     """A shop slot's location name: "Tech Level 12 Slot 3". Named by where the slot is, not by the vanilla tech that
     sat there, since the slot may send anything (a name like "Shop: Stone Defensive Wall" misled other players)."""
-    return f"{"Ancient " if tech.ancient else ""}Tech Level {tech.level} Slot {TECH_SLOT[tech.id]}"
+    prefix = "Ancient " if tech.ancient else ""
+    return f"{prefix}Tech Level {tech.level} Slot {TECH_SLOT[tech.id]}"
 
 
 # --- Pals ------------------------------------------------------------------------------------------------------
