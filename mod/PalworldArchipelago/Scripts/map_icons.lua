@@ -1,7 +1,7 @@
 -- The locked areas as icons on the map screen: a stamp at each locked area, an open stamp at each area unlocked but not
 -- yet stood in, added with the screen's own Add Icon By Location so they keep one size at every zoom. A part of
 -- walls.lua (with map_picture.lua, which calls it each map update), loaded fresh for each copy of walls.lua.
--- Tests: mod/test/harness.lua, group "the world map".
+-- Tests: mod/test/tests/map.lua; group "the world map" (tools/lua_harness.sh, in CI).
 local MAP_ICONS = {}
 local UTIL = require("util")
 local ART = require("art")
@@ -10,7 +10,7 @@ local HIT_TEST_INVISIBLE = 3  -- ESlateVisibility::HitTestInvisible: hovering wo
 
 -- State: the icons. Forgotten: iconsFailed never (after a failure the stamps are drawn for the session).
 -- The locked areas are shown as the map's own icons (placeIcons, below) unless config.txt has map_icons=0 or the icons
--- failed; then the stamps are drawn into the picture and the chart fog, as before.
+-- failed; then the stamps are drawn into the picture and the chart fog.
 local iconsFailed = false
 -- The icons on each live main-map screen: its address -> { key = the look they show, list = the icon widgets }.
 -- Forgotten: a screen's entry once the screen is no longer listed (forgetIconsOfGoneScreens), every entry once the
@@ -31,9 +31,9 @@ end
 
 local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon."
     .. "WBP_WorldMap_IconBase_OnlyIcon"
--- Unlocked areas the player has not stood in yet get an open stamp (the user, 2026-11-07: "some other image type ... to
--- show that a region has been unlocked, even when it is unexplored"; go): the Art lane's ap-map-stamp-open-<area>.png
--- (or ap-map-stamp-open.png), none until there is one. W.visited: the core's set of areas stood in (in its save).
+-- Unlocked areas the player has not stood in yet get an open stamp, so the map shows an area is unlocked even while it
+-- is unexplored: ap-map-stamp-open-<area>.png (or ap-map-stamp-open.png), none until there is one. W.visited: the
+-- core's set of areas stood in (in its save).
 local function openTexture(k)
     local name = layout.areas[k + 1]
     local own = name and ("ap-map-stamp-open-" .. slugOf(W.parentOf(name)))
@@ -81,17 +81,16 @@ local function iconsStillShown(icons, key)
     local ok, still = pcall(function() return first:IsValid() and first:GetParent():IsValid() end)
     return ok and still
 end
--- The locked areas as the map's own icons (the user, 2026-11-07: stamps drawn into the picture grew and shrank with
--- the zoom, unlike the game's icons, and many sat in odd places). The map screen's "Add Icon By Location" (pak,
--- 2026-11-07) puts an icon at a world location on one of its icon canvases at 64x64, and its "Update Map Icons" (run on
--- every scroll and zoom) scales everything on those canvases by 1 / the map's scale, so icons keep one size on screen.
--- IgnoreMask puts it on the canvas the fog never hides. The icon is the game's plain one
--- (WBP_WorldMap_IconBase_OnlyIcon: an image and an invisible button; ChangeTexture sets the image). Each goes at its
--- area's deepest point (the fog no longer hides it, so it no longer needs the side nearest the start). It ignores the
--- pointer: hovering would open the game's info box with nothing in it. The map screen lasts until the world closes
--- (dev.17 log: built at the first opening, destroyed at Return to title), so the icons are added once per screen, and
--- again when a pass changes the locked set or the game drops them. If anything fails, the stamps are drawn into the
--- picture again (iconsFailed).
+-- The locked areas as the map's own icons, because stamps drawn into the picture grew and shrank with the zoom, unlike
+-- the game's icons, and many sat in odd places. The map screen's "Add Icon By Location" (pak) puts an icon at a world
+-- location on one of its icon canvases at 64x64, and its "Update Map Icons" (run on every scroll and zoom) scales
+-- everything on those canvases by 1 / the map's scale, so icons keep one size on screen. IgnoreMask puts it on the
+-- canvas the fog never hides. The icon is the game's plain one (WBP_WorldMap_IconBase_OnlyIcon: an image and an
+-- invisible button; ChangeTexture sets the image). Each goes at its area's deepest point (the fog no longer hides it,
+-- so it no longer needs the side nearest the start). It ignores the pointer: hovering would open the game's info box
+-- with nothing in it. The map screen lasts until the world closes (built at the first opening, destroyed at Return to
+-- title), so the icons are added once per screen, and again when a pass changes the locked set or the game drops them.
+-- If anything fails, the stamps are drawn into the picture again (iconsFailed).
 -- The game's plain map icon class, loaded when first needed; raises an error when it cannot be found.
 local function iconClass()
     local class = StaticFindObject(ICON_ASSET .. "_C")

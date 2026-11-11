@@ -1,6 +1,7 @@
 -- The title menu's Archipelago menu: the banner over the title buttons, and the rows it swaps in for them (the
 -- connection's server, port, slot and password, Connect and Back). Wired by menu.lua (TITLE.install), whose
 -- update calls it. Tests: mod/test/harness.lua, group "the title menu's Archipelago menu" (lua_harness.sh).
+-- Tests: mod/test/tests/title_menu.lua; group "the title menu's Archipelago menu" (tools/lua_harness.sh, in CI).
 local TITLE = {}
 local ART = require("art")
 local CLICKS = require("clicks")

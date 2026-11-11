@@ -2,7 +2,7 @@
 -- made once per world far outside the map and deep underground (mailbox_slots, default 300 slots), kept from decaying,
 -- filled from the list as its window opens and emptied back into the list as it closes. It only gives: what the
 -- player puts in goes back to the bag, and items received while it is open appear in it. Wired by mailbox.lua.
--- Tests: mod/test/harness.lua, group "the mailbox" (run by tools/lua_harness.sh).
+-- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local CHEST = {}
 local P = require("perf")
 local UTIL = require("util")

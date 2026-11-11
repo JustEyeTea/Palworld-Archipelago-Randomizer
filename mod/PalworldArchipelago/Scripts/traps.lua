@@ -6,11 +6,13 @@
 --  * Fool Trap      an alarming notice, then "just kidding" 8 s later
 -- Like bundles, each trap is applied once per item index: main.lua queues it as it applies items, and the queue is kept
 -- in the per-seed save file (traps=Slow Trap|12,...), so a trap received just before quitting still fires next time.
--- They fire as they arrive (2026-11-05 run, the user: traps should not be staggered; it was one every 15 s), and wait
--- while the player is fainted, the world is loading or the mailbox is open.
+-- They fire as they arrive, never staggered, and wait while the player is fainted, the world is loading or the mailbox
+-- is open.
 -- Firing waits for the connection; a Slow Trap or Fool Trap already running ends on time without it (T.tick).
--- UNTESTED IN GAME (only Teleport's K2_TeleportTo and the notices are calls verified before): every trap logs what it
--- read and what came back, and a trap that fails says "<name> fizzled." in chat and is never retried.
+-- UNTESTED IN GAME: what each trap does to the player (only Teleport's K2_TeleportTo and the notices are seen working
+-- in game). Every trap logs what it read and what came back, and a trap that fails says "<name> fizzled." in chat and
+-- is never retried.
+-- Tests: mod/test/tests/traps.lua; group "traps" (tools/lua_harness.sh, in CI).
 local T = {}
 local DEBUFFS = require("debuffs")
 local UTIL = require("util")

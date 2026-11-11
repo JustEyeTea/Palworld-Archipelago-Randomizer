@@ -1,8 +1,8 @@
--- Wall skins: the looks the area-lock walls can wear (the game's red grid, the Art & Assets lane's patterns and
+-- Wall skins: the looks the area-lock walls can wear (the game's red grid, the patterns and
 -- colour tiles, the area colours, the cream paws), their materials, the dissolve of an opened wall and the glow near
 -- the player. A part of walls.lua, which loads it (fresh for each copy of walls.lua) and hands it, by install, W (the
 -- table main.lua sees), the areas part and what it reads of the pieces.
--- Tests: mod/test/harness.lua, group "area locks".
+-- Tests: mod/test/tests/walls.lua; group "area locks" (tools/lua_harness.sh, in CI).
 local WALL_SKINS = {}
 local UTIL = require("util")
 local log = UTIL.log
@@ -15,37 +15,34 @@ local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S, beyondSig = nil, nil,
 local PALETTE, SEALED, TEAL = nil, nil, nil   -- areas.lua's palette, and its sealed grey and teal in linear light
 
 -- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the
--- Art & Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
--- dynamic copy of the walls' own material (MI_AirBlock_v2) per skin, owned by the game instance like the map's render
--- targets, set on each piece's mesh; the game's own barriers keep the shared red material. The material's parameters
--- (from the server pak): MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the
--- engine's blue noise for the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day);
--- TilingU_01/TilingV_01 default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0.
--- a3d/b3d: the same, shaded as if raised (v0.13.5 playtest: a and b looked flat). <skin>-dense: that pattern tiled
--- 10x6, twice the material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
+-- patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One dynamic copy of the
+-- walls' own material (MI_AirBlock_v2) per skin, owned by the game instance like the map's render targets, set on each
+-- piece's mesh; the game's own barriers keep the shared red material. The material's parameters (from the server pak):
+-- MainTexture01 is the pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the engine's blue noise for
+-- the dither, left alone; Color, DayColor and NightColor are the tint (night = 0.42 of day); TilingU_01/TilingV_01
+-- default to 5 and 3, ScrollingU_01/ScrollingV_01 to 0.
+-- a3d/b3d: the same, shaded as if raised (a and b look flat in game). <skin>-dense: that pattern tiled 10x6, twice the
+-- material's 5x3, nearer the red grid's density (about 50 px a cell at 3 m against a3d's 100).
 -- colour-<x>: full-colour tiles (walls/ap-wall-colour-<x>.png, RGBA) on our own material, M_APWall, from the
--- PalworldArchipelagoArt pak (logicmod/make_wall_material.py; the user, 2026-11-05: the game's material can show one
--- colour per piece, they want multicolour). Without the pak (or the file) such a skin is refused, logged, and skipped
--- by Ctrl+F3. colour-<x>-flow: that tile drifting sideways (FLOW tiles a second; the user's rainbow, 2026-11-05).
--- area (paws without the pak): walls/ap-wall-pattern-pawholes.png (the user, 2026-11-05: "an area-coloured wall with
--- see-through paw-shaped holes"; the hex lattice, pattern a, until that file exists) in the colour of the locked area
--- each piece keeps you out of (the user: "the region/area colored walls make WAAAAY more sense"), the colour of that
--- area's pass ticket
--- (Art & Assets lane, area_shapes.COLOURS); a region wears its area's (area_parents_regions.lua). A piece between two
--- locked areas wears the one that isn't beyond the goal. Areas beyond the seed's goal (sealed for good) wear
--- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour
--- when the area it wore opens and the other side is still locked.
--- paws (the default, WALL_SKINS.DEFAULT_SKIN; area without the pak): the Art lane's cream paws
--- (walls/ap-wall-paws-layer.png, cooked into the pak as T_APWallPaws with mips) on M_APWall, over the same area colour
--- at 0.34 (the material's Back and BackAlpha; the user's choice, 2026-11-05: "cream paws on the area colour"); sealed
--- areas over the slate grey.
+-- PalworldArchipelagoArt pak (logicmod/make_wall_material.py), because the game's material can show only one colour per
+-- piece. Without the pak (or the file) such a skin is refused, logged, and skipped by Ctrl+F3. colour-<x>-flow: that
+-- tile drifting sideways (FLOW tiles a second).
+-- area (paws without the pak): walls/ap-wall-pattern-pawholes.png (an area-coloured wall with see-through paw-shaped
+-- holes; the hex lattice, pattern a, until that file exists) in the colour of the locked area each piece keeps you out
+-- of, so the wall says which area it guards: the colour of that area's pass ticket (area_shapes.COLOURS); a region
+-- wears its area's (area_parents_regions.lua). A piece between two locked areas wears the one that isn't beyond the
+-- goal. Areas beyond the seed's goal (sealed for good) wear walls/ap-wall-pattern-sealed.png in grey, or the lattice in
+-- grey until that file exists. A piece changes colour when the area it wore opens and the other side is still locked.
+-- paws (the default, WALL_SKINS.DEFAULT_SKIN; area without the pak): cream paws (walls/ap-wall-paws-layer.png, cooked
+-- into the pak as T_APWallPaws with mips) on M_APWall, over the same area colour at 0.34 (the material's Back and
+-- BackAlpha); sealed areas over the slate grey.
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
                 "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
 local function byArea(name) return name == "area" or name == "paws" end
 WALL_SKINS.SKINS = SKINS
 WALL_SKINS.linearOf = UTIL.linear                                 -- (for the harness's colour tests)
 local FLOW = 0.05
--- The Art lane's: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first.
+-- The paws' brightness: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first.
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1
 local DENSE = { 10, 6 }
 local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
@@ -89,8 +86,8 @@ local function meshOf(actor)
 end
 WALL_SKINS.meshOf = meshOf
 -- An asset of the PalworldArchipelagoArt pak: already loaded, else through the asset registry as BPModLoader loads the
--- pak's ModActor (AssetRegistryHelpers:GetAsset with PackageName and AssetName), else LoadAsset. 2026-11-08 dev.39
--- playtest: BPModLoader spawned the pak's ModActor in every level, yet LoadAsset + StaticFindObject found no M_APWall.
+-- pak's ModActor (AssetRegistryHelpers:GetAsset with PackageName and AssetName), else LoadAsset. In game,
+-- BPModLoader spawned the pak's ModActor in every level, yet LoadAsset + StaticFindObject found no M_APWall.
 -- Each step is guarded; how it went is noted for the one-time probe line.
 local function modAsset(pkg, name, notes)
     local full = pkg .. "." .. name
@@ -209,7 +206,7 @@ local function makePaws(name, gameInstance, rendering, materials)
     local back = hex and UTIL.linear(hex) or SEALED
     local s = nil
     if own and own ~= "" then
-        -- (The Art lane's scatter, above: never hue, rotation or scale.)
+        -- (The scatter, above: never hue, rotation or scale.)
         local v = math.sin(tonumber(own) * SCATTER_A + 1.0) * SCATTER_B
         s = v - math.floor(v)
         local k = BACK_SHADE + BACK_SHADE_RANGE * s
@@ -269,10 +266,10 @@ function WALL_SKINS.dissolving(name, pawn)
         .. " s)")
     return material, now
 end
--- The glow near the player (M_APWall's PlayerPos; dev.41 playtest: keyed to the camera it sat off to the side of the
--- character): the player's position on the M_APWall materials of pieces shown, each core update (300 ms; a faster
--- loop of our own corrupted Lua's state, see walls.lua's opening pieces), only when the player has moved. The pawn is
--- the core's, handed to W.update; checked each time.
+-- The glow near the player (M_APWall's PlayerPos; keyed to the camera, it sat off to the side of the character): the
+-- player's position on the M_APWall materials of pieces shown, each core update (300 ms; a faster loop of our own
+-- corrupted Lua's state, see walls.lua's opening pieces), only when the player has moved. The pawn is the core's,
+-- handed to W.update; checked each time.
 function WALL_SKINS.glowing()
     if pieces.count() == 0 or not apWall then return false end
     return skin.now == "paws" or skin.now:find("^colour%-") ~= nil
@@ -286,8 +283,8 @@ function WALL_SKINS.glowTick()
     local moved = glowAt and math.abs(glowAt.R - loc.X) + math.abs(glowAt.G - loc.Y) + math.abs(glowAt.B - loc.Z)
     if moved and moved < GLOW_MOVE_CM then return end
     glowAt = { R = loc.X, G = loc.Y, B = loc.Z, A = 1 }
-    -- Only the materials pieces shown now wear (dev.42 crash: every material ever made was called, those of the world
-    -- before included), and the dissolving ones of pieces still there.
+    -- Only the materials pieces shown now wear (calling every material ever made, those of the world before included,
+    -- crashed the game), and the dissolving ones of pieces still there.
     local name, done = FName("PlayerPos"), {}
     local function tell(material)
         if material and not done[material] and material:IsValid() then
@@ -313,7 +310,8 @@ function WALL_SKINS.glowTick()
     end
 end
 -- A new world (or the player's pawn changed): every material, texture and handle kept from before is let go, never
--- called again (dev.42 crash: the world before's materials, dead, called 30 times a second); made again when needed.
+-- called again (the world before's materials, dead, called 30 times a second, crashed the game); made again when
+-- needed.
 function WALL_SKINS.dropCaches()
     skin.mids, skin.failed = {}, {}                             -- (skin.base: the game's own red, an asset, kept)
     skin.now = "red"                                           -- so skinTick dresses the new world's pieces again
@@ -381,8 +379,8 @@ local function makePatternMaterial(name, gameInstance, rendering, materials)
         material:SetScalarParameterValue(FName("ScrollingV_01"), W.scroll[2])
     end
     skin.mids[name], skin.failed[name] = material, nil
-    -- Blueprint_GetSizeX/Y: Lua sees only UFunctions (v0.13.5 playtest: GetSurfaceWidth is C++ only, and the call
-    -- errored).
+    -- Blueprint_GetSizeX/Y: Lua sees only UFunctions (GetSurfaceWidth is C++ only, and calling it from Lua
+    -- errors).
     local okw, size = pcall(function() return tex:Blueprint_GetSizeX() .. "x" .. tex:Blueprint_GetSizeY() end)
     log("wall skin " .. name .. ": material made (" .. (okw and size or "size unknown")
         .. (srgb and ", linear" or ", sRGB: could not change") .. ", tiling "
@@ -624,7 +622,7 @@ function WALL_SKINS.install(env)
     PALETTE = env.areas.PALETTE
     SEALED, TEAL = UTIL.linear(PALETTE.wallSealed), UTIL.linear(PALETTE.teal)
     W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
-    -- M_APWall's fade (the user, 2026-11-08: dev.40's 9 to 15 m "loads in MUCH closer"): fully there within
+    -- M_APWall's fade, far enough out that a wall does not seem to load in right beside the player: fully there within
     -- W.fade[1] cm, gone at W.fade[2] (config wall_fade=near,far in metres).
     W.fade = { 1500, 2500 }
 end

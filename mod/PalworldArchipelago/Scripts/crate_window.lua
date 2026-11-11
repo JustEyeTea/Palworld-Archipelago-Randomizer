@@ -2,7 +2,7 @@
 -- row per crate kind waiting (its icon, its count, a button to open one), the chosen kind in the details pane, and the
 -- last crate opened in the contents cells. Closed, a small "Open Palworld Crates (N)" button brings it back. Every
 -- image falls back to a plain box without its file. Untested in game: the window's look and its buttons.
--- Tests: mod/test/harness.lua, group "the crate window" (run by tools/lua_harness.sh).
+-- Tests: mod/test/tests/crates_run_style.lua; group "the crate window" (tools/lua_harness.sh, in CI).
 local CW = {}
 local ART = require("art")
 local BAG = require("bag")

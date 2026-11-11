@@ -1,6 +1,6 @@
 // Calling the game's functions and reading its objects through UE4SS's reflection, shared by the Pal gifts
-// (pal_gift.cpp) and the map screen (map_screen.cpp). Moved unchanged from pal_gift.cpp, where it ran in game without
-// crashing (2026-11-05, v0.13.9); see the notes there on why every call gets its own heap parameter block. Game thread
+// (pal_gift.cpp) and the map screen (map_screen.cpp). Seen working in game without crashing; pal_gift.cpp's notes say
+// why every call gets its own heap parameter block. Game thread
 // only; access violations are not caught (UE4SS ships with SEH off), so everything is checked before a call.
 #pragma once
 
@@ -73,7 +73,7 @@ namespace ap_reflect
 
     // The function `path` names as the object's own class has it. A BlueprintImplementableEvent (GetMaxOtomoNum) is an
     // empty native stub on the C++ class with its body in the Blueprint subclass, so called through the C++ class's
-    // UFunction it does nothing and returns 0 (v0.13.9 playtest: "party: 0/0", every party gift refused as full).
+    // UFunction it does nothing and returns 0 (seen in game: "party: 0/0", every party gift refused as full).
     // GetFunctionByNameInChain walks from the object's class up, so it finds an override first (UObject.hpp, as
     // GetPropertyByNameInChain below); for a plain native function it finds the same UFunction as the path.
     inline auto resolve(UObject* self, const CharType* path) -> UFunction*

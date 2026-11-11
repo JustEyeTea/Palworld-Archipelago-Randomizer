@@ -1,9 +1,9 @@
--- Run Style and Speed Boost (the user, 2026-11-06, after the 2026-11-05 two-tower run took ~5 hours and the Palworld
--- thread's feedback). Run Style (slot data options.run_style): 0 Standard, a received tech unlocks its recipe; 1 Nomad
--- also hands over what it makes (gear, a stack), because a base that can craft it takes hours in a one-day game.
+-- Run Style and Speed Boost: shorter games, since a two-tower seed can take about 5 hours. Run Style (slot data
+-- options.run_style): 0 Standard, a received tech unlocks its recipe; 1 Nomad also hands over what it makes (gear, a
+-- stack), because a base that can craft it takes hours in a one-day game.
 -- Speed Boost (options.speed_boost, off by default; the Sync presets turn it on): makes levelling and base building
--- faster through the game's own world settings. The thread asked that the AP leave a world's settings alone, so the
--- user's call was to keep it as an option that warns: off, the world's settings are never touched; on, every change is
+-- faster through the game's own world settings. Players want the AP to leave a world's settings alone, so it is an
+-- option that warns: off, the world's settings are never touched; on, every change is
 -- shown in game, once a world, with the world's own values to set back.
 --
 -- World settings: UPalOptionSubsystem is a world subsystem (a new one on every world load), so the speeds are set again
@@ -11,9 +11,12 @@
 -- times the YAML's multiplier, so it never compounds. Writing the struct's fields in place is untested in game: each
 -- change is read back and logged. The game's own SetOptionWorldSettings is NOT called from Lua: its parameter, the whole
 -- FPalOptionWorldSettings, is 0x210 bytes (1.0.5 object dump: its last field ends at 0x20D), more than UE4SS Lua's
--- 0x200-byte call buffer, which overran and crashed the game for a Pal's save data (2026-11-03). If the in-place write
+-- 0x200-byte call buffer, which overran and crashed the game for a Pal's save data. If the in-place write
 -- doesn't take, the log says so and the C++ mod is the route (ReflectedCall gives each call a block of its own size).
 -- The world keeps the faster speeds in its own save; World Settings sets them back.
+-- Tests: mod/test/tests/crates_run_style.lua; group
+--   "run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning"
+--   (tools/lua_harness.sh, in CI).
 local S = {}
 local GIFTS = require("tech_gifts")
 local UTIL = require("util")
@@ -80,7 +83,7 @@ function S.apply(ps, get, world, say)
         end
     end
     if not reported["syncwarn" .. world] and S.base[S.FIELDS[1].field] then
-        -- The warning the user asked for: what this seed does to the world's settings, and how to set them back.
+        -- The warning: what this seed does to the world's settings, and how to set them back.
         reported["syncwarn" .. world] = true
         local now, own = {}, {}
         for _, f in ipairs(S.FIELDS) do

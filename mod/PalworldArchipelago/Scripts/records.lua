@@ -5,6 +5,8 @@
 --   NormalBossDefeatFlag                  alpha spawner id or character id (not yet seen in a save: unknown keys logged)
 --   FastTravelPointUnlockFlag             the point actor's LevelObjectInstanceId as 32 hex digits, mapped to its
 --                                         FastTravelPointID by scanning the loaded fast-travel actors
+-- Tests: mod/test/tests/core.lua, mod/test/tests/goals.lua; groups "connect and receive", "the other goals"
+--   (tools/lua_harness.sh, in CI).
 local UTIL = require("util")
 local log = UTIL.log
 
@@ -96,8 +98,8 @@ function R.progress(ps, D, now)
     each(rec.PaldeckUnlockFlag, function(k, v) if v then add(D.captures[k:lower()]); register(k) end end)
     each(rec.TowerBossDefeatFlag, function(k, v)
         if not v then return end
-        -- 1.0.5 keys are BOSS_BATTLE_NAME_GrassBoss (2026-11-05 run: both towers beaten, neither counted, no goal);
-        -- EPalBossType::GrassBoss is kept as well.
+        -- 1.0.5 keys are BOSS_BATTLE_NAME_GrassBoss (read as GrassBoss alone, two towers beaten counted for nothing
+        -- and the goal never went out); EPalBossType::GrassBoss is kept as well.
         local boss = (k:match("([^:]+)$") or k):gsub("^BOSS_BATTLE_NAME_", "")
         beaten[boss] = true
         local loc = D.towers[boss]
@@ -114,7 +116,7 @@ function R.progress(ps, D, now)
         end
     end)
 
-    -- One pass over the fast-travel flags (6dd356e walked them twice): the keys not mapped yet are kept and checked
+    -- One pass over the fast-travel flags: the keys not mapped yet are kept and checked
     -- again after the scan, which gives the same warnings.
     local unlockedNow, unmapped = {}, {}
     each(rec.FastTravelPointUnlockFlag, function(k, v)

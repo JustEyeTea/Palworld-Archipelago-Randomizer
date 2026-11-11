@@ -1,7 +1,8 @@
 -- Making and reading game widgets (UMG, the engine's UI system): the engine's enum values and the UMG class paths
 -- every window file passes, with the engine's own names, and the small makers the window files share.
--- Tests: mod/test/harness.lua, the groups of the files that use it: "the mailbox", "the Inventory page's mailbox
--- button", "the title menu's Archipelago menu" and "the crate window" (run by tools/lua_harness.sh).
+-- Tests: mod/test/tests/mailbox.lua, mod/test/tests/inventory_page.lua, mod/test/tests/title_menu.lua,
+--   mod/test/tests/crates_run_style.lua; groups "the mailbox", "the Inventory page's mailbox button",
+--   "the title menu's Archipelago menu", "the crate window" (tools/lua_harness.sh, in CI).
 local WIDGETS = {}
 local UTIL = require("util")
 

@@ -1,8 +1,9 @@
 -- The mod's buttons in the game's menus: the title screen's Archipelago menu (opened from its banner), the
 -- "Archipelago Mailbox" button on the Esc menu and on the Inventory page, and the game's text window the title menu
 -- falls back to. Built from the game's own widgets, so they look and work like the game's. Wired by main.lua.
--- Tests: mod/test/harness.lua, groups "the title menu's Archipelago menu", "the Inventory page's mailbox button" and
--- the Esc menu's tests in "the mailbox" (run by tools/lua_harness.sh).
+-- Tests: mod/test/tests/title_menu.lua, mod/test/tests/inventory_page.lua, mod/test/tests/mailbox.lua; groups
+--   "the title menu's Archipelago menu", "the Inventory page's mailbox button", "the mailbox"
+--   (tools/lua_harness.sh, in CI).
 local M = {}
 local CLICKS = require("clicks")
 local UTIL = require("util")

@@ -1,7 +1,6 @@
 -- The player in this update: the controller, the pawn and the player state, looked up once per update (the frame
 -- record), and the chat notice shown to the player. main.lua's update sets the frame at its start and clears it after.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): the lookup counts in group "the mailbox", and every
--- group that reads a notice.
+-- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local PLAYER = {}
 local RECORDS = require("records")
 local UTIL = require("util")

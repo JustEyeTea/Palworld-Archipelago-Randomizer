@@ -29,7 +29,7 @@ group("the other goals", function()
     runCycles(2)
     expect(goals == goalsBefore + 1 and logged("Goal complete: the World Tree's boss beaten!"),
            "World Tree: its boss wins")
-    -- 2026-11-05 run: a two-tower seed, both towers beaten, keys as 1.0.5 writes them; the goal never went out.
+    -- A two-tower seed, both towers beaten, keys as 1.0.5 writes them: the goal must go out.
     h.switchSeed("70009", { ["options.goal"] = "0", ["options.tower_count"] = "2" })
     goalsBefore = goals
     runCycles(2)
@@ -38,9 +38,9 @@ group("the other goals", function()
     runCycles(2)
     expect(goals == goalsBefore + 1 and logged("Goal complete: 2 tower%(s%) beaten!") and checks[D.towers.ForestBoss],
            "two towers: the second (BOSS_BATTLE_NAME_ForestBoss) is counted, checked, and wins")
-    -- 2026-11-08 run: the tower goal went out mid-arena and its line was lost in the release's flood. Now it waits for
-    -- the player to be out of the stage (the boss's arena), then goes with the goal banner. (Both towers beaten above
-    -- are in the record: this seed's goal of one is reached with two.)
+    -- A tower goal sent mid-arena has its line lost in the release's flood, so it waits for the player to be out of
+    -- the stage (the boss's arena), then goes with the goal banner. (Both towers beaten above are in the record: this
+    -- seed's goal of one is reached with two.)
     game.inStage = true
     local arenaAt = logMark()
     h.switchSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
@@ -57,7 +57,7 @@ group("the other goals", function()
     expect(goals == goalsBefore + 1 and loggedSince(outAt, "goal sent: %d+ tower%(s%) beaten")
            and loggedSince(outAt, "goal banner:"),
            "out of the arena, the goal goes, with the goal banner (or a log line saying why not)")
-    -- 2026-11-08: loading a won world showed the goal banner again. Once per seed (goal=shown in the save).
+    -- Loading a won world must not show the goal banner again: once per seed (goal=shown in the save).
     do
         -- (Another seed and back: the won seed's state comes from its save again, as in a new session.)
         h.switchSeed("70011", { ["options.goal"] = "0", ["options.tower_count"] = "1" })

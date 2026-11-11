@@ -1,7 +1,8 @@
 -- Area locks: walls on the borders of areas whose pass has not arrived, the map that shows them, the open areas the
 -- player has visited, and sending the player home from inside a locked area. The walls themselves are walls.lua's;
 -- this file decides when they act. Wired by main.lua (AREA_LOCKS.configureWalls); its update calls AREA_LOCKS.update.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "area locks", "a new world" and "another world".
+-- Tests: mod/test/tests/walls.lua, mod/test/tests/world.lua; groups "area locks", "a new world", "another world"
+--   (tools/lua_harness.sh, in CI).
 local AREA_LOCKS = {}
 local ART = require("art")
 local CONFIG = require("config")
@@ -22,8 +23,8 @@ local CM_PER_METRE = 100        -- config.txt gives the walls' distances in metr
 
 local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
 local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
--- The seed's area_locks option, read once a connection (slot data is fixed for a connection) instead of every update,
--- which parsed the slot data's JSON each time in the connector (estimated 10-50 us and the connector's lock).
+-- The seed's area_locks option, read once a connection (slot data is fixed for a connection), not every update: each
+-- read parses the slot data's JSON in the connector and takes the connector's lock.
 local areaLocks = false       -- state: set each connection (AREA_LOCKS.setOn, from applySeedOptions)
 
 -- Sets whether this seed has area locks (each connection).

@@ -1,7 +1,7 @@
 -- The world: which world the player is in and how long ago it loaded (the world step), and whether it is the world
 -- this seed is played in. Every topic that keeps something from one world registers what it forgets (WORLD.onChange).
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "a new world", "another world" and "a world with
--- researched shop techs is not taken over without a yes".
+-- Tests: mod/test/tests/world.lua, mod/test/tests/core.lua; groups "a new world", "another world",
+--   "a world with researched shop techs is not taken over without a yes" (tools/lua_harness.sh, in CI).
 local WORLD = {}
 local CLOCK = require("clock")
 local CONFIG = require("config")

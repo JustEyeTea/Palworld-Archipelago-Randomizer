@@ -1,7 +1,7 @@
 -- The map screen from C++ and the fog: what C++ is told (switched on, the picture, the fog colour and picture),
 -- when the map is on screen, the explored mask, the explorer's chart and the fog picture made from them. A part of
 -- walls.lua (with map_picture.lua, which calls it each map update), loaded fresh for each copy of walls.lua.
--- Tests: mod/test/harness.lua, group "the world map".
+-- Tests: mod/test/tests/map.lua; group "the world map" (tools/lua_harness.sh, in CI).
 local MAP_FOG = {}
 local UTIL = require("util")
 local ART = require("art")
@@ -63,7 +63,7 @@ function MAP_FOG.mapShown() return mapScreensShown > 0 end
 function MAP_FOG.resetMapShown() mapScreensShown = 0 end
 -- How many of the live map screens are on screen. A screen lasts from its first opening until Return to title, so
 -- being listed is not being open. One whose visibility cannot be read counts as on screen. Untested in game: that
--- IsVisible reads false while the map is closed (if it reads true, an opening is seen once per world, as before).
+-- IsVisible reads false while the map is closed (if it reads true, an opening is seen only once per world).
 local function screensOnScreen(screens)
     local n = 0
     for _, b in ipairs(screens) do
@@ -75,9 +75,9 @@ local function screensOnScreen(screens)
     return n
 end
 
--- The map screen from C++ (APConnector's AP_MapScreen, map_screen.cpp; the user, 2026-11-06: Lua's swaps show, do the
--- map in C++). It changes the screen inside the game's own Setup, before the screen draws; Lua hands it the picture and
--- the fog's colour. Lua still puts the picture back as before when it finds the game's, but with C++ working it should
+-- The map screen from C++ (APConnector's AP_MapScreen, map_screen.cpp), because the player sees Lua's swaps. It
+-- changes the screen inside the game's own Setup, before the screen draws; Lua hands it the picture and the fog's
+-- colour. Lua still puts the picture back when it finds the game's, but with C++ working it should
 -- never have to: each time it does is counted and logged (the swap the player sees).
 -- At the first opening of a session the fog's material and masks are logged, and its default mask (what every player
 -- sees uncovered) is exported to fog-default-mask.png, which startFog hands the C++ fog composer.
@@ -170,8 +170,8 @@ local function logFogMaterial(screen)
 end
 
 local CHART_SIZE = 2048
--- Each look keeps its own fog picture (dev.32 playtest, 2026-11-08: the first opening showed dev.31's chart, the last
--- session's map-fog.png, until the territories' one was made).
+-- Each look keeps its own fog picture: with one file, the first opening showed the other look's picture from the last
+-- session until the new one was made.
 local function fogFile() return territories() and TERR_FOG_FILE or FOG_FILE end
 local EXPORT_GAP = UTIL.updates(60)        -- a minute between exports of the explored mask
 -- Before the map first opens, the explored mask is read from the world's map data every EARLY_MASK_EVERY, at most
@@ -214,10 +214,10 @@ local function exportMask(screen, rendering, gameInstance)
     rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE)
     return true
 end
--- The explored mask without the map screen (dev.34 playtest: the first opening showed the last session's fog picture,
--- and a second opening the game made without Setup kept it, so the new look showed about a minute in): the player's own
--- world map data holds it (UPalWorldMapUIData:GetRenderTargetByMapName "MainMap", the render target the screen's fog
--- shows), so it is read once the fog art is ready, before the map ever opens. nil while there is none.
+-- The explored mask without the map screen (read from the screen, the first opening showed the last session's fog
+-- picture, and a second opening the game made without Setup kept it, so the new look showed about a minute in): the
+-- player's own world map data holds it (UPalWorldMapUIData:GetRenderTargetByMapName "MainMap", the render target the
+-- screen's fog shows), so it is read once the fog art is ready, before the map ever opens. nil while there is none.
 local function worldMask(pawn)
     local ok, rt = pcall(function()
         local util = StaticFindObject("/Script/Pal.Default__PalUtility")
@@ -250,13 +250,12 @@ local function stampList(locked)
     end
     return table.concat(parts, ";")
 end
--- The areas on the chart (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?";
--- go): a border between neighbouring areas and a hatch over locked ones, drawn by the C++ compositor from the area
--- labels (dev.29's DLL; an older one ignores it). The user's picks in the Art lane (2026-11-07): "dashed brown ink"
--- (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and the single diagonal hatch (art/ap-chart-hatch.png; a
--- plain hatch in the ink if the file is missing). dev.30 test: both ran out over the sea (an area's labels take in its
--- waters), the hatch made the map busy, and the line stair-stepped zoomed in: now on land only (the colour map tells
--- land from sea, as for the chart), the hatch at 0.28 (was 0.45), and the line's edge softened (dev.31's DLL).
+-- The areas on the chart, so the regions on the unexplored map have clear boundaries: a border between neighbouring
+-- areas and a hatch over locked ones, drawn by the C++ compositor from the area labels (an older DLL ignores them).
+-- Dashed brown ink (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and a single diagonal hatch
+-- (art/ap-chart-hatch.png; a plain hatch in the ink if the file is missing). Both are kept to land, since an area's
+-- labels take in its waters (the colour map tells land from sea, as for the chart); the hatch is light, at 0.28, so
+-- the map does not look busy; and the line's edge is softened so it does not stair-step zoomed in.
 -- config.txt map_regions=0: none. Format: image_tools.hpp, compose_fog, argument regions.
 local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.28
 local function regionSpec(passes)
@@ -284,9 +283,9 @@ local function fogStampsAndRegions(key, passes)
     end
     return fogParts.stamps, fogParts.regions
 end
--- The explorer's-chart fog (the user, 2026-11-06: the black fog replaced by a basic map drawn like an explorer's chart,
--- with the locked-area stamps on it; art: the Art lane's ap-chart-*.png, the design the user chose). All drawn on the
--- player's machine by the C++ part from the game's own map (never shipped):
+-- The explorer's-chart fog: in place of the black fog, a basic map drawn like an explorer's chart, with the
+-- locked-area stamps on it (art: ap-chart-*.png). All drawn on the player's machine by the C++ part from the game's
+-- own map (never shipped):
 --   1. the chart, once a session, from the saved colour map (compose_chart);
 --   2. when the map opens (at most every EXPORT_GAP updates) the explored mask is exported and the fog picture made
 --      from it: the chart where unexplored, clear where explored, the stamps on it (compose_fog); which channel of the
@@ -441,8 +440,8 @@ function MAP_FOG.step(pawn, screens, opening, passes, key)
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
     local okt, errt = pcall(chartTick, pawn, screens, opening, passes, key)
     if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
-    -- C++ is switched on from the start, not once the picture is ready (dev.16 playtest, 2026-11-07: the map opened
-    -- 3 s before the picture was, and C++ logged "OFF; Setup ran 0x" though its hook saw Setup run).
+    -- C++ is switched on from the start, not once the picture is ready: the map can open before the picture is, and
+    -- switched on late, C++ logged "OFF; Setup ran 0x" though its hook saw Setup run.
     local okc0, errc0 = pcall(tellCpp)
     if not okc0 then once("cpperr", "map screen (C++): " .. tostring(errc0)) end
     if AP_MapScreen and opening then

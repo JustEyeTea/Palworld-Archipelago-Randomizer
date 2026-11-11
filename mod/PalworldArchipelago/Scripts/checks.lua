@@ -1,7 +1,7 @@
 -- Checks and the goal: the locations the game's records say are done are sent as checks, and the seed's goal is
 -- judged from the same records, then sent once the player is out of the boss's arena.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "connect and receive", "the other goals" and
--- "buying a slot".
+-- Tests: mod/test/tests/core.lua, mod/test/tests/goals.lua, mod/test/tests/core_loop.lua; groups
+--   "connect and receive", "the other goals", "buying a slot" (tools/lua_harness.sh, in CI).
 local CHECKS = {}
 local CLOCK = require("clock")
 local DATA = require("ap_data")
@@ -119,7 +119,7 @@ local function sendGoalOnceOutOfArena(ps, found, tick)
     end
     if not goalWait then return end
     local okS, inStage = pcall(function() return ps:IsInStage() end)
-    local out = not (okS and inStage)                  -- (not readable: no waiting, as before)
+    local out = not (okS and inStage)                  -- (not readable: no waiting)
     if not (out or tick - goalWait.since >= WAIT.goal) then return end
     ap.goalSent, done = true, goalWait.done
     goalWait = nil

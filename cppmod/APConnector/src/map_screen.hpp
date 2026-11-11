@@ -1,6 +1,6 @@
 // The world map screen, changed from C++ inside the game's own call that sets it up, so the player never sees the
-// game's version first (the user, 2026-11-06: Lua's swaps show; "this would be better done as a C++ mod"). Lua says
-// what to show; this applies it in the screen's Setup, before the screen draws.
+// game's version first, as they do when Lua swaps it. Lua says what to show; this applies it in the screen's Setup,
+// before the screen draws.
 #pragma once
 
 #include <string>

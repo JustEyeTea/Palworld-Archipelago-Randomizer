@@ -1,6 +1,6 @@
 -- The mod's clock: the count of core updates, the waits counted in them, and the cycle of phases that spreads the
 -- heavier work over several updates. main.lua's update advances it; every core file reads the time here.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): every timed test counts on it; it has no group of its own.
+-- Tests: none of its own; every timed test in mod/test/tests/ counts on it (tools/lua_harness.sh, in CI).
 local CLOCK = {}
 local UTIL = require("util")
 

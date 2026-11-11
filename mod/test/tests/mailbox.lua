@@ -13,7 +13,7 @@ group("the mailbox", function()
     inWorld(true)
     newController()
     -- First a client where no main menu is found by that class: the Esc menu is still looked for by its own, every 4th
-    -- update (a fallback that costs a scan; v0.11.4 showed every 4th update is a second late, not never).
+    -- update (a fallback that costs a scan; every 4th update is a second late, not never).
     game.escOpen, game.escNoMain = true, true
     run(4)
     expect(escChildren[4] and logged("the Esc menu is up but no WBP_InGameMainMenu_C was found"),
@@ -37,7 +37,7 @@ group("the mailbox", function()
     escChildren[4] = nil
     escMenu = Widget({ GetClass = oldEsc.GetClass, WidgetTree = oldEsc.WidgetTree, Close = oldEsc.Close,
                        CloseAction = oldEsc.CloseAction })
-    run(1) -- the button is there on the first update (v0.11.4: ~1 s)
+    run(1) -- the button is there on the first update
     expect(escChildren[4], "a new Esc menu gets its button on the first update")
     run(3)
     mailBtn = escChildren[4]
@@ -109,7 +109,7 @@ group("the mailbox", function()
     expect(slots[2].ItemId.StaticId:ToString() == "Stone" and slots[2].StackCount == 50,
            "what arrives while it is open shows at once")
     -- Gear put into the first empty slot goes back by the game's move, and an item arrives in the same update: it takes
-    -- the slot the move just emptied, as 6dd356e's refill over every slot did.
+    -- the slot the move just emptied, as a refill over every slot would.
     slots[3].ItemId = { StaticId = FNameOf("Sword"), DynamicId = { LocalIdInCreatedWorld = { A = 9, B = 0, C = 0,
                                                                                              D = 0 } } }
     slots[3].StackCount = 1

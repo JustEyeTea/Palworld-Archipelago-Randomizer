@@ -23,7 +23,7 @@ group("area locks", function()
     run(15)
     expect(wallCount() == expected(open),
            "a piece the game removed is noticed (a share checked each update) and raised again")
-    do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their material with the Art lane's pattern
+    do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their material with the pattern art
         local a = next(wallsUp)
         liveWalls.setSkin("a")
         run(1)
@@ -93,7 +93,7 @@ group("area locks", function()
         expect(fm.textures.Pattern.path == "ap-wall-colour-rainbow" and fm.scalars.ScrollU == 0.05
                and fm.scalars.ScrollV == 0,
                "the -flow skin: the same tile, drifting sideways")
-        -- paws: the Art lane's cream-paw layer (cooked in the pak) over each piece's area colour at 0.34, on M_APWall
+        -- paws: the cream-paw layer (cooked in the pak) over each piece's area colour at 0.34, on M_APWall
         liveWalls.setSkin("paws")
         run(1)
         local pm = a.Cube.mat
@@ -247,7 +247,7 @@ group("area locks", function()
            "an Region Pass takes its area's walls down: " .. wallCount())
     local sample = next(wallsUp)
     expect(sample and sample.t.Scale3D.Z == 3000 and sample.t.Translation.Z == 50000, "walls are 3 km tall")
-    -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
+    -- An opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
     do
         -- module is driven directly with one extra pass, so no real pass is given (later tests count on which areas are
         -- open).
@@ -318,8 +318,8 @@ group("area locks", function()
         expect(wallCount() == expected(open), "(the core's own passes put that area's walls back up: "
                .. wallCount() .. ")")
     end
-    do  -- dev.42 crash (a dead object called at a wall, after Return to title and a new world): after a world change no
-        -- material of the world before is called again, by the glow or anything else
+    do  -- a dead object called at a wall crashed the game after Return to title and a new world: after a world
+        -- change no material of the world before is called again, by the glow or anything else
         local hadPak = game.logicMod
         game.logicMod = true
         liveWalls.radius = 0
@@ -365,7 +365,7 @@ group("area locks", function()
         liveWalls.setSkin("red")
         run(40)
     end
-    do -- dev.43: every piece is raised at load (as before); only those within 75 m are shown, past 100 m hidden
+    do -- every piece is raised at load; only those within 75 m are shown, past 100 m hidden
         -- game units: with wall_radius 75 m a piece this near shows, and one past 100 m is hidden
         local SHOWN_WITHIN, HIDDEN_PAST = 7500, 10000
         liveWalls.radius = SHOWN_WITHIN

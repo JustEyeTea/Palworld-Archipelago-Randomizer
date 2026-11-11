@@ -1,8 +1,8 @@
 -- The performance probe (perf_log=1 in config.txt). It measures where the mod's time goes and what the frame rate is,
 -- so a playtest can tell the mod's own work from the walls and the game. Nothing in it changes the game: it times,
 -- counts and logs. With perf_log off, every function here is an empty stub and nothing is wrapped.
--- Why it exists: the 2026-11-03 playtest (v0.11.x, 818 wall pieces up, mailbox and menus in use) felt like an FPS drop,
--- and nothing had been measured. The estimates behind each fix are in the code next to the fix; this probe is what
+-- Why it exists: a game with 818 wall pieces up and the mailbox and menus in use felt like it dropped frames, and
+-- nothing had been measured. The estimates behind each fix are in the code next to the fix; this probe is what
 -- turns them into numbers.
 --
 -- What it logs (all lines start "[PalworldAP] [perf]"):
@@ -29,6 +29,8 @@
 --   n      counters: cards relabelled/skipped, sweep and refill slots looked at, record entries read, techs read,
 --          save files written
 --   st     world (1 in a world), walls raised/mode, mail (1 with the mailbox chest open), legacy, pause, bypass
+-- Tests: mod/test/tests/tools_probe.lua; group "the performance probe (perf_log=1, test_tools=1)"
+--   (tools/lua_harness.sh, in CI).
 local P = {}
 local function noop() end
 
@@ -51,7 +53,7 @@ local log = UTIL.logger("perf")
 -- about 1 ms. The os.time column in the 30s line checks that it is wall time.
 local function now() return os.clock() end
 
--- The hooks, by a piece of their function's path (numbers as in the 2026-11-04 hook review).
+-- The hooks, by a piece of their function's path; the numbers name them in the "30s" line.
 local HOOKS = {
     { "H1", "Technology_Content_C:IsUnlocked" }, { "H2", "Setup by Technology Name" },
     { "H3", "OnUnhoveredAnyTechnology_Internal" }, { "H4", "WBP_PalDialog_C:SetupUI" },
@@ -499,7 +501,7 @@ local function hotkeys()
     -- Ctrl and the number keys 6 to 0: the traps' test keys have Ctrl+F5 to Ctrl+F11 and the Pal gifts' Ctrl+Shift+F5 to F9
     -- (test_tools.lua), and a key bound twice would run both.
     -- (The function handed over is made here, once: a key bind runs off the game thread, where making a new function
-    -- each press is the Lua-state race of 2026-11-08.)
+    -- each press races the game thread over the Lua state and crashes the game.)
     local function bind(key, label, fn)
         local function onKey()
             local ok, err = pcall(fn)

@@ -1,14 +1,13 @@
 -- The hint plate at a locked wall and the goal banner, on the HUD: shown by main.lua with the chat line it sends
 -- anyway, taken down when their time is up or forgotten when the world goes.
--- Tests: mod/test/harness.lua, groups "area-coloured walls and the hint pop-up" and "debuff icons, the hint plate and
--- the goal banner".
+-- Tests: mod/test/tests/areas_hud.lua; groups "area-coloured walls and the hint pop-up",
+--   "debuff icons, the hint plate and the goal banner" (tools/lua_harness.sh, in CI).
 local H = {}
--- The plate (the user, 2026-11-05: "Centered and a little transparent so that it doesn't block your view in a major
--- way"): the Art & Assets lane's art/ap-hint-plate-ready.png when the player has the points for a hint, -short.png when
--- not (760x168, drawn at half size), in the middle of the screen at OPACITY for SHOW_TICKS, with two lines of text and
--- the hint points bar filled to have/cost (the plate's own empty track). Without a plate file, a navy box in its place.
--- The host is the HUD layout's canvas (WBP_PalHUDLayout_C: SafeZone_0 > CanvasPanel, found by the Ctrl+F4 probe and
--- seen working in the v0.13.9 playtest).
+-- The plate, centred and a little see-through so it doesn't block the player's view: art/ap-hint-plate-ready.png when
+-- the player has the points for a hint, -short.png when not (760x168, drawn at half size), in the middle of the screen
+-- at OPACITY for SHOW_TICKS, with two lines of text and the hint points bar filled to have/cost (the plate's own empty
+-- track). Without a plate file, a navy box in its place. The host is the HUD layout's canvas (WBP_PalHUDLayout_C:
+-- SafeZone_0 > CanvasPanel, found by the Ctrl+F4 probe and seen working in game).
 local ART = require("art")
 local UTIL = require("util")
 local WIDGETS = require("widgets")
@@ -130,8 +129,8 @@ function H.show(info, tick)
 end
 
 -- The goal banner (art/ap-goal-banner.png, 1200x300 drawn at 600x150) in the upper third with what was done in its
--- pill (where the Ctrl+F4 HUD probe put a sample line, 2026-11-05), for BANNER_TICKS. It takes the pop-up's place.
-local BANNER_TICKS = UTIL.updates(15)   -- 15 s (2026-11-08 test: 8 s was short; "could stick around a little longer")
+-- pill (where the Ctrl+F4 HUD probe put a sample line), for BANNER_TICKS. It takes the pop-up's place.
+local BANNER_TICKS = UTIL.updates(15)   -- 15 s: 8 s went by too soon
 local BANNER_W, BANNER_H = 600, 150
 local BANNER_TEXT = { left = 155, top = 111 }   -- the line's place in the banner's pill, in px of the banner as drawn
 function H.banner(line, tick)
@@ -158,7 +157,7 @@ function H.banner(line, tick)
 end
 
 -- Every update: takes it down when its time is up. If its HUD went away with the world (Return to title), it is
--- forgotten without a call: 2026-11-08, Return to title during the 15 s goal banner crashed the game in UE4SS (a widget
+-- forgotten without a call: Return to title during the 15 s goal banner crashed the game in UE4SS (a widget
 -- of the world gone, called). Whether the HUD is still there is asked of FindAllOf, which lists only live objects.
 local function hudLive(addr)
     for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do

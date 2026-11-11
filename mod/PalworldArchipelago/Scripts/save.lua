@@ -1,8 +1,9 @@
 -- The seed's save file next to the mod (save-<seed>-<slot>.txt): what the server cannot send again, written whole
 -- and only when it changed, and read back when the mod connects to that seed and slot. Wired by main.lua
 -- (SAVE.install).
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "the save file", "the save file is written only
--- when it changes" and "reconnect does not repeat one-off items".
+-- Tests: mod/test/tests/goals.lua, mod/test/tests/core_loop.lua; groups "the save file",
+--   "the save file is written only when it changes", "reconnect does not repeat one-off items"
+--   (tools/lua_harness.sh, in CI).
 local SAVE = {}
 local CRATES = require("crates")
 local MAIL = require("mailbox")

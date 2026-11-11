@@ -1,6 +1,6 @@
 -- The game's text window (the world-name window), for one field at a time: the title menu's window layout uses
 -- it. Wired by menu.lua (its update and its OK hook).
--- Tests: mod/test/harness.lua, group "the title menu's Archipelago menu" (its last part; tools/lua_harness.sh).
+-- Tests: mod/test/tests/title_menu.lua; group "the title menu's Archipelago menu" (tools/lua_harness.sh, in CI).
 local TEXT = {}
 local UTIL = require("util")
 local WIDGETS = require("widgets")

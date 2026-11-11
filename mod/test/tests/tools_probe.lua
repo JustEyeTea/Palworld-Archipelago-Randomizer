@@ -1,5 +1,5 @@
 -- Giving a Pal through the connector (the test tools' gift keys), the performance probe (perf mode only), and
--- the Art & Assets lane's round-1 art. Tests test_tools.lua, perf.lua, art.lua.
+-- the mod's art images. Tests test_tools.lua, perf.lua, art.lua.
 
 group("test tools: giving a Pal through the connector", function()
     local function press(key)
