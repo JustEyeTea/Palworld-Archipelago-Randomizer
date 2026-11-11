@@ -45,23 +45,23 @@ group("traps", function()
     pawnAt = { X = -340000, Y = 236000, Z = -1500 }
     expect(WALLS.areaAt(pawnAt.X, pawnAt.Y) == shared.WD.start, "(the player stands in the starting area, away from its spot)")
     teleported = nil
-    inStage = true
+    game.inStage = true
     trap("Teleport Trap")
     trap("Fool Trap", "Friend")
     run(120)
     expect(teleported == nil and logged("trap #14 Teleport Trap waits: the player is in a dungeon"), "a Teleport Trap waits in a dungeon")
     expect(logged("trap #15 Fool Trap from Friend: fake notice"), "and a trap after it goes meanwhile")
-    inStage = false
+    game.inStage = false
     expect(h.updatesUntil("trap #14 Teleport Trap: from %-340000, 236000, %-1500 %(region unreadable", 100) and teleported
            and teleported.X == WALLS.home[1] and teleported.Y == WALLS.home[2], "out of the dungeon, it sends the player home")
     expect(h.told("Teleport Trap: whisked back to " .. shared.WD.start .. "."), "your own trap names no sender")
     -- Waiting while fainted. (Death Link sends this faint: amnesty is 0 here.)
     local bounced = #bounces
-    playerDead = true
+    game.playerDead = true
     trap("Fool Trap", "Friend")
     run(80)
     expect(not logged("trap #16 "), "no trap while the player is fainted")
-    playerDead = false
+    game.playerDead = false
     expect(h.updatesUntil("trap #16 Fool Trap", 20) and #bounces == bounced + 1, "and it comes after reviving")
     -- Waiting while the mailbox is open.
     playerController.K2_GetPawn, playerController.GetAddress = function() return pawn end, function() return 999 end
@@ -109,13 +109,13 @@ group("traps", function()
     movement.mult = {}
     -- Queued when the game quits: it is in the save file, and fires once after loading. (A Teleport Trap waiting in a
     -- dungeon is the one left waiting; the Fool Trap beside it fires at once.)
-    inStage = true
+    game.inStage = true
     trap("Fool Trap", "Friend")
     trap("Teleport Trap", "Friend")
     h.updatesUntil("trap #22 Fool Trap", 80)
     run(7)
     expect(h.saveText():find("traps=Teleport Trap|23\n", 1, true), "a waiting trap is in the save file: " .. h.saveText():match("traps=[^\n]*"))
-    inStage = false
+    game.inStage = false
     h.reload()
     expect(logged("1 trap%(s%) waiting"), "loaded with the save")
     expect(h.updatesUntil("trap #23 Teleport Trap from Friend", 80), "and it fires after loading, with its sender")
@@ -171,7 +171,7 @@ end)
 
 group("death link amnesty", function()
     slotData["options.death_link_amnesty"] = "2"
-    local function faint() playerDead = true; run(7); playerDead = false; run(7) end
+    local function faint() game.playerDead = true; run(7); game.playerDead = false; run(7) end
     local bounced = #bounces
     faint()
     faint()
@@ -183,9 +183,9 @@ group("death link amnesty", function()
     run(14)                                                        -- (ready again)
     push("bounce", "DeathLink", '{"cause":"Ash fell off a cliff.","source":"Ash","time":3}')
     run(7)
-    expect(playerDead, "a linked death still faints the player")
+    expect(game.playerDead, "a linked death still faints the player")
     run(7)
-    playerDead = false
+    game.playerDead = false
     run(56)                                                        -- (a faint soon after a linked one counts as the link's)
     expect(#bounces == bounced and h.saveText():find("deaths=2\n", 1, true), "and neither counts nor resets the amnesty")
     faint()

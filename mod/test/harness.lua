@@ -137,6 +137,27 @@ for id, it in pairs(D.items) do itemId[it.name] = id end
 
 dofile(HARNESS_DIR .. "helpers.lua")
 
+-- From here no harness file makes a new global by mistake: assigning a name that the fakes, the kit or helpers.lua
+-- did not declare is an error at that line. A global that starts empty (nil) leaves no name behind, so those are
+-- listed here; the fakes write each as `name = nil` with what it holds.
+local STARTS_EMPTY = { "loop", "teleported", "lastGone", "mainMenu", "chests", "chestTemplates", "chestSpawnAsked",
+                       "chestRow", "uiUtil", "composeJob", "tagsSet",
+                       -- the connector's functions a test plugs in (the map screen, the chart and fog, the Pal gift)
+                       "AP_MapScreen", "AP_ComposeChart", "AP_ChartStatus", "AP_ComposeFog", "AP_FogStatus",
+                       "AP_SamplePNG", "AP_ComposeTerritories", "AP_TerritoriesStatus", "AP_ComposeField",
+                       "AP_GivePal", "AP_GivePalPoll" }
+do
+    local declared = {}
+    for name in pairs(_G) do declared[name] = true end
+    for _, name in ipairs(STARTS_EMPTY) do declared[name] = true end
+    setmetatable(_G, { __newindex = function(globals, name, value)
+        if not declared[name] and debug.getinfo(2, "S").source:find(HARNESS_DIR, 1, true) then
+            error("a new global '" .. tostring(name) .. "': a mistype, or declare it in fakes.lua", 2)
+        end
+        rawset(globals, name, value)
+    end })
+end
+
 -- Every file in tests/ is in TEST_FILES, so none is left out of the run.
 do
     local listed = {}

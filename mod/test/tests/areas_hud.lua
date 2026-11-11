@@ -225,9 +225,9 @@ group("debuff icons, the hint plate and the goal banner", function()
     run(1)
     POP.show({ title = "Bamboo Groves is sealed", line = "It needs Region Pass: Bamboo Groves" }, now)
     local plate = hudKids[#hudKids]
-    pawnGone = true
+    game.pawnGone = true
     run(2)
-    pawnGone = false
+    game.pawnGone = false
     run(3 * POP.SHOW_TICKS)
     POP.tick = realTick
     expect(plate and plate.removed,

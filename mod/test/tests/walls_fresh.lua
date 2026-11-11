@@ -113,9 +113,9 @@ group("walls and the map, on fresh copies of walls.lua", function()
         -- world's screen gets new ones, and the last world's are forgotten without a call (IsValid included)
         mapBody.icons, mapBody.iconUpdates = {}, 0
         local W = freshWalls()
-        mapOpen = false
+        game.mapOpen = false
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
         local placed = #mapBody.icons
         W.reset()
@@ -136,13 +136,13 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(deadCalls == 0 and #mapBody.icons == placed,
                "a new world: its map screen gets the icons and the last world's are never called: " .. deadCalls
                .. " calls on " .. #old .. " old icons, " .. #mapBody.icons .. " new")
-        mapBody.GetAddress, mapBody.icons, mapOpen = screenAddress, {}, false
+        mapBody.GetAddress, mapBody.icons, game.mapOpen = screenAddress, {}, false
     end
     do  -- Ten passes in one session: no map overlay is kept (it is drawn into the map picture and done with), and the fog
         -- pictures keep one place among the kept objects, not one more each
         local calls = {}
         local takeAway = plugInTerritories(calls)
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         local W = freshWalls()
         local core = require("walls")                        -- (the core gave its keepAlive and keepInPlace to this one)
         W.keepAlive, W.keepInPlace = core.keepAlive, core.keepInPlace
@@ -152,7 +152,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             return n
         end
         local overlays0, fogs0 = keptOf("map-territories"), keptOf("map-fog-territories")
-        mapOpen = true
+        game.mapOpen = true
         local passes = {}
         for _ = 1, 45 do W.updateMap(true, passes, pawn) end
         local fogsFirst = keptOf("map-fog-territories") - fogs0
@@ -166,30 +166,30 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "ten passes make the map ten times, and keep no overlay and one fog picture: " .. overlays
                .. " overlay(s) and " .. fogs .. " fog picture(s) kept after " .. ((fieldJobs or 0) - made)
                .. " pictures made")
-        mapOpen = false
+        game.mapOpen = false
         takeAway()
         putBack()
     end
     do  -- The Territories look, as the chart look above: a map mod (or a game update) changed the game's map art since the
         -- colour map was saved; at the first opening it is saved again and the picture made again from it
         local takeAway = plugInTerritories({})
-        local putBack = savedColourMap(mapArt)
-        local artBefore = mapArt
-        mapArt = mapArt + 7
+        local putBack = savedColourMap(game.mapArt)
+        local artBefore = game.mapArt
+        game.mapArt = game.mapArt + 7
         local W = freshWalls()
-        mapOpen = false
+        game.mapOpen = false
         for _ = 1, 5 do W.updateMap(true, {}, pawn) end
         local made = fieldJobs or 0
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 10 do W.updateMap(true, {}, pawn) end
         local f = io.open(colourFile .. ".txt", "rb")
         local savedPrint = f and f:read("*a") or ""
         if f then f:close() end
         local madeAgain = (fieldJobs or 0) - made
-        expect(savedPrint:find("^" .. mapArt .. ",90,60;") and madeAgain > 0,
+        expect(savedPrint:find("^" .. game.mapArt .. ",90,60;") and madeAgain > 0,
                "Territories: a changed map art found at the first opening: the colour map is saved again and the picture "
                .. "made again: saved print " .. savedPrint:sub(1, 12) .. ".., " .. madeAgain .. " made again")
-        mapArt, mapOpen = artBefore, false
+        game.mapArt, game.mapOpen = artBefore, false
         takeAway()
         putBack()
     end
@@ -197,7 +197,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         -- screen, so each later opening reads the explored mask again (the fog picture follows what the player explored)
         local calls = {}
         local takeAway = plugInTerritories(calls)
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         local maskExports = 0
         local realExport = renderLib.ExportRenderTarget
         renderLib.ExportRenderTarget = function(lib, gi, rt, dir, name)
@@ -207,7 +207,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local onScreen = true
         mapBody.IsVisible = function() return onScreen end
         local W = freshWalls()
-        mapOpen = true                                            -- the first opening: the screen is built
+        game.mapOpen = true                                            -- the first opening: the screen is built
         for _ = 1, 10 do W.updateMap(true, {}, pawn) end
         local first = maskExports
         for _ = 1, 3 do                                           -- closed for 3 minutes of exploring, opened again
@@ -227,7 +227,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         for i = callsBefore + 1, #calls do if calls[i]:find("^status=") then statuses = statuses + 1 end end
         expect(statuses == 2, "a map on screen in the first update of a new world is an opening too: C++'s status"
                .. " logged at " .. statuses .. " of 2 openings")
-        renderLib.ExportRenderTarget, mapBody.IsVisible, mapOpen = realExport, nil, false
+        renderLib.ExportRenderTarget, mapBody.IsVisible, game.mapOpen = realExport, nil, false
         takeAway()
         putBack()
     end
@@ -235,7 +235,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         -- and switched on again with the picture when area locks are back
         local calls = {}
         local takeAway = plugInTerritories(calls)
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         local W = freshWalls()
         for _ = 1, 6 do W.updateMap(true, {}, pawn) end
         local n = #calls
@@ -278,7 +278,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local realBegin = renderLib.BeginDrawCanvasToRenderTarget
         renderLib.BeginDrawCanvasToRenderTarget = function(_, _, _, _, contextOut) contextOut.RenderTarget = true end
         local takeAway = plugInTerritories({})
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         local made = fieldJobs or 0
         local W = freshWalls()
         for _ = 1, 12 do W.updateMap(true, {}, pawn) end
@@ -298,12 +298,12 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- Territories with the saved colour map, the map never opened: the game's 8192 px map is never loaded
         local takeAway = plugInTerritories({})
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         local wasLoaded = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
         loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
         local made = fieldJobs or 0
         local W = freshWalls()
-        mapOpen = false
+        game.mapOpen = false
         for _ = 1, 6 do W.updateMap(true, {}, pawn) end
         expect((fieldJobs or 0) > made and not loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"],
                "Territories from the saved colour map: the picture is made without loading the game's map")
@@ -314,7 +314,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- The second world of a session: its explored mask is read from its map data before its map opens, as the
         -- first world's was
         local takeAway = plugInTerritories({})
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         local reads = 0
         local realExport = renderLib.ExportRenderTarget
         renderLib.ExportRenderTarget = function(lib, gi, rt, dir, name)
@@ -324,7 +324,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
             GetRenderTargetByMapName = function() return { IsValid = function() return true end } end } end
         local W = freshWalls()
-        mapOpen = false
+        game.mapOpen = false
         for _ = 1, 45 do W.updateMap(true, {}, pawn) end
         local first = reads
         W.reset()                                                 -- Return to title, another world loaded
@@ -359,13 +359,13 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- One explored-mask reading that tells nothing apart does not switch the fog picture off for the session: a later
         -- opening reads it again
         local takeAway = plugInTerritories({})
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         local apart = AP_SamplePNG
         AP_SamplePNG = function() return "0,0,0,40" end           -- the player and the world's edge read the same
         local onScreen = true
         mapBody.IsVisible = function() return onScreen end
         local W = freshWalls()
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 10 do W.updateMap(true, {}, pawn) end
         local fogsBefore = fogJobs or 0
         AP_SamplePNG = apart
@@ -375,7 +375,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         for _ = 1, 10 do W.updateMap(true, {}, pawn) end
         expect(logged("read again at a later opening") and (fogJobs or 0) > fogsBefore,
                "a mask reading that tells nothing apart is tried again at a later opening, and the fog picture made")
-        mapBody.IsVisible, mapOpen = nil, false
+        mapBody.IsVisible, game.mapOpen = nil, false
         takeAway()
         putBack()
     end
@@ -421,9 +421,9 @@ group("walls and the map, on fresh copies of walls.lua", function()
             return list
         end
         local W = freshWalls()
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
-        FindAllOf, mapOpen = realFAO, false
+        FindAllOf, game.mapOpen = realFAO, false
         expect(asked == 0, "the map screen's template is not asked for its player: asked " .. asked .. "x")
     end
     do  -- The chart look's parchment fog colour is sent only with the test tools, and never with map_chart=0
@@ -443,19 +443,19 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- The chart look with its stamps drawn in (map_icons=0): while nothing changes, the map update opens no file
         local takeAway = plugInTerritories({})
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         AP_ComposeChart = function(_, _, _, _, out) local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
         for _ = 1, 3 do AP_ComposeStatus() end                    -- (an earlier copy's composition, finished)
         local W = freshWalls()
         W.mapStyle, W.iconsOff = "chart", true
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 30 do W.updateMap(true, {}, pawn) end         -- the chart, the first fog picture
         local opens, realOpen = 0, io.open
         io.open = function(...) opens = opens + 1; return realOpen(...) end
         for _ = 1, 20 do W.updateMap(true, {}, pawn) end
         io.open = realOpen
         expect(opens == 0, "the chart look's idle map update opens no file: " .. opens .. " opens in 20 updates")
-        mapOpen = false
+        game.mapOpen = false
         os.remove(MOD .. "/map-chart.png"); os.remove(MOD .. "/map-fog.png")
         takeAway()
         putBack()
@@ -499,15 +499,15 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         mapBody.icons = {}
         local W = freshWalls()
-        mapOpen = false
+        game.mapOpen = false
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
         local first, other = #mapBody.icons, #second.icons
         for _ = 1, 3 do W.updateMap(true, {}, pawn) end
         expect(first >= 10 and other == first and #mapBody.icons == first and #second.icons == other,
                "two live main-map screens each get the icons, once: " .. first .. " and " .. other)
-        FindAllOf, mapOpen, mapBody.icons = realFAO, false, {}
+        FindAllOf, game.mapOpen, mapBody.icons = realFAO, false, {}
     end
     do  -- A fallback that is taken says so once: a wall's mesh found the second way, an opening piece without the game's
         -- clock, the explored mask from the world map data's current render target
@@ -528,12 +528,12 @@ group("walls and the map, on fresh copies of walls.lua", function()
         W.update(true, {}, offMap)
         worldGoes(mine())
         local takeAway = plugInTerritories({})
-        local putBack = savedColourMap(mapArt)
+        local putBack = savedColourMap(game.mapArt)
         util.GetLocalWorldMapData = function() return { IsValid = function() return true end,
             GetRenderTargetByMapName = function() return nil end,
             GetCurrentRenderTarget = function() return { IsValid = function() return true end } end } end
         local M = freshWalls()
-        mapOpen = false
+        game.mapOpen = false
         for _ = 1, 45 do M.updateMap(true, {}, pawn) end
         util.GetLocalWorldMapData = nil
         takeAway()
@@ -561,8 +561,8 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- The Ctrl+7 "none" test state forgets what every piece wore, as a change of cut does: a later skin change by area
         -- lists only the colours of pieces that are up
-        local hadPak = logicMod
-        logicMod = true
+        local hadPak = game.logicMod
+        game.logicMod = true
         local W, mine = freshWalls()
         W.setSkin("area")
         for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
@@ -575,7 +575,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             if printed[i]:find("wall skin paws: colours %S") then stale = true end
         end
         expect(not stale, "after the test state that removes every piece, no piece is still listed as wearing a colour")
-        logicMod = hadPak
+        game.logicMod = hadPak
         worldGoes(mine())
     end
 end)

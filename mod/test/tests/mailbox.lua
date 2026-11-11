@@ -13,10 +13,10 @@ group("the mailbox", function()
     playerController.GetAddress = function() return 998 end
     -- First a client where no main menu is found by that class: the Esc menu is still looked for by its own, every 4th
     -- update (a fallback that costs a scan; v0.11.4 showed every 4th update is a second late, not never).
-    escOpen, escNoMain = true, true
+    game.escOpen, game.escNoMain = true, true
     run(4)
     expect(escChildren[4] and logged("the Esc menu is up but no WBP_InGameMainMenu_C was found"), "no main menu: the Esc menu still gets its button")
-    escNoMain = false                                          -- the usual client from here
+    game.escNoMain = false                                          -- the usual client from here
     run(1)
     expect(#taskChildren == 3, "the HUD's mission list gets no button: " .. #taskChildren)
     local mailBtn = escChildren[4]
@@ -103,7 +103,7 @@ group("the mailbox", function()
            "an item arriving takes the slot a returned deposit just left: " .. slots[3].ItemId.StaticId:ToString())
     slots[3].ItemId, slots[3].StackCount = { StaticId = FNameOf("None"), DynamicId = slots[3].ItemId.DynamicId }, 0   -- taken out
     run(1)
-    movesWork = false                                          -- a move that does nothing: by hand after a few updates
+    game.movesWork = false                                          -- a move that does nothing: by hand after a few updates
     slots[2].StackCount = 53
     local givenBefore = #given
     run(5)
@@ -115,7 +115,7 @@ group("the mailbox", function()
     hudWindows["chest1"].gone = true                           -- the player closes it
     run(1)
     expect(#chestWindowsShown == 1, "closed, it stays closed (the key pressed while it was open did nothing)")
-    movesWork = true
+    game.movesWork = true
     kinds, items = require("mailbox").count()
     expect(kinds == 2 and items == 70, "closed: what is left goes back into the mailbox, with what arrived meanwhile: " .. items)
     expect(given[#given] == "Wood x1" and logged("put in at the last moment went back to the bag"), "a last-moment deposit goes to the bag")
@@ -194,7 +194,7 @@ group("the mailbox", function()
     hudWindows["chest" .. #chestWindowsShown].gone = true
     run(2)
     -- With the LogicMod: its own window, one row per item; a row takes that item into the bag.
-    logicMod = true
+    game.logicMod = true
     local function PalButton()
         return Widget({ Label = { SetText = function(self, t) self.text = t.text end },
                         Btn = { SetKeyboardFocus = function(self) self.focused = true end } })
@@ -222,13 +222,13 @@ group("the mailbox", function()
            "the LogicMod window lists the mailbox: " .. tostring(winRows[1] and winRows[1].Label.text))
     expect(winRows[1].Btn.focused, "a controller starts on the first row")
     expect(hooks[ROW_CLICK], "its buttons are hooked")
-    bagFull = true
+    game.bagFull = true
     hooks[ROW_CLICK]({ get = function() return winRows[1] end })
     expect(#winRows == 2 and not table.concat(announced, "|"):find("Your bag is full", 1, true), "nothing happens inside the click's hook")
     run(1)
     expect(#winRows == 2 and table.concat(announced, "|"):find("Your bag is full: Wood stays in the mailbox.", 1, true), "a full bag keeps the item")
     expect(logged("the bag refused Wood %(result 16%)"), "a refusal is logged")
-    bagFull = false
+    game.bagFull = false
     do   -- no inventory data (the player still loading): the item stays, and the bag is not called full
         local function fullTold()
             local n = 0
@@ -255,10 +255,10 @@ group("the mailbox", function()
     expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\n", 1, true), "and the save")
     do   -- an item whose id reads like a button's action ("close") is still an item
         MB.add("close", 2)
-        bagFull = true
+        game.bagFull = true
         hooks[ROW_CLICK]({ get = function() return window.TakeAll end })   -- nothing fits: the window shows the row
         run(1)
-        bagFull = false
+        game.bagFull = false
         local row = winRows[1]
         hooks[ROW_CLICK]({ get = function() return row end })
         run(1)
@@ -267,7 +267,7 @@ group("the mailbox", function()
     end
     hooks[ROW_CLICK]({ get = function() return window.Close end })
     run(1)
-    hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false
+    hud.Push, wbl.Create, game.logicMod = pushPlain, wblCreate, false
     do   -- a new seed while the hidden chest is being made: the chest templates get their size back at once
         local chestsWere, spawnWas = chests, mapObjects.RequestSpawnMapObjectByPlayer_Server
         chests = {}

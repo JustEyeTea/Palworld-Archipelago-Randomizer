@@ -3,7 +3,7 @@
 
 group("the Inventory page's mailbox button", function()
     -- The main menu, its Inventory tab and the page are fakes_menus.lua's MainMenu, inventoryTab and inventoryPage.
-    escOpen = false
+    game.escOpen = false
     require("mailbox").add("Wood", 5)                          -- something to count on the button
     run(1)
     -- Menus closed: one object scan per update, for the main menu only (open-questions: the FPS drop and FindAllOf).
@@ -13,7 +13,7 @@ group("the Inventory page's mailbox button", function()
            "with the menus closed, only the main menu is looked for: " .. (lookups.WBP_MenuESC_C or 0) - escScans .. " Esc scans")
     -- Each tab widget the main menu shows is logged once, with the tab, so a missing button has a reason in the log.
     mainMenu = MainMenu(NamedWidget("WBP_MainMenu_Pal_C_1", "WBP_MainMenu_Pal_C"), 2)
-    mainMenuOpen = true
+    game.mainMenuOpen = true
     run(3)
     expect(countLoggedText("main menu content is WBP_MainMenu_Pal_C (tab 2)") == 1, "another tab: its widget class is logged once")
     mainMenu = MainMenu(inventoryTab(nil), 8)                  -- the Inventory tab's wrapper, but no page in it
@@ -38,16 +38,16 @@ group("the Inventory page's mailbox button", function()
     expect(#chestWindowsShown == shownBefore + 1 and chestWindowsShown[#chestWindowsShown].kind == 7, "and the mailbox opens: " .. #chestWindowsShown - shownBefore)
     expect(logged("in%-game main menu after closing from the inventory: gone"), "then looks whether the main menu went")
     h.closeChest()
-    mainMenuOpen = false
+    game.mainMenuOpen = false
     group("a card still remembered as hovered is forgotten once the main menu is closed", function()
         local slot = "Product_Cooking_Grade_01"                     -- owned through its item, not bought
-        mainMenuOpen = true
+        game.mainMenuOpen = true
         shared.info["Setup by Technology Name"](shared.info, FNameOf(slot))       -- no un-hover follows
         run(1)
         local whileOpen = shared.isResearched(slot)
-        mainMenuOpen, escOpen = false, false                        -- closed under the pointer
+        game.mainMenuOpen, game.escOpen = false, false                        -- closed under the pointer
         run(1)
-        mainMenuOpen = nil
+        game.mainMenuOpen = nil
         expect(whileOpen == false and shared.isResearched(slot) == nil,
                "the game's answer again, for crafting and building: " .. tostring(whileOpen) .. ", "
                .. tostring(shared.isResearched(slot)))
@@ -55,7 +55,7 @@ group("the Inventory page's mailbox button", function()
     -- The main menu on its Inventory tab.
     local page, barKids, editName = inventoryPage()
     mainMenu = MainMenu(inventoryTab(page), 8)
-    mainMenuOpen = true
+    game.mainMenuOpen = true
     run(1)
     local invBox = barKids[1]
     local invBtn = invBox and invBox.child
@@ -77,7 +77,7 @@ group("the Inventory page's mailbox button", function()
     expect(barKids[3] and barKids[3].vis == 1 and barKids[3].padding and barKids[3].padding.Right == 268,
            "the crate button waits, collapsed, left of the emblem until there is a crate")
     -- Focus probes: which of the bar's buttons a player reached, and with what input.
-    inputSubsystems = { NamedWidget("CommonInputSubsystem_0", "CommonInputSubsystem", { GetCurrentInputType = function() return 1 end }) }
+    game.inputSubsystems = { NamedWidget("CommonInputSubsystem_0", "CommonInputSubsystem", { GetCurrentInputType = function() return 1 end }) }
     editName.WBP_PalInvisibleButton.focused = true
     run(1)
     editName.WBP_PalInvisibleButton.focused = false
@@ -134,7 +134,7 @@ group("the Inventory page's mailbox button", function()
     escMenu = Widget({ GetClass = function() return classed("WBP_MenuESC_C") end, WidgetTree = escRoot2,
                        Close = function(self) self.tabOnly = true end, CloseAction = function(self) self.closed = true; mainMenu:Close() end })   -- OnCloseEscMenu
     mainMenu = MainMenu(escMenu, 7)
-    escOpen = true
+    game.escOpen = true
     run(1)
     local mailBtn = escChildren[4]
     expect(mailBtn and mailBtn.Text_Main.text == "Archipelago Mailbox (1)" and countLoggedText("Mailbox button added to the inventory page") == 1,
@@ -146,7 +146,7 @@ group("the Inventory page's mailbox button", function()
     run(2)
     expect(#chestWindowsShown == shownBefore + 1, "and opens the mailbox")
     h.closeChest()
-    escOpen = false
+    game.escOpen = false
     -- A client whose page has no such name bar: nothing added, said once, with a look at the page.
     local bare = NamedWidget("WBP_InventoryEquipment", "WBP_InventoryEquipment_C",
                        { WidgetTree = { RootWidget = Panel("CanvasPanel", { Panel("CanvasPanel", {}) }) } })
@@ -177,7 +177,7 @@ group("the Inventory page's mailbox button", function()
             raised = raised + 1
             error(string.format("boom at 0x%x", 4096 + raised))
         end
-        mainMenuOpen = true
+        game.mainMenuOpen = true
         run(5)
         mainMenu = was
         local lines = 0
@@ -186,8 +186,8 @@ group("the Inventory page's mailbox button", function()
         end
         expect(raised >= 5 and lines == 1, "one line, not one an update: " .. lines .. " for " .. raised .. " errors")
     end
-    mainMenuOpen, inputSubsystems = false, nil
-    escOpen = false
+    game.mainMenuOpen, game.inputSubsystems = false, nil
+    game.escOpen = false
     playerController.K2_GetPawn, playerController.GetAddress = nil, nil
 
 end)

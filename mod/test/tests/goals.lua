@@ -37,7 +37,7 @@ group("the other goals", function()
            "two towers: the second (BOSS_BATTLE_NAME_ForestBoss) is counted, checked, and wins")
     -- 2026-11-08 run: the tower goal went out mid-arena and its line was lost in the release's flood. Now it waits for the
     -- player to be out of the stage (the boss's arena), then goes with the goal banner.
-    inStage = true
+    game.inStage = true
     h.switchSeed("70010", { ["options.goal"] = "0", ["options.tower_count"] = "1" })
     before = goals
     run(14)
@@ -45,7 +45,7 @@ group("the other goals", function()
            "a goal reached inside the boss's arena waits")
     run(40)
     expect(goals == before, "and keeps waiting while the player is in the arena")
-    inStage = false
+    game.inStage = false
     run(14)
     expect(goals == before + 1 and logged("goal sent: 1 tower%(s%) beaten") and logged("goal banner:"),
            "out of the arena, the goal goes, with the goal banner (or a log line saying why not)")
@@ -84,10 +84,10 @@ group("small failures say so in the log", function()
     run(1)
     POP.tick = tickWas
     expect(logged("hint pop%-up error: .*boom in the pop%-up"), "an error in the hint pop-up's timer is logged")
-    local dirWas = worldDir
-    worldDir = ""                                              -- the world's folder can't be read
+    local dirWas = game.worldDir
+    game.worldDir = ""                                              -- the world's folder can't be read
     run(7)
-    worldDir = dirWas
+    game.worldDir = dirWas
     expect(logged("world: the loaded world's folder can't be read, so it is not taken as this seed's"),
            "a seed with a world does not take a world it can't name as its own")
 end)
@@ -98,14 +98,14 @@ group("mailbox off: bundles straight to the bag", function()
     MB.on = function() return false end
     playerController.K2_GetPawn = function() return pawn end
     h.switchSeed("70004", {})
-    bagFull = true
+    game.bagFull = true
     local woodBefore = bagHas.Wood or 0
     push("item", "0", tostring(itemId["Wood Bundle"]), "3", "2", "0", "Wood Bundle", "Friend")
     run(14)
     local save4 = MOD .. "/save-70004-Other.txt"
     expect((bagHas.Wood or 0) == woodBefore and io.open(save4):read("*a"):find("given=-1", 1, true)
            and table.concat(announced, "|"):find("Wood Bundle waits until there is room", 1, true), "a full bag: the bundle waits, not counted as given")
-    bagFull = false
+    game.bagFull = false
     run(14)
     expect(bagHas.Wood == woodBefore + 50 and io.open(save4):read("*a"):find("given=0", 1, true), "and is given once there is room")
 

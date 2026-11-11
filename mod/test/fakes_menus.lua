@@ -424,7 +424,7 @@ end
 chests = nil                                                 -- the chest map objects made, once the mailbox makes one
 chestTemplates = nil                                         -- the chest Blueprint's parameter component(s)
 chestSpawnAsked = nil                                        -- the map object id the last spawn asked for
-movesWork = true                                             -- false: the game's move from the chest does nothing
+uiUtil = nil                                                 -- PalUIUtility (item names), once installChest
 moves = {}                                                   -- every move from the chest to the bag: { to, index, n }
 -- An item id that names no item (a slot's own: a test writes into it).
 local function noItem() return { A = 0, B = 0, C = 0, D = 0 } end
@@ -479,7 +479,7 @@ function mapObjects.FindModel() return chests[1].model end
 local function moveToBag(_, _, to, froms)
     for _, f in ipairs(froms) do
         moves[#moves + 1] = { to = to.ID.A, index = f.SlotId.SlotIndex, n = f.Num }
-        if movesWork then
+        if game.movesWork then
             local slot = chests[1].c.slots[f.SlotId.SlotIndex + 1]
             local id = slot.ItemId.StaticId:ToString()
             bagHas[id] = (bagHas[id] or 0) + f.Num

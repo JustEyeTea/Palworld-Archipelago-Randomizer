@@ -115,14 +115,14 @@ group("which slots can be bought", function()
     td.TechnologyPoint = 12
     -- A slot with a prerequisite, owned through its item, while the prerequisite is not.
     expect(canBuy("AutoMealPouch_Tier2") == nil, "Average Feed Bag (needs Small Feed Bag) not owned: the game decides")
-    playerLevel = 20
+    game.playerLevel = 20
     push("item", "4", tostring(itemId["Tech: Average Feed Bag"]), "1", "1", "1", "Tech: Average Feed Bag", "Tester")
     run(7)
     expect(canBuy("AutoMealPouch_Tier2") == false, "owned, but not without its prerequisite Small Feed Bag")
     push("item", "5", tostring(itemId["Tech: Small Feed Bag"]), "1", "1", "1", "Tech: Small Feed Bag", "Tester")
     run(7)
     expect(canBuy("AutoMealPouch_Tier2") == true, "and buyable once Small Feed Bag arrives")
-    playerLevel = 4
+    game.playerLevel = 4
     run(7)
     expect(canBuy("AutoMealPouch_Tier2") == false, "not below the slot's level")
 end)

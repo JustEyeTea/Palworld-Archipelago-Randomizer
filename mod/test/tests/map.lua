@@ -6,7 +6,7 @@ group("the world map", function()
     local jobs0 = #composeJobs
     expect(jobs0 >= 1 and composeJobs[jobs0].labels:find("area_labels.png") and composeJobs[jobs0].colour:find("map%-colour%-1.png"),
            "the picture is composed in the background, from the colour map and the area labels, before the map ever opens")
-    mapOpen = true
+    game.mapOpen = true
     run(1)
     expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt, "so the first opening has the composed map at once")
     do  -- v0.13.5 playtest: stamps at each area's deepest point sat under the fog of war; now on the side facing home
@@ -56,20 +56,20 @@ group("the world map", function()
     end
     nextSession()
     expect(exports == 1, "next session, same map picture: the saved colour map is reused")
-    mapArt = 200
+    game.mapArt = 200
     nextSession()
     expect(exports == 2 and logged("map picture changed"), "a mod changed the map picture: the colour map is saved again")
     nextSession()
     expect(exports == 2, "and then reused")
     -- The compositor fails (its file locked): the map is drawn without it, not left on an old picture logged as current.
-    composeFails = true
+    game.composeFails = true
     mapBody.Image_MapBody.Brush.ResourceObject = { IsValid = function() return true end, GetAddress = function() return 11 end,
                                                    GetFullName = function() return "Texture2D /Game/Pal/Texture/UI/Map/T_WorldMap.T_WorldMap" end }
     local W3 = dofile(MOD .. "/Scripts/walls.lua")
     W3.dir, W3.keepAlive = MOD, function() end
     local drawn = greyBoxes
     for _ = 1, 4 do W3.updateMap(true, {}, pawn) end
-    composeFails = false
+    game.composeFails = false
     expect(logged("composing failed: error: could not write") and greyBoxes > drawn and mapBody.Image_MapBody.Brush.ResourceObject.rt,
            "a failed composition: the map is drawn without the compositor")
     -- The map screen from C++ (map_screen.cpp, AP_MapScreen): Lua hands it the picture (by path) and the fog colour, logs
@@ -139,14 +139,14 @@ group("the world map", function()
         local W6 = dofile(MOD .. "/Scripts/walls.lua")
         W6.dir, W6.keepAlive = MOD, function() end
         W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
-        mapOpen = false
+        game.mapOpen = false
         W6.updateMap(true, {}, pawn)                                 -- closed: the chart is drawn in the background
         W6.updateMap(true, {}, pawn)
         local chartJob = jobs[1]
         expect(chartJob and chartJob.kind == "chart" and chartJob.colour:find("map%-colour%-1%.png") and chartJob.paper:find("ap%-chart%-paper%.png")
                and chartJob.compass:find("ap%-chart%-compass%.png") and chartJob.size == "2048" and logged("map chart: drawn"),
                "the chart is drawn once from the saved colour map with the Art lane's paper, sea and compass")
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 4 do W6.updateMap(true, {}, pawn) end              -- the map opens
         local fog
         for _, j in ipairs(jobs) do if j.kind == "fog" then fog = fog or j end end
@@ -186,7 +186,7 @@ group("the world map", function()
         AP_MapScreen, AP_ComposeChart, AP_ChartStatus, AP_ComposeFog, AP_FogStatus, AP_SamplePNG = nil, nil, nil, nil, nil, nil
         mapBody.MaskTextureMaterial = nil
     end
-    mapOpen = false
+    game.mapOpen = false
     -- dev.16 playtest (2026-11-07): the picture was only started once the map opened, so the first opening showed the
     -- game's map for ~3 s, and C++ was still off ("OFF; Setup ran 0x"). Now, before the map ever opens: C++ is switched on,
     -- the picture is composed from the colour map saved in an earlier session (the game's 8192 px map not loaded), and C++
@@ -197,7 +197,7 @@ group("the world map", function()
         local saved = MOD .. "\\map-colour-1.png"                    -- (the mod's Windows path, as a file name here)
         local f = io.open(saved, "w"); f:write("png"); f:close()
         local fp = {}
-        for _ = 1, 16 do fp[#fp + 1] = mapArt .. ",90,60" end
+        for _ = 1, 16 do fp[#fp + 1] = game.mapArt .. ",90,60" end
         f = io.open(saved .. ".txt", "w"); f:write(table.concat(fp, ";")); f:close()
         loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = nil
         local jobsBefore = #composeJobs
@@ -213,22 +213,22 @@ group("the world map", function()
                "the map closed: the picture is composed from the saved colour map, without loading the game's map")
         expect(said:find("body=/Engine/Transient.PalGameInstance_0:TextureRenderTarget2D_3", 1, true),
                "and C++ has the picture before the map first opens: " .. said)
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 3 do W7.updateMap(true, {}, pawn) end
         expect(loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] and #composeJobs == jobsBefore + 1,
                "at the first opening the game's map is checked against the saved one, and an unchanged map is not composed again")
-        mapOpen = false
-        mapArt = mapArt + 1                                            -- another session, another mod's map art
+        game.mapOpen = false
+        game.mapArt = game.mapArt + 1                                            -- another session, another mod's map art
         local W8 = dofile(MOD .. "/Scripts/walls.lua")
         W8.dir, W8.keepAlive = MOD, function() end
         for _ = 1, 3 do W8.updateMap(true, {}, pawn) end
         local early = #composeJobs
-        mapOpen = true
+        game.mapOpen = true
         for _ = 1, 4 do W8.updateMap(true, {}, pawn) end
         expect(#composeJobs == early + 1 and composeJobs[#composeJobs].colour == saved and logged("the game's map picture changed"),
                "a changed map art found at the first opening: the colour map is saved again and the picture made again")
-        mapOpen, AP_MapScreen = false, nil
-        mapArt = mapArt - 1
+        game.mapOpen, AP_MapScreen = false, nil
+        game.mapArt = game.mapArt - 1
         os.remove(saved); os.remove(saved .. ".txt")
     end
     -- The locked areas as the map's own icons (the user, 2026-11-07: stamps drawn into the picture grew with the zoom and
@@ -248,12 +248,12 @@ group("the world map", function()
         expect(#mapBody.icons == 0, "no icons before the map screen exists")
         -- dev.35 playtest: after Return to title and a second world load, the first world's screen was still about (last in
         -- FindAllOf here); its player is gone, so it is left alone and the icons go on the live one.
-        staleBody = { IsValid = function() return true end, GetAddress = function() return 79 end, icons = {}, MapName = FNameOf("MainMap"),
+        game.staleBody = { IsValid = function() return true end, GetAddress = function() return 79 end, icons = {}, MapName = FNameOf("MainMap"),
                       Image_MapBody = { IsValid = function() return true end },
                       GetOwningPlayer = function() return { IsValid = function() return false end } end }
-        staleBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
-        staleBody["Update Map Icons"] = function() end
-        mapOpen, treeOpen = true, true
+        game.staleBody["Add Icon By Location"] = function(self, icon) self.icons[#self.icons + 1] = icon end
+        game.staleBody["Update Map Icons"] = function() end
+        game.mapOpen, game.treeOpen = true, true
         for _ = 1, 2 do W9.updateMap(true, {}, pawn) end
         local job = composeJobs[#composeJobs]
         local nLocked = job and select(2, job.locked:gsub(",", "")) + 1 or 0
@@ -263,9 +263,9 @@ group("the world map", function()
         local c = locked1 and CENTRES[locked1]                          -- (keyed by the 0-based area index, as drawStamps)
         local at = c and W9.worldAt(c[1], c[2])
         expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked area: " .. #mapBody.icons .. " of " .. nLocked)
-        expect(#staleBody.icons == 0 and logged("a map screen of the last world left alone"),
+        expect(#game.staleBody.icons == 0 and logged("a map screen of the last world left alone"),
                "the last world's screen (its player gone) is left alone; the icons go on the live one")
-        staleBody = nil
+        game.staleBody = nil
         expect(first and first.tex and tostring(first.tex.path):find("ap%-map%-stamp") and first.ignoreMask == true
                and first.priority == false and first.visibility == 3 and first.parent == mapBody.Canvas_ForIcon_NoMask,
                "each shows its area's stamp, on the canvas the fog never hides, and ignores the pointer")
@@ -314,7 +314,7 @@ group("the world map", function()
         for k, v in pairs(stampAt) do if stampsBefore[k] ~= v then drawnAgain = drawnAgain + 1 end end
         expect(drawnAgain > 0, "with the stamps drawn in, as before: " .. drawnAgain)
         mapBody["Add Icon By Location"] = add
-        mapOpen, treeOpen, AP_MapScreen = false, false, nil
+        game.mapOpen, game.treeOpen, AP_MapScreen = false, false, nil
     end
 end)
 
@@ -347,7 +347,7 @@ group("the world map: the Territories look", function()
     local passes = { [area4] = true }
     local stale = io.open(MOD .. "/map-fog.png", "w"); stale:write("png"); stale:close()   -- (dev.31's chart fog, last session)
     os.remove(MOD .. "/map-fog-territories.png")
-    mapOpen, drawLog = false, {}
+    game.mapOpen, drawLog = false, {}
     for _ = 1, 3 do T.updateMap(true, passes, pawn) end
     local job = jobs[#jobs]
     local st = {}
@@ -374,7 +374,7 @@ group("the world map: the Territories look", function()
            and drawLog[i].blend == 2 then overDrawn = true end
     end
     expect(overDrawn and logged("map territories: drawn over the game's map"), "the map picture: the game's map, the overlay drawn over it")
-    mapOpen = true
+    game.mapOpen = true
     for _ = 1, 4 do T.updateMap(true, passes, pawn) end
     expect(fogArt and fogArt:find("map%-territories%-fog%.png$"), "the fog picture is made from the territories' fog art: " .. tostring(fogArt))
     local chartPic = false
@@ -387,7 +387,7 @@ group("the world map: the Territories look", function()
     expect(#jobs == n + 1 and jobs[#jobs].areas:find("3:v:", 1, true), "visiting an area makes the overlay again, the area visited")
     expect(fogSize == "2048" and logged("map territories: composing from the label map at 2048"),
            "an older DLL (no AP_ComposeField): the label map at 2048, the fog at 2048")
-    mapOpen = false
+    game.mapOpen = false
     -- dev.34: with the DLL's AP_ComposeField, from the Art lane's distance field (shipped) at 4096, the fog at 4096.
     local fjobs = {}
     AP_ComposeField = function(field, areas, walls, style, out, fogart, fog, size, colour, gamma)
@@ -421,7 +421,7 @@ group("the world map: the Territories look", function()
     expect(askedMap == "MainMap" and earlyPic and logged("the explored mask read before the map opened"),
            "the map never opened: the explored mask read from the world's map data and the fog picture made and handed over")
     util.GetLocalWorldMapData = nil
-    mapOpen = true
+    game.mapOpen = true
     for _ = 1, 4 do F.updateMap(true, passes, pawn) end
     local fj = fjobs[#fjobs]
     local shipped = io.open(MOD .. "/area_field.png", "rb")
@@ -436,7 +436,7 @@ group("the world map: the Territories look", function()
     G2.dir, G2.keepAlive = MOD, function() end
     G2.beyond, G2.visited = { [sealedArea] = true }, {}
     local savedLoad = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
-    mapOpen, drawLog = false, {}
+    game.mapOpen, drawLog = false, {}
     local nf = #fjobs
     for _ = 1, 3 do G2.updateMap(true, passes, pawn) end
     local overGame = false
@@ -448,7 +448,7 @@ group("the world map: the Territories look", function()
     loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"] = savedLoad
     if hadColour then cf = io.open(colourFile, "w"); cf:write("png"); cf:close() else os.remove(colourFile) end
     AP_ComposeField = nil
-    mapOpen = false
+    game.mapOpen = false
     local C = dofile(MOD .. "/Scripts/walls.lua")
     C.dir, C.keepAlive, C.mapStyle = MOD, function() end, "chart"
     n = #jobs

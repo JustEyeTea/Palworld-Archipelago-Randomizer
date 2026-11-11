@@ -7,7 +7,7 @@ group("the title menu's Archipelago menu", function()
     -- the game's own text box in the menu; the saved servers show under Server while it has the keyboard; the banner
     -- brightens under the pointer. Without a text box class, the dev.20 rows and the text window (tested at the end).
     local WINDOW_OK = GAME_PATH.title .. "WBP_Title_WorldSettings_NameWindow.WBP_Title_WorldSettings_NameWindow_C:BndEvt__WBP_Title_WorldSettings_NameWindow_WBP_CommonButton_K2Node_ComponentBoundEvent_5_OnClicked__DelegateSignature"
-    titleOpen = true
+    game.titleOpen = true
     -- v0.13.5 playtest: a title menu whose buttons could not be made got a new banner every update (1,042 of them).
     local realCreate = wbl.Create
     wbl.Create = function() return nil end
@@ -267,14 +267,14 @@ group("the title menu's Archipelago menu", function()
     do   -- one test of "in a world": a pawn the lookup answers with, even one not valid, counts
         local pawnWas, addressWas = playerController.K2_GetPawn, playerController.GetAddress
         local notValid = Widget({ IsValid = function() return false end })
-        titleOpen = false                                       -- (no title menu up: it is only looked for)
+        game.titleOpen = false                                       -- (no title menu up: it is only looked for)
         playerController.K2_GetPawn, playerController.GetAddress = function() return notValid end, function() return 1001 end
         run(1)
         local looks = lookups.WBP_TitleMenu_C or 0
         run(10)
         local inTen = (lookups.WBP_TitleMenu_C or 0) - looks
         playerController.K2_GetPawn, playerController.GetAddress = pawnWas, addressWas
-        titleOpen = true
+        game.titleOpen = true
         run(2)
         expect(inTen <= 1, "in a world, the title menu is looked for every 10th update, as the world buttons see it: " .. inTen)
     end
@@ -284,7 +284,7 @@ group("the title menu's Archipelago menu", function()
     run(10)
     expect(logged("a title menu was found with the player's pawn in a world"), "a title menu seen in a world is logged")
     playerController.K2_GetPawn, playerController.GetAddress = nil, nil
-    titleOpen = false
+    game.titleOpen = false
     run(1)
     -- In a world the title menu is gone; a game title button made later at a freed address of ours is not ours.
     local disconnectsBefore, pushedBefore = disconnects, #pushed
@@ -294,11 +294,11 @@ group("the title menu's Archipelago menu", function()
     expect(disconnects == disconnectsBefore and #pushed == pushedBefore, "our old title buttons' addresses are forgotten")
     -- Without a text box class (neither the game's nor UMG's): the dev.20 rows, each field in the text window (whose heading
     -- is set where the window has one).
-    palEditOk, umgEditOk = false, false
+    game.palEditOk, game.umgEditOk = false, false
     for i = #menuChildren, 1, -1 do menuChildren[i] = nil end
     menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
     gameButtonWrap.vis, quitWrap.vis = 0, 0
-    titleOpen = true
+    game.titleOpen = true
     run(2)
     expect(#menuChildren == 9 and logged("typed fields not made %(no text box class%); the text window instead %(try %d%)")
            and logged("fields in the text window"), "no text box: the rows with the text window")
@@ -307,9 +307,9 @@ group("the title menu's Archipelago menu", function()
     expect(#pushed == pushedBefore + 1 and pushed[#pushed].DefaultInputName == "40000", "Port opens the text window, filled in")
     okWith("40001")
     expect(menuChildren[4].child.Test_Content.text == "Port: 40001", "and sets the port")
-    titleOpen = false
+    game.titleOpen = false
     run(1)
-    palEditOk, umgEditOk = nil, nil
+    game.palEditOk, game.umgEditOk = nil, nil
     ExecuteInGameThread = realGT
     do   -- a title menu whose rows kept failing, gone and back at the same address: tried again at once
         local function added()
@@ -321,19 +321,19 @@ group("the title menu's Archipelago menu", function()
         end
         local create = wbl.Create
         wbl.Create = function() return nil end
-        titleOpen = true
+        game.titleOpen = true
         run(13)                                                 -- builds failing every update, then every 10th
-        titleOpen = false
+        game.titleOpen = false
         run(1)                                                  -- the menu goes
         wbl.Create = create
         for i = #menuChildren, 1, -1 do menuChildren[i] = nil end
         menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
         gameButtonWrap.vis, quitWrap.vis = 0, 0
-        titleOpen = true                                        -- back, at the address it had
+        game.titleOpen = true                                        -- back, at the address it had
         local before = added()
         run(1)
         expect(added() == before + 1, "its rows are made on the first update it is back, not after a backoff")
-        titleOpen = false
+        game.titleOpen = false
         run(1)
     end
     do   -- a button whose label the mod can't set (the game's widget changed) says so, once

@@ -5,9 +5,9 @@ group("a new world", function()
     -- The pawn missing for a moment in the same world (a faint, a respawn): the walls standing are kept, not raised twice.
     run(10)                                                       -- (walls opened above finish shrinking: 2 s of updates)
     local before, up = spawned, wallCount()
-    pawnGone = true
+    game.pawnGone = true
     run(5)
-    pawnGone = false
+    game.pawnGone = false
     run(80)
     expect(spawned == before and wallCount() == up, "a moment without a pawn: no second set of walls: " .. (spawned - before))
     pawnAddress = 8192                                             -- back from the title, the world loaded again
@@ -25,7 +25,7 @@ group("another world", function()
     local mapScreenCalls = {}                                      -- what the core's walls told C++'s map screen
     recordMapScreen(mapScreenCalls)
     run(3)                                                         -- (the seed's world: C++ switched on)
-    worldDir, pawnAddress = "VANILLA", 12288
+    game.worldDir, pawnAddress = "VANILLA", 12288
     h.leaveWorld()
     unlocked.list[#unlocked.list + 1] = FNameOf("PalBox")          -- researched in that world
     record.PalCaptureCount.Items.list[2].Value = 1                 -- and a SheepBall caught there
@@ -37,7 +37,7 @@ group("another world", function()
            "and the player is told")
     expect(table.concat(mapScreenCalls, " | "):find("enable=1 | .*enable=0$"),
            "and C++ is told to leave its map screen alone: " .. table.concat(mapScreenCalls, " | "))
-    worldDir, pawnAddress = "AP_WORLD", 16384
+    game.worldDir, pawnAddress = "AP_WORLD", 16384
     h.leaveWorld()
     run(80)
     local have = h.unlockedTechs()
@@ -49,16 +49,16 @@ end)
 
 group("death link", function()
     expect(tagsSet == "AP,DeathLink", "the slot's death_link turns the link on: " .. tostring(tagsSet))
-    playerDead = true
+    game.playerDead = true
     run(7)
     local b = bounces[#bounces]
     expect(#bounces == 1 and b.tags == "DeathLink" and b.json:find('"source":"Tester"', 1, true)
            and b.json:find('"cause":"Tester fainted in Palworld."', 1, true), "dying sends a death: " .. tostring(b and b.json))
-    playerDead = false
+    game.playerDead = false
     run(7)
     push("bounce", "DeathLink", '{"cause":"Tester died","source":"Tester","time":1}')
     run(7)
-    expect(not playerDead, "our own death coming back is ignored")
+    expect(not game.playerDead, "our own death coming back is ignored")
     -- (Announced among this run's notices, not necessarily last: the pawn stands at a wall here, and its notice can come
     -- after the death within the same 7 updates now that Death Link runs two updates after the records.)
     local noticesBefore = #announced
@@ -68,14 +68,14 @@ group("death link", function()
     run(7)
     local deathTold = false
     for i = noticesBefore + 1, #announced do deathTold = deathTold or announced[i]:find("Ash fell off a cliff", 1, true) ~= nil end
-    expect(playerDead and deathTold, "a linked death faints the player")
+    expect(game.playerDead and deathTold, "a linked death faints the player")
     expect(DL.calls[#DL.calls] == "poison" and DL.slip.damage >= 99999 and DL.slip.shieldIgnore == true and DL.slip.deadType == 5
            and DL.slip.clearShield == true,
            "through lethal poison damage, an ordinary death, so the world's Death Penalty drops items: " .. tostring(DL.calls[#DL.calls]))
     run(7)
     expect(#bounces == 1, "and is not sent back")
     expect(logged("death link: the poison worked"), "the log says the poison took")
-    playerDead = false
+    game.playerDead = false
     run(7)
     -- If the poison kills nobody, the next run drops the Death Penalty's bag and self-kills; that route is kept for the
     -- session. (dev.17 test, 2026-11-07: the previous "normal death" call fainted nobody, and the self-kill dropped nothing.)
@@ -84,22 +84,22 @@ group("death link", function()
     util.GetDeathPenaltyManager = function() return { DropDeathPenaltyChest = function(_, who) DL.calls[#DL.calls + 1] = "drop"; DL.penaltyFor = who end } end
     push("bounce", "DeathLink", '{"cause":"Brock tripped.","source":"Brock","time":4}')
     run(7)
-    expect(not playerDead and DL.calls[#DL.calls] == "poison", "first the poison")
+    expect(not game.playerDead and DL.calls[#DL.calls] == "poison", "first the poison")
     run(7)
-    expect(playerDead and DL.calls[#DL.calls - 1] == "drop" and DL.calls[#DL.calls] == "self" and DL.penaltyFor == pawn
+    expect(game.playerDead and DL.calls[#DL.calls - 1] == "drop" and DL.calls[#DL.calls] == "self" and DL.penaltyFor == pawn
            and logged("the poison did not faint the player; used the penalty drop"), "then the Death Penalty's bag for the player, and the self-kill")
     run(7)
     expect(#bounces == 1, "and that death is not sent back either")
-    playerDead = false
+    game.playerDead = false
     run(7)
     do
         local calls = #DL.calls
         push("bounce", "DeathLink", '{"cause":"Brock tripped again.","source":"Brock","time":5}')
         run(7)
-        expect(playerDead and #DL.calls == calls + 2 and DL.calls[calls + 1] == "drop", "later deaths go straight to the bag and the self-kill")
+        expect(game.playerDead and #DL.calls == calls + 2 and DL.calls[calls + 1] == "drop", "later deaths go straight to the bag and the self-kill")
         run(7)                                                       -- (checked while still down: a faint lasts longer than a run)
         expect(logged("death link: the penalty drop worked"), "the log says the bag and the self-kill took")
-        playerDead = false
+        game.playerDead = false
         run(7)
         -- A world whose Death Penalty is None: no bag, only the faint.
         local sub = util.GetOptionSubsystem
@@ -107,31 +107,31 @@ group("death link", function()
         calls = #DL.calls
         push("bounce", "DeathLink", '{"cause":"Brock tripped once more.","source":"Brock","time":6}')
         run(7)
-        expect(playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self" and logged("Death Penalty is None"),
+        expect(game.playerDead and #DL.calls == calls + 1 and DL.calls[#DL.calls] == "self" and logged("Death Penalty is None"),
                "with the world's Death Penalty None, no bag is dropped")
         util.GetOptionSubsystem = sub
         run(7)
-        playerDead = false
+        game.playerDead = false
         run(7)
         -- The bag failing (an error) falls to the self-kill at once: the death is never lost.
         util.GetDeathPenaltyManager = function() error("no manager") end
         push("bounce", "DeathLink", '{"cause":"Brock, finally.","source":"Brock","time":7}')
         run(7)
-        expect(playerDead and DL.calls[#DL.calls] == "self" and logged("penalty drop failed: .*no manager.*trying self%-kill"),
+        expect(game.playerDead and DL.calls[#DL.calls] == "self" and logged("penalty drop failed: .*no manager.*trying self%-kill"),
                "a route that errors falls to the next at once")
     end
     util.GetDeathPenaltyManager = nil
     playerController.K2_GetPawn = DL.pawnBefore
     DL.poisonWorks = true
-    playerDead = false
+    game.playerDead = false
     run(7)
     -- A death received while no player is in the world (the title, a load) does not faint the player in the next one.
-    noPlayer = true
+    game.noPlayer = true
     push("bounce", "DeathLink", '{"cause":"Misty fell.","source":"Misty","time":3}')
     run(70)
-    noPlayer = false
+    game.noPlayer = false
     run(14)
-    expect(not playerDead and logged("death link received while no player was in the world"), "a death from before the world loaded is dropped")
+    expect(not game.playerDead and logged("death link received while no player was in the world"), "a death from before the world loaded is dropped")
     do  -- another client's cause with escaped quotes and a backslash is read whole (it was cut off at \")
         local noticesAt = #announced
         local pawnWas = playerController.K2_GetPawn
@@ -142,9 +142,9 @@ group("death link", function()
         for i = noticesAt + 1, #announced do
             wholeCause = wholeCause or announced[i]:find('Misty said "hi" at C:\\Pal.', 1, true) ~= nil
         end
-        expect(playerDead and wholeCause, "a linked death's cause with quotes and a backslash is read whole")
+        expect(game.playerDead and wholeCause, "a linked death's cause with quotes and a backslash is read whole")
         run(7)
-        playerDead = false
+        game.playerDead = false
         run(7)
         playerController.K2_GetPawn = pawnWas
     end

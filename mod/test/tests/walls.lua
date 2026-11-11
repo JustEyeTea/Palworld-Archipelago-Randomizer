@@ -54,8 +54,8 @@ group("area locks", function()
         W.setSkin("c")
         expect(logged("wall skin c: unknown"), "an unknown skin is refused")
         -- colour skins: our own material from the PalworldArchipelagoArt pak, a full-colour tile on it
-        local hadPak = logicMod
-        logicMod = true
+        local hadPak = game.logicMod
+        game.logicMod = true
         W.setSkin("colour-paws"); run(1)
         local cm = a.Cube.mat
         expect(cm ~= wallRed and cm.parent and tostring(cm.parent.path):find("PalworldArchipelagoArt/M_APWall", 1, true)
@@ -90,13 +90,13 @@ group("area locks", function()
                "a pak asset LoadAsset can't find (dev.39 playtest) comes through the asset registry, as BPModLoader's ModActor does")
         W.setSkin("colour-paws"); run(1)
         cm.parent.IsValid = function() return false end            -- now without the pak
-        logicMod = false
+        game.logicMod = false
         expect(W.cycleSkin() == "colour-routes", "Ctrl+F3 goes on to the next colour skin"); run(1)
         expect(logged("wall skin colour%-routes: needs the PalworldArchipelagoArt pak") and a.Cube.mat == cm,
                "without the pak it is refused and the wall keeps its skin")
         expect(W.cycleSkin() == "colour-grid", "the refused one is skipped"); run(1)
         expect(W.cycleSkin() == "a", "and every refused one after it")
-        logicMod = hadPak
+        game.logicMod = hadPak
         W.setSkin("red"); run(1)
     end
     local WALLS = dofile(MOD .. "/Scripts/walls.lua")
@@ -170,7 +170,7 @@ group("area locks", function()
         if announced[i]:find("sealed. Friend's", 1, true) then theirs = true end
     end
     expect(stillOurs and not theirs, "another player's pass hint is not shown at our wall as ours")
-    hintPoints = "3,121"
+    game.hintPoints = "3,121"
     do
         -- At a wall to another locked area (no hint known for it yet).
         local at, area
@@ -209,8 +209,8 @@ group("area locks", function()
     do  -- dev.41: an opened wall wearing the paws dissolves (M_APWall by the game's clock) instead of shrinking. The walls
         -- module is driven directly with one extra pass, so no real pass is given (later tests count on which areas are open).
         local W = require("walls")
-        local hadPak = logicMod
-        logicMod = true
+        local hadPak = game.logicMod
+        game.logicMod = true
         W.setSkin("paws"); run(2)
         local target
         for _, w in ipairs(WD.walls) do
@@ -248,15 +248,15 @@ group("area locks", function()
         expect(fading and fading.Cube.mat.vectors and fading.Cube.mat.vectors.PlayerPos,
                "the glow follows the player: the dissolving material has the player's position too")
         if fading then fading.Cube.mat.parent.IsValid = function() return false end end   -- the pak "gone" again, as before
-        logicMod = hadPak
+        game.logicMod = hadPak
         W.setSkin("red"); run(40)
         expect(wallCount() == expected(open), "(the core's own passes put that area's walls back up: " .. wallCount() .. ")")
     end
     do  -- dev.42 crash (a dead object called at a wall, after Return to title and a new world): after a world change no
         -- material of the world before is called again, by the glow or anything else
         local W = require("walls")
-        local hadPak = logicMod
-        logicMod = true
+        local hadPak = game.logicMod
+        game.logicMod = true
         W.radius = 0
         W.setSkin("paws"); run(3)
         pawnAt = { X = pawnAt.X + 300, Y = pawnAt.Y, Z = pawnAt.Z }; run(2)          -- the glow tells the materials
@@ -279,7 +279,7 @@ group("area locks", function()
                .. " calls); the new pieces get new ones, which the glow tells")
         pawnAt = { X = pawnAt.X - 600, Y = pawnAt.Y, Z = pawnAt.Z }
         for m in pairs(old) do m.parent.IsValid = function() return false end end -- the pak "gone" again, as before
-        logicMod = hadPak
+        game.logicMod = hadPak
         W.setSkin("red"); run(40)
     end
     do  -- dev.43: every piece is raised at load (as before); only those within 75 m are shown, past 100 m hidden
