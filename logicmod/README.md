@@ -162,7 +162,7 @@ Part 1's setup, not Parts 2 and 3.
 
 What the Lua mod sets on it: `Pattern` (the RGBA tile from `walls\ap-wall-colour-<name>.png`, or the cream-paw layer
 for the default `paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; the paws skin puts the
-area's colour at 0.34), `CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`,
+region's colour at 0.34), `CellSize` (cm per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `NightDim`,
 `Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm), `OffsetU`/`OffsetV`/`MirrorU` (each of the 75 Areas a variant of
 its Region's look), and `DissolveStart`/`DissolveTime` (an unlock: the wall dissolves by the game's clock). It also glows and ripples
 near the player, whose position the mod sets as `PlayerPos` each update (300 ms) (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`,

@@ -1,4 +1,4 @@
-"""Pins each goal's plan in __init__.py: the cap (plan_cap), the passes and the map (areas_in_scope, Regions Beyond
+"""Pins each goal's plan in __init__.py: the cap (plan_cap), the passes and the map (locks_in_scope, Regions Beyond
 the Goal), Gear Logic (progression_techs, normal_research), the points budget (unaffordable_slots), the filler
 (filler_names) and the tech-slot names (data.shop_location)."""
 from . import PalworldTestBase

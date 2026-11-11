@@ -137,8 +137,8 @@ if PERF then
         expect(logged("%[perf%] mark 1") and logged("%[perf%] mark1 win="),
                "Ctrl+6 marks the moment, with the window so far")
 
-        -- Ctrl+7: the walls' test states. The pawn waits deep inside a locked area: nobody is sent home while the walls
-        -- are held, and the check is back once they are full again.
+        -- Ctrl+7: the walls' test states. The pawn waits deep inside a locked region: nobody is sent home while the
+        -- walls are held, and the check is back once they are full again.
         local freshCopy = h.freshWalls()
         local deep
         for x = -500000, 300000, 10000 do

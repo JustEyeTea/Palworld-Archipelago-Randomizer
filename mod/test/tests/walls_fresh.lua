@@ -67,14 +67,15 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(#third == #first and hiddenOf(third) == #third,
                "after the test state that removes every piece, the pieces raised again are hidden again: "
                .. hiddenOf(third) .. " of " .. #third)
-        W.setLayout("regions") -- the other cut: every piece taken down, others raised
+        W.setLayout("areas") -- the other cut: every piece taken down, others raised
         for _ = 1, 2 * SETTLE_UPDATES do
             W.update(true, {}, offMap)
         end
-        local regions = mine()
-        expect(#regions > #first and hiddenOf(regions) == #regions,
-               "after a change of cut the new cut's far pieces are hidden: " .. hiddenOf(regions) .. " of " .. #regions)
-        h.wallsGo(regions)
+        local areaPieces = mine()
+        expect(#areaPieces > #first and hiddenOf(areaPieces) == #areaPieces,
+               "after a change of cut the new cut's far pieces are hidden: " .. hiddenOf(areaPieces) .. " of "
+               .. #areaPieces)
+        h.wallsGo(areaPieces)
         end
     do  -- Walls opening when the pawn reads nil for a moment (same world) still open; when the world goes, none of its
         -- walls is called again (IsValid included), opening ones neither
@@ -83,7 +84,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         for _ = 1, SETTLE_UPDATES do
             W.update(true, {}, offMap)
         end
-        local beside = {}                                         -- two areas next to the start
+        local beside = {}                                         -- two regions next to the start
         for _, w in ipairs(WD.walls) do
             local other = h.otherSideOfStart(h.wallRow(w))
             if other and other ~= "Open sea" and other ~= beside[1] then
@@ -138,8 +139,8 @@ group("walls and the map, on fresh copies of walls.lua", function()
                .. " old walls, " .. openingNow .. " of them opening")
         h.wallsGo(mine())
     end
-    do  -- The locked-area icons on the map: a moment without a pawn (same world, same screen) adds none twice; a new
-        -- world's screen gets new ones, and the last world's are forgotten without a call (IsValid included)
+    do  -- The locked regions' icons on the map: a moment without a pawn (same world, same screen) adds none twice; a
+        -- new world's screen gets new ones, and the last world's are forgotten without a call (IsValid included)
         mapBody.icons, mapBody.iconUpdates = {}, 0
         local W = h.freshWalls()
         game.mapOpen = false
@@ -208,7 +209,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local fogsFirst = keptOf("map-fog-territories") - fogs0
         local made = fieldJobs or 0
         for n = 3, 12 do                                           -- ten passes, one at a time
-            passes[WD.areas[n]] = true
+            passes[WD.locks[n]] = true
             for _ = 1, 8 do
                 W.updateMap(true, passes, pawn)
             end
@@ -308,8 +309,8 @@ group("walls and the map, on fresh copies of walls.lua", function()
         takeAway()
         putBack()
     end
-    do -- A seed with area locks, then one without in the same session: C++ is told to leave the map screen alone, once,
-        -- and switched on again with the picture when area locks are back
+    do -- A seed with Area Locks, then one without in the same session: C++ is told to leave the map screen alone, once,
+        -- and switched on again with the picture when Area Locks are back
         local calls = {}
         local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(game.mapArt)
@@ -437,10 +438,10 @@ group("walls and the map, on fresh copies of walls.lua", function()
     do  -- One piece whose spawn raises an error holds up no other piece, and the rest of the update still runs
         local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
         local first, firstAt                                      -- the first piece that stands with no pass held
-        local function open(area) return area == "Open sea" or area == WD.start end
+        local function open(lock) return lock == "Open sea" or lock == WD.start end
         for k, w in ipairs(WD.walls) do
             local row = h.wallRow(w)
-            if not first and not (open(row.areaA) and open(row.areaB)) then
+            if not first and not (open(row.lockA) and open(row.lockB)) then
                 first, firstAt = row, k
             end
         end
@@ -498,7 +499,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             for _ = 1, SETTLE_UPDATES do
                 W.update(true, {}, offMap)
             end
-            W.update(true, { [WD.areas[4]] = true }, offMap)
+            W.update(true, { [WD.locks[4]] = true }, offMap)
             local list = {}
             for _, a in ipairs(mine()) do
                 if a.shrunkTo then
@@ -518,13 +519,13 @@ group("walls and the map, on fresh copies of walls.lua", function()
         end
         local W, mine = h.freshWalls()
         local opening = openingAfterAPass(W, mine)
-        W.setLayout("regions")
+        W.setLayout("areas")
         local afterCut = standing(opening)
         h.wallsGo(mine())
         local W2, mine2 = h.freshWalls()
         local opening2 = openingAfterAPass(W2, mine2)
         opening2[1].IsValid = function() error("the opening step errors") end
-        W2.update(true, { [WD.areas[4]] = true }, offMap)
+        W2.update(true, { [WD.locks[4]] = true }, offMap)
         local afterError = standing(opening2) - 1                 -- (the piece that errors cannot be taken down)
         expect(logged("walls: the opening step failed %(.*the opening step errors%); %d+ opening piece%(s%) "
                       .. "taken down"),
@@ -633,7 +634,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "a piece that cannot be dressed is logged with its error, at a skin change and when it is raised")
         h.wallsGo(mine())
     end
-    do  -- With two live main-map screens (two menus), each gets the locked-area icons
+    do  -- With two live main-map screens (two menus), each gets the locked regions' icons
         local second = { IsValid = function() return true end, GetAddress = function() return 88 end, icons = {},
                          MapName = FNameOf("MainMap"),
                          Image_MapBody = { IsValid = function() return true end, Brush = {} } }
@@ -684,7 +685,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local realClock = gameplay.GetTimeSeconds
         gameplay.GetTimeSeconds = function() error("no clock") end
         for _ = 1, 3 do
-            W.update(true, { [WD.areas[4]] = true }, offMap)
+            W.update(true, { [WD.locks[4]] = true }, offMap)
         end
         gameplay.GetTimeSeconds = realClock
         W.setSkin("red")
@@ -739,7 +740,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         W.perfMode("none")
         local since = #printed
         W.setSkin("paws")
-        W.update(false, {}, offMap)                               -- (area locks off: nothing raised again yet)
+        W.update(false, {}, offMap)                               -- (Area Locks off: nothing raised again yet)
         local stale = false
         for i = since + 1, #printed do
             if printed[i]:find("wall skin paws: colours %S") then

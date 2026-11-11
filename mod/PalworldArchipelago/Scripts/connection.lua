@@ -74,8 +74,9 @@ local function resetSeed(seed, slot)
         .. tostring(seed) .. ", slot " .. tostring(slot) .. "): progress of the last one forgotten")
 end
 
--- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the rename send
--- options.area_size, with the same numbers; older seeds send neither. WALLS still names the 75-area cut "regions".
+-- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the option was
+-- renamed send options.area_size, with the same numbers (its values were "areas" for the 15 and "regions" for the 75);
+-- older seeds send neither. WALLS names each cut as Lock Size does.
 local function applyLockSize()
     local size = AP_SlotData("options.lock_size")
     local useAreas                                  -- true: the 75 areas; false: the 15 regions
@@ -85,22 +86,22 @@ local function applyLockSize()
         local old = AP_SlotData("options.area_size")
         useAreas = old == "1" or old == "regions"
     end
-    WALLS.setLayout(useAreas and "regions" or "areas")
+    WALLS.setLayout(useAreas and "areas" or "regions")
 end
 
--- Areas beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes are not in
+-- Locks beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes are not in
 -- this seed. Locked, their walls stay up for good; open, they are open from the start.
 local function applyBeyondGoal()
     ap.beyond = {}
     local nBeyond = 0
-    for area in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do
-        ap.beyond[area], nBeyond = true, nBeyond + 1
+    for lock in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do
+        ap.beyond[lock], nBeyond = true, nBeyond + 1
     end
     local mode = AP_SlotData("options.beyond_goal")
     ap.beyondOpen = mode == "2" or mode == "open"
     if ap.beyondOpen then
-        for area in pairs(ap.beyond) do
-            ap.passes[area] = true
+        for lock in pairs(ap.beyond) do
+            ap.passes[lock] = true
         end
     end
     WALLS.setBeyond(ap.beyondOpen and {} or ap.beyond)    -- sealed walls and stamps (open ones come down)
@@ -124,7 +125,7 @@ local function logRunOptions()
     end
 end
 
--- The seed's options that shape this session: area locks and their cut of the map, the areas beyond the goal, and
+-- The seed's options that shape this session: Area Locks and their cut of the map, the locks beyond the goal, and
 -- Death Link; the run style and traps are logged.
 local function applySeedOptions()
     AREA_LOCKS.setOn(slotFlag("options.area_locks"))

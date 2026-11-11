@@ -31,8 +31,8 @@ packages it with the Lua mod.
 `logicmod/` holds the optional Blueprint paks built in the community Palworld Modding Kit (PalworldArchipelagoArt, the
 area walls' material, and PalworldArchipelagoUI, the Archipelago Mailbox's own window, not released yet); its README
 has the steps. `tools/probe/` is the server-side probe whose commands dump the game's tables, and `tools/` turns that
-data into the facts the randomizer needs (the area borders came once from the game's region triggers, read from its
-paks with a CUE4Parse tool kept outside this repository); `data/` holds those facts (areas, where
+data into the facts the randomizer needs (the region and area borders came once from the game's region triggers, read
+from its paks with a CUE4Parse tool kept outside this repository); `data/` holds those facts (regions and areas, where
 each Pal can be obtained). Raw dumps of Pocketpair's game tables are not distributed here: they are Pocketpair's, not
 covered by this repository's licence, and are regenerated from your own copy of the game with the probe's
 `dumptable` and `dumpactors` commands.

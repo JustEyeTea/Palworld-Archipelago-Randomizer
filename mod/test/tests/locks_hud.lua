@@ -1,16 +1,15 @@
--- Lock Size: areas, areas beyond the goal, the walls' area colours and the HUD pieces (the hint pop-up, the
+-- Lock Size: areas, locks beyond the goal, the walls' region colours and the HUD pieces (the hint pop-up, the
 -- debuff icons, the goal banner). Tests walls.lua, hint_popup.lua, debuffs.lua.
 
 group("Lock Size: areas", function()
     -- Slot data options.lock_size 1: every named area of the game on its own, opened by an Area Pass.
-    -- walls.lua still calls this cut "regions" (the older word).
-    local RD = dofile(MOD .. "/Scripts/area_walls_regions.lua")
+    local RD = dofile(MOD .. "/Scripts/area_walls.lua")
     local liveWalls = require("walls")
     slotData["options.lock_size"] = "1"
     h.reconnect("Tester")
     h.replayItems()
     run(80)
-    expect(logged("area locks: 75 areas %(" .. #RD.walls .. " border pieces%)") and liveWalls.layout == "regions"
+    expect(logged("area locks: 75 areas %(" .. #RD.walls .. " border pieces%)") and liveWalls.layout == "areas"
            and liveWalls.passName("Golden Hills") == "Area Pass: Golden Hills",
            "a 75-areas seed: the areas' walls and passes")
     local up = wallCount()
@@ -18,9 +17,9 @@ group("Lock Size: areas", function()
     pushItem({ name = "Area Pass: Golden Hills", index = 9000 })
     run(60)
     expect(wallCount() < up, "an Area Pass takes its area's walls down: " .. up .. " -> " .. wallCount())
-    expect(liveWalls.parentOf("Golden Hills") == "Bamboo Groves"
-           and liveWalls.parentOf("Gobfin's Turf") == "Crescent Moon Shore",
-           "an area wears its region's colour, ticket and stamp (area_parents_regions.lua)")
+    expect(liveWalls.regionOf("Golden Hills") == "Bamboo Groves"
+           and liveWalls.regionOf("Gobfin's Turf") == "Crescent Moon Shore",
+           "an area wears its region's colour, ticket and stamp (area_regions.lua)")
     local perHex = {}
     for i in ipairs(RD.walls) do
         local name = liveWalls.pieceSkin(i, {}, "paws")
@@ -46,30 +45,30 @@ group("Lock Size: areas", function()
     slotData["options.lock_size"], slotData["options.area_size"] = nil, "1"   -- a seed made before the rename
     h.reconnect("Tester")
     run(80)
-    expect(liveWalls.layout == "regions", "a seed from before the rename (options.area_size 1) still gets the 75 areas")
+    expect(liveWalls.layout == "areas", "a seed from before the rename (options.area_size 1) still gets the 75 areas")
     slotData["options.area_size"] = nil -- a 15-regions seed again (and seeds made before the option)
     h.reconnect("Tester")
     run(80)
-    expect(liveWalls.layout == "areas" and logged("area locks: 15 regions"),
+    expect(liveWalls.layout == "regions" and logged("area locks: 15 regions"),
            "back to a 15-regions seed: the regions' walls")
 end)
 
-group("areas beyond the goal", function()
+group("locks beyond the goal", function()
     -- Slot data beyond_goal_areas and options.beyond_goal: sealed for good, or open from the start.
-    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = shared.hintArea, "0"
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = shared.hintRegion, "0"
     h.reconnect("Tester")
     run(80)
-    expect(logged("areas beyond the goal: 1, sealed for good"), "a locked area beyond the goal is logged")
+    expect(logged("areas beyond the goal: 1, sealed for good"), "a locked region beyond the goal is logged")
     local up = wallCount()
     local noticesBefore = #announced
     pawnAt = shared.hintAt
     runPast(WAIT.wallNotice)
     local toldBeyond, offered = false, false
     for i = noticesBefore + 1, #announced do
-        if announced[i]:find(shared.hintArea .. " is beyond this seed's goal: its walls stay up.", 1, true) then
+        if announced[i]:find(shared.hintRegion .. " is beyond this seed's goal: its walls stay up.", 1, true) then
             toldBeyond = true
         end
-        if announced[i]:find("needs Region Pass: " .. shared.hintArea, 1, true) then
+        if announced[i]:find("needs Region Pass: " .. shared.hintRegion, 1, true) then
             offered = true
         end
     end
@@ -83,11 +82,11 @@ group("areas beyond the goal", function()
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
 end)
 
-group("area-coloured walls and the hint pop-up", function()
+group("region-coloured walls and the hint pop-up", function()
     local WD = shared.WD
     -- Area-coloured walls, sealed walls beyond the goal, the hint pop-up.
     local liveWalls = require("walls")
-    local openedBeyond = shared.hintArea                -- the open-beyond test above opened it
+    local openedBeyond = shared.hintRegion                -- the open-beyond test above opened it
     local layout, canvas, hudKids = fakeHud("CanvasPanel_179")
     local savedFAO = FindAllOf
     FindAllOf = function(class)
@@ -109,18 +108,18 @@ group("area-coloured walls and the hint pop-up", function()
     local skinAt = logMark()
     liveWalls.setSkin(nil)
     run(3)
-    -- An area beside the start still locked (the open-beyond test above opened the hint test's area), and a spot on
+    -- A region beside the start still locked (the open-beyond test above opened the hint test's region), and a spot on
     -- the start's side of one of its walls.
     -- (another wall than the hint test's: that one was opened)
-    local popupAt, popupArea, popupWall = h.spotBesideStart(function(other, row)
-        return liveWalls.AREA_COLOURS[other] and actorOf(row)
+    local popupAt, popupRegion, popupWall = h.spotBesideStart(function(other, row)
+        return liveWalls.REGION_COLOURS[other] and actorOf(row)
     end)
     local piece = popupWall and actorOf(h.wallRow(popupWall))
-    local want = popupArea and liveWalls.linearOf(liveWalls.AREA_COLOURS[popupArea])
+    local want = popupRegion and liveWalls.linearOf(liveWalls.REGION_COLOURS[popupRegion])
     expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes"
            and h.sameColour(piece.Cube.mat.vectors.Color, want)
            and loggedSince(skinAt, "wall skin area: colours "),
-           "by default a wall wears the paw holes in the colour of the area it keeps you out of")
+           "by default a wall wears the paw holes in the colour of the region it keeps you out of")
     -- The hint pop-up at that wall: centred, a little transparent, gone after 6 s.
     pawnAt = popupAt
     local box = popupAfter(#hudKids)
@@ -131,7 +130,7 @@ group("area-coloured walls and the hint pop-up", function()
            and box.canvasSlot.alignment.X == 0.5 and box.canvasSlot.position.Y == 0,
            "in the middle of the screen")
     expect(over and over.children[1].child.texture.path == "ap-hint-plate-short"
-           and over.children[2].text == popupArea .. " is sealed"
+           and over.children[2].text == popupRegion .. " is sealed"
            and over.children[3].text == "Not enough points for a hint: 3 of 121" and over.children[4]
            and over.children[4].width == 9,
            "on the not-enough-points plate, with its two lines and the bar: "
@@ -139,34 +138,34 @@ group("area-coloured walls and the hint pop-up", function()
     runCycles(3)
     expect(box and box.removed, "and goes away after 6 s")
     -- Beyond the goal: the sealed walls (slate grey; the sealed pattern when its file is found) and the pop-up says so.
-    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = popupArea, "0"
+    slotData.beyond_goal_areas, slotData["options.beyond_goal"] = popupRegion, "0"
     h.reconnect("Tester")
     run(80)
     local m = piece.Cube.mat
     expect(m and (m.textures.MainTexture01.path == "ap-wall-pattern-sealed"
                   or m.textures.MainTexture01.path == "ap-wall-pattern-a")
            and h.sameColour(m.vectors.Color, require("walls").linearOf("9AA3B5")),
-           "a wall to an area beyond the goal wears the sealed grey, #9AA3B5")
+           "a wall to a region beyond the goal wears the sealed grey, #9AA3B5")
     local sealedBox = popupAfter(#hudKids)
-    expect(sealedBox and sealedBox.child.children[2].text == popupArea .. " is beyond the goal"
+    expect(sealedBox and sealedBox.child.children[2].text == popupRegion .. " is beyond the goal"
            and sealedBox.child.children[3].text == "Its walls stay up for good." and not sealedBox.child.children[4],
            "its pop-up says it is beyond the goal, with no points bar")
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
     h.reconnect("Tester")
     run(80)
-    expect(h.sameColour(piece.Cube.mat.vectors.Color, want), "and back to its area's colour when it is not")
+    expect(h.sameColour(piece.Cube.mat.vectors.Color, want), "and back to its region's colour when it is not")
     -- A pass that opens one side of a piece still up turns it to the other side's colour.
     local a1, a2, between
     for _, w in ipairs(WD.walls) do
         local row = h.wallRow(w)
-        local x, y = row.areaA, row.areaB
-        if liveWalls.AREA_COLOURS[x] and liveWalls.AREA_COLOURS[y] and not shared.open[x] and not shared.open[y]
+        local x, y = row.lockA, row.lockB
+        if liveWalls.REGION_COLOURS[x] and liveWalls.REGION_COLOURS[y] and not shared.open[x] and not shared.open[y]
            and x ~= openedBeyond and y ~= openedBeyond and actorOf(row) then
             a1, a2, between = x, y, actorOf(row)
             break
         end
     end
-    local colourOf = function(area) return liveWalls.linearOf(liveWalls.AREA_COLOURS[area]) end
+    local colourOf = function(region) return liveWalls.linearOf(liveWalls.REGION_COLOURS[region]) end
     local colourBefore = between and between.Cube.mat.vectors.Color
     pushItem({ name = "Region Pass: " .. tostring(a1), index = 9300 })
     run(80)

@@ -1,1238 +1,546 @@
 {
  "alphas": [
   {
-   "area": "Frozen Coral Hill",
    "character": "BOSS_Horus_Water",
    "level": 66,
+   "piece": "Frozen Coral Hill",
    "row": 0
   },
   {
-   "area": "Loess Plains",
    "character": "BOSS_GrimGirl",
    "level": 65,
+   "piece": "Loess Plains",
    "row": 1
   },
   {
-   "area": "Scorched Hill",
    "character": "BOSS_HerculesBeetle_Ground",
    "level": 64,
+   "piece": "Scorched Hill",
    "row": 2
   },
   {
-   "area": "Loess Plains",
    "character": "BOSS_GoldenHorse",
    "level": 63,
+   "piece": "Loess Plains",
    "row": 3
   },
   {
-   "area": "Scorched Ashland",
    "character": "BOSS_MysteryMask",
    "level": 60,
+   "piece": "Scorched Ashland",
    "row": 4
   },
   {
-   "area": "Deserted Ash Plateau",
    "character": "BOSS_WhiteTiger_Ground",
    "level": 62,
+   "piece": "Deserted Ash Plateau",
    "row": 5
   },
   {
-   "area": "Loess Plains",
    "character": "BOSS_NightBlueHorse",
    "level": 63,
+   "piece": "Loess Plains",
    "row": 6
   },
   {
-   "area": "Scorched Hill",
    "character": "BOSS_RaijinDaughter_Water",
    "level": 60,
+   "piece": "Scorched Hill",
    "row": 7
   },
   {
-   "area": "Emberstone Plateau",
    "character": "BOSS_AmaterasuWolf_Dark",
    "level": 65,
+   "piece": "Emberstone Plateau",
    "row": 8
   },
   {
-   "area": "Frozen Coral Hill",
    "character": "BOSS_BlueThunderHorse",
    "level": 66,
+   "piece": "Frozen Coral Hill",
    "row": 9
   },
   {
-   "area": "Crystalized Ancient Tree",
    "character": "BOSS_WhiteDeer",
    "level": 65,
+   "piece": "Crystalized Ancient Tree",
    "row": 10
   },
   {
-   "area": "Scorched Hill",
    "character": "BOSS_BadCatgirl",
    "level": 60,
+   "piece": "Scorched Hill",
    "row": 11
   },
   {
-   "area": "Scorched Hill",
    "character": "BOSS_WhiteShieldDragon",
    "level": 62,
+   "piece": "Scorched Hill",
    "row": 12
   },
   {
-   "area": "Scorched Hill",
    "character": "BOSS_FengyunDeeper_Electric",
    "level": 60,
+   "piece": "Scorched Hill",
    "row": 13
   },
   {
-   "area": "Frozen Coral Hill",
    "character": "BOSS_Werewolf_Ice",
    "level": 66,
+   "piece": "Frozen Coral Hill",
    "row": 14
   },
   {
-   "area": "Foot of the World Tree",
    "character": "BOSS_GrassGolem",
    "level": 75,
+   "piece": "Foot of the World Tree",
    "row": 15
   },
   {
-   "area": "Foot of the World Tree",
    "character": "BOSS_WhiteDeer_Dark",
    "level": 79,
+   "piece": "Foot of the World Tree",
    "row": 16
   },
   {
-   "area": "Foot of the World Tree",
    "character": "BOSS_IceNarwhal_Fire",
    "level": 74,
+   "piece": "Foot of the World Tree",
    "row": 17
   },
   {
-   "area": "Foot of the World Tree",
    "character": "BOSS_MushroomLady",
    "level": 78,
+   "piece": "Foot of the World Tree",
    "row": 18
   },
   {
-   "area": "Foot of the World Tree",
    "character": "BOSS_VolcanoDragon_Ice",
    "level": 78,
+   "piece": "Foot of the World Tree",
    "row": 19
   },
   {
-   "area": "Foot of the World Tree",
    "character": "BOSS_KabukiMan",
    "level": 78,
+   "piece": "Foot of the World Tree",
    "row": 20
   },
   {
-   "area": "Foot of the World Tree",
    "character": "BOSS_DomeArmorDragon",
    "level": 79,
+   "piece": "Foot of the World Tree",
    "row": 21
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_FlowerDinosaur_Electric",
    "level": 47,
+   "piece": "Verdant Stream",
    "row": 22
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_Suzaku",
    "level": 45,
+   "piece": "Desiccated Dunes",
    "row": 23
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_DarkScorpion",
    "level": 44,
+   "piece": "Desiccated Dunes",
    "row": 24
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_CubeTurtle",
    "level": 55,
+   "piece": "Desiccated Dunes",
    "row": 25
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_SaintCentaur",
    "level": 60,
+   "piece": "Desiccated Dunes",
    "row": 26
   },
   {
-   "area": "Bicornis Islet",
    "character": "BOSS_VolcanoDragon",
    "level": 70,
+   "piece": "Bicornis Islet",
    "row": 27
   },
   {
-   "area": "Flamepulse Islet",
    "character": "BOSS_RockBeast",
    "level": 50,
+   "piece": "Flamepulse Islet",
    "row": 28
   },
   {
-   "area": "Scouring Islet",
    "character": "BOSS_CactusDoll",
    "level": 40,
+   "piece": "Scouring Islet",
    "row": 29
   },
   {
-   "area": "Sandstone Gate Islet",
    "character": "BOSS_ScorpionMan_Electric",
    "level": 70,
+   "piece": "Sandstone Gate Islet",
    "row": 30
   },
   {
-   "area": "Glacial Memento Islet",
    "character": "BOSS_GrassGolem_Dark",
    "level": 70,
+   "piece": "Glacial Memento Islet",
    "row": 31
   },
   {
-   "area": "Islet of Circular Ruins",
    "character": "BOSS_GrassGolem",
    "level": 55,
+   "piece": "Islet of Circular Ruins",
    "row": 32
   },
   {
-   "area": "Astral Mountains",
    "character": "BOSS_KingAlpaca_Ice",
    "level": 46,
+   "piece": "Astral Mountains",
    "row": 33
   },
   {
-   "area": "Open sea",
    "character": "BOSS_IceNarwhal",
    "level": 55,
+   "piece": "Open sea",
    "row": 34
   },
   {
-   "area": "Astral Mountains",
    "character": "BOSS_IceHorse",
    "level": 60,
+   "piece": "Astral Mountains",
    "row": 35
   },
   {
-   "area": "Sakurajima - Northern Rock Field",
    "character": "BOSS_LilyQueen",
    "level": 58,
+   "piece": "Sakurajima - Northern Rock Field",
    "row": 36
   },
   {
-   "area": "Sakurajima - Northern Rock Field",
    "character": "BOSS_DarkScorpion_Ground",
    "level": 55,
+   "piece": "Sakurajima - Northern Rock Field",
    "row": 37
   },
   {
-   "area": "Sakurajima - Northern Rock Field",
    "character": "BOSS_LilyQueen_Dark",
    "level": 58,
+   "piece": "Sakurajima - Northern Rock Field",
    "row": 38
   },
   {
-   "area": "Enchanted Firmament",
    "character": "BOSS_FoxExorcist",
    "level": 68,
+   "piece": "Enchanted Firmament",
    "row": 39
   },
   {
-   "area": "Waterlily Gorge",
    "character": "BOSS_GhostDragon",
    "level": 69,
+   "piece": "Waterlily Gorge",
    "row": 40
   },
   {
-   "area": "The Azure Tapestry",
    "character": "BOSS_JetDragon",
    "level": 70,
+   "piece": "The Azure Tapestry",
    "row": 41
   },
   {
-   "area": "Enchanted Firmament",
    "character": "BOSS_ThunderFluffyBird",
    "level": 67,
+   "piece": "Enchanted Firmament",
    "row": 42
   },
   {
-   "area": "Farcry Marsh",
    "character": "BOSS_ElecLizard",
    "level": 66,
+   "piece": "Farcry Marsh",
    "row": 43
   },
   {
-   "area": "Waterlily Gorge",
    "character": "BOSS_LotusDragon",
    "level": 69,
+   "piece": "Waterlily Gorge",
    "row": 44
   },
   {
-   "area": "Crystalline Archipelago",
    "character": "BOSS_ElecSnail",
    "level": 65,
+   "piece": "Crystalline Archipelago",
    "row": 45
   },
   {
-   "area": "Twilight Dunes",
    "character": "BOSS_Anubis",
    "level": 55,
+   "piece": "Twilight Dunes",
    "row": 46
   },
   {
-   "area": "Windswept Island",
    "character": "BOSS_GrassMammoth",
    "level": 38,
+   "piece": "Windswept Island",
    "row": 47
   },
   {
-   "area": "Windswept Island",
    "character": "BOSS_WeaselDragon",
    "level": 11,
+   "piece": "Windswept Island",
    "row": 48
   },
   {
-   "area": "Bamboo Groves",
    "character": "BOSS_FengyunDeeper",
    "level": 25,
+   "piece": "Bamboo Groves",
    "row": 49
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_Kirin",
    "level": 31,
+   "piece": "Sea Breeze Archipelago",
    "row": 50
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_ThunderBird",
    "level": 37,
+   "piece": "Verdant Stream",
    "row": 51
   },
   {
-   "area": "Deep Bamboo Thicket",
    "character": "BOSS_BlueDragon",
    "level": 40,
+   "piece": "Deep Bamboo Thicket",
    "row": 52
   },
   {
-   "area": "Marsh Island",
    "character": "BOSS_NaughtyCat",
    "level": 17,
+   "piece": "Marsh Island",
    "row": 53
   },
   {
-   "area": "Windswept Island",
    "character": "BOSS_KingAlpaca",
    "level": 23,
+   "piece": "Windswept Island",
    "row": 54
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_SakuraSaurus",
    "level": 23,
+   "piece": "Sea Breeze Archipelago",
    "row": 55
   },
   {
-   "area": "Scars of War",
    "character": "BOSS_Umihebi",
    "level": 55,
+   "piece": "Scars of War",
    "row": 56
   },
   {
-   "area": "Crescent Moon Shore",
    "character": "BOSS_FairyDragon",
    "level": 30,
+   "piece": "Crescent Moon Shore",
    "row": 57
   },
   {
-   "area": "Isle of Murmurs",
    "character": "Boss_LazyCatFish",
    "level": 14,
+   "piece": "Isle of Murmurs",
    "row": 58
   },
   {
-   "area": "Isle of Murmurs",
    "character": "BOSS_HawkBird",
    "level": 18,
+   "piece": "Isle of Murmurs",
    "row": 59
   },
   {
-   "area": "Deep Bamboo Thicket",
    "character": "BOSS_PurpleSpider",
    "level": 35,
+   "piece": "Deep Bamboo Thicket",
    "row": 60
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_PlantSlime",
    "level": 11,
+   "piece": "Sea Breeze Archipelago",
    "row": 61
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_MopKing",
    "level": 11,
+   "piece": "Sea Breeze Archipelago",
    "row": 62
   },
   {
-   "area": "Eastern Wild Island",
    "character": "BOSS_GrassPanda_Electric",
    "level": 31,
+   "piece": "Eastern Wild Island",
    "row": 63
   },
   {
-   "area": "Eastern Wild Island",
    "character": "BOSS_Yeti_Grass",
    "level": 38,
+   "piece": "Eastern Wild Island",
    "row": 64
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_QueenBee",
    "level": 39,
+   "piece": "Verdant Stream",
    "row": 65
   },
   {
-   "area": "Ruined Fortress City",
    "character": "BOSS_WingGolem",
    "level": 55,
+   "piece": "Ruined Fortress City",
    "row": 66
   },
   {
-   "area": "Mount Obsidian",
    "character": "BOSS_VolcanicMonster",
    "level": 50,
+   "piece": "Mount Obsidian",
    "row": 67
   },
   {
-   "area": "Mount Obsidian",
    "character": "BOSS_KingBahamut",
    "level": 52,
+   "piece": "Mount Obsidian",
    "row": 68
   },
   {
-   "area": "No. 2 Wildlife Sanctuary",
    "character": "BOSS_BlackMetalDragon",
    "level": 55,
+   "piece": "No. 2 Wildlife Sanctuary",
    "row": 69
   },
   {
-   "area": "No. 1 Wildlife Sanctuary",
    "character": "BOSS_ElecPanda",
    "level": 30,
+   "piece": "No. 1 Wildlife Sanctuary",
    "row": 70
   },
   {
-   "area": "No. 3 Wildlife Sanctuary",
    "character": "BOSS_IceHorse_Dark",
    "level": 65,
+   "piece": "No. 3 Wildlife Sanctuary",
    "row": 71
   },
   {
-   "area": "Isle of the Glacial Core",
    "character": "BOSS_PoseidonOrca",
    "level": 60,
+   "piece": "Isle of the Glacial Core",
    "row": 105
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_GrassRabbitMan",
    "level": 35,
+   "piece": "Verdant Stream",
    "row": 106
   },
   {
-   "area": "Autumn Rocks",
    "character": "BOSS_CaptainPenguin",
    "level": 15,
+   "piece": "Autumn Rocks",
    "row": 107
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_BerryGoat_Dark",
    "level": 23,
+   "piece": "Sea Breeze Archipelago",
    "row": 108
   },
   {
-   "area": "Scorched Hill",
    "character": "BOSS_GhostRabbit",
    "level": 60,
+   "piece": "Scorched Hill",
    "row": 109
   },
   {
-   "area": "Loess Plains",
    "character": "BOSS_BlackPuppy",
    "level": 60,
+   "piece": "Loess Plains",
    "row": 110
   },
   {
-   "area": "Gobfin's Turf",
    "character": "BOSS_FoxMage",
    "level": 28,
+   "piece": "Gobfin's Turf",
    "row": 111
   },
   {
-   "area": "Marsh Island",
    "character": "Boss_IceFox",
    "level": 15,
+   "piece": "Marsh Island",
    "row": 112
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_Mutant",
    "level": 35,
+   "piece": "Verdant Stream",
    "row": 113
   },
   {
-   "area": "Frostbound Mountains",
    "character": "BOSS_WhiteMoth",
    "level": 40,
+   "piece": "Frostbound Mountains",
    "row": 114
   },
   {
-   "area": "Ancient Ritual Site",
    "character": "BOSS_VioletFairy",
    "level": 27,
+   "piece": "Ancient Ritual Site",
    "row": 115
   },
   {
-   "area": "Azure Woodland",
    "character": "BOSS_MoonChild",
    "level": 66,
+   "piece": "Azure Woodland",
    "row": 116
   },
   {
-   "area": "Bamboo Groves",
    "character": "BOSS_Ronin",
    "level": 25,
+   "piece": "Bamboo Groves",
    "row": 117
   },
   {
-   "area": "The Oculus Gate, Tower in Sight",
    "character": "BOSS_CubeTurtle_Neutral",
    "level": 60,
+   "piece": "The Oculus Gate, Tower in Sight",
    "row": 118
   },
   {
-   "area": "Deep Bamboo Thicket",
    "character": "BOSS_Manticore",
    "level": 30,
+   "piece": "Deep Bamboo Thicket",
    "row": 119
   },
   {
-   "area": "Bamboo Groves",
    "character": "BOSS_FlameBuffalo",
    "level": 15,
+   "piece": "Bamboo Groves",
    "row": 120
   },
   {
-   "area": "Deserted Ash Plateau",
    "character": "BOSS_BlueberryFairy",
    "level": 63,
+   "piece": "Deserted Ash Plateau",
    "row": 121
   },
   {
-   "area": "Isle of Silence",
    "character": "BOSS_Kitsunebi_Ice",
    "level": 15,
+   "piece": "Isle of Silence",
    "row": 122
   }
  ],
- "areas": {
-  "Abandoned Ruins": {
-   "alphas": [],
-   "effigies": 6,
-   "fast_travel": 0,
-   "levels": 39.333333333333336,
-   "spawners": 45
-  },
-  "Ancient Ritual Site": {
-   "alphas": [
-    27
-   ],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 23.0,
-   "spawners": 26
-  },
-  "Astral Mountains": {
-   "alphas": [
-    46,
-    60
-   ],
-   "effigies": 34,
-   "fast_travel": 8,
-   "levels": 40.5,
-   "spawners": 314
-  },
-  "Autumn Rocks": {
-   "alphas": [
-    15
-   ],
-   "effigies": 1,
-   "fast_travel": 3,
-   "levels": 11.2,
-   "spawners": 61
-  },
-  "Azure Woodland": {
-   "alphas": [
-    66
-   ],
-   "effigies": 3,
-   "fast_travel": 0,
-   "levels": 65.5,
-   "spawners": 37
-  },
-  "Bamboo Groves": {
-   "alphas": [
-    15,
-    25,
-    25
-   ],
-   "effigies": 11,
-   "fast_travel": 7,
-   "levels": 15.15,
-   "spawners": 243
-  },
-  "Bicornis Islet": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 66.5,
-   "spawners": 37
-  },
-  "Crescent Moon Shore": {
-   "alphas": [
-    30
-   ],
-   "effigies": 17,
-   "fast_travel": 6,
-   "levels": 23.0,
-   "spawners": 300
-  },
-  "Crescent Moon Shore (2)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": null,
-   "spawners": 0
-  },
-  "Crystalized Ancient Tree": {
-   "alphas": [
-    65
-   ],
-   "effigies": 2,
-   "fast_travel": 1,
-   "levels": 62.285714285714285,
-   "spawners": 23
-  },
-  "Crystalline Archipelago": {
-   "alphas": [
-    65
-   ],
-   "effigies": 11,
-   "fast_travel": 1,
-   "levels": 66.125,
-   "spawners": 72
-  },
-  "Dancing Sakura Shrine": {
-   "alphas": [],
-   "effigies": 13,
-   "fast_travel": 1,
-   "levels": 54.25,
-   "spawners": 98
-  },
-  "Deep Bamboo Thicket": {
-   "alphas": [
-    30,
-    35,
-    40
-   ],
-   "effigies": 9,
-   "fast_travel": 5,
-   "levels": 14.0,
-   "spawners": 322
-  },
-  "Deserted Ash Plateau": {
-   "alphas": [
-    62,
-    63
-   ],
-   "effigies": 3,
-   "fast_travel": 3,
-   "levels": 62.166666666666664,
-   "spawners": 197
-  },
-  "Desiccated Dunes": {
-   "alphas": [
-    44,
-    45,
-    55,
-    60
-   ],
-   "effigies": 40,
-   "fast_travel": 13,
-   "levels": 35.60526315789474,
-   "spawners": 702
-  },
-  "Dry Sandy Beach": {
-   "alphas": [],
-   "effigies": 13,
-   "fast_travel": 5,
-   "levels": 30.0,
-   "spawners": 143
-  },
-  "Duneshelter": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 35.60526315789474,
-   "spawners": 8
-  },
-  "Eastern Wild Island": {
-   "alphas": [
-    31,
-    38
-   ],
-   "effigies": 0,
-   "fast_travel": 2,
-   "levels": 11.3125,
-   "spawners": 134
-  },
-  "Emberstone Plateau": {
-   "alphas": [
-    65
-   ],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 62.4,
-   "spawners": 47
-  },
-  "Enchanted Firmament": {
-   "alphas": [
-    67,
-    68
-   ],
-   "effigies": 10,
-   "fast_travel": 2,
-   "levels": 66.41666666666667,
-   "spawners": 69
-  },
-  "Farcry Marsh": {
-   "alphas": [
-    66
-   ],
-   "effigies": 3,
-   "fast_travel": 1,
-   "levels": 65.5,
-   "spawners": 40
-  },
-  "Feybreak Shipwreck": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": null,
-   "spawners": 0
-  },
-  "Feybreak Tower": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": null,
-   "spawners": 0
-  },
-  "Fisherman's Point": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 25.75,
-   "spawners": 1
-  },
-  "Flamepulse Islet": {
-   "alphas": [
-    50
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 44.666666666666664,
-   "spawners": 17
-  },
-  "Flying Fish Coast": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 0,
-   "levels": 12.0,
-   "spawners": 22
-  },
-  "Foot of the Astral Mountains": {
-   "alphas": [],
-   "effigies": 8,
-   "fast_travel": 4,
-   "levels": 36.75,
-   "spawners": 98
-  },
-  "Foot of the Volcano": {
-   "alphas": [],
-   "effigies": 8,
-   "fast_travel": 3,
-   "levels": 26.071428571428573,
-   "spawners": 96
-  },
-  "Foot of the World Tree": {
-   "alphas": [
-    74,
-    75,
-    78,
-    78,
-    78,
-    79,
-    79
-   ],
-   "effigies": 47,
-   "fast_travel": 18,
-   "levels": 76.57142857142857,
-   "spawners": 418
-  },
-  "Fortress Ruins": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 8.833333333333334,
-   "spawners": 21
-  },
-  "Frostbitten Isle": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 16.7,
-   "spawners": 8
-  },
-  "Frostbound Mountains": {
-   "alphas": [
-    40
-   ],
-   "effigies": 7,
-   "fast_travel": 2,
-   "levels": 33.666666666666664,
-   "spawners": 50
-  },
-  "Frozen Coral Hill": {
-   "alphas": [
-    66,
-    66,
-    66
-   ],
-   "effigies": 12,
-   "fast_travel": 6,
-   "levels": 64.9,
-   "spawners": 249
-  },
-  "Glacial Memento Islet": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 63.0,
-   "spawners": 9
-  },
-  "Gobfin's Turf": {
-   "alphas": [
-    28
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 23.0,
-   "spawners": 54
-  },
-  "Gobfin's Turf (2)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 24.625,
-   "spawners": 1
-  },
-  "Golden Hills": {
-   "alphas": [],
-   "effigies": 2,
-   "fast_travel": 1,
-   "levels": 11.5,
-   "spawners": 68
-  },
-  "Hidden Passage to the Oculus Gate": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 64.05,
-   "spawners": 2
-  },
-  "Isle of Decayed Treasures": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 15.0,
-   "spawners": 11
-  },
-  "Isle of Eternal Summer": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 35.0,
-   "spawners": 7
-  },
-  "Isle of Murmurs": {
-   "alphas": [
-    14,
-    18
-   ],
-   "effigies": 0,
-   "fast_travel": 2,
-   "levels": 10.357142857142858,
-   "spawners": 145
-  },
-  "Isle of Silence": {
-   "alphas": [
-    15
-   ],
-   "effigies": 1,
-   "fast_travel": 3,
-   "levels": 10.357142857142858,
-   "spawners": 143
-  },
-  "Isle of the Glacial Core": {
-   "alphas": [
-    60
-   ],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 55.0,
-   "spawners": 8
-  },
-  "Islet of Circular Ruins": {
-   "alphas": [
-    55
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 52.0,
-   "spawners": 14
-  },
-  "Loess Plains": {
-   "alphas": [
-    60,
-    63,
-    63,
-    65
-   ],
-   "effigies": 2,
-   "fast_travel": 3,
-   "levels": 53.5,
-   "spawners": 165
-  },
-  "Marsh Island": {
-   "alphas": [
-    15,
-    17
-   ],
-   "effigies": 3,
-   "fast_travel": 5,
-   "levels": 11.833333333333334,
-   "spawners": 185
-  },
-  "Mount Obsidian": {
-   "alphas": [
-    50,
-    52
-   ],
-   "effigies": 16,
-   "fast_travel": 5,
-   "levels": 37.714285714285715,
-   "spawners": 235
-  },
-  "No. 1 Wildlife Sanctuary": {
-   "alphas": [
-    30
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 22.916666666666668,
-   "spawners": 12
-  },
-  "No. 2 Wildlife Sanctuary": {
-   "alphas": [
-    55
-   ],
-   "effigies": 1,
-   "fast_travel": 0,
-   "levels": 39.333333333333336,
-   "spawners": 13
-  },
-  "No. 3 Wildlife Sanctuary": {
-   "alphas": [
-    65
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 51.083333333333336,
-   "spawners": 11
-  },
-  "Oasis Isle": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 45.0,
-   "spawners": 7
-  },
-  "Open sea": {
-   "alphas": [
-    55
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": null,
-   "spawners": 0
-  },
-  "Phantom Isle": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 35.0,
-   "spawners": 10
-  },
-  "Rayne Syndicate Test Drilling Rig": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 24.625,
-   "spawners": 9
-  },
-  "Ruined Fortress City": {
-   "alphas": [
-    55
-   ],
-   "effigies": 6,
-   "fast_travel": 1,
-   "levels": 34.5,
-   "spawners": 18
-  },
-  "Sakurajima - Mushroom Wetlands": {
-   "alphas": [],
-   "effigies": 19,
-   "fast_travel": 3,
-   "levels": 47.875,
-   "spawners": 87
-  },
-  "Sakurajima - Northern Rock Field": {
-   "alphas": [
-    55,
-    58,
-    58
-   ],
-   "effigies": 5,
-   "fast_travel": 2,
-   "levels": 47.611111111111114,
-   "spawners": 111
-  },
-  "Sakurajima - Southern Sandbar": {
-   "alphas": [],
-   "effigies": 9,
-   "fast_travel": 2,
-   "levels": 47.5,
-   "spawners": 89
-  },
-  "Sandstone Gate Islet": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 67.375,
-   "spawners": 36
-  },
-  "Scars of War": {
-   "alphas": [
-    55
-   ],
-   "effigies": 3,
-   "fast_travel": 2,
-   "levels": 19.333333333333332,
-   "spawners": 13
-  },
-  "Scorched Ashland": {
-   "alphas": [
-    60
-   ],
-   "effigies": 2,
-   "fast_travel": 2,
-   "levels": 57.611111111111114,
-   "spawners": 151
-  },
-  "Scorched Hill": {
-   "alphas": [
-    60,
-    60,
-    60,
-    60,
-    62,
-    64
-   ],
-   "effigies": 15,
-   "fast_travel": 9,
-   "levels": 62.4,
-   "spawners": 637
-  },
-  "Scouring Islet": {
-   "alphas": [
-    40
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 35.75,
-   "spawners": 14
-  },
-  "Sea Breeze Archipelago": {
-   "alphas": [
-    11,
-    11,
-    23,
-    23,
-    31
-   ],
-   "effigies": 1,
-   "fast_travel": 5,
-   "levels": 11.625,
-   "spawners": 324
-  },
-  "Small Settlement": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": null,
-   "spawners": 0
-  },
-  "Stone Pillar Cave": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 0,
-   "levels": 64.05,
-   "spawners": 15
-  },
-  "Stone Pillar Cave (2)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 57.2,
-   "spawners": 11
-  },
-  "Stone Pillar Cave (3)": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 0,
-   "levels": 57.2,
-   "spawners": 4
-  },
-  "Stone Pillar Cave (4)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 57.2,
-   "spawners": 1
-  },
-  "Suncrest Islet": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 57.5,
-   "spawners": 27
-  },
-  "Sunlit Isle": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 5.5,
-   "spawners": 6
-  },
-  "The Azure Tapestry": {
-   "alphas": [
-    70
-   ],
-   "effigies": 10,
-   "fast_travel": 2,
-   "levels": 67.21428571428571,
-   "spawners": 68
-  },
-  "The Oculus Gate, Tower in Sight": {
-   "alphas": [
-    60
-   ],
-   "effigies": 3,
-   "fast_travel": 1,
-   "levels": 64.75,
-   "spawners": 51
-  },
-  "Twilight Dunes": {
-   "alphas": [
-    55
-   ],
-   "effigies": 2,
-   "fast_travel": 1,
-   "levels": 33.75,
-   "spawners": 99
-  },
-  "Verdant Stream": {
-   "alphas": [
-    35,
-    35,
-    37,
-    39,
-    47
-   ],
-   "effigies": 13,
-   "fast_travel": 6,
-   "levels": 33.642857142857146,
-   "spawners": 229
-  },
-  "Waterlily Gorge": {
-   "alphas": [
-    69,
-    69
-   ],
-   "effigies": 9,
-   "fast_travel": 1,
-   "levels": 66.41666666666667,
-   "spawners": 50
-  },
-  "Windswept Island": {
-   "alphas": [
-    11,
-    23,
-    38
-   ],
-   "effigies": 11,
-   "fast_travel": 3,
-   "levels": 8.833333333333334,
-   "spawners": 189
-  },
-  "Windswept Island (2)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 11.3125,
-   "spawners": 3
-  },
-  "Withered Seaside": {
-   "alphas": [],
-   "effigies": 4,
-   "fast_travel": 1,
-   "levels": 57.611111111111114,
-   "spawners": 93
-  }
- },
  "borders": [
   [
    "Abandoned Ruins",
@@ -3933,6 +3241,698 @@
   "202": {},
   "203": {},
   "204": {}
+ },
+ "piece_stats": {
+  "Abandoned Ruins": {
+   "alphas": [],
+   "effigies": 6,
+   "fast_travel": 0,
+   "levels": 39.333333333333336,
+   "spawners": 45
+  },
+  "Ancient Ritual Site": {
+   "alphas": [
+    27
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 23.0,
+   "spawners": 26
+  },
+  "Astral Mountains": {
+   "alphas": [
+    46,
+    60
+   ],
+   "effigies": 34,
+   "fast_travel": 8,
+   "levels": 40.5,
+   "spawners": 314
+  },
+  "Autumn Rocks": {
+   "alphas": [
+    15
+   ],
+   "effigies": 1,
+   "fast_travel": 3,
+   "levels": 11.2,
+   "spawners": 61
+  },
+  "Azure Woodland": {
+   "alphas": [
+    66
+   ],
+   "effigies": 3,
+   "fast_travel": 0,
+   "levels": 65.5,
+   "spawners": 37
+  },
+  "Bamboo Groves": {
+   "alphas": [
+    15,
+    25,
+    25
+   ],
+   "effigies": 11,
+   "fast_travel": 7,
+   "levels": 15.15,
+   "spawners": 243
+  },
+  "Bicornis Islet": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 66.5,
+   "spawners": 37
+  },
+  "Crescent Moon Shore": {
+   "alphas": [
+    30
+   ],
+   "effigies": 17,
+   "fast_travel": 6,
+   "levels": 23.0,
+   "spawners": 300
+  },
+  "Crescent Moon Shore (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Crystalized Ancient Tree": {
+   "alphas": [
+    65
+   ],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 62.285714285714285,
+   "spawners": 23
+  },
+  "Crystalline Archipelago": {
+   "alphas": [
+    65
+   ],
+   "effigies": 11,
+   "fast_travel": 1,
+   "levels": 66.125,
+   "spawners": 72
+  },
+  "Dancing Sakura Shrine": {
+   "alphas": [],
+   "effigies": 13,
+   "fast_travel": 1,
+   "levels": 54.25,
+   "spawners": 98
+  },
+  "Deep Bamboo Thicket": {
+   "alphas": [
+    30,
+    35,
+    40
+   ],
+   "effigies": 9,
+   "fast_travel": 5,
+   "levels": 14.0,
+   "spawners": 322
+  },
+  "Deserted Ash Plateau": {
+   "alphas": [
+    62,
+    63
+   ],
+   "effigies": 3,
+   "fast_travel": 3,
+   "levels": 62.166666666666664,
+   "spawners": 197
+  },
+  "Desiccated Dunes": {
+   "alphas": [
+    44,
+    45,
+    55,
+    60
+   ],
+   "effigies": 40,
+   "fast_travel": 13,
+   "levels": 35.60526315789474,
+   "spawners": 702
+  },
+  "Dry Sandy Beach": {
+   "alphas": [],
+   "effigies": 13,
+   "fast_travel": 5,
+   "levels": 30.0,
+   "spawners": 143
+  },
+  "Duneshelter": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 35.60526315789474,
+   "spawners": 8
+  },
+  "Eastern Wild Island": {
+   "alphas": [
+    31,
+    38
+   ],
+   "effigies": 0,
+   "fast_travel": 2,
+   "levels": 11.3125,
+   "spawners": 134
+  },
+  "Emberstone Plateau": {
+   "alphas": [
+    65
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 62.4,
+   "spawners": 47
+  },
+  "Enchanted Firmament": {
+   "alphas": [
+    67,
+    68
+   ],
+   "effigies": 10,
+   "fast_travel": 2,
+   "levels": 66.41666666666667,
+   "spawners": 69
+  },
+  "Farcry Marsh": {
+   "alphas": [
+    66
+   ],
+   "effigies": 3,
+   "fast_travel": 1,
+   "levels": 65.5,
+   "spawners": 40
+  },
+  "Feybreak Shipwreck": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Feybreak Tower": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Fisherman's Point": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 25.75,
+   "spawners": 1
+  },
+  "Flamepulse Islet": {
+   "alphas": [
+    50
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 44.666666666666664,
+   "spawners": 17
+  },
+  "Flying Fish Coast": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 12.0,
+   "spawners": 22
+  },
+  "Foot of the Astral Mountains": {
+   "alphas": [],
+   "effigies": 8,
+   "fast_travel": 4,
+   "levels": 36.75,
+   "spawners": 98
+  },
+  "Foot of the Volcano": {
+   "alphas": [],
+   "effigies": 8,
+   "fast_travel": 3,
+   "levels": 26.071428571428573,
+   "spawners": 96
+  },
+  "Foot of the World Tree": {
+   "alphas": [
+    74,
+    75,
+    78,
+    78,
+    78,
+    79,
+    79
+   ],
+   "effigies": 47,
+   "fast_travel": 18,
+   "levels": 76.57142857142857,
+   "spawners": 418
+  },
+  "Fortress Ruins": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 8.833333333333334,
+   "spawners": 21
+  },
+  "Frostbitten Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 16.7,
+   "spawners": 8
+  },
+  "Frostbound Mountains": {
+   "alphas": [
+    40
+   ],
+   "effigies": 7,
+   "fast_travel": 2,
+   "levels": 33.666666666666664,
+   "spawners": 50
+  },
+  "Frozen Coral Hill": {
+   "alphas": [
+    66,
+    66,
+    66
+   ],
+   "effigies": 12,
+   "fast_travel": 6,
+   "levels": 64.9,
+   "spawners": 249
+  },
+  "Glacial Memento Islet": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 63.0,
+   "spawners": 9
+  },
+  "Gobfin's Turf": {
+   "alphas": [
+    28
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 23.0,
+   "spawners": 54
+  },
+  "Gobfin's Turf (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 24.625,
+   "spawners": 1
+  },
+  "Golden Hills": {
+   "alphas": [],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 11.5,
+   "spawners": 68
+  },
+  "Hidden Passage to the Oculus Gate": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 64.05,
+   "spawners": 2
+  },
+  "Isle of Decayed Treasures": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 15.0,
+   "spawners": 11
+  },
+  "Isle of Eternal Summer": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 35.0,
+   "spawners": 7
+  },
+  "Isle of Murmurs": {
+   "alphas": [
+    14,
+    18
+   ],
+   "effigies": 0,
+   "fast_travel": 2,
+   "levels": 10.357142857142858,
+   "spawners": 145
+  },
+  "Isle of Silence": {
+   "alphas": [
+    15
+   ],
+   "effigies": 1,
+   "fast_travel": 3,
+   "levels": 10.357142857142858,
+   "spawners": 143
+  },
+  "Isle of the Glacial Core": {
+   "alphas": [
+    60
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 55.0,
+   "spawners": 8
+  },
+  "Islet of Circular Ruins": {
+   "alphas": [
+    55
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 52.0,
+   "spawners": 14
+  },
+  "Loess Plains": {
+   "alphas": [
+    60,
+    63,
+    63,
+    65
+   ],
+   "effigies": 2,
+   "fast_travel": 3,
+   "levels": 53.5,
+   "spawners": 165
+  },
+  "Marsh Island": {
+   "alphas": [
+    15,
+    17
+   ],
+   "effigies": 3,
+   "fast_travel": 5,
+   "levels": 11.833333333333334,
+   "spawners": 185
+  },
+  "Mount Obsidian": {
+   "alphas": [
+    50,
+    52
+   ],
+   "effigies": 16,
+   "fast_travel": 5,
+   "levels": 37.714285714285715,
+   "spawners": 235
+  },
+  "No. 1 Wildlife Sanctuary": {
+   "alphas": [
+    30
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 22.916666666666668,
+   "spawners": 12
+  },
+  "No. 2 Wildlife Sanctuary": {
+   "alphas": [
+    55
+   ],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 39.333333333333336,
+   "spawners": 13
+  },
+  "No. 3 Wildlife Sanctuary": {
+   "alphas": [
+    65
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 51.083333333333336,
+   "spawners": 11
+  },
+  "Oasis Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 45.0,
+   "spawners": 7
+  },
+  "Open sea": {
+   "alphas": [
+    55
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": null,
+   "spawners": 0
+  },
+  "Phantom Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 35.0,
+   "spawners": 10
+  },
+  "Rayne Syndicate Test Drilling Rig": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 24.625,
+   "spawners": 9
+  },
+  "Ruined Fortress City": {
+   "alphas": [
+    55
+   ],
+   "effigies": 6,
+   "fast_travel": 1,
+   "levels": 34.5,
+   "spawners": 18
+  },
+  "Sakurajima - Mushroom Wetlands": {
+   "alphas": [],
+   "effigies": 19,
+   "fast_travel": 3,
+   "levels": 47.875,
+   "spawners": 87
+  },
+  "Sakurajima - Northern Rock Field": {
+   "alphas": [
+    55,
+    58,
+    58
+   ],
+   "effigies": 5,
+   "fast_travel": 2,
+   "levels": 47.611111111111114,
+   "spawners": 111
+  },
+  "Sakurajima - Southern Sandbar": {
+   "alphas": [],
+   "effigies": 9,
+   "fast_travel": 2,
+   "levels": 47.5,
+   "spawners": 89
+  },
+  "Sandstone Gate Islet": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 67.375,
+   "spawners": 36
+  },
+  "Scars of War": {
+   "alphas": [
+    55
+   ],
+   "effigies": 3,
+   "fast_travel": 2,
+   "levels": 19.333333333333332,
+   "spawners": 13
+  },
+  "Scorched Ashland": {
+   "alphas": [
+    60
+   ],
+   "effigies": 2,
+   "fast_travel": 2,
+   "levels": 57.611111111111114,
+   "spawners": 151
+  },
+  "Scorched Hill": {
+   "alphas": [
+    60,
+    60,
+    60,
+    60,
+    62,
+    64
+   ],
+   "effigies": 15,
+   "fast_travel": 9,
+   "levels": 62.4,
+   "spawners": 637
+  },
+  "Scouring Islet": {
+   "alphas": [
+    40
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 35.75,
+   "spawners": 14
+  },
+  "Sea Breeze Archipelago": {
+   "alphas": [
+    11,
+    11,
+    23,
+    23,
+    31
+   ],
+   "effigies": 1,
+   "fast_travel": 5,
+   "levels": 11.625,
+   "spawners": 324
+  },
+  "Small Settlement": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Stone Pillar Cave": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 64.05,
+   "spawners": 15
+  },
+  "Stone Pillar Cave (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 57.2,
+   "spawners": 11
+  },
+  "Stone Pillar Cave (3)": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 0,
+   "levels": 57.2,
+   "spawners": 4
+  },
+  "Stone Pillar Cave (4)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 57.2,
+   "spawners": 1
+  },
+  "Suncrest Islet": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 57.5,
+   "spawners": 27
+  },
+  "Sunlit Isle": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 5.5,
+   "spawners": 6
+  },
+  "The Azure Tapestry": {
+   "alphas": [
+    70
+   ],
+   "effigies": 10,
+   "fast_travel": 2,
+   "levels": 67.21428571428571,
+   "spawners": 68
+  },
+  "The Oculus Gate, Tower in Sight": {
+   "alphas": [
+    60
+   ],
+   "effigies": 3,
+   "fast_travel": 1,
+   "levels": 64.75,
+   "spawners": 51
+  },
+  "Twilight Dunes": {
+   "alphas": [
+    55
+   ],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 33.75,
+   "spawners": 99
+  },
+  "Verdant Stream": {
+   "alphas": [
+    35,
+    35,
+    37,
+    39,
+    47
+   ],
+   "effigies": 13,
+   "fast_travel": 6,
+   "levels": 33.642857142857146,
+   "spawners": 229
+  },
+  "Waterlily Gorge": {
+   "alphas": [
+    69,
+    69
+   ],
+   "effigies": 9,
+   "fast_travel": 1,
+   "levels": 66.41666666666667,
+   "spawners": 50
+  },
+  "Windswept Island": {
+   "alphas": [
+    11,
+    23,
+    38
+   ],
+   "effigies": 11,
+   "fast_travel": 3,
+   "levels": 8.833333333333334,
+   "spawners": 189
+  },
+  "Windswept Island (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 11.3125,
+   "spawners": 3
+  },
+  "Withered Seaside": {
+   "alphas": [],
+   "effigies": 4,
+   "fast_travel": 1,
+   "levels": 57.611111111111114,
+   "spawners": 93
+  }
  },
  "pieces": {
   "Abandoned Ruins": "Abandoned Ruins",

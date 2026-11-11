@@ -1,14 +1,14 @@
-"""Areas (one Area Pass each; the first is where a game starts) as groups of the game's own named map regions
-(DT_WorldMapAreaData rows, placed in the world as BP_PalRegionTrigger volumes). The groups were drawn
-by hand over the game's world map. Caves, dungeons and towers inside a region belong to it and are not
-listed; regions with no Pals (oil rigs, the King Whale islet) still place their land in an area.
-Words: this file still uses the older names. Its "areas" are the 15 regions players see (Region Passes) and its
-"regions" the game's 75 named areas (Area Passes); they are renamed during the code tour.
+"""The map's locks as groups of the game's map rows (DT_WorldMapAreaData rows, placed in the world as
+BP_PalRegionTrigger volumes): the 15 regions (REGIONS, one Region Pass each), drawn by hand over the game's world
+map, and the 75 areas (AREAS, one Area Pass each). The first of each is where a game starts. Caves, dungeons and
+towers inside a row's place belong to it and are not listed; rows with no Pals (oil rigs, the King Whale islet) still
+place their land in a lock. LOCKS is the set the tools build (LOCK_SIZE, below).
 """
 import os
+import sys
 
-START = 'Windswept Island'
-GROUPS = {
+START_REGION = 'Windswept Island'
+REGIONS = {
     'Windswept Island': ['Grass_001', 'SmallIsland01', 'Grass_6'],
     'Bamboo Groves': ['Grass_5', 'Grass_4', 'Grass_3', 'Grass_002', 'Grass_Village_001'],
     'Sea Breeze Archipelago': ['PvPIsland_001'],
@@ -32,11 +32,11 @@ GROUPS = {
     'World Tree': ['FootOfWorldTree'],
 }
 
-# Every named surface region on its own: the area_size option's 'regions' (the user, 2026-11-05: a cramped start, more
-# and smaller unlocks). Names are the game's English region names (DT_WorldMap_Common_Text; its 'Verdant Sream' spelt
-# right). Two rows with no name of their own go with a neighbour: Boss_KingWhale (the King Whale islet, no Pals) with
-# Crescent Moon Shore, Darkisland07 with Stone Pillar Cave. The start is the one region the first tower stands in.
-REGIONS = {
+# The 75 areas (Lock Size: areas): every named place on the surface on its own, for a cramped start and more, smaller
+# unlocks. Names are the game's English area names (DT_WorldMap_Common_Text; its 'Verdant Sream' spelt right). Two
+# rows with no name of their own go with a neighbour: Boss_KingWhale (the King Whale islet, no Pals) with Crescent
+# Moon Shore, Darkisland07 with Stone Pillar Cave. The start is the one area the first tower stands in.
+AREAS = {
     'Windswept Island': ['Grass_001'],
     'Sunlit Isle': ['SmallIsland01'],
     'Flying Fish Coast': ['Grass_6'],
@@ -113,11 +113,17 @@ REGIONS = {
     'Enchanted Firmament': ['Skyisland07'],
     'Foot of the World Tree': ['FootOfWorldTree'],
 }
-REGIONS_START = 'Windswept Island'
+START_AREA = 'Windswept Island'
 
-# Which set the tools build (AREA_SIZE=regions in the environment for the per-region set; tools/build_areas.sh runs both).
-if os.environ.get('AREA_SIZE', 'areas') == 'regions':
-    GROUPS, START = REGIONS, REGIONS_START
+# The set the tools build, named as the Lock Size option's values: LOCK_SIZE=areas in the environment for the 75 areas,
+# else the 15 regions. PREFIX starts the names of the mod's files for that set (region_walls.lua, area_walls.lua).
+LOCK_SIZE = os.environ.get('LOCK_SIZE', 'regions')
+if LOCK_SIZE == 'regions':
+    LOCKS, START, PREFIX = REGIONS, START_REGION, 'region'
+elif LOCK_SIZE == 'areas':
+    LOCKS, START, PREFIX = AREAS, START_AREA, 'area'
+else:
+    sys.exit(f'LOCK_SIZE={LOCK_SIZE}: want regions or areas')
 
-# Regions that are part of another (caves, dungeons, towers, church ruins): their land goes with the region around them.
-SUBREGION = r'FixedDungeon|UnderGroundCave|UndergroundCave|^Tower_|_Crunch|^Arena$'
+# Map rows inside another's place (caves, dungeons, towers, church ruins): their land goes with the row around them.
+INNER_ROWS = r'FixedDungeon|UnderGroundCave|UndergroundCave|^Tower_|_Crunch|^Arena$'

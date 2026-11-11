@@ -4,11 +4,11 @@ from . import PalworldTestBase
 
 
 class TestLevels(PalworldTestBase):
-    # Every area and every tech, the Sky Islands and saddles too, with the strict gear logic and progressive spheres.
+    # Every region and every tech, the Sky Islands and saddles too, with the strict gear logic and progressive spheres.
     options = {"goal": "world_tree", "gear_logic": True, "progressive_spheres": True}
 
     def test_a_pass_alone_is_not_a_level(self):
-        """Reaching a high-level area does not let a fresh player level there, or beat its tower."""
+        """Reaching a high-level region does not let a fresh player level there, or beat its tower."""
         self.collect_by_name(["Region Pass: Sky Islands", "Tech: Nitewing Saddle", "Tech: Surfent Saddle"])
         self.assertFalse(self.world.level_ok(self.multiworld.state, 30))
         self.assertFalse(self.can_reach_location("Sky Islands Tower Defeated"))

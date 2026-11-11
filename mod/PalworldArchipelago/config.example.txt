@@ -29,8 +29,9 @@ perf_log=
 # load), Ctrl+F3 wall skins, Ctrl+F4 HUD probe (hint icon and goal banner for 6 s) and the probes that need the game
 # to answer. For playtests only.
 test_tools=
-# The area walls' look: empty (or paws) is cream paws over the colour of the locked area behind each wall (its pass
-# ticket's colour; areas beyond the seed's goal in slate grey), with the PalworldArchipelagoArt pak; without it, area.
+# The area walls' look: empty (or paws) is cream paws over the colour of the locked region or area behind each wall
+# (its region's pass ticket colour; those beyond the seed's goal in slate grey), with the PalworldArchipelagoArt pak;
+# without it, area.
 # area is a wall with see-through paw-shaped holes in that colour; a is the lattice in teal everywhere; red is the
 # game's own red grid. Test builds can try others: b, a3d, b3d, a3d-dense, b3d-dense, and with the PalworldArchipelagoArt pak
 # colour-paws, colour-routes,
@@ -52,13 +53,14 @@ perf_no_bp_hooks=
 # set-up of the screen, so it never shows the game's version first. Test builds tint the fog parchment (a probe).
 map_cpp=
 # map_chart=0: keep the game's dark fog over unexplored parts of the world map. Empty: they are drawn as an explorer's
-# chart (made on your PC from the game's map, with the locked-area stamps on it), from the map's next opening.
+# chart (made on your PC from the game's map, with the locked stamps on it), from the map's next opening.
 map_chart=
-# map_icons=0: draw the locked-area stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
+# map_icons=0: draw the locked stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
 # are the map's own icons, one size at every zoom, like the game's.
 map_icons=
-# map_regions=0: no area borders and no hatch over locked areas on the explorer's chart. Empty: they are drawn.
+# map_regions=0: no borders and no hatch over locked regions or areas on the explorer's chart. Empty: they are drawn.
 map_regions=
-# map_style=chart: the world map as the explorer's chart with greyed locked areas (dev.17-31). Empty: "Territories",
-# every area tinted by its state (locked, open, visited, sealed) over the game's own map, with the walls glowing.
+# map_style=chart: the world map as the explorer's chart with greyed locked regions or areas (dev.17-31). Empty:
+# "Territories", every region or area tinted by its state (locked, open, visited, sealed) over the game's own map, with
+# the walls glowing.
 map_style=

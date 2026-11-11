@@ -1,864 +1,546 @@
 {
  "alphas": [
   {
-   "area": "Feybreak",
    "character": "BOSS_Horus_Water",
    "level": 66,
+   "piece": "Feybreak",
    "row": 0
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_GrimGirl",
    "level": 65,
+   "piece": "Feybreak",
    "row": 1
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_HerculesBeetle_Ground",
    "level": 64,
+   "piece": "Feybreak",
    "row": 2
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_GoldenHorse",
    "level": 63,
+   "piece": "Feybreak",
    "row": 3
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_MysteryMask",
    "level": 60,
+   "piece": "Feybreak",
    "row": 4
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_WhiteTiger_Ground",
    "level": 62,
+   "piece": "Feybreak",
    "row": 5
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_NightBlueHorse",
    "level": 63,
+   "piece": "Feybreak",
    "row": 6
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_RaijinDaughter_Water",
    "level": 60,
+   "piece": "Feybreak",
    "row": 7
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_AmaterasuWolf_Dark",
    "level": 65,
+   "piece": "Feybreak",
    "row": 8
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_BlueThunderHorse",
    "level": 66,
+   "piece": "Feybreak",
    "row": 9
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_WhiteDeer",
    "level": 65,
+   "piece": "Feybreak",
    "row": 10
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_BadCatgirl",
    "level": 60,
+   "piece": "Feybreak",
    "row": 11
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_WhiteShieldDragon",
    "level": 62,
+   "piece": "Feybreak",
    "row": 12
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_FengyunDeeper_Electric",
    "level": 60,
+   "piece": "Feybreak",
    "row": 13
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_Werewolf_Ice",
    "level": 66,
+   "piece": "Feybreak",
    "row": 14
   },
   {
-   "area": "World Tree",
    "character": "BOSS_GrassGolem",
    "level": 75,
+   "piece": "World Tree",
    "row": 15
   },
   {
-   "area": "World Tree",
    "character": "BOSS_WhiteDeer_Dark",
    "level": 79,
+   "piece": "World Tree",
    "row": 16
   },
   {
-   "area": "World Tree",
    "character": "BOSS_IceNarwhal_Fire",
    "level": 74,
+   "piece": "World Tree",
    "row": 17
   },
   {
-   "area": "World Tree",
    "character": "BOSS_MushroomLady",
    "level": 78,
+   "piece": "World Tree",
    "row": 18
   },
   {
-   "area": "World Tree",
    "character": "BOSS_VolcanoDragon_Ice",
    "level": 78,
+   "piece": "World Tree",
    "row": 19
   },
   {
-   "area": "World Tree",
    "character": "BOSS_KabukiMan",
    "level": 78,
+   "piece": "World Tree",
    "row": 20
   },
   {
-   "area": "World Tree",
    "character": "BOSS_DomeArmorDragon",
    "level": 79,
+   "piece": "World Tree",
    "row": 21
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_FlowerDinosaur_Electric",
    "level": 47,
+   "piece": "Verdant Stream",
    "row": 22
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_Suzaku",
    "level": 45,
+   "piece": "Desiccated Dunes",
    "row": 23
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_DarkScorpion",
    "level": 44,
+   "piece": "Desiccated Dunes",
    "row": 24
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_CubeTurtle",
    "level": 55,
+   "piece": "Desiccated Dunes",
    "row": 25
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_SaintCentaur",
    "level": 60,
+   "piece": "Desiccated Dunes",
    "row": 26
   },
   {
-   "area": "Feybreak (2)",
    "character": "BOSS_VolcanoDragon",
    "level": 70,
+   "piece": "Feybreak (2)",
    "row": 27
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_RockBeast",
    "level": 50,
+   "piece": "Desiccated Dunes",
    "row": 28
   },
   {
-   "area": "Desiccated Dunes (3)",
    "character": "BOSS_CactusDoll",
    "level": 40,
+   "piece": "Desiccated Dunes (3)",
    "row": 29
   },
   {
-   "area": "Feybreak (4)",
    "character": "BOSS_ScorpionMan_Electric",
    "level": 70,
+   "piece": "Feybreak (4)",
    "row": 30
   },
   {
-   "area": "Feybreak (3)",
    "character": "BOSS_GrassGolem_Dark",
    "level": 70,
+   "piece": "Feybreak (3)",
    "row": 31
   },
   {
-   "area": "Desiccated Dunes (2)",
    "character": "BOSS_GrassGolem",
    "level": 55,
+   "piece": "Desiccated Dunes (2)",
    "row": 32
   },
   {
-   "area": "Astral Mountains",
    "character": "BOSS_KingAlpaca_Ice",
    "level": 46,
+   "piece": "Astral Mountains",
    "row": 33
   },
   {
-   "area": "Open sea",
    "character": "BOSS_IceNarwhal",
    "level": 55,
+   "piece": "Open sea",
    "row": 34
   },
   {
-   "area": "Astral Mountains",
    "character": "BOSS_IceHorse",
    "level": 60,
+   "piece": "Astral Mountains",
    "row": 35
   },
   {
-   "area": "Sakurajima",
    "character": "BOSS_LilyQueen",
    "level": 58,
+   "piece": "Sakurajima",
    "row": 36
   },
   {
-   "area": "Sakurajima",
    "character": "BOSS_DarkScorpion_Ground",
    "level": 55,
+   "piece": "Sakurajima",
    "row": 37
   },
   {
-   "area": "Sakurajima",
    "character": "BOSS_LilyQueen_Dark",
    "level": 58,
+   "piece": "Sakurajima",
    "row": 38
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_FoxExorcist",
    "level": 68,
+   "piece": "Sky Islands",
    "row": 39
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_GhostDragon",
    "level": 69,
+   "piece": "Sky Islands",
    "row": 40
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_JetDragon",
    "level": 70,
+   "piece": "Sky Islands",
    "row": 41
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_ThunderFluffyBird",
    "level": 67,
+   "piece": "Sky Islands",
    "row": 42
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_ElecLizard",
    "level": 66,
+   "piece": "Sky Islands",
    "row": 43
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_LotusDragon",
    "level": 69,
+   "piece": "Sky Islands",
    "row": 44
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_ElecSnail",
    "level": 65,
+   "piece": "Sky Islands",
    "row": 45
   },
   {
-   "area": "Verdant Stream (2)",
    "character": "BOSS_Anubis",
    "level": 55,
+   "piece": "Verdant Stream (2)",
    "row": 46
   },
   {
-   "area": "Windswept Island",
    "character": "BOSS_GrassMammoth",
    "level": 38,
+   "piece": "Windswept Island",
    "row": 47
   },
   {
-   "area": "Windswept Island",
    "character": "BOSS_WeaselDragon",
    "level": 11,
+   "piece": "Windswept Island",
    "row": 48
   },
   {
-   "area": "Bamboo Groves",
    "character": "BOSS_FengyunDeeper",
    "level": 25,
+   "piece": "Bamboo Groves",
    "row": 49
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_Kirin",
    "level": 31,
+   "piece": "Sea Breeze Archipelago",
    "row": 50
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_ThunderBird",
    "level": 37,
+   "piece": "Verdant Stream",
    "row": 51
   },
   {
-   "area": "Isles of Silence",
    "character": "BOSS_BlueDragon",
    "level": 40,
+   "piece": "Isles of Silence",
    "row": 52
   },
   {
-   "area": "Marsh Island",
    "character": "BOSS_NaughtyCat",
    "level": 17,
+   "piece": "Marsh Island",
    "row": 53
   },
   {
-   "area": "Windswept Island",
    "character": "BOSS_KingAlpaca",
    "level": 23,
+   "piece": "Windswept Island",
    "row": 54
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_SakuraSaurus",
    "level": 23,
+   "piece": "Sea Breeze Archipelago",
    "row": 55
   },
   {
-   "area": "Marsh Island",
    "character": "BOSS_Umihebi",
    "level": 55,
+   "piece": "Marsh Island",
    "row": 56
   },
   {
-   "area": "Crescent Moon Shore",
    "character": "BOSS_FairyDragon",
    "level": 30,
+   "piece": "Crescent Moon Shore",
    "row": 57
   },
   {
-   "area": "Isles of Silence",
    "character": "Boss_LazyCatFish",
    "level": 14,
+   "piece": "Isles of Silence",
    "row": 58
   },
   {
-   "area": "Isles of Silence",
    "character": "BOSS_HawkBird",
    "level": 18,
+   "piece": "Isles of Silence",
    "row": 59
   },
   {
-   "area": "Isles of Silence",
    "character": "BOSS_PurpleSpider",
    "level": 35,
+   "piece": "Isles of Silence",
    "row": 60
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_PlantSlime",
    "level": 11,
+   "piece": "Sea Breeze Archipelago",
    "row": 61
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_MopKing",
    "level": 11,
+   "piece": "Sea Breeze Archipelago",
    "row": 62
   },
   {
-   "area": "Marsh Island",
    "character": "BOSS_GrassPanda_Electric",
    "level": 31,
+   "piece": "Marsh Island",
    "row": 63
   },
   {
-   "area": "Marsh Island",
    "character": "BOSS_Yeti_Grass",
    "level": 38,
+   "piece": "Marsh Island",
    "row": 64
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_QueenBee",
    "level": 39,
+   "piece": "Verdant Stream",
    "row": 65
   },
   {
-   "area": "Mount Obsidian",
    "character": "BOSS_WingGolem",
    "level": 55,
+   "piece": "Mount Obsidian",
    "row": 66
   },
   {
-   "area": "Mount Obsidian",
    "character": "BOSS_VolcanicMonster",
    "level": 50,
+   "piece": "Mount Obsidian",
    "row": 67
   },
   {
-   "area": "Mount Obsidian",
    "character": "BOSS_KingBahamut",
    "level": 52,
+   "piece": "Mount Obsidian",
    "row": 68
   },
   {
-   "area": "Mount Obsidian",
    "character": "BOSS_BlackMetalDragon",
    "level": 55,
+   "piece": "Mount Obsidian",
    "row": 69
   },
   {
-   "area": "Crescent Moon Shore (2)",
    "character": "BOSS_ElecPanda",
    "level": 30,
+   "piece": "Crescent Moon Shore (2)",
    "row": 70
   },
   {
-   "area": "Desiccated Dunes",
    "character": "BOSS_IceHorse_Dark",
    "level": 65,
+   "piece": "Desiccated Dunes",
    "row": 71
   },
   {
-   "area": "Astral Mountains (2)",
    "character": "BOSS_PoseidonOrca",
    "level": 60,
+   "piece": "Astral Mountains (2)",
    "row": 105
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_GrassRabbitMan",
    "level": 35,
+   "piece": "Verdant Stream",
    "row": 106
   },
   {
-   "area": "Bamboo Groves",
    "character": "BOSS_CaptainPenguin",
    "level": 15,
+   "piece": "Bamboo Groves",
    "row": 107
   },
   {
-   "area": "Sea Breeze Archipelago",
    "character": "BOSS_BerryGoat_Dark",
    "level": 23,
+   "piece": "Sea Breeze Archipelago",
    "row": 108
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_GhostRabbit",
    "level": 60,
+   "piece": "Feybreak",
    "row": 109
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_BlackPuppy",
    "level": 60,
+   "piece": "Feybreak",
    "row": 110
   },
   {
-   "area": "Crescent Moon Shore",
    "character": "BOSS_FoxMage",
    "level": 28,
+   "piece": "Crescent Moon Shore",
    "row": 111
   },
   {
-   "area": "Marsh Island",
    "character": "Boss_IceFox",
    "level": 15,
+   "piece": "Marsh Island",
    "row": 112
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_Mutant",
    "level": 35,
+   "piece": "Verdant Stream",
    "row": 113
   },
   {
-   "area": "Verdant Stream",
    "character": "BOSS_WhiteMoth",
    "level": 40,
+   "piece": "Verdant Stream",
    "row": 114
   },
   {
-   "area": "Crescent Moon Shore",
    "character": "BOSS_VioletFairy",
    "level": 27,
+   "piece": "Crescent Moon Shore",
    "row": 115
   },
   {
-   "area": "Sky Islands",
    "character": "BOSS_MoonChild",
    "level": 66,
+   "piece": "Sky Islands",
    "row": 116
   },
   {
-   "area": "Bamboo Groves",
    "character": "BOSS_Ronin",
    "level": 25,
+   "piece": "Bamboo Groves",
    "row": 117
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_CubeTurtle_Neutral",
    "level": 60,
+   "piece": "Feybreak",
    "row": 118
   },
   {
-   "area": "Isles of Silence",
    "character": "BOSS_Manticore",
    "level": 30,
+   "piece": "Isles of Silence",
    "row": 119
   },
   {
-   "area": "Bamboo Groves",
    "character": "BOSS_FlameBuffalo",
    "level": 15,
+   "piece": "Bamboo Groves",
    "row": 120
   },
   {
-   "area": "Feybreak",
    "character": "BOSS_BlueberryFairy",
    "level": 63,
+   "piece": "Feybreak",
    "row": 121
   },
   {
-   "area": "Isles of Silence",
    "character": "BOSS_Kitsunebi_Ice",
    "level": 15,
+   "piece": "Isles of Silence",
    "row": 122
   }
  ],
- "areas": {
-  "Astral Mountains": {
-   "alphas": [
-    46,
-    60
-   ],
-   "effigies": 48,
-   "fast_travel": 12,
-   "levels": 39.333333333333336,
-   "spawners": 457
-  },
-  "Astral Mountains (2)": {
-   "alphas": [
-    60
-   ],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 55.0,
-   "spawners": 8
-  },
-  "Bamboo Groves": {
-   "alphas": [
-    15,
-    15,
-    25,
-    25
-   ],
-   "effigies": 14,
-   "fast_travel": 13,
-   "levels": 15.15,
-   "spawners": 393
-  },
-  "Crescent Moon Shore": {
-   "alphas": [
-    27,
-    28,
-    30
-   ],
-   "effigies": 18,
-   "fast_travel": 8,
-   "levels": 23.0,
-   "spawners": 390
-  },
-  "Crescent Moon Shore (2)": {
-   "alphas": [
-    30
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 22.916666666666668,
-   "spawners": 12
-  },
-  "Crescent Moon Shore (3)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": null,
-   "spawners": 0
-  },
-  "Desiccated Dunes": {
-   "alphas": [
-    44,
-    45,
-    50,
-    55,
-    60,
-    65
-   ],
-   "effigies": 41,
-   "fast_travel": 16,
-   "levels": 35.60526315789474,
-   "spawners": 745
-  },
-  "Desiccated Dunes (2)": {
-   "alphas": [
-    55
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 52.0,
-   "spawners": 14
-  },
-  "Desiccated Dunes (3)": {
-   "alphas": [
-    40
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 35.75,
-   "spawners": 14
-  },
-  "Feybreak": {
-   "alphas": [
-    60,
-    60,
-    60,
-    60,
-    60,
-    60,
-    60,
-    62,
-    62,
-    63,
-    63,
-    63,
-    64,
-    65,
-    65,
-    65,
-    66,
-    66,
-    66
-   ],
-   "effigies": 46,
-   "fast_travel": 29,
-   "levels": 62.285714285714285,
-   "spawners": 1646
-  },
-  "Feybreak (2)": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 66.5,
-   "spawners": 37
-  },
-  "Feybreak (3)": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 63.0,
-   "spawners": 9
-  },
-  "Feybreak (4)": {
-   "alphas": [
-    70
-   ],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 67.375,
-   "spawners": 36
-  },
-  "Isles of Silence": {
-   "alphas": [
-    14,
-    15,
-    18,
-    30,
-    35,
-    40
-   ],
-   "effigies": 10,
-   "fast_travel": 10,
-   "levels": 14.0,
-   "spawners": 610
-  },
-  "Marsh Island": {
-   "alphas": [
-    15,
-    17,
-    31,
-    38,
-    55
-   ],
-   "effigies": 6,
-   "fast_travel": 10,
-   "levels": 11.3125,
-   "spawners": 343
-  },
-  "Mount Obsidian": {
-   "alphas": [
-    50,
-    52,
-    55,
-    55
-   ],
-   "effigies": 23,
-   "fast_travel": 7,
-   "levels": 36.833333333333336,
-   "spawners": 276
-  },
-  "Open sea": {
-   "alphas": [
-    55
-   ],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": null,
-   "spawners": 0
-  },
-  "Sakurajima": {
-   "alphas": [
-    55,
-    58,
-    58
-   ],
-   "effigies": 46,
-   "fast_travel": 8,
-   "levels": 47.875,
-   "spawners": 385
-  },
-  "Sakurajima (2)": {
-   "alphas": [],
-   "effigies": 1,
-   "fast_travel": 1,
-   "levels": 57.5,
-   "spawners": 27
-  },
-  "Sea Breeze Archipelago": {
-   "alphas": [
-    11,
-    11,
-    23,
-    23,
-    31
-   ],
-   "effigies": 1,
-   "fast_travel": 5,
-   "levels": 11.625,
-   "spawners": 324
-  },
-  "Sky Islands": {
-   "alphas": [
-    65,
-    66,
-    66,
-    67,
-    68,
-    69,
-    69,
-    70
-   ],
-   "effigies": 46,
-   "fast_travel": 7,
-   "levels": 66.125,
-   "spawners": 336
-  },
-  "Verdant Stream": {
-   "alphas": [
-    35,
-    35,
-    37,
-    39,
-    40,
-    47
-   ],
-   "effigies": 20,
-   "fast_travel": 8,
-   "levels": 33.642857142857146,
-   "spawners": 279
-  },
-  "Verdant Stream (2)": {
-   "alphas": [
-    55
-   ],
-   "effigies": 2,
-   "fast_travel": 1,
-   "levels": 33.75,
-   "spawners": 99
-  },
-  "Volcano Foothills": {
-   "alphas": [],
-   "effigies": 13,
-   "fast_travel": 6,
-   "levels": 34.166666666666664,
-   "spawners": 151
-  },
-  "Volcano Foothills (2)": {
-   "alphas": [],
-   "effigies": 8,
-   "fast_travel": 3,
-   "levels": 26.071428571428573,
-   "spawners": 96
-  },
-  "Volcano Foothills (3)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 1,
-   "levels": 16.7,
-   "spawners": 8
-  },
-  "Windswept Island": {
-   "alphas": [
-    11,
-    23,
-    38
-   ],
-   "effigies": 12,
-   "fast_travel": 4,
-   "levels": 8.833333333333334,
-   "spawners": 217
-  },
-  "Windswept Island (2)": {
-   "alphas": [],
-   "effigies": 0,
-   "fast_travel": 0,
-   "levels": 11.3125,
-   "spawners": 3
-  },
-  "World Tree": {
-   "alphas": [
-    74,
-    75,
-    78,
-    78,
-    78,
-    79,
-    79
-   ],
-   "effigies": 47,
-   "fast_travel": 18,
-   "levels": 76.57142857142857,
-   "spawners": 418
-  }
- },
  "borders": [
   [
    "Astral Mountains",
@@ -2576,6 +2258,324 @@
   "202": {},
   "203": {},
   "204": {}
+ },
+ "piece_stats": {
+  "Astral Mountains": {
+   "alphas": [
+    46,
+    60
+   ],
+   "effigies": 48,
+   "fast_travel": 12,
+   "levels": 39.333333333333336,
+   "spawners": 457
+  },
+  "Astral Mountains (2)": {
+   "alphas": [
+    60
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 55.0,
+   "spawners": 8
+  },
+  "Bamboo Groves": {
+   "alphas": [
+    15,
+    15,
+    25,
+    25
+   ],
+   "effigies": 14,
+   "fast_travel": 13,
+   "levels": 15.15,
+   "spawners": 393
+  },
+  "Crescent Moon Shore": {
+   "alphas": [
+    27,
+    28,
+    30
+   ],
+   "effigies": 18,
+   "fast_travel": 8,
+   "levels": 23.0,
+   "spawners": 390
+  },
+  "Crescent Moon Shore (2)": {
+   "alphas": [
+    30
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 22.916666666666668,
+   "spawners": 12
+  },
+  "Crescent Moon Shore (3)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Desiccated Dunes": {
+   "alphas": [
+    44,
+    45,
+    50,
+    55,
+    60,
+    65
+   ],
+   "effigies": 41,
+   "fast_travel": 16,
+   "levels": 35.60526315789474,
+   "spawners": 745
+  },
+  "Desiccated Dunes (2)": {
+   "alphas": [
+    55
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 52.0,
+   "spawners": 14
+  },
+  "Desiccated Dunes (3)": {
+   "alphas": [
+    40
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 35.75,
+   "spawners": 14
+  },
+  "Feybreak": {
+   "alphas": [
+    60,
+    60,
+    60,
+    60,
+    60,
+    60,
+    60,
+    62,
+    62,
+    63,
+    63,
+    63,
+    64,
+    65,
+    65,
+    65,
+    66,
+    66,
+    66
+   ],
+   "effigies": 46,
+   "fast_travel": 29,
+   "levels": 62.285714285714285,
+   "spawners": 1646
+  },
+  "Feybreak (2)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 66.5,
+   "spawners": 37
+  },
+  "Feybreak (3)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 63.0,
+   "spawners": 9
+  },
+  "Feybreak (4)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 67.375,
+   "spawners": 36
+  },
+  "Isles of Silence": {
+   "alphas": [
+    14,
+    15,
+    18,
+    30,
+    35,
+    40
+   ],
+   "effigies": 10,
+   "fast_travel": 10,
+   "levels": 14.0,
+   "spawners": 610
+  },
+  "Marsh Island": {
+   "alphas": [
+    15,
+    17,
+    31,
+    38,
+    55
+   ],
+   "effigies": 6,
+   "fast_travel": 10,
+   "levels": 11.3125,
+   "spawners": 343
+  },
+  "Mount Obsidian": {
+   "alphas": [
+    50,
+    52,
+    55,
+    55
+   ],
+   "effigies": 23,
+   "fast_travel": 7,
+   "levels": 36.833333333333336,
+   "spawners": 276
+  },
+  "Open sea": {
+   "alphas": [
+    55
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": null,
+   "spawners": 0
+  },
+  "Sakurajima": {
+   "alphas": [
+    55,
+    58,
+    58
+   ],
+   "effigies": 46,
+   "fast_travel": 8,
+   "levels": 47.875,
+   "spawners": 385
+  },
+  "Sakurajima (2)": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 57.5,
+   "spawners": 27
+  },
+  "Sea Breeze Archipelago": {
+   "alphas": [
+    11,
+    11,
+    23,
+    23,
+    31
+   ],
+   "effigies": 1,
+   "fast_travel": 5,
+   "levels": 11.625,
+   "spawners": 324
+  },
+  "Sky Islands": {
+   "alphas": [
+    65,
+    66,
+    66,
+    67,
+    68,
+    69,
+    69,
+    70
+   ],
+   "effigies": 46,
+   "fast_travel": 7,
+   "levels": 66.125,
+   "spawners": 336
+  },
+  "Verdant Stream": {
+   "alphas": [
+    35,
+    35,
+    37,
+    39,
+    40,
+    47
+   ],
+   "effigies": 20,
+   "fast_travel": 8,
+   "levels": 33.642857142857146,
+   "spawners": 279
+  },
+  "Verdant Stream (2)": {
+   "alphas": [
+    55
+   ],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 33.75,
+   "spawners": 99
+  },
+  "Volcano Foothills": {
+   "alphas": [],
+   "effigies": 13,
+   "fast_travel": 6,
+   "levels": 34.166666666666664,
+   "spawners": 151
+  },
+  "Volcano Foothills (2)": {
+   "alphas": [],
+   "effigies": 8,
+   "fast_travel": 3,
+   "levels": 26.071428571428573,
+   "spawners": 96
+  },
+  "Volcano Foothills (3)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 16.7,
+   "spawners": 8
+  },
+  "Windswept Island": {
+   "alphas": [
+    11,
+    23,
+    38
+   ],
+   "effigies": 12,
+   "fast_travel": 4,
+   "levels": 8.833333333333334,
+   "spawners": 217
+  },
+  "Windswept Island (2)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 11.3125,
+   "spawners": 3
+  },
+  "World Tree": {
+   "alphas": [
+    74,
+    75,
+    78,
+    78,
+    78,
+    79,
+    79
+   ],
+   "effigies": 47,
+   "fast_travel": 18,
+   "levels": 76.57142857142857,
+   "spawners": 418
+  }
  },
  "pieces": {
   "Astral Mountains": "Astral Mountains",

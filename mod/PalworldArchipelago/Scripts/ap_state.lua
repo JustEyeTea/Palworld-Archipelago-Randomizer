@@ -37,7 +37,7 @@ local ap = {
                           -- item's id, which the shop reads). Rebuilt each connection, forgotten on a new seed
     items = {},           -- index -> item id, every item received: rebuilt each connection, forgotten on a new seed
     techs = {},           -- tech id -> true: unlocked by an item. Rebuilt each connection, forgotten on a new seed
-    passes = {},          -- area -> true: rebuilt each connection, forgotten on a new seed
+    passes = {},          -- lock -> true: rebuilt each connection, forgotten on a new seed
     level = 0,            -- the player's level, as last read: forgotten never (read again every cycle)
     beaten = {},          -- tower boss type -> true: forgotten never (read again every cycle)
     given = -1,           -- highest item index whose one-off effect has been applied: in the save file, forgotten on
@@ -46,7 +46,7 @@ local ap = {
                           -- new seed
     forgiven = 0,         -- own faints forgiven since a death was last sent (Death Link amnesty; in the save file).
                           -- Forgotten on a new seed
-    visited = {},         -- area -> true: open areas the player has stood in (the map's open stamps; in the save
+    visited = {},         -- lock -> true: open locks the player has stood in (the map's open stamps; in the save
                           -- file). Forgotten on a new seed (a new table: main.lua hands it to the walls again)
     goalSent = false,     -- sent on this connection (cleared on connecting, so a goal lost on the wire goes again).
                           -- Forgotten each connection and on a new seed
@@ -55,8 +55,8 @@ local ap = {
     world = nil,          -- the world save this seed is played in (its folder name), kept in the save file.
                           -- Forgotten on a new seed
     slotName = nil,       -- the slot whose progress is in memory, set with the seed on connecting (names the save)
-    beyond = {},          -- area -> true: beyond the seed's goal (slot data beyond_goal_areas): set each connection
-    beyondOpen = false,   -- those areas are open from the start (options.beyond_goal: open), else sealed for good:
+    beyond = {},          -- lock -> true: beyond the seed's goal (slot data beyond_goal_areas): set each connection
+    beyondOpen = false,   -- those locks are open from the start (options.beyond_goal: open), else sealed for good:
                           -- set each connection
 }
 STATE.ap = ap

@@ -1,12 +1,13 @@
-"""Area model from the game tables and the area grid (tools/area_walls.py, run first): what each area (each piece of
-one) holds and where every Pal can be had. Prints each piece's level range and contents, and draws them.
-    <AP venv python> tools/area_model.py <tables dir> <out.png>   (reads <tables dir>/../areas/grid.npz; also writes
-    <out>.json and <out>-sources.json: data/areas-1.0.5.json and data/pal-sources-1.0.5.json)
-For the per-region set: AREA_SIZE=regions AREA_GRID=<its grid .npz> (tools/area_walls.py run the same way first).
+"""Lock model from the game tables and the lock grid (tools/lock_walls.py, run first): what each piece of each lock
+holds and where every Pal can be had. Prints each piece's level range and contents, and draws them.
+    <AP venv python> tools/lock_model.py <tables dir> <out.png>   (reads <tables dir>/../areas/grid.npz; also writes
+    <out>.json and <out>-sources.json: data/region-model-1.0.5.json and data/region-pal-sources-1.0.5.json)
+For the 75 areas: LOCK_SIZE=areas LOCK_GRID=<its grid .npz> (tools/lock_walls.py run the same way first); the files are
+data/area-model-1.0.5.json and data/area-pal-sources-1.0.5.json.
 """
 import os
 import csv, re, sys, collections, pathlib
-from area_groups import GROUPS, START as START_AREA
+from lock_groups import LOCKS, START
 from PIL import Image, ImageDraw, ImageFont
 
 T = pathlib.Path(sys.argv[1])
@@ -32,26 +33,26 @@ for r in rd('DT_PalSpawnerPlacement.tsv'):
     x, y, _ = xyz(r['Location']); L = lv[r['SpawnerName']]
     pts.append((x, y, sum(L) / len(L))); pt_spawner.append(r['SpawnerName'])
 
-# Areas come from tools/area_walls.py: a grid of the main map with every cell in one piece of one area (areas are groups
-# of the game's named regions, tools/area_groups.py). A piece is a connected part of
-# an area: the largest carries the area's name, the others "<area> (2)" and on. Pals beyond the main map are on the World
+# Locks come from tools/lock_walls.py: a grid of the main map with every cell in one piece of one lock (locks are groups
+# of the game's map rows, tools/lock_groups.py). A piece is a connected part of
+# a lock: the largest carries the lock's name, the others "<lock> (2)" and on. Pals beyond the main map are on the World
 # Tree's own map.
 import numpy as np
-G = np.load(os.environ.get('AREA_GRID') or T.parent / 'areas' / 'grid.npz')
+G = np.load(os.environ.get('LOCK_GRID') or T.parent / 'areas' / 'grid.npz')
 GX0, GX1, GY0, GY1 = (float(v) for v in G['bounds'])
 GRID = G['pieces']
 GN = GRID.shape[0]
 GCELL = (GX1 - GX0) / GN
-AREA_NAMES_ = [str(n) for n in G['names']]
-PIECE_AREA = G['piece_area'].tolist()
+LOCK_NAMES = [str(n) for n in G['names']]
+PIECE_LOCK = G['piece_lock'].tolist()
 cells = collections.Counter(GRID.ravel().tolist())
 PIECE_NAME = {}
-for k, n in enumerate(AREA_NAMES_):
-    ps = sorted((q for q in range(1, len(PIECE_AREA)) if PIECE_AREA[q] == k), key=lambda q: -cells[q])
+for k, n in enumerate(LOCK_NAMES):
+    ps = sorted((q for q in range(1, len(PIECE_LOCK)) if PIECE_LOCK[q] == k), key=lambda q: -cells[q])
     for j, q in enumerate(ps):
         PIECE_NAME[q] = n if j == 0 else f'{n} ({j + 1})'
-OFFMAP = next(a for a, rows in GROUPS.items() if 'FootOfWorldTree' in rows)   # the World Tree's own map, off this one
-def area(x, y, l=0):
+OFFMAP = next(a for a, rows in LOCKS.items() if 'FootOfWorldTree' in rows)    # the World Tree's own map, off this one
+def piece_at(x, y, l=0):
     """The piece at a spot; a spot on the water's edge takes the nearest land piece within 12 cells (175 m)."""
     r, c = int((GX1 - x) / GCELL), int((y - GY0) / GCELL)
     if not (0 <= r < GN and 0 <= c < GN):
@@ -62,25 +63,26 @@ def area(x, y, l=0):
                 if max(abs(i), abs(j)) != rad or not (0 <= r + i < GN and 0 <= c + j < GN):
                     continue
                 q = int(GRID[r + i, c + j])
-                if q and PIECE_AREA[q] != 0:
+                if q and PIECE_LOCK[q] != 0:
                     return PIECE_NAME[q]
     q = int(GRID[r, c])
     return PIECE_NAME.get(q, 'Open sea')
-area_of = [area(x, y) for x, y, _ in pts]
+piece_of_point = [piece_at(x, y) for x, y, _ in pts]
 seeds = towers
 
-# Fast-travel points, effigies and alphas take the area of their nearest spawner (so a point sits with the Pals around it).
-def nearest_area(x, y):
-    return area(x, y, 0)
+# Fast-travel points, effigies and alphas take the piece of their nearest spawner (so a point sits with the Pals around
+# it).
+def nearest_piece(x, y):
+    return piece_at(x, y, 0)
 stats = collections.defaultdict(lambda: {'lv': [], 'ft': 0, 'eff': 0, 'alpha': []})
-for i, (x, y, l) in enumerate(pts): stats[area_of[i]]['lv'].append(l)
+for i, (x, y, l) in enumerate(pts): stats[piece_of_point[i]]['lv'].append(l)
 FAST_TRAVEL = {}
 for r in rd('actors_PalLevelObjectUnlockableFastTravelPoint.tsv'):
-    a = nearest_area(float(r['x']), float(r['y'])); stats[a]['ft'] += 1; FAST_TRAVEL[r['FastTravelPointID']] = a
+    a = nearest_piece(float(r['x']), float(r['y'])); stats[a]['ft'] += 1; FAST_TRAVEL[r['FastTravelPointID']] = a
 TOWERS = {}
 for r in rd('actors_PalBossTower.tsv'):
-    TOWERS.setdefault(BOSS[int(r['BossType'])], nearest_area(float(r['x']), float(r['y'])))
-for r in rd('actors_PalLevelObjectRelic.tsv'): stats[nearest_area(float(r['x']), float(r['y']))]['eff'] += 1
+    TOWERS.setdefault(BOSS[int(r['BossType'])], nearest_piece(float(r['x']), float(r['y'])))
+for r in rd('actors_PalLevelObjectRelic.tsv'): stats[nearest_piece(float(r['x']), float(r['y']))]['eff'] += 1
 PAL_ALPHAS = []                                # the 90 Pal alphas the map shows (other rows are empty human-boss slots)
 mon_rows = {r['row'].lower(): r for r in rd('DT_PalMonsterParameter.tsv')}
 def is_pal(cid):
@@ -90,11 +92,12 @@ def is_pal(cid):
     return False
 for r in rd('DT_BossSpawnerLoactionData.tsv'):
     if not is_pal(r['CharacterID']): continue
-    x, y, _ = xyz(r['Location']); a = nearest_area(x, y)
-    stats[a]['alpha'].append(int(r['Level'])); PAL_ALPHAS.append({'row': int(r['row']), 'character': r['CharacterID'], 'level': int(r['Level']), 'area': a})
+    x, y, _ = xyz(r['Location']); a = nearest_piece(x, y)
+    stats[a]['alpha'].append(int(r['Level']))
+    PAL_ALPHAS.append({'row': int(r['row']), 'character': r['CharacterID'], 'level': int(r['Level']), 'piece': a})
 med = lambda v: sorted(v)[len(v) // 2] if v else None      # pieces with no Pals (rigs, sea) have no level
 rows = sorted(stats.items(), key=lambda kv: (med(kv[1]['lv']) is None, med(kv[1]['lv']) or 0))
-print(f"{'area':28s} spawners  levels p10/med/p90  fast-travel  effigies  alphas")
+print(f"{'piece':28s} spawners  levels p10/med/p90  fast-travel  effigies  alphas")
 for k, s in rows:
     v = sorted(s['lv']); p = lambda q: f"{v[int(q * (len(v) - 1))]:3.0f}" if v else '  -'
     a = s['alpha']
@@ -108,7 +111,7 @@ PAL = [(230, 25, 75), (60, 180, 75), (255, 225, 25), (67, 99, 216), (245, 130, 4
        (128, 0, 0), (170, 255, 195), (128, 128, 0), (255, 215, 180), (0, 0, 128), (200, 200, 200)]
 colour = {k: PAL[i % len(PAL)] for i, (k, _) in enumerate(rows)}
 for i, (x, y, l) in enumerate(pts):
-    px, py = P(x, y); d.ellipse([px - 2, py - 2, px + 2, py + 2], fill=colour[area_of[i]])
+    px, py = P(x, y); d.ellipse([px - 2, py - 2, px + 2, py + 2], fill=colour[piece_of_point[i]])
 font = ImageFont.load_default()
 for name, x, y in seeds:
     px, py = P(x, y); d.rectangle([px - 6, py - 6, px + 6, py + 6], outline=(255, 255, 255), width=2)
@@ -116,7 +119,7 @@ for i, (k, _) in enumerate(rows):
     d.rectangle([10, 10 + 14 * i, 22, 22 + 14 * i], fill=colour[k]); d.text((28, 10 + 14 * i), k, fill=(230, 230, 230), font=font)
 img.save(sys.argv[2])
 
-# Paldeck entries per area: character ids resolve through the Pal table (BOSS_ prefixes are alphas of the same entry).
+# Paldeck entries per piece: character ids resolve through the Pal table (BOSS_ prefixes are alphas of the same entry).
 import json
 mon = {r['row'].lower(): r for r in rd('DT_PalMonsterParameter.tsv')}
 def entry(cid):
@@ -127,50 +130,51 @@ def entry(cid):
         if r and r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0:
             return f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}"
     return None
-where = collections.defaultdict(dict)               # entry -> area -> lowest level
+where = collections.defaultdict(dict)               # entry -> piece -> lowest level
 for i, sp in enumerate(pt_spawner):
     for cid, lo, hi in contents[sp]:
         e = entry(cid)
-        if e: where[e][area_of[i]] = min(lo, where[e].get(area_of[i], 99))
+        if e: where[e][piece_of_point[i]] = min(lo, where[e].get(piece_of_point[i], 99))
 dex = sorted({f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}" for r in rd('DT_PalMonsterParameter.tsv')
               if r['IsPal'] == 'True' and int(r['ZukanIndex']) > 0})
 only = collections.Counter(next(iter(a)) for a in where.values() if len(a) == 1)
-print(f"\nPaldeck entries: {len(dex)}; spawn in the wild: {len(where)}; in exactly one area: {sum(only.values())}; never in the wild: {len(set(dex) - set(where))}")
-print('entries found only in one area:', dict(only.most_common()))
+print(f"\nPaldeck entries: {len(dex)}; spawn in the wild: {len(where)}; in exactly one piece: {sum(only.values())}; "
+      f"never in the wild: {len(set(dex) - set(where))}")
+print('entries found only in one piece:', dict(only.most_common()))
 print('never in the wild:', sorted(set(dex) - set(where)))
-# Every other way to get each entry: alphas, dungeons (by the areas their entrances sit in), breeding, raids,
+# Every other way to get each entry: alphas, dungeons (by the pieces their entrances sit in), breeding, raids,
 # tower bosses and fishing. The logic needs these for the 28 entries that never spawn in the open world.
 DUNGEON_MARKERS = {'Grass001': ('Grass1',), 'Grass002': ('Grass1',), 'Forest001': ('Forest',), 'Forest002': ('Forest',),
                    'Dessert001': ('Desert',), 'Volcano001': ('Volcano',), 'Snow001': ('Snow',), 'Sakura001': ('Sakura',),
                    'Viking001': ('Viking', 'Viking_B', 'Viking_C'), 'Skyland001': ('Skyland',),
                    'Yakushima001': ('Yakushima',), 'Island001': ('',), 'Island002': ('',), 'Island003': ('',)}
-marker_areas = collections.defaultdict(set)
+marker_pieces = collections.defaultdict(set)
 for r in rd('actors_PalDungeonPointMarker.tsv'):
     kind = re.sub(r'_C_UAID.*', '', r['name']).replace('BP_DungeonPortalMarkerV2', 'BP_DungeonPortalMarker')
     kind = kind.replace('BP_DungeonPortalMarker', '').lstrip('_')
-    marker_areas[kind].add(nearest_area(float(r['x']), float(r['y'])))
+    marker_pieces[kind].add(nearest_piece(float(r['x']), float(r['y'])))
 sources = collections.defaultdict(list)
-for e, areas in where.items():
-    for a, lo in areas.items(): sources[e].append({'type': 'wild', 'area': a, 'level': lo})
+for e, pieces in where.items():
+    for a, lo in pieces.items(): sources[e].append({'type': 'wild', 'piece': a, 'level': lo})
 for r in rd('DT_BossSpawnerLoactionData.tsv'):
     e = entry(r['CharacterID'])
     if e:
         x, y, _ = xyz(r['Location'])
-        sources[e].append({'type': 'alpha', 'area': nearest_area(x, y), 'level': int(r['Level'])})
+        sources[e].append({'type': 'alpha', 'piece': nearest_piece(x, y), 'level': int(r['Level'])})
 for r in rd('DT_PalSpawnerPlacement.tsv'):           # alpha and prison placements not in the location table
     if r['PlacementType'] in ('FieldBoss', 'ImprisonmentBoss'):
         x, y, _ = xyz(r['Location'])
         for cid, lo, hi in contents.get(r['SpawnerName'], []):
             e = entry(cid)
-            if e: sources[e].append({'type': 'alpha', 'area': nearest_area(x, y), 'level': lo})
+            if e: sources[e].append({'type': 'alpha', 'piece': nearest_piece(x, y), 'level': lo})
 for r in rd('DT_DungeonEnemySpawnDataTable.tsv'):
     kinds = DUNGEON_MARKERS.get(r['SpawnAreaId'])
     if not kinds: continue
-    areas = sorted(set().union(*(marker_areas[k] for k in kinds)))
+    pieces = sorted(set().union(*(marker_pieces[k] for k in kinds)))
     for cid, lo, hi in contents.get(r['SpawnerName'], []):
         e = entry(cid)
         if e: sources[e].append({'type': 'dungeon', 'dungeon': r['SpawnAreaId'], 'boss': r['RankType'] == 'Boss',
-                                 'areas': areas, 'level': lo})
+                                 'pieces': pieces, 'level': lo})
 for r in rd('DT_PalFishingSpotPalSpawnerDataTable.tsv'):
     e = entry(re.search(r'"(.*)"', r['PalName']).group(1))
     if e: sources[e].append({'type': 'fishing', 'level': int(r['LevelMin'])})
@@ -195,14 +199,14 @@ dedup = lambda xs: [dict(t) for t in dict.fromkeys(tuple(sorted((k, tuple(v) if 
                                                                  for k, v in x.items())) for x in xs)]
 none = [e for e in dex if not sources.get(e)]
 print(f"entries with no source at all: {none}")
-out = {'areas': {k: {'levels': med(v['lv']), 'spawners': len(v['lv']), 'fast_travel': v['ft'],
+out = {'piece_stats': {k: {'levels': med(v['lv']), 'spawners': len(v['lv']), 'fast_travel': v['ft'],
                      'effigies': v['eff'], 'alphas': sorted(v['alpha'])} for k, v in stats.items()},
        'paldeck': {e: where.get(e, {}) for e in dex},
        'fast_travel': FAST_TRAVEL, 'alphas': PAL_ALPHAS, 'towers': TOWERS,
-       # every piece (as a logic region) with its area, and the pieces that share a border
-       'pieces': {PIECE_NAME[q]: AREA_NAMES_[PIECE_AREA[q]] for q in PIECE_NAME},
+       # every piece (an Archipelago Region in the logic) with its lock, and the pieces that share a border
+       'pieces': {PIECE_NAME[q]: LOCK_NAMES[PIECE_LOCK[q]] for q in PIECE_NAME},
        'borders': sorted(sorted([PIECE_NAME[a], PIECE_NAME[b]]) for a, b in G['piece_borders'].tolist()),
-       'start': START_AREA}
+       'start': START}
 json.dump(out, open(pathlib.Path(sys.argv[2]).with_suffix('.json'), 'w'), indent=1, sort_keys=True)
 json.dump({'sources': {e: dedup(sources.get(e, [])) for e in dex}, 'breeding': breeding},
           open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-sources.json'), 'w'), indent=1, sort_keys=True)

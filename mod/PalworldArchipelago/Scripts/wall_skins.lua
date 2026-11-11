@@ -1,18 +1,18 @@
--- Wall skins: the looks the area-lock walls can wear (the game's red grid, the patterns and
--- colour tiles, the area colours, the cream paws), their materials, the dissolve of an opened wall and the glow near
+-- Wall skins: the looks the Area Locks walls can wear (the game's red grid, the patterns and
+-- colour tiles, the region colours, the cream paws), their materials, the dissolve of an opened wall and the glow near
 -- the player. A part of walls.lua, which loads it (fresh for each copy of walls.lua) and hands it, by install, W (the
--- table main.lua sees), the areas part and what it reads of the pieces.
+-- table main.lua sees), the locks part and what it reads of the pieces.
 -- Tests: mod/test/tests/walls.lua; group "area locks" (tools/lua_harness.sh, in CI).
 local WALL_SKINS = {}
 local UTIL = require("util")
 local log = UTIL.log
 local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance          -- (materials belong to the game instance, as walls.lua's map pictures do)
--- Handed over by install: W (settings: dir, keepAlive, fade, tiling, scroll; data: beyond, layout), the areas part's
--- layout, isOpen, AREA_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(), passes(),
--- pawn()) and DISSOLVE_S.
-local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
-local PALETTE, SEALED, TEAL = nil, nil, nil   -- areas.lua's palette, and its sealed grey and teal in linear light
+-- Handed over by install: W (settings: dir, keepAlive, fade, tiling, scroll; data: beyond, layout), the locks part's
+-- layout, isOpen, REGION_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(),
+-- passes(), pawn()) and DISSOLVE_S.
+local W, pieces, layout, isOpen, REGION_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
+local PALETTE, SEALED, TEAL = nil, nil, nil   -- locks.lua's palette, and its sealed grey and teal in linear light
 
 -- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the
 -- patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One dynamic copy of the
@@ -27,18 +27,19 @@ local PALETTE, SEALED, TEAL = nil, nil, nil   -- areas.lua's palette, and its se
 -- PalworldArchipelagoArt pak (logicmod/make_wall_material.py), because the game's material can show only one colour per
 -- piece. Without the pak (or the file) such a skin is refused, logged, and skipped by Ctrl+F3. colour-<x>-flow: that
 -- tile drifting sideways (FLOW tiles a second).
--- area (paws without the pak): walls/ap-wall-pattern-pawholes.png (an area-coloured wall with see-through paw-shaped
--- holes; the hex lattice, pattern a, until that file exists) in the colour of the locked area each piece keeps you out
--- of, so the wall says which area it guards: the colour of that area's pass ticket (area_shapes.COLOURS); a region
--- wears its area's (area_parents_regions.lua). A piece between two locked areas wears the one that isn't beyond the
--- goal. Areas beyond the seed's goal (sealed for good) wear walls/ap-wall-pattern-sealed.png in grey, or the lattice in
--- grey until that file exists. A piece changes colour when the area it wore opens and the other side is still locked.
+-- area (the skin's name in config.txt; paws without the pak): walls/ap-wall-pattern-pawholes.png (a coloured wall with
+-- see-through paw-shaped holes; the hex lattice, pattern a, until that file exists) in the colour of the lock still
+-- locked that each piece keeps you out of, so the wall says which lock it guards: the colour of its region's pass
+-- ticket (locks.lua's REGION_COLOURS); an area wears its region's (area_regions.lua). A piece between two locks still
+-- locked wears the one that isn't beyond the goal. Locks beyond the seed's goal (sealed for good) wear
+-- walls/ap-wall-pattern-sealed.png in grey, or the lattice in grey until that file exists. A piece changes colour when
+-- the lock it wore opens and the other side is still locked.
 -- paws (the default, WALL_SKINS.DEFAULT_SKIN; area without the pak): cream paws (walls/ap-wall-paws-layer.png, cooked
--- into the pak as T_APWallPaws with mips) on M_APWall, over the same area colour at 0.34 (the material's Back and
--- BackAlpha); sealed areas over the slate grey.
+-- into the pak as T_APWallPaws with mips) on M_APWall, over the same lock colour at 0.34 (the material's Back and
+-- BackAlpha); sealed locks over the slate grey.
 local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "colour-routes", "colour-grid",
                 "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
-local function byArea(name) return name == "area" or name == "paws" end
+local function byArea(name) return name == "area" or name == "paws" end    -- a skin in each lock's colour
 WALL_SKINS.SKINS = SKINS
 WALL_SKINS.linearOf = UTIL.linear                                 -- (for the harness's colour tests)
 local FLOW = 0.05
@@ -59,7 +60,7 @@ local NIGHT = 0.421875                                         -- the game's Nig
 -- skin's material, and those refused), apWall, pawLayer, the dissolve materials and glowAt, all of the world that went;
 -- skin.now goes back to red so the new world's pieces are dressed again. Never: skin.want and skin.base (the game's own
 -- red material, an asset), sealedFile and areaFile (whether a file exists), apWallProbed (a once-a-session log), and
--- recolourAt and passSig (recolouring starts again when the passes or the areas beyond the goal change).
+-- recolourAt and passSig (recolouring starts again when the passes or the locks beyond the goal change).
 local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
 local dressedAs = {}           -- piece -> the material it wears with the area skin; forgotten with the piece (forget)
 local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
@@ -174,7 +175,7 @@ local function colourMaterial(name, gameInstance, rendering, materials)
         .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
     return material
 end
--- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every area.
+-- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every lock.
 local function pawLayerTexture(gameInstance, rendering)
     if pawLayer and pawLayer:IsValid() then return pawLayer end
     local notes = {}
@@ -329,7 +330,7 @@ local function skinLibraries()
     if not (materials and materials:IsValid()) then return nil, "no KismetMaterialLibrary" end
     return gameInstance, rendering, materials
 end
--- A pattern skin's tint, pattern file and tiling: the teal lattice and its variants, an area's colour, or sealed grey.
+-- A pattern skin's tint, pattern file and tiling: the teal lattice and its variants, a lock's colour, or sealed grey.
 local function patternFor(name)
     local tint, file = TEAL, name:match("^(.-)%-dense$")
     local tiling = file and DENSE or W.tiling
@@ -416,9 +417,9 @@ local function dress(actor, material)
     return true
 end
 -- The material a piece wears with the area skin (or paws), by name (see SKINS).
--- The area whose colour a piece between a1 and a2 wears: the locked side when only one is locked; otherwise (both
+-- The lock whose colour a piece between a1 and a2 wears: the locked side when only one is locked; otherwise (both
 -- locked, or neither: such a piece is not standing) a1, unless a1 is beyond the goal: then a2.
-local function wornArea(a1, a2, passes)
+local function wornLock(a1, a2, passes)
     local locked1, locked2 = not isOpen(a1, passes), not isOpen(a2, passes)
     if locked1 and not locked2 then return a1 end
     if locked2 and not locked1 then return a2 end
@@ -427,17 +428,17 @@ local function wornArea(a1, a2, passes)
 end
 local function pieceSkin(i, passes, mode)
     local w = layout.walls[i]
-    local a1, a2 = layout.areas[w[5] + 1], layout.areas[w[6] + 1]
-    local area = wornArea(a1, a2, passes)
-    local hex = AREA_COLOURS[W.parentOf(area)]
+    local a1, a2 = layout.locks[w[5] + 1], layout.locks[w[6] + 1]
+    local lock = wornLock(a1, a2, passes)
+    local hex = REGION_COLOURS[W.regionOf(lock)]
     if mode == "paws" then
-        if W.beyond[area] then return "paws:sealed" end
+        if W.beyond[lock] then return "paws:sealed" end
         -- 75 Areas: each Area its Region's look, varied by its own number (pattern offset, mirror, Back shade).
         local own = ""
-        if W.layout == "regions" and W.parentOf(area) ~= area then own = ":" .. (area == a1 and w[5] or w[6]) end
-        return "paws:" .. (hex or PALETTE.teal) .. own         -- an area without a colour: the start island's teal
+        if W.layout == "areas" and W.regionOf(lock) ~= lock then own = ":" .. (lock == a1 and w[5] or w[6]) end
+        return "paws:" .. (hex or PALETTE.teal) .. own         -- a lock without a colour: the start island's teal
     end
-    if W.beyond[area] then return "sealed" end
+    if W.beyond[lock] then return "sealed" end
     return hex and ("area:" .. hex) or "a"
 end
 WALL_SKINS.pieceSkin = pieceSkin
@@ -464,9 +465,9 @@ function WALL_SKINS.skinNew(actor, i)
             .. tostring(err))
     end
 end
--- A pass that opens one side of a piece still up turns it to the other side's colour; so does the list of areas
+-- A pass that opens one side of a piece still up turns it to the other side's colour; so does the list of locks
 -- beyond the goal arriving. A few pieces an update (RECOLOUR), only after something changed: the trigger is the number
--- of passes held and the areas beyond the goal (passes are only ever added, so a new one changes the count).
+-- of passes held and the locks beyond the goal (passes are only ever added, so a new one changes the count).
 local RECOLOUR = 40
 function WALL_SKINS.recolour(passes)
     if not byArea(skin.now) then return end
@@ -617,9 +618,9 @@ end
 -- defaults until main.lua sets them from config.txt.
 function WALL_SKINS.install(env)
     W, pieces, DISSOLVE_S = env.W, env.pieces, env.DISSOLVE_S
-    layout, isOpen, AREA_COLOURS = env.areas.layout, env.areas.isOpen, env.areas.AREA_COLOURS
-    beyondSig = env.areas.beyondSig
-    PALETTE = env.areas.PALETTE
+    layout, isOpen, REGION_COLOURS = env.locks.layout, env.locks.isOpen, env.locks.REGION_COLOURS
+    beyondSig = env.locks.beyondSig
+    PALETTE = env.locks.PALETTE
     SEALED, TEAL = UTIL.linear(PALETTE.wallSealed), UTIL.linear(PALETTE.teal)
     W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
     -- M_APWall's fade, far enough out that a wall does not seem to load in right beside the player: fully there within

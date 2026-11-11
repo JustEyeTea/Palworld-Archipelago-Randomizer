@@ -4,30 +4,30 @@
 group("the world map", function()
     -- Composed only once the map opened, the first opening would show the game's map for ~3 s.
     local jobs0 = #composeJobs
-    expect(jobs0 >= 1 and composeJobs[jobs0].labels:find("area_labels.png")
+    expect(jobs0 >= 1 and composeJobs[jobs0].labels:find("region_labels.png")
            and composeJobs[jobs0].colour:find("map%-colour%-1.png"),
-           "the picture is composed in the background, from the colour map and the area labels, before the map ever " ..
-           "opens")
+           "the picture is composed in the background, from the colour map and the region labels, before the map "
+           .. "ever opens")
     game.mapOpen = true
     run(1)
     expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt,
            "so the first opening has the composed map at once")
-    do  -- stamps at each area's deepest point sat under the fog of war, so they go on the side facing home
-        local c = require("area_centres")[3]                        -- Sea Breeze Archipelago, still locked
+    do  -- stamps at each region's deepest point sat under the fog of war, so they go on the side facing home
+        local c = require("region_centres")[3]                        -- Sea Breeze Archipelago, still locked
         local at = stampAt["ap-map-stamp-sea-breeze-archipelago"]
         expect(at and c[3] and math.abs(at.X - (c[3] * 4096 - 44)) < 0.01 and math.abs(at.Y - (c[4] * 4096 - 44)) < 0.01
                and (c[3] ~= c[1] or c[4] ~= c[2]),
-               "a locked area's stamp goes on its side nearest the start, not its middle")
+               "a locked region's stamp goes on its side nearest the start, not its middle")
     end
-    do  -- the full 88 px stamp buried a small region (Small Settlement), so a small one is drawn smaller
+    do  -- the full 88 px stamp buried a small area (Small Settlement), so a small one is drawn smaller
         local liveWalls = require("walls")
         expect(liveWalls.stampSize({}) == 88 and liveWalls.stampSize({ room = 120 }) == 88,
-               "an area with room (or data without the field) keeps the full 88 px stamp")
+               "a lock with room (or data without the field) keeps the full 88 px stamp")
         expect(liveWalls.stampSize({ room = 30 }) == 60 and liveWalls.stampSize({ room = 9 }) == 28,
-               "a small region's stamp is about as wide as the region, but at least 28 px")
+               "a small lock's stamp is about as wide as the lock, but at least 28 px")
         local small, tiny = 0, 0
-        for _, c in pairs(dofile(MOD .. "/Scripts/area_centres_regions.lua")) do
-            expect(c[5], "every region's centre carries its room")
+        for _, c in pairs(dofile(MOD .. "/Scripts/area_centres.lua")) do
+            expect(c[5], "every area's centre carries its room")
             if c[5] and liveWalls.stampSize({ room = c[5] }) < 88 then
                 small = small + 1
             end
@@ -35,11 +35,11 @@ group("the world map", function()
                 tiny = tiny + 1
             end
         end
-        expect(small > 0 and tiny > 0, "the regions set has small regions that get a smaller stamp")
+        expect(small > 0 and tiny > 0, "the areas set has small areas that get a smaller stamp")
     end
     local lockedFirst = composeJobs[jobs0].locked
     expect(select(2, lockedFirst:gsub(",", "")) == 12 and not lockedFirst:find("^1,") and not lockedFirst:find(",2,"),
-           "locked areas passed by index: " .. lockedFirst)
+           "locked regions passed by index: " .. lockedFirst)
     pushItem({ name = "Region Pass: Marsh Island" })
     run(3)
     expect(#composeJobs == jobs0 + 1 and select(2, composeJobs[jobs0 + 1].locked:gsub(",", "")) == 11,
@@ -214,17 +214,17 @@ group("the world map", function()
         for i, name in ipairs(REGION_FIELDS) do
             regions[name] = parts[i] or ""
         end
-        expect(#parts == #REGION_FIELDS and regions.labels:find("area_labels%.png$")
+        expect(#parts == #REGION_FIELDS and regions.labels:find("region_labels%.png$")
                and select(2, regions.locked:gsub(",", "")) >= 9,
-               "the fog is made with the areas' borders, from the area labels, the locked areas listed: "
+               "the fog is made with the regions' borders, from the region labels, the locked regions listed: "
                .. tostring(fog and fog.regions))
         expect(regions.ink == "59,42,26,210" and tonumber(regions.width) == 3 and tonumber(regions.dash) == 14
                and tonumber(regions.gap) == 8,
                "the borders in the ink 59,42,26 at 210, 3 px wide, dashes 14 and gaps 8")
         expect(tonumber(regions.hatchOpacity) == 0.28 and regions.gamma == "0.4545",
-               "the locked areas' hatch at 0.28, kept to land by the colour map read at gamma 0.4545")
+               "the locked regions' hatch at 0.28, kept to land by the colour map read at gamma 0.4545")
         local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
-        expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked areas' stamps go on the fog: "
+        expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked regions' stamps go on the fog: "
                .. stamps)
         local fogpic
         for _, c in ipairs(calls) do
@@ -251,11 +251,11 @@ group("the world map", function()
         end
         expect(again == fogs, "while the map stays open nothing is remade")
         local open1 = {}
-        for _, a in ipairs(require("area_walls").areas) do
+        for _, a in ipairs(require("region_walls").locks) do
             open1[a] = true
         end
-        W6.updateMap(true, { [require("area_walls").areas[4]] = true }, pawn)
-        W6.updateMap(true, { [require("area_walls").areas[4]] = true }, pawn)
+        W6.updateMap(true, { [require("region_walls").locks[4]] = true }, pawn)
+        W6.updateMap(true, { [require("region_walls").locks[4]] = true }, pawn)
         local last
         for _, j in ipairs(jobs) do
             if j.kind == "fog" then
@@ -267,7 +267,7 @@ group("the world map", function()
                "a pass remakes the fog from the same mask with one stamp fewer: " .. fewer)
         local function lockedIn(j) return select(2, ((j.regions or ""):match("^[^|]*|([^|]*)")
                                                      or ""):gsub(",", "")) + 1 end
-        expect(lockedIn(last) == lockedIn(fog) - 1, "and its hatch over one locked area fewer")
+        expect(lockedIn(last) == lockedIn(fog) - 1, "and its hatch over one locked region fewer")
         local nChart = 0
         for _, j in ipairs(jobs) do
             if j.kind == "chart" then
@@ -340,9 +340,9 @@ group("the world map", function()
         os.remove(saved)
         os.remove(saved .. ".txt")
     end
-    -- The locked areas as the map's own icons (stamps drawn into the picture grow with the zoom and sit in odd
-    -- places): one WBP_WorldMap_IconBase_OnlyIcon per locked area, added with the screen's Add Icon By Location at
-    -- the area's deepest point, ignoring the fog's mask, then Update Map Icons; nothing drawn into the picture.
+    -- The locked regions as the map's own icons (stamps drawn into the picture grow with the zoom and sit in odd
+    -- places): one WBP_WorldMap_IconBase_OnlyIcon per locked region, added with the screen's Add Icon By Location at
+    -- the region's deepest point, ignoring the fog's mask, then Update Map Icons; nothing drawn into the picture.
     -- Only the main map's screen: the World Tree's keeps its own picture and gets none.
     do
         local calls = {}
@@ -372,22 +372,22 @@ group("the world map", function()
         end
         local job = composeJobs[#composeJobs]
         local nLocked = job and select(2, job.locked:gsub(",", "")) + 1 or 0
-        local CENTRES = require("area_centres")
+        local CENTRES = require("region_centres")
         local first = mapBody.icons[1]
         local locked1 = job and tonumber(job.locked:match("^(%d+)"))
-        local c = locked1 and CENTRES[locked1] -- (keyed by the 0-based area index, as drawStamps)
+        local c = locked1 and CENTRES[locked1] -- (keyed by the 0-based lock index, as drawStamps)
         local at = c and W9.worldAt(c[1], c[2])
-        expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked area: " .. #mapBody.icons .. " of "
+        expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked region: " .. #mapBody.icons .. " of "
                .. nLocked)
         expect(#game.staleBody.icons == 0 and logged("a map screen of the last world left alone"),
                "the last world's screen (its player gone) is left alone; the icons go on the live one")
         game.staleBody = nil
         expect(first and first.tex and tostring(first.tex.path):find("ap%-map%-stamp") and first.ignoreMask == true
                and first.priority == false and first.visibility == 3 and first.parent == mapBody.Canvas_ForIcon_NoMask,
-               "each shows its area's stamp, on the canvas the fog never hides, and ignores the pointer")
+               "each shows its region's stamp, on the canvas the fog never hides, and ignores the pointer")
         expect(at and first.loc and math.abs(first.loc.X - at.X) < 1 and math.abs(first.loc.Y - at.Y) < 1
                and first.loc.Z == 0,
-               "at the area's deepest point, as a world location")
+               "at the region's deepest point, as a world location")
         expect(mapBody.iconUpdates == 1 and logged("map icons: " .. nLocked
                                                    .. " locked area%(s%) added on Canvas_ForIcon_NoMask"),
                "then the screen sizes them for its zoom, and the log says where they went")
@@ -405,33 +405,33 @@ group("the world map", function()
             W9.updateMap(true, {}, pawn)
         end
         expect(#mapBody.icons == nLocked and mapBody.iconUpdates == 1, "added once, not every update")
-        local area4 = require("area_walls").areas[4]
+        local region4 = require("region_walls").locks[4]
         for _ = 1, 3 do
-            W9.updateMap(true, { [area4] = true }, pawn)
+            W9.updateMap(true, { [region4] = true }, pawn)
         end
         expect(first.removed and #mapBody.icons == 2 * nLocked and logged("1 open not yet visited"),
                "a pass: the old icons go; one locked stamp fewer comes back, and an open one where the pass is " ..
                "(art/ap-map-stamp-open-*)")
-        -- An unlocked area not stood in yet: an open stamp there (art/ap-map-stamp-open, once the mod has it).
+        -- An unlocked region not stood in yet: an open stamp there (art/ap-map-stamp-open, once the mod has it).
         local openArt = require("art").dir .. "\\art\\ap-map-stamp-open.png"   -- (where the mod looks for its art)
         local fa = io.open(openArt, "w")
         fa:write("png")
         fa:close()
         local count = #mapBody.icons
-        local area5 = require("area_walls").areas[5]
+        local region5 = require("region_walls").locks[5]
         W9.visited = {}
         for _ = 1, 3 do   -- (a second pass: icons made again)
-            W9.updateMap(true, { [area4] = true, [area5] = true }, pawn)
+            W9.updateMap(true, { [region4] = true, [region5] = true }, pawn)
         end
         local newest = mapBody.icons[#mapBody.icons]
         expect(#mapBody.icons == count + nLocked and tostring(newest.tex.path):find("ap%-map%-stamp%-open")
                and logged("2 open not yet visited"),
-               "unlocked areas not yet visited get an open stamp: " .. tostring(newest.tex.path))
-        W9.visited[area4] = true
+               "unlocked regions not yet visited get an open stamp: " .. tostring(newest.tex.path))
+        W9.visited[region4] = true
         count = #mapBody.icons
         local standing = logMark()
         for _ = 1, 3 do
-            W9.updateMap(true, { [area4] = true, [area5] = true }, pawn)
+            W9.updateMap(true, { [region4] = true, [region5] = true }, pawn)
         end
         expect(#mapBody.icons == count + nLocked - 1 and loggedSince(standing, "1 open not yet visited"),
                "once stood in, its open stamp goes")
@@ -464,8 +464,8 @@ group("the world map", function()
 end)
 
 group("the world map: the Territories look", function()
-    -- "Territories": the C++ part composes an overlay from each area's state and colour and the standing walls; the
-    -- map picture is the game's own map with it drawn over; the fog picture is made from its fog art. Visiting an area
+    -- "Territories": the C++ part composes an overlay from each region's state and colour and the standing walls; the
+    -- map picture is the game's own map with it drawn over; the fog picture is made from its fog art. Visiting a region
     -- makes it again; map_style=chart keeps the explorer's chart.
     local jobs, fogArt = {}, nil
     AP_ComposeTerritories = function(labels, areas, walls, style, out, fogart, fog, size)
@@ -497,12 +497,12 @@ group("the world map: the Territories look", function()
     AP_ChartStatus = function() return "done" end
     AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
     mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_3")
-    local AW = require("area_walls")
-    local area4, sealedArea = AW.areas[4], AW.areas[16]
+    local AW = require("region_walls")
+    local region4, sealedRegion = AW.locks[4], AW.locks[16]
     local T = h.freshWalls()
-    T.beyond = { [sealedArea] = true }
+    T.beyond = { [sealedRegion] = true }
     T.visited = {}
-    local passes = { [area4] = true }
+    local passes = { [region4] = true }
     local stale = io.open(MOD .. "/map-fog.png", "w")   -- (a chart fog left from a last session)
     stale:write("png")
     stale:close()
@@ -517,21 +517,21 @@ group("the world map: the Territories look", function()
         local i, s, c = item:match("^(%d+):(%a):(%x+)$")
         st[tonumber(i)] = { s = s, c = c }
     end
-    expect(job and job.labels:find("area_labels%.png$") and job.size == "2048" and job.fog == "0E1A24"
+    expect(job and job.labels:find("region_labels%.png$") and job.size == "2048" and job.fog == "0E1A24"
            and job.style == "FFE9B0,0.35,FFF4DC,0.6,10,3,5",
-           "the overlay is composed from the area labels at 2048, with the dark fog colour and the Art lane's "
+           "the overlay is composed from the region labels at 2048, with the dark fog colour and the Art lane's "
            .. "walls, see-through")
     expect(st[1] and st[1].s == "v" and st[1].c == "24E0CC",
            "states: the start visited, teal: " .. tostring(st[1] and st[1].s) .. " " .. tostring(st[1] and st[1].c))
     expect(st[3] and st[3].s == "u" and st[2] and st[2].s == "l",
-           "an area with its pass unlocked and not yet visited; the rest locked")
+           "a region with its pass unlocked and not yet visited; the rest locked")
     expect(st[15] and st[15].s == "s" and st[15].c == "5A6472" and st[0] == nil,
-           "an area beyond the goal sealed, slate; the sea not listed")
+           "a region beyond the goal sealed, slate; the sea not listed")
     local standing = 0
-    local function open(area) return area == "Open sea" or area == AW.start or passes[area] end
+    local function open(region) return region == "Open sea" or region == AW.start or passes[region] end
     for _, w in ipairs(AW.walls) do
         local row = h.wallRow(w, AW)
-        if not (open(row.areaA) and open(row.areaB)) then
+        if not (open(row.lockA) and open(row.lockB)) then
             standing = standing + 1
         end
     end
@@ -570,12 +570,12 @@ group("the world map: the Territories look", function()
     expect(#pics > 0 and not chartPic and tostring(pics[#pics]):find("map%-fog%-territories"),
            "the territories' own fog picture, never the chart's from the last session: " .. table.concat(pics, " "))
     local n = #jobs
-    T.visited[area4] = true
+    T.visited[region4] = true
     for _ = 1, 3 do
         T.updateMap(true, passes, pawn)
     end
     expect(#jobs == n + 1 and jobs[#jobs].areas:find("3:v:", 1, true),
-           "visiting an area makes the overlay again, the area visited")
+           "visiting a region makes the overlay again, the region visited")
     expect(fogSize == "2048" and logged("map territories: composing from the label map at 2048"),
            "an older DLL (no AP_ComposeField): the label map at 2048, the fog at 2048")
     game.mapOpen = false
@@ -608,7 +608,7 @@ group("the world map: the Territories look", function()
     end
     util.GetLocalWorldMapData = function() return mapData end
     local F = h.freshWalls()
-    F.beyond, F.visited = { [sealedArea] = true }, {}
+    F.beyond, F.visited = { [sealedRegion] = true }, {}
     n = #jobs
     drawLog = {}
     local picsBefore = #pics
@@ -623,7 +623,7 @@ group("the world map: the Territories look", function()
     end
     expect(fjobs[1] and fjobs[1].colour == colourFile and fjobs[1].gamma == "0.4545" and whole
            and logged("map, locked areas greyscale"),
-           "with the saved colour map: the whole picture from it (locked areas greyscale), drawn alone, not over "
+           "with the saved colour map: the whole picture from it (locked regions greyscale), drawn alone, not over "
            .. "the game's map")
     for _ = 1, 25 do
         F.updateMap(true, passes, pawn)
@@ -643,20 +643,20 @@ group("the world map: the Territories look", function()
         F.updateMap(true, passes, pawn)
     end
     local fj = fjobs[#fjobs]
-    local shipped = io.open(MOD .. "/area_field.png", "rb")
+    local shipped = io.open(MOD .. "/region_field.png", "rb")
     if shipped then
         shipped:close()
     end
-    expect(shipped and fj and fj.field:find("area_field%.png$") and fj.size == "4096" and #jobs == n
+    expect(shipped and fj and fj.field:find("region_field%.png$") and fj.size == "4096" and #jobs == n
            and logged("map territories: composing from the distance field at 4096"),
            "with AP_ComposeField: the shipped distance field at 4096, not the label map: " .. tostring(fj and fj.field))
     expect(fj and fj.style == job.style and fj.areas == job.areas and fj.walls == job.walls,
-           "the same areas, walls and look as from the label map")
+           "the same regions, walls and look as from the label map")
     expect(fogSize == "4096", "and the fog at 4096: " .. tostring(fogSize))
     -- No colour map (and no game map to save one from): the overlay, drawn over the game's map.
     os.remove(colourFile)
     local G2 = h.freshWalls()
-    G2.beyond, G2.visited = { [sealedArea] = true }, {}
+    G2.beyond, G2.visited = { [sealedRegion] = true }, {}
     local savedLoad = loaded["/Game/Pal/Texture/UI/Map/T_WorldMap"]
     game.mapOpen, drawLog = false, {}
     local nf = #fjobs

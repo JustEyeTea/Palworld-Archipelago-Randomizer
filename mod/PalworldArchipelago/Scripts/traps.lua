@@ -2,7 +2,7 @@
 --  * Slow Trap      half walking speed for a minute (a named walk-speed multiplier, set back to 1 after)
 --  * Hunger Trap    the stomach loses half a full meter of satiety, never going below a quarter (so it never starts
 --                   starving damage)
---  * Teleport Trap  back to the starting area, as the area locks do (waits while the player is in a dungeon)
+--  * Teleport Trap  back to the starting lock, as Area Locks do (waits while the player is in a dungeon)
 --  * Fool Trap      an alarming notice, then "just kidding" 8 s later
 -- Like bundles, each trap is applied once per item index: main.lua queues it as it applies items, and the queue is kept
 -- in the per-seed save file (traps=Slow Trap|12,...), so a trap received just before quitting still fires next time.
@@ -305,7 +305,7 @@ function T.update(c)
 end
 
 -- env: { notify = fn(text), announce = fn(text) (no prefix), save = fn(), sender = fn(index) -> name or nil,
---        home = fn() -> { x, y, z }, start = fn() -> area name }
+--        home = fn() -> { x, y, z }, start = fn() -> lock name }
 function T.install(e) env = e end
 
 return T

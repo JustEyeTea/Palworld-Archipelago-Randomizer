@@ -168,8 +168,8 @@ local function readStarterCategory(card, tech, key, full)
 end
 
 -- A card's picture, the first of these that loads: your own tech's icon; the crate's art; a Region Pass's own region's
--- ticket (art/ap-pass-<region>.png), an Area Pass's (Lock Size: areas) region's, else the small-pass ticket
--- (ap-pass-region.png, named before the rename); else the mod's icon for the item's kind. Returns it and its source.
+-- ticket (art/ap-pass-<region>.png), an Area Pass's (Lock Size: areas) region's, else the small-pass ticket (an area's,
+-- though its file is ap-pass-region.png); else the mod's icon for the item's kind. Returns it and its source.
 local function cardPicture(mine, it, kind, card)
     local ART = require("art")
     local tex = mine and SHOP_CARDS.techIcon(mine)
@@ -177,7 +177,7 @@ local function cardPicture(mine, it, kind, card)
     tex = it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld")
     if tex then return tex, "the crate's art" end
     if kind == "area-pass" then
-        tex = ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.parentOf(it.area)))
+        tex = ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.regionOf(it.lock)))
         if tex then return tex, "its region's pass ticket" end
         tex = it.name:find("^Area Pass") and ART.texture("ap-pass-region")
         if tex then return tex, "the small-pass ticket" end
