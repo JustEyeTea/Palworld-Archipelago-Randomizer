@@ -1,6 +1,6 @@
 // APConnector: the UE4SS C++ mod that gives the PalworldArchipelago Lua mod its Archipelago connection. When that Lua
 // mod starts, these functions appear as globals in each of its Lua states (all text in, text out):
-//   AP_Connect(server, slot, password)   start connecting ("archipelago.gg:12345" tries wss then ws)
+//   AP_Connect(server, slot_name, password)   start connecting ("archipelago.gg:12345" tries wss then ws)
 //   AP_Disconnect()
 //   AP_Poll() -> string                  events since the last call, one per line (see ap_bridge.hpp)
 //   AP_Check("id,id,...")                send location checks
@@ -10,7 +10,8 @@
 //   AP_Bounce(json, "Tag,Tag")           send a bounce (Death Link)
 //   AP_SetTags("AP,DeathLink")           the connection's tags (which bounces the server sends us)
 //   AP_SlotData(path) -> string          a slot_data value by dotted path ("options.tower_count")
-//   AP_Status() -> string                disconnected | connecting | connected | refused
+//   AP_Status() -> string                disconnected | connecting | connected | refused (not used by the Lua mod,
+//                                        which follows the status lines)
 //   AP_HintPoints() -> string            "points,cost" (hint points held, cost of a hint), "" when not connected
 //   AP_GivePal(species, level, route, options) -> string   gives the player a Pal ("Anubis", "50", "auto", "");
 //                                        a report, one step per line, the last
@@ -126,8 +127,8 @@ namespace
     void register_connection(LuaMadeSimple::Lua& lua)
     {
         lua.register_function("AP_Connect", [](const LuaMadeSimple::Lua& l) -> int {
-            const auto server = arg(l), slot = arg(l), password = arg(l);
-            bridge().connect(server, slot, password);
+            const auto server = arg(l), slot_name = arg(l), password = arg(l);
+            bridge().connect(server, slot_name, password);
             return 0;
         });
         lua.register_function("AP_Disconnect", [](const LuaMadeSimple::Lua&) -> int {

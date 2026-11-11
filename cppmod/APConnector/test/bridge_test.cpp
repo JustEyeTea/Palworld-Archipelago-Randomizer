@@ -103,7 +103,7 @@ namespace
             if (bridge.status() == "connected" || bridge.status() == "refused") break;
             drain(bridge, CONNECT_TRY_MS);
         }
-        std::printf("== status %s, player slot %d\n", bridge.status().c_str(), bridge.player_slot());
+        std::printf("== status %s, player number %d\n", bridge.status().c_str(), bridge.player_number());
         return bridge.status() == "connected";
     }
 
