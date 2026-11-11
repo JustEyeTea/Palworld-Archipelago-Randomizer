@@ -191,8 +191,12 @@ end
 -- shadow; when it is ready it is loaded and drawn into the render target. The picture is the game's own art: it stays
 -- in the mod folder and is never shipped.
 local COLOUR_FILE = "map-colour-1.png"
-local composing, composedKey, failedKey = nil, nil, nil   -- the locked set being composed / last composed / last failed
-local composingList = {}                                  -- that set's area indexes (for the stamps)
+-- The two picture jobs, one per look (greyJob for map_style=chart, terr for Territories), keep the same three keys:
+-- composing (the look being composed in the background), done (the look last drawn into the map picture) and failed
+-- (a look whose composition failed, not tried again). A job answers "ready" (the map picture holds the look asked
+-- for), "busy" (not yet) or "failed" (it will not: the map is drawn without the compositor).
+-- greyJob also keeps the composing look's locked area indexes, for the stamps (locked).
+local greyJob = { composing = nil, done = nil, failed = nil, locked = {} }
 -- A fingerprint of the map the game shows: 16 pixels of it drawn small. A mod that replaces the map's art changes it, so
 -- the saved colour map is made again (once a session, cheaply, instead of exporting the whole map every time).
 local printChecked, printNow = false, nil
@@ -252,7 +256,8 @@ local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
 -- see-through (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the
 -- core was solid, the glow 0.55).
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
-local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }
+local terr = { composing = nil, done = nil, failed = nil, size = nil, whole = false }   -- (and the picture's size, and
+                                                                                     -- whether it is the whole map)
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
 -- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
 local function areaSpec(passes)
@@ -288,8 +293,8 @@ local function wallSpec(passes)
     return table.concat(out, ";")
 end
 MAP_PICTURE.areaSpec, MAP_PICTURE.wallSpec = areaSpec, wallSpec
--- Draws the finished Territories picture into the map picture; true when it is the look for `key`, "failed" when a
--- file could not be loaded.
+-- Draws the finished Territories picture into the map picture: "ready" when it is the look for `key` ("busy" when
+-- another is wanted by now), "failed" when a file could not be loaded.
 local function drawTerritories(krl, gi, k, key)
     local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
     local map = over                          -- the whole picture has the map in it; an overlay goes over the game's
@@ -308,13 +313,13 @@ local function drawTerritories(krl, gi, k, key)
     terr.done = k
     once("terrdrawn" .. tostring(terr.whole), terr.whole and "map territories: drawn (the player's map, locked areas greyscale)"
         or "map territories: drawn over the game's map")
-    return k == key
+    return k == key and "ready" or "busy"
 end
 -- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
 -- A Territories composition finished: its picture drawn into the map picture. As composeTerritories returns.
 local function finishTerritories(krl, gi, key)
     local st = AP_TerritoriesStatus()
-    if st == "busy" then return false end
+    if st == "busy" then return "busy" end
     local k = terr.composing
     terr.composing = nil
     if st ~= "done" then
@@ -371,20 +376,20 @@ local function startTerritories(krl, gi, passes, key)
             .. (hasField and "from the distance field" or "from the label map") .. " at " .. size)
     elseif err ~= "busy" then once("terr" .. err, "map territories: could not compose: " .. err) end
 end
--- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
+-- The Territories job: "ready", "busy" or "failed" (see greyJob).
 local function composeTerritories(ctx, passes, key)
     if not terr.composing then
-        if terr.done == key then return true end
+        if terr.done == key then return "ready" end
         if terr.failed == key then return "failed" end
     end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local gi = owner()
-    if not gi then return false end
+    if not gi then return "busy" end
     if terr.composing then
         return finishTerritories(krl, gi, key)
     end
     startTerritories(krl, gi, passes, key)
-    return false
+    return "busy"
 end
 
 -- At the first opening, once: the game's map checked against the saved colour map's fingerprint, and saved again if it
@@ -401,39 +406,44 @@ local function colourMapRenewed()
     colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
     return colourSaved
 end
--- Draws the finished composition into the map picture, the stamps on it; false (with failedKey set) when it could not
--- be loaded. A picture that errors while drawn is not composed again either (composeMap): it would fail the same way.
+-- Draws the finished composition into the map picture, the stamps on it; false (with greyJob.failed set) when it
+-- could not be loaded. A picture that errors while drawn is not composed again either (composeMap): it would fail the
+-- same way.
 local function drawComposed(krl, gi, done)
     local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\map-composed.png")
-    if not tex or not tex:IsValid() then log("map: could not load the composed map; drawing it without the compositor"); failedKey = done; return false end
+    if not tex or not tex:IsValid() then
+        log("map: could not load the composed map; drawing it without the compositor")
+        greyJob.failed = done
+        return false
+    end
     drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
         drawWhole(canvas, tex, RT_SIZE, RT_SIZE, 0)
-        local okS, errS = pcall(drawStamps, canvas, krl, gi, composingList)
+        local okS, errS = pcall(drawStamps, canvas, krl, gi, greyJob.locked)
         if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
     end)
-    composedKey = done
+    greyJob.done = done
     return true
 end
--- A composition finished: its picture drawn into the map picture. As composeMap returns.
+-- A composition finished: its picture drawn into the map picture. As composeMap answers.
 local function finishCompose(krl, gi, key)
     local st = AP_ComposeStatus()
-    if st == "busy" then return false end
-    local done = composing
-    composing = nil
+    if st == "busy" then return "busy" end
+    local done = greyJob.composing
+    greyJob.composing = nil
     -- A failure is not a picture: the render target still holds the last one. That set is not composed again (no
     -- retry loop); the map is drawn without the compositor instead.
     if st ~= "done" then
         log("map: composing failed: " .. tostring(st) .. "; drawing it without the compositor")
-        failedKey = done
-        return false
+        greyJob.failed = done
+        return "busy"
     end
     local okD, drawn = pcall(drawComposed, krl, gi, done)
     if not okD then
         log("map: could not draw the composed map (" .. tostring(drawn) .. "); drawing it without the compositor")
-        failedKey = done
-        return false
+        greyJob.failed = done
+        return "busy"
     end
-    return drawn and done == key
+    return drawn and done == key and "ready" or "busy"
 end
 -- Starts a composition for `key` in the background, from the saved colour map (saved again from the game's map at the
 -- first opening, or when there is none) and the area labels.
@@ -447,14 +457,18 @@ local function startCompose(krl, gi, passes, key, open)
     end
     local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
         W.dir .. "\\map-composed.png", "0.4545")
-    if err == "" then composing, composingList = key, lockedList(passes) elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
+    if err == "" then
+        greyJob.composing, greyJob.locked = key, lockedList(passes)
+    elseif err ~= "busy" then
+        once("compose" .. err, "map: could not compose: " .. err)
+    end
 end
--- Starts or finishes a composition; true once the render target holds the picture for this locked set, "failed" once
--- composing it failed. It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07: the picture
--- was only started once a map screen was found, so the first opening showed the game's map for a second or two while
--- it was made, and C++ had nothing to show yet). Until the map opens, the colour map saved in an earlier session is used
--- as it is, without loading the game's 8192 px map; at the first opening the game's map is checked against it once
--- (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
+-- Starts or finishes a composition: "ready" once the render target holds the picture for this look, "failed" once
+-- composing it failed, else "busy". It runs from the start, not when the map first opens (dev.16 playtest, 2026-11-07:
+-- the picture was only started once a map screen was found, so the first opening showed the game's map for a second or
+-- two while it was made, and C++ had nothing to show yet). Until the map opens, the colour map saved in an earlier
+-- session is used as it is, without loading the game's 8192 px map; at the first opening the game's map is checked
+-- against it once (the fingerprint) and, if it changed (another mod), saved again and the picture made again.
 local function composeMap(ctx, passes, key, open)
     if territories() then
         -- (Only a picture made from the colour map: the overlay alone is drawn over the game's own map each time.)
@@ -463,24 +477,24 @@ local function composeMap(ctx, passes, key, open)
         end
         return composeTerritories(ctx, passes, key)
     end
-    if not composing then                    -- the usual case: nothing to do, nothing to look up
-        if composedKey == key then
+    if not greyJob.composing then            -- the usual case: nothing to do, nothing to look up
+        if greyJob.done == key then
             if open and colourMapRenewed() then
-                composedKey = nil                    -- made again from the new colour map
-                return false
+                greyJob.done = nil                   -- made again from the new colour map
+                return "busy"
             end
-            return true
+            return "ready"
         end
-        if failedKey == key then return "failed" end
+        if greyJob.failed == key then return "failed" end
     end
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local gi = owner()
-    if not gi then return false end
-    if composing then
+    if not gi then return "busy" end
+    if greyJob.composing then
         return finishCompose(krl, gi, key)
     end
     startCompose(krl, gi, passes, key, open)
-    return false
+    return "busy"
 end
 
 -- The main world's live map screens, and their map images. The game keeps a template of the map screen beside the real
@@ -538,12 +552,12 @@ local function makePicture(ctx, passes, key, open, nLocked)
         local ok, pictureReady = pcall(composeMap, ctx, passes, key, open)
         if not ok then
             once("composeerr" .. tostring(pictureReady), "map error: " .. tostring(pictureReady))
-            pictureReady = false
+            pictureReady = "busy"
         end
         if pictureReady == "failed" then
             compose = false
         else
-            if pictureReady and key ~= mapKey then
+            if pictureReady == "ready" and key ~= mapKey then
                 mapKey, redrawn = key, true
                 log("map: " .. nLocked .. " locked area(s) greyed")
             end
@@ -613,7 +627,7 @@ end
 -- A change of cut: the pictures made for the old one, and the shapes drawn from it, are forgotten.
 function MAP_PICTURE.forgetPictures()
     triangles, bands = {}, {}
-    mapKey, composing, composedKey, failedKey, composingList = nil, nil, nil, nil, {}
+    mapKey, greyJob = nil, { composing = nil, done = nil, failed = nil, locked = {} }
 end
 
 -- Hands over what this part reads from walls.lua (see the top of the file), and sets W's map settings to their
