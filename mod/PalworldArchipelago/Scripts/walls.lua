@@ -6,13 +6,22 @@
 -- and the 75 areas (Area Passes); this file still uses the older words the other way round, until the code tour
 -- renames them: "areas" is the 15 regions (area_walls.lua and the rest), "regions" the 75 areas (the same files with
 -- _regions). In this file "area" means a locked part of either cut. The 15 regions' walls are loaded at start.
-local DATA = require("area_walls")
-local MAP = require("area_map")
-local SHAPES = nil            -- area_shapes(_regions).lua: only for a map drawn without the compositor, loaded then
-local SUFFIX = ""
-
 local W = {}
 W.layout = "areas"
+-- The seed's cut of the map, as data. Its fields change when the seed's Lock Size arrives (W.setLayout), so they are
+-- read through this table, never kept elsewhere: walls (the border pieces, area_walls*.lua), areas (the parts' names
+-- by index), start (the starting part), map (area_map*.lua: which part each spot of the map is in), centres
+-- (area_centres*.lua: where each part's stamp and icon go), shapes (area_shapes*.lua, loaded when first needed: only
+-- for a map drawn without the compositor) and suffix ("" or "_regions", in the data files' names).
+local layout = {}
+local function useLayoutData(name)
+    local suffix = name == "regions" and "_regions" or ""
+    local walls = require("area_walls" .. suffix)
+    layout.suffix, layout.walls, layout.areas, layout.start = suffix, walls.walls, walls.areas, walls.start
+    layout.map, layout.centres, layout.shapes = require("area_map" .. suffix), require("area_centres" .. suffix), nil
+    W.start, W.home = layout.start, layout.map.home
+end
+useLayoutData("areas")
 local P = require("perf")
 local UTIL = require("util")
 local log = UTIL.log
@@ -20,7 +29,6 @@ local once = UTIL.onceIn("walls")
 
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
-local START = DATA.start
 local SEA = "Open sea"
 local HEIGHT = 300000         -- 3 km of wall: from 1 km below sea level to 2 km above
 local MID_Z = 50000
@@ -45,7 +53,7 @@ local cls, gs = nil, nil
 local trig = {}
 local function buildTrig()
     trig = {}
-    for i, w in ipairs(DATA.walls) do
+    for i, w in ipairs(layout.walls) do
         local yaw = math.rad(w[4])
         trig[i] = { math.cos(yaw), math.sin(yaw) }
     end
@@ -58,7 +66,7 @@ function W.passName(area)
 end
 
 local function isOpen(area, passes)
-    return area == SEA or area == START or passes[area] == true
+    return area == SEA or area == layout.start or passes[area] == true
 end
 
 -- The wall class (and the walls' material) are kept loaded for the whole session through W.keep (set by the core):
@@ -129,7 +137,7 @@ end
 
 -- How far a spot is from piece i (a segment: its middle, its direction, its length), in the plane.
 local function segDist(i, x, y)
-    local w, t = DATA.walls[i], trig[i]
+    local w, t = layout.walls[i], trig[i]
     local dx, dy = x - w[1], y - w[2]
     local along, half = dx * t[1] + dy * t[2], w[3] / 2
     if along > half then along = half elseif along < -half then along = -half end
@@ -139,7 +147,7 @@ end
 W.segDist = segDist
 
 local function raise(i, context)
-    local w = DATA.walls[i]
+    local w = layout.walls[i]
     local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = x, Y = y, Z = MID_Z },
@@ -235,7 +243,7 @@ local function lower(i, context)
     if m then pcall(function() m:SetMaterial(0, mid) end) end
     local okT, now = pcall(function() return gs:GetTimeSeconds(a) end)
     now = (m and start) or (okT and type(now) == "number" and now) or 0
-    sinking[#sinking + 1] = { a, DATA.walls[i][3] / 100, THICK, now, addr = addr, dissolving = m and true or nil,
+    sinking[#sinking + 1] = { a, layout.walls[i][3] / 100, THICK, now, addr = addr, dissolving = m and true or nil,
                               mid = m and mid or nil }
 end
 
@@ -246,7 +254,7 @@ end
 local CHECK_PER_TICK = 60
 local checkAt = 0
 local function checkSome()
-    local n = #DATA.walls
+    local n = #layout.walls
     for _ = 1, math.min(CHECK_PER_TICK, n) do
         checkAt = checkAt % n + 1
         local a = raised[checkAt]
@@ -293,9 +301,9 @@ function W.update(enabled, passes, context)
     end
     local budget = PER_TICK
     local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
-    for i, w in ipairs(DATA.walls) do
+    for i, w in ipairs(layout.walls) do
         if budget <= 0 then break end
-        local up = enabled and not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes))
+        local up = enabled and not (isOpen(layout.areas[w[5] + 1], passes) and isOpen(layout.areas[w[6] + 1], passes))
         if up and not raised[i] and spawning then
             local ok, made = pcall(raise, i, context)
             -- One piece that fails does not hold up the others: the loop goes on (the try counts against the budget).
@@ -346,11 +354,11 @@ end
 -- Which area a spot is in (nil off the main map: the World Tree's own map). The map's rows are decoded when first used.
 local decoded = {}
 local function areaIndexAt(r, c)
-    if r < 0 or c < 0 or r >= MAP.size or c >= MAP.size then return nil end
+    if r < 0 or c < 0 or r >= layout.map.size or c >= layout.map.size then return nil end
     local runs = decoded[r]
     if not runs then
         runs = {}
-        for a, n in MAP.rows[r + 1]:gmatch("(%d+),(%d+)") do runs[#runs + 1] = { tonumber(a), tonumber(n) } end
+        for a, n in layout.map.rows[r + 1]:gmatch("(%d+),(%d+)") do runs[#runs + 1] = { tonumber(a), tonumber(n) } end
         decoded[r] = runs
     end
     local col = 0
@@ -360,13 +368,13 @@ local function areaIndexAt(r, c)
     end
 end
 local function cellOf(x, y)
-    local x0, x1, y0, y1 = MAP.bounds[1], MAP.bounds[2], MAP.bounds[3], MAP.bounds[4]
-    local size = (x1 - x0) / MAP.size
+    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
+    local size = (x1 - x0) / layout.map.size
     return math.floor((x1 - x) / size), math.floor((y - y0) / size)
 end
 function W.areaAt(x, y)
     local k = areaIndexAt(cellOf(x, y))
-    return k and DATA.areas[k + 1]
+    return k and layout.areas[k + 1]
 end
 
 -- The locked area a player stands well inside (every cell around them in it), or nil. Near a border, the player is
@@ -375,7 +383,7 @@ function W.lockedAround(x, y, passes)
     local r, c = cellOf(x, y)
     local here = areaIndexAt(r, c)
     if not here then return nil end
-    local name = DATA.areas[here + 1]
+    local name = layout.areas[here + 1]
     if isOpen(name, passes) then return nil end
     for dr = -1, 1 do
         for dc = -1, 1 do
@@ -384,8 +392,6 @@ function W.lockedAround(x, y, passes)
     end
     return name
 end
-W.home = MAP.home
-W.start = START
 
 -- The locked area across a wall within NEAR of a spot (a player walking up to it), or nil. A wall between two locked
 -- areas names the one the player is not in.
@@ -394,7 +400,7 @@ function W.lockedNear(x, y, passes)
     local here = W.areaAt(x, y)
     local best, bestD = nil, NEAR
     for i, a in pairs(raised) do
-        local w = DATA.walls[i]
+        local w = layout.walls[i]
         local cos, sin = trig[i][1], trig[i][2]
         local dx, dy = x - w[1], y - w[2]
         local along = dx * cos + dy * sin
@@ -403,7 +409,7 @@ function W.lockedNear(x, y, passes)
         local d = math.sqrt(over * over + across * across)
         if d < bestD then
             for _, k in ipairs({ w[5], w[6] }) do
-                local name = DATA.areas[k + 1]
+                local name = layout.areas[k + 1]
                 if name ~= here and not isOpen(name, passes) then best, bestD = name, d end
             end
         end
@@ -468,11 +474,11 @@ local AREA_COLOURS = {
 }
 local SEALED = { R = 0.3231, G = 0.3663, B = 0.4564, A = 1 }  -- slate grey #9AA3B5 (Art lane's suggestion; the user may pick)
 W.beyond = {}                                                  -- areas beyond the seed's goal (main.lua, slot data)
-local PARENTS = nil                                            -- region -> area (regions layout only)
+local parents = nil                                            -- region -> area (regions layout only; loaded once)
 function W.parentOf(area)
     if W.layout ~= "regions" then return area end
-    PARENTS = PARENTS or require("area_parents_regions")
-    return PARENTS[area] or area
+    parents = parents or require("area_parents_regions")
+    return parents[area] or area
 end
 local linearOf = UTIL.linear
 W.linearOf, W.AREA_COLOURS = linearOf, AREA_COLOURS                 -- (for the harness's colour tests)
@@ -752,8 +758,8 @@ local function dress(a, mid)
 end
 -- The material a piece wears with the area skin (or paws), by name (see SKINS).
 local function pieceSkin(i, passes, mode)
-    local w = DATA.walls[i]
-    local a1, a2 = DATA.areas[w[5] + 1], DATA.areas[w[6] + 1]
+    local w = layout.walls[i]
+    local a1, a2 = layout.areas[w[5] + 1], layout.areas[w[6] + 1]
     local l1, l2 = not isOpen(a1, passes), not isOpen(a2, passes)
     local area = (l1 and not l2) and a1 or (l2 and not l1) and a2 or (W.beyond[a1] and a2 or a1)
     local hex = AREA_COLOURS[W.parentOf(area)]
@@ -798,7 +804,7 @@ function W.recolour(passes)
     if sig ~= passSig then passSig, recolourAt = sig, 1 end
     if not recolourAt then return end
     local budget = RECOLOUR
-    while recolourAt <= #DATA.walls and budget > 0 do
+    while recolourAt <= #layout.walls and budget > 0 do
         local i, a = recolourAt, raised[recolourAt]
         if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
             local ok, err = pcall(areaDress, a, i, passes, skin.now)
@@ -810,7 +816,7 @@ function W.recolour(passes)
         end
         recolourAt = recolourAt + 1
     end
-    if recolourAt > #DATA.walls then recolourAt = nil end
+    if recolourAt > #layout.walls then recolourAt = nil end
 end
 -- Areas beyond the seed's goal (a set of names; main.lua at connect): their walls wear the sealed look.
 function W.setBeyond(set)
@@ -905,7 +911,6 @@ end
 -- stamp inside the area on its side nearest the starting area (area_centres.lua, from tools/area_centres.py). v0.13.5
 -- playtest: at each area's deepest point all 14 sat under the map's fog of war, which a locked area never clears.
 local ART = require("art")
-local CENTRES = require("area_centres")    -- area_centres_regions.lua with the regions (W.setLayout)
 local STAMP_PX = 88
 -- A region too small for the whole stamp gets a smaller one, about as wide as the region (its fifth field: how far the
 -- stamp's point is from the region's edge), but never under STAMP_MIN_PX. 2026-11-06 run: the full 88 px padlock buried
@@ -921,7 +926,7 @@ local function slugOf(name) return (name:lower():gsub("[^%w]+", "-")) end
 W.slugOf = slugOf
 local function lockedList(passes)
     local out = {}
-    for k, name in ipairs(DATA.areas) do
+    for k, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then out[#out + 1] = k - 1 end
     end
     return out
@@ -933,7 +938,7 @@ local iconsFailed = false
 local function iconsActive() return not W.iconsOff and not iconsFailed end
 -- An area beyond the goal: the sealed stamp; a region: its area's; the shared one when there is none.
 local function stampTexture(k)
-    local name = DATA.areas[k + 1]
+    local name = layout.areas[k + 1]
     if not name then return nil end
     return (W.beyond[name] and ART.texture("ap-map-stamp-sealed"))
         or (not W.beyond[name] and ART.texture("ap-map-stamp-" .. slugOf(W.parentOf(name))))
@@ -943,7 +948,7 @@ local function drawStamps(canvas, krl, gi, locked)
     if iconsActive() then once("stampsicons", "map: locked areas are shown as map icons, not drawn on the picture"); return end
     local n = 0
     for _, k in ipairs(locked) do
-        local c = CENTRES[k]
+        local c = layout.centres[k]
         local tex = c and stampTexture(k)
         if tex then
             local u, v = c[3] or c[1], c[4] or c[2]
@@ -984,8 +989,8 @@ local triangles = {}          -- area index .. tint -> FCanvasUVTri list, built 
 local function trianglesOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if triangles[key] then return triangles[key] end
-    SHAPES = SHAPES or require("area_shapes" .. SUFFIX)
-    local v, out = SHAPES.areas[k] or {}, {}
+    layout.shapes = layout.shapes or require("area_shapes" .. layout.suffix)
+    local v, out = layout.shapes.areas[k] or {}, {}
     for t = 1, #v - 5, 6 do
         local tri = {}
         for j = 0, 2 do
@@ -1003,8 +1008,8 @@ local bands = {}              -- area index .. tint -> FCanvasUVTri list of its 
 local function bandOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if bands[key] then return bands[key] end
-    SHAPES = SHAPES or require("area_shapes" .. SUFFIX)
-    local v, out = (SHAPES.edges or {})[k] or {}, {}
+    layout.shapes = layout.shapes or require("area_shapes" .. layout.suffix)
+    local v, out = (layout.shapes.edges or {})[k] or {}, {}
     for t = 1, #v - 8, 9 do
         local tri = {}
         for j = 0, 2 do
@@ -1039,13 +1044,13 @@ local function drawMap(ctx, passes)
     if not canvas then return false end
     canvas:K2_DrawTexture(tex, { X = 0, Y = 0 }, { X = RT_SIZE, Y = RT_SIZE }, { X = 0, Y = 0 }, { X = 1, Y = 1 },
         WHITE, 0, 0, { X = 0.5, Y = 0.5 })
-    for k, name in ipairs(DATA.areas) do
+    for k, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then
             local tris = trianglesOf(k - 1, grey and WHITE or FADE)
             if #tris > 0 then canvas:K2_DrawTriangle(grey or tex, tris) end
         end
     end
-    for k, name in ipairs(DATA.areas) do
+    for k, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then
             local band = bandOf(k - 1, grey and WHITE or FADE)
             if #band > 0 then canvas:K2_DrawTriangle(grey or tex, band) end
@@ -1118,7 +1123,7 @@ local function colourMap(krl, tex, gi)
 end
 local function lockedIndexes(passes)
     local out = {}
-    for k, name in ipairs(DATA.areas) do
+    for k, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then out[#out + 1] = tostring(k - 1) end
     end
     return table.concat(out, ",")
@@ -1143,14 +1148,15 @@ local function territories() return W.mapStyle == "territories" and AP_ComposeTe
 -- "index:state:RRGGBB,...": v visited, u unlocked not yet visited, l locked, s sealed (beyond the goal).
 local function areaSpec(passes)
     local out = {}
-    for k, name in ipairs(DATA.areas) do
+    for k, name in ipairs(layout.areas) do
         if name ~= SEA then
             local st
             if W.beyond[name] then st = "s"
-            elseif isOpen(name, passes) then st = (name == START or W.visited[name]) and "v" or "u"
+            elseif isOpen(name, passes) then st = (name == layout.start or W.visited[name]) and "v" or "u"
             else st = "l" end
             local parent = W.parentOf(name)
-            local hex = st == "s" and SEALED_COLOUR or AREA_COLOURS[parent] or (parent == START and START_COLOUR) or "9AA3B5"
+            local hex = st == "s" and SEALED_COLOUR or AREA_COLOURS[parent]
+                or (parent == layout.start and START_COLOUR) or "9AA3B5"
             out[#out + 1] = (k - 1) .. ":" .. st .. ":" .. hex
         end
     end
@@ -1159,10 +1165,10 @@ end
 -- The standing walls (up unless both sides are open; open sea counts as open) as "u1,v1,u2,v2;..." on the map square.
 -- A piece runs along its yaw: (sin yaw, -cos yaw) in map u, v (the Art lane's mock lined them up with the labels so).
 local function wallSpec(passes)
-    local x0, x1, y0, y1 = MAP.bounds[1], MAP.bounds[2], MAP.bounds[3], MAP.bounds[4]
+    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
     local out = {}
-    for _, w in ipairs(DATA.walls) do
-        if not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes)) then
+    for _, w in ipairs(layout.walls) do
+        if not (isOpen(layout.areas[w[5] + 1], passes) and isOpen(layout.areas[w[6] + 1], passes)) then
             local u, v = (w[2] - y0) / (y1 - y0), (x1 - w[1]) / (x1 - x0)
             local half = w[3] / 2 / (x1 - x0)
             local yaw = math.rad(w[4])
@@ -1229,7 +1235,7 @@ local function composeTerritories(ctx, passes, key)
     end
     -- From the Art lane's distance field when the DLL has it (dev.34: smooth at 4096, where the 2048 label map gave stairs
     -- and octagons; area_field*.png, made from the label maps by tools/map_fields.py), else from the label map at 2048.
-    local field = W.dir .. "\\area_field" .. SUFFIX .. ".png"
+    local field = W.dir .. "\\area_field" .. layout.suffix .. ".png"
     local hasField = AP_ComposeField and UTIL.exists(field)
     local err, size, whole
     if hasField then
@@ -1250,8 +1256,9 @@ local function composeTerritories(ctx, passes, key)
             W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", "0.4545")
     else
         size = TERR_SIZE
-        err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. SUFFIX .. ".png", areaSpec(passes), wallSpec(passes), TERR_WALLS,
-            W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size))
+        err = AP_ComposeTerritories(W.dir .. "\\area_labels" .. layout.suffix .. ".png", areaSpec(passes),
+            wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR,
+            tostring(size))
     end
     if err == "" then
         terr.composing, terr.size, terr.whole = key, size, whole or false
@@ -1346,7 +1353,7 @@ local function composeMap(ctx, passes, key, open)
         if not tex or not tex:IsValid() then return false end
         colour = colourMap(krl, tex, gi)
     end
-    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes),
+    local err = AP_ComposeMap(colour, W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
         W.dir .. "\\map-composed.png", "0.4545")
     if err == "" then composing, composingList = key, lockedList(passes) elseif err ~= "busy" then once("compose" .. err, "map: could not compose: " .. err) end
     return false
@@ -1486,7 +1493,7 @@ end
 local function maskSpec(ctx)
     local okp, at = pcall(function() return ctx:K2_GetActorLocation() end)
     if not (okp and at) then return nil, "no player position" end
-    local x0, x1, y0, y1 = MAP.bounds[1], MAP.bounds[2], MAP.bounds[3], MAP.bounds[4]
+    local x0, x1, y0, y1 = layout.map.bounds[1], layout.map.bounds[2], layout.map.bounds[3], layout.map.bounds[4]
     local u, v = (at.Y - y0) / (y1 - y0), (x1 - at.X) / (x1 - x0)
     local mask = W.dir .. "\\fog-mask.png"
     local here, corner = AP_SamplePNG(mask, tostring(u), tostring(v)), AP_SamplePNG(mask, "0.02", "0.02")
@@ -1529,7 +1536,7 @@ local function stampList(locked)
     if iconsActive() then return "" end
     local parts = {}
     for _, k in ipairs(locked) do
-        local c, name = CENTRES[k], DATA.areas[k + 1]
+        local c, name = layout.centres[k], layout.areas[k + 1]
         if c and name then
             local file = W.beyond[name] and "ap-map-stamp-sealed" or ("ap-map-stamp-" .. slugOf(W.parentOf(name)))
             local path = artFile(file)
@@ -1551,7 +1558,8 @@ W.regionsOff = false
 local REGION_INK, REGION_WIDTH, REGION_DASH, REGION_GAP, REGION_HATCH = "59,42,26,210", 3, 14, 8, 0.28
 local function regionSpec(passes)
     if W.regionsOff then return "" end
-    return table.concat({ W.dir .. "\\area_labels" .. SUFFIX .. ".png", lockedIndexes(passes), artFile("ap-chart-hatch"),
+    return table.concat({ W.dir .. "\\area_labels" .. layout.suffix .. ".png", lockedIndexes(passes),
+        artFile("ap-chart-hatch"),
         REGION_INK, tostring(REGION_WIDTH), tostring(REGION_DASH), tostring(REGION_GAP), tostring(REGION_HATCH),
         exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", "0.4545" }, "|")
 end
@@ -1685,13 +1693,16 @@ local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_Ico
 W.visited = {}
 local function openList(passes)
     local out = {}
-    for k, name in ipairs(DATA.areas) do
-        if name ~= SEA and name ~= START and passes[name] and not W.beyond[name] and not W.visited[name] then out[#out + 1] = k - 1 end
+    for k, name in ipairs(layout.areas) do
+        local waiting = passes[name] and not W.beyond[name] and not W.visited[name]
+        if name ~= SEA and name ~= layout.start and waiting then
+            out[#out + 1] = k - 1
+        end
     end
     return out
 end
 local function openTexture(k)
-    local name = DATA.areas[k + 1]
+    local name = layout.areas[k + 1]
     local own = name and ("ap-map-stamp-open-" .. slugOf(W.parentOf(name)))
     if own and artFile(own) ~= "" then return ART.texture(own) end
     if artFile("ap-map-stamp-open") ~= "" then return ART.texture("ap-map-stamp-open") end
@@ -1758,7 +1769,7 @@ local function placeIcons(screen, passes, key)
     local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
     local added, shown = 0, 0
     for _, k in ipairs(lockedList(passes)) do
-        local c, tex = CENTRES[k], stampTexture(k)
+        local c, tex = layout.centres[k], stampTexture(k)
         if c and tex then
             local icon = wbl:Create(screen, cls, nil)
             if not (icon and icon:IsValid()) then error("could not make a map icon") end
@@ -1773,7 +1784,7 @@ local function placeIcons(screen, passes, key)
     end
     local opened = 0
     for _, k in ipairs(openList(passes)) do
-        local c, tex = CENTRES[k], openTexture(k)
+        local c, tex = layout.centres[k], openTexture(k)
         if c and tex then
             local icon = wbl:Create(screen, cls, nil)
             if not (icon and icon:IsValid()) then error("could not make a map icon") end
@@ -1822,7 +1833,7 @@ function W.updateMap(enabled, passes, ctx)
     mapShownAt = screensOnScreen(screens)
     local opening = mapShownAt > 0 and not wasShown
     local locked = {}
-    for _, name in ipairs(DATA.areas) do
+    for _, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
     end
     -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
@@ -1919,7 +1930,7 @@ function W.updateMap(enabled, passes, ctx)
 end
 
 function W.count()
-    return nRaised, #DATA.walls
+    return nRaised, #layout.walls
 end
 
 
@@ -1933,16 +1944,13 @@ function W.setLayout(name)
     for _, a in pairs(raised) do pcall(function() if a:IsValid() then a:K2_DestroyActor() end end) end
     destroyOpening()
     raised, nRaised, raisedAt, dressedAs, hiddenAt = {}, 0, {}, {}, {}
-    SUFFIX = name == "regions" and "_regions" or ""
-    DATA, MAP, SHAPES = require("area_walls" .. SUFFIX), require("area_map" .. SUFFIX), nil
-    CENTRES = require("area_centres" .. SUFFIX)
-    START, W.start, W.home = DATA.start, DATA.start, MAP.home
+    useLayoutData(name)
     W.layout = name
     buildTrig()
     decoded, triangles, bands = {}, {}, {}
     mapKey, composing, composedKey, failedKey, composingList = nil, nil, nil, nil, {}
     local parts = name == "regions" and " areas" or " regions"         -- in the players' words
-    log("area locks: " .. (#DATA.areas - 1) .. parts .. " (" .. #DATA.walls .. " border pieces)")
+    log("area locks: " .. (#layout.areas - 1) .. parts .. " (" .. #layout.walls .. " border pieces)")
     return true
 end
 
