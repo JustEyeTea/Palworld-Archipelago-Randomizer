@@ -158,17 +158,10 @@ end
 
 -- Every update: takes it down when its time is up. If its HUD went away with the world (Return to title), it is
 -- forgotten without a call: Return to title during the 15 s goal banner crashed the game in UE4SS (a widget
--- of the world gone, called). Whether the HUD is still there is asked of FindAllOf, which lists only live objects.
-local function hudLive(addr)
-    for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
-        local ok, same = pcall(function() return UTIL.addr(l) == addr and l:IsValid() end)
-        if ok and same then return true end
-    end
-    return false
-end
+-- of the world gone, called). Whether the HUD is still there is asked of WIDGETS.hudLive.
 function H.tick(tick)
     if not shown then return end
-    if not hudLive(shown.hud) then
+    if not WIDGETS.hudLive(shown.hud) then
         shown = nil
         return
     end
@@ -178,7 +171,7 @@ end
 -- world (a faint, a respawn). Taken down while its HUD is still there, else forgotten without touching it.
 -- Untested in game: the taking down at a faint, and Return to title during the goal banner since it.
 function H.forget()
-    if shown and hudLive(shown.hud) then
+    if shown and WIDGETS.hudLive(shown.hud) then
         H.hide()
     else
         shown = nil

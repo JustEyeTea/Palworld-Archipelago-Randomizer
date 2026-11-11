@@ -16,7 +16,10 @@ local WIDGETS = require("widgets")
 local CREAM, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("17324D", 0.9)
 
 local list = {}                          -- { { key, icon, short, tint, untilTick } } in the order they started
-local shown = nil                        -- { box, layout, sig, timers = { key -> TextBlock }, left = { key -> seconds shown } }
+-- The row on screen: { box, layout, hud = the HUD layout's address (UTIL.addr), sig, timers = { key -> TextBlock },
+-- left = { key -> seconds shown } }. Forgotten: when taken down, when its HUD is gone (D.tick), and at a world change
+-- (D.forget).
+local shown = nil
 
 -- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed.
 local function hudCanvas()
@@ -96,7 +99,7 @@ local function build(tick)
     pcall(function() slot:SetAutoSize(true) end)
     pcall(function() slot:SetZOrder(900) end)
     pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, layout = layout, timers = timers, left = left }
+    shown = { box = box, layout = layout, hud = UTIL.addr(layout), timers = timers, left = left }
     once("debuffshown", "debuffs: shown at the top of the HUD (" .. #list .. " effect(s))")
 end
 
@@ -124,9 +127,13 @@ function D.active()
 end
 
 -- Every update: drops effects whose time is up, (re)builds the row when the set changed or its HUD went away with the
--- world, and otherwise only sets a timer's text when its second changes.
+-- world, and otherwise only sets a timer's text when its second changes. A row whose HUD layout is no longer listed
+-- (Return to title) is forgotten without a call to it (see WIDGETS.hudLive).
 function D.tick(tick)
     for i = #list, 1, -1 do if tick >= list[i].untilTick + 3 then table.remove(list, i) end end
+    if shown and not WIDGETS.hudLive(shown.hud) then
+        shown = nil
+    end
     local sig = signature()
     local ok, valid = true, true
     -- Still there: the row, and the HUD layout it sits in still on screen (a world change makes a new one).
@@ -147,5 +154,15 @@ function D.tick(tick)
     end
 end
 
-function D.reset() list = {}; hide() end
+-- The world step saw a new pawn, or none: the world may have gone (the title), or the pawn read nil for a moment in
+-- the same world (a faint). The row is taken down while its HUD is still there, else forgotten without touching it;
+-- D.tick builds it again on the HUD of the world the player is in. The effects themselves are kept: traps.lua ends
+-- them. Untested in game: Return to title while a Slow Trap's icon is up.
+function D.forget()
+    if shown and WIDGETS.hudLive(shown.hud) then
+        hide()
+    else
+        shown = nil
+    end
+end
 return D

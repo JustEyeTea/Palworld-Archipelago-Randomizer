@@ -310,5 +310,53 @@ group("debuff icons, the hint plate and the goal banner", function()
     expect(onPlate and #hudKids >= kidsBefore + 2 and #oldKids == 0,
            "the hint plate and the debuff icons go on the live HUD, not the last world's: " .. #oldKids
            .. " on the old one")
+    -- Return to title while a Slow Trap's icon is up: its row and HUD layout went with the world, and the update must
+    -- not call them (the goal banner's crash), not even IsValid.
+    local CLOCK = require("clock")
+    local titleLayout, _, titleKids = fakeHud("CanvasPanel_179")
+    FindAllOf = function(class)
+        if class == "WBP_PalHUDLayout_C" then return { titleLayout } end
+        return savedFAO(class)
+    end
+    DBF.set("title", "ap-debuff-slow", "SLOW", CLOCK.now() + 100)
+    run(2)
+    local titleRow = titleKids[#titleKids]
+    local calls = {}
+    local function spy(widget, method)
+        widget[method] = function()
+            calls[#calls + 1] = method
+            error("a widget of the world gone, called")
+        end
+    end
+    for _, method in ipairs({ "IsValid", "IsVisible", "RemoveFromParent" }) do
+        if titleRow then
+            spy(titleRow, method)
+        end
+        spy(titleLayout, method)
+    end
+    FindAllOf = function(class)
+        if class == "WBP_PalHUDLayout_C" then return {} end
+        return savedFAO(class)
+    end
+    run(2)
+    DBF.clear("title")
+    run(5)
+    expect(titleRow and #calls == 0, "the debuff row is forgotten, not called, once its HUD has gone with the world: "
+           .. table.concat(calls, ","))
+    -- A new world (or a new character) while the HUD is still listed: the row is taken down, as the hint plate is.
+    local liveLayout, _, liveKids = fakeHud("CanvasPanel_179")
+    FindAllOf = function(class)
+        if class == "WBP_PalHUDLayout_C" then return { liveLayout } end
+        return savedFAO(class)
+    end
+    DBF.set("world", "ap-debuff-slow", "SLOW", CLOCK.now() + 100)
+    run(2)
+    local worldRow = liveKids[#liveKids]
+    newPawn()
+    run(1)
+    expect(worldRow and worldRow.removed, "a world change takes the debuff row down while its HUD is still there")
+    DBF.clear("world")
+    local WAIT = CLOCK.WAIT
+    runPast(WAIT.settle + WAIT.heldNotice)                   -- (later groups expect a world long settled)
     FindAllOf = savedFAO
 end)

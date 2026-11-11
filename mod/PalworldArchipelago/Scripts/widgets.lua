@@ -236,4 +236,19 @@ function WIDGETS.setLabel(button, words)
     UTIL.attempt("widgets: set a title button's label", function() title:SetText(FText(words)) end)
 end
 
+------------------------------------------------------------------------------------------------------------------------
+-- The HUD: the hint plate, the goal banner and the debuff icons sit on the HUD layout's canvas.
+WIDGETS.HUD_LAYOUT = "WBP_PalHUDLayout_C"   -- the game's HUD layout, the one widget all three are put on
+
+-- Whether the HUD layout at this address (UTIL.addr) is still listed by FindAllOf, which lists only live objects. A
+-- file that keeps a widget on the HUD asks this before any call to it: after Return to title the old world's
+-- widgets are freed, and calling one, IsValid included, can crash the game.
+function WIDGETS.hudLive(address)
+    for _, layout in ipairs(FindAllOf(WIDGETS.HUD_LAYOUT) or {}) do
+        local ok, same = pcall(function() return UTIL.addr(layout) == address and layout:IsValid() end)
+        if ok and same then return true end
+    end
+    return false
+end
+
 return WIDGETS
