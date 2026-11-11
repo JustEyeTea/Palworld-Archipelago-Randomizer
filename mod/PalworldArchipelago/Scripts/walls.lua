@@ -19,6 +19,7 @@ local AREAS = freshPart("areas")
 AREAS.install(W)
 local WALL_SKINS = freshPart("wall_skins")
 local MAP_PICTURE = freshPart("map_picture")
+local MAP_ICONS = freshPart("map_icons")
 local layout, isOpen, SEA, AREA_COLOURS = AREAS.layout, AREAS.isOpen, AREAS.SEA, AREAS.AREA_COLOURS
 local slugOf, lockedList, lockedIndexes, openList = AREAS.slugOf, AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList
 W.passName, W.areaAt, W.lockedAround, W.parentOf = AREAS.passName, AREAS.areaAt, AREAS.lockedAround, AREAS.parentOf
@@ -404,8 +405,9 @@ local pieces = {
 WALL_SKINS.install({ W = W, areas = AREAS, pieces = pieces, DISSOLVE_S = DISSOLVE_S })
 W.SKINS, W.setSkin, W.cycleSkin = WALL_SKINS.SKINS, WALL_SKINS.setSkin, WALL_SKINS.cycleSkin
 W.linearOf, W.modAsset, W.pieceSkin = WALL_SKINS.linearOf, WALL_SKINS.modAsset, WALL_SKINS.pieceSkin  -- (the harness)
-MAP_PICTURE.install({ W = W, areas = AREAS })
+MAP_ICONS.install({ W = W, areas = AREAS })
+MAP_PICTURE.install({ W = W, areas = AREAS, icons = MAP_ICONS })
 W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_PICTURE.mapShown, MAP_PICTURE.mapOff
-W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_PICTURE.worldAt                            -- (for the harness)
+W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_ICONS.worldAt                              -- (for the harness)
 
 return W

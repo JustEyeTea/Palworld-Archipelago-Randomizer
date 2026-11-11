@@ -20,6 +20,12 @@ function A.texture(name)
     return t
 end
 
+-- The path of art `name` (art\<name>.png in the mod folder), or "" when there is no such file.
+function A.file(name)
+    local path = A.dir .. "\\art\\" .. name .. ".png"
+    return require("util").exists(path) and path or ""
+end
+
 -- An Image in a w x h SizeBox (outer: the widget that owns them), and the Image: showing tex, or with no texture a
 -- plain box tinted `colour` (an Image with no texture draws white).
 function A.sizedImage(outer, w, h, tex, colour)
