@@ -34,7 +34,7 @@ local TEMP_COLOUR_FILE = "map-colour.png"
 local COMPOSED_FILE = "map-composed.png"
 local TERR_OVERLAY, TERR_FOG = "map-territories.png", "map-territories-fog.png"
 -- The area labels of the cut in use (area_labels*.png, shipped: which area each pixel of the map is in).
-local function labelsFile() return W.dir .. "\\area_labels" .. layout.suffix .. ".png" end
+local function labelsFile() return W.dir .. "\\" .. layout.prefix .. "labels" .. layout.suffix .. ".png" end
 local RT_SIZE = 4096
 -- Engine enum values passed as numbers, with the engine's own name for each.
 local RTF_RGBA8 = 2           -- ETextureRenderTargetFormat::RTF_RGBA8 (linear: what is exported to a PNG)
@@ -175,7 +175,7 @@ end
 local function trianglesOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if triangles[key] then return triangles[key] end
-    layout.shapes = layout.shapes or require("area_shapes" .. layout.suffix)
+    layout.shapes = layout.shapes or require(layout.prefix .. "shapes" .. layout.suffix)
     local corners, out = layout.shapes.areas[k] or {}, {}
     for t = 1, #corners - 5, 6 do
         local tri = {}
@@ -195,7 +195,7 @@ end
 local function bandOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if bands[key] then return bands[key] end
-    layout.shapes = layout.shapes or require("area_shapes" .. layout.suffix)
+    layout.shapes = layout.shapes or require(layout.prefix .. "shapes" .. layout.suffix)
     local corners, out = (layout.shapes.edges or {})[k] or {}, {}
     for t = 1, #corners - 8, 9 do
         local tri = {}
@@ -419,7 +419,7 @@ end
 -- 4096, where the 2048 label map gave stairs and octagons; area_field*.png, made from the label maps by
 -- tools/map_fields.py), else from the label map at 2048.
 local function startTerritories(rendering, gameInstance, passes, key)
-    local field = W.dir .. "\\area_field" .. layout.suffix .. ".png"
+    local field = W.dir .. "\\" .. layout.prefix .. "field" .. layout.suffix .. ".png"
     local hasField = AP_ComposeField and UTIL.exists(field)
     local err, size, whole
     if hasField then

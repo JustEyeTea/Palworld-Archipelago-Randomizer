@@ -3,8 +3,8 @@
 
 group("area locks", function()
     local liveWalls = require("walls")
-    local WD = dofile(MOD .. "/Scripts/area_walls.lua")
-    shared.WD = WD                   -- the walls data (area_walls.lua), for the walls and map tests after this
+    local WD = dofile(MOD .. "/Scripts/region_walls.lua")
+    shared.WD = WD                   -- the walls data (region_walls.lua), for the walls and map tests after this
     local function expected(open)
         local n = 0
         for _, w in ipairs(WD.walls) do

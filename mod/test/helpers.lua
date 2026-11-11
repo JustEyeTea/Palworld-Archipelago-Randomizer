@@ -167,7 +167,7 @@ function h.sameColour(c, d)
         and math.abs(c.B - d.B) < COLOUR_PRECISION
 end
 
--- A row of a generated walls file (area_walls.lua, area_walls_regions.lua), by name: its middle (x, y, game units),
+-- A row of a generated walls file (region_walls.lua, area_walls_regions.lua), by name: its middle (x, y, game units),
 -- its length, its yaw (degrees, along the wall), and the names of the areas on its two sides. `data` is the file's
 -- table (shared.WD if none is given).
 function h.wallRow(w, data)
