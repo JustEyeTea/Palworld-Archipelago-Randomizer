@@ -1723,6 +1723,20 @@ expect(not playerDead and logged("death link received while no player was in the
     playerController.K2_GetPawn = pawnWas
 end)()
 
+;(function()
+    print("updates queued in one engine frame (after a stall) run once")
+    local walks, fao = 0, FindAllOf
+    FindAllOf = function(class, ...)
+        if class == "PalPlayerController" then walks = walks + 1 end
+        return fao(class, ...)
+    end
+    for _ = 1, 5 do loop() end                              -- five hand-offs, the frame the last update ran in
+    local sameFrame = walks
+    frameCount = frameCount + 1
+    loop()
+    FindAllOf = fao
+    expect(sameFrame == 0 and walks == 1, "none in the same frame, one in the next: " .. sameFrame .. ", " .. walks)
+end)()
 print("reconnect does not repeat one-off items")
 push("status", "disconnected")
 push("status", "connected", "Tester")
