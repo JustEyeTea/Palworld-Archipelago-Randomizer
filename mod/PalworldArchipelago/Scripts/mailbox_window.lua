@@ -172,7 +172,13 @@ function WINDOW.open(pawn)
     end)
     local id = hud:Push(UTIL.findClass(WINDOW_GAME.window), parameter)
     window = { id = id, hud = hud }
-    refreshWindow()
+    local filled, err = pcall(refreshWindow)
+    if not filled then
+        -- Closed before the chest opens in its place: left up, it would sit empty with buttons nobody answers.
+        pcall(function() hud:Close(id) end)
+        WINDOW.forget()
+        error(err, 0)
+    end
     log("mailbox: window open (" .. #LIST.queue .. " kind(s))")
 end
 

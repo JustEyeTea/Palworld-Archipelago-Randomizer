@@ -359,4 +359,33 @@ group("the mailbox", function()
         MB.removeCount(MB.queue, "Wood", 7)
         expect(WORLD.seedWorld() == true and MB.count() == mailWas, "back in the seed's world")
     end
+    do   -- a LogicMod window that fails while it is filled is closed before the chest opens in its place
+        game.logicMod = true
+        local broken = Widget({ Title = window.Title, Summary = window.Summary, TakeAll = PalButton(),
+                                Close = PalButton() })                -- no List
+        hud.Push = function(self, cls, param)
+            if tostring(cls.path):find("WBP_APMailbox", 1, true) then
+                hudWindows["broken"] = broken
+                return "broken"
+            end
+            return pushPlain(self, cls, param)
+        end
+        wbl.Create = function(_, _, cls)
+            if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end
+            return wblCreate()
+        end
+        local shownWas = #chestWindowsShown
+        MB.add("Wood", 1)
+        MB.open()
+        run(6)
+        local chestOpened = #chestWindowsShown > shownWas
+        if chestOpened then
+            h.closeChestWindow()
+            run(2)
+        end
+        hud.Push, wbl.Create, game.logicMod = pushPlain, wblCreate, false
+        expect(chestOpened and broken.gone and logged("the LogicMod window failed"),
+               "the failed LogicMod window is closed before the chest opens in its place: still up: "
+               .. tostring(not broken.gone))
+    end
 end)

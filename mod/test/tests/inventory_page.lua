@@ -9,8 +9,12 @@ group("the Inventory page's mailbox button", function()
     run(1)
     -- Menus closed: one object scan per update, for the main menu only (open-questions: the FPS drop and FindAllOf).
     local escScans, mainScans = lookups.WBP_MenuESC_C or 0, lookups.WBP_InGameMainMenu_C or 0
+    -- (with the probe on, its notify check walks the Esc menu's class once every 100 updates: the probe's walk, not
+    -- the menu's, and whether it falls in these 10 depends on how many updates the groups before took)
+    local probeWalks = PERF and 1 or 0
     run(10)
-    expect((lookups.WBP_MenuESC_C or 0) == escScans and (lookups.WBP_InGameMainMenu_C or 0) == mainScans + 10,
+    expect((lookups.WBP_MenuESC_C or 0) - escScans <= probeWalks
+           and (lookups.WBP_InGameMainMenu_C or 0) == mainScans + 10,
            "with the menus closed, only the main menu is looked for: " .. (lookups.WBP_MenuESC_C or 0) - escScans
            .. " Esc scans")
     -- Each tab widget the main menu shows is logged once, with the tab, so a missing button has a reason in the log.
