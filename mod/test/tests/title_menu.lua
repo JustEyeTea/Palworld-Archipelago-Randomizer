@@ -562,4 +562,34 @@ group("the title menu's Archipelago menu", function()
         expect(escBind and stillOpen and back and gameButtonWrap.vis == 0,
                "Esc while the text window is up leaves the Archipelago menu open (a click there does nothing either)")
     end
+    do   -- the banner can't be placed on the canvas: it is taken off again and goes in the button list instead
+        local realAdd = titleCanvas.AddChildToCanvas
+        local onCanvas = nil
+        function titleCanvas:AddChildToCanvas(w)
+            local slot = realAdd(self, w)
+            slot.SetAnchors = function() error("this slot takes no anchors") end
+            w.RemoveFromParent = function(widget) widget.removed = true end
+            onCanvas = w
+            return slot
+        end
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        local placedAt = logMark()
+        game.titleOpen = true
+        run(2)
+        titleCanvas.AddChildToCanvas = realAdd
+        local inList = false
+        for _, box in ipairs(menuChildren) do
+            if box == onCanvas then
+                inList = true
+            end
+        end
+        game.titleOpen = false
+        run(1)
+        expect(onCanvas and onCanvas.removed and inList and not loggedSince(placedAt, "title banner error"),
+               "a banner that can't be placed is taken off the canvas and put in the button list, not left there")
+    end
 end)
