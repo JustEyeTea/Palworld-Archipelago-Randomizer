@@ -85,8 +85,7 @@ group("death link", function()
     game.playerDead = false
     runCycles(1)
     -- If the poison kills nobody, the next run drops the Death Penalty's bag and self-kills; that route is kept for the
-    -- session. (dev.17 test, 2026-11-07: the previous "normal death" call fainted nobody, and the self-kill dropped
-    -- nothing.)
+    -- session. (A "normal death" call faints nobody, and a self-kill alone drops nothing.)
     DL.poisonWorks = false
     DL.penaltyFor = nil
     local penalty = {}

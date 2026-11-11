@@ -2,8 +2,7 @@
 -- and the Territories look. Tests walls.lua's map part, map_picture.lua, map_fog.lua, map_icons.lua.
 
 group("the world map", function()
-    -- dev.16 playtest (2026-11-07): composed only once the map opened, the first opening showed the game's map for ~3
-    -- s.
+    -- Composed only once the map opened, the first opening would show the game's map for ~3 s.
     local jobs0 = #composeJobs
     expect(jobs0 >= 1 and composeJobs[jobs0].labels:find("area_labels.png")
            and composeJobs[jobs0].colour:find("map%-colour%-1.png"),
@@ -13,14 +12,14 @@ group("the world map", function()
     run(1)
     expect(mapBody.Image_MapBody.shown and mapBody.Image_MapBody.shown.rt,
            "so the first opening has the composed map at once")
-    do  -- v0.13.5 playtest: stamps at each area's deepest point sat under the fog of war; now on the side facing home
+    do  -- stamps at each area's deepest point sat under the fog of war, so they go on the side facing home
         local c = require("area_centres")[3]                        -- Sea Breeze Archipelago, still locked
         local at = stampAt["ap-map-stamp-sea-breeze-archipelago"]
         expect(at and c[3] and math.abs(at.X - (c[3] * 4096 - 44)) < 0.01 and math.abs(at.Y - (c[4] * 4096 - 44)) < 0.01
                and (c[3] ~= c[1] or c[4] ~= c[2]),
                "a locked area's stamp goes on its side nearest the start, not its middle")
     end
-    do  -- 2026-11-06 run: the full 88 px stamp buried a small region (Small Settlement); a small one is drawn smaller
+    do  -- the full 88 px stamp buried a small region (Small Settlement), so a small one is drawn smaller
         local liveWalls = require("walls")
         expect(liveWalls.stampSize({}) == 88 and liveWalls.stampSize({ room = 120 }) == 88,
                "an area with room (or data without the field) keeps the full 88 px stamp")
@@ -150,7 +149,7 @@ group("the world map", function()
         expect(statuses == 1, "C++'s status is logged when the map opens, not every update: " .. statuses)
         AP_MapScreen, mapBody.MaskTextureMaterial = nil, nil
     end
-    -- The explorer's-chart fog: the chart drawn once from the colour map with the Art lane's pieces; when the map opens
+    -- The explorer's-chart fog: the chart drawn once from the colour map with the chart art; when the map opens
     -- the explored mask is exported, read once at the player and beyond the world's edge (which channel, which way
     -- round), the fog picture made with the locked areas' stamps, loaded and handed to C++ for the next opening; a pass
     -- remakes it from the same mask with one stamp fewer.
@@ -281,11 +280,10 @@ group("the world map", function()
         mapBody.MaskTextureMaterial = nil
     end
     game.mapOpen = false
-    -- dev.16 playtest (2026-11-07): the picture was only started once the map opened, so the first opening showed the
-    -- game's map for ~3 s, and C++ was still off ("OFF; Setup ran 0x"). Now, before the map ever opens: C++ is switched
-    -- on, the picture is composed from the colour map saved in an earlier session (the game's 8192 px map not loaded),
-    -- and C++ is told its path; at the first opening the game's map is checked against the saved one once, and nothing
-    -- is redone.
+    -- Started only once the map opened, the picture left the first opening on the game's map for ~3 s, with C++
+    -- still off ("OFF; Setup ran 0x"). So before the map ever opens: C++ is switched on, the picture is composed from
+    -- the colour map saved in an earlier session (the game's 8192 px map not loaded), and C++ is told its path; at the
+    -- first opening the game's map is checked against the saved one once, and nothing is redone.
     do
         local calls = {}
         recordMapScreen(calls)
@@ -342,10 +340,10 @@ group("the world map", function()
         os.remove(saved)
         os.remove(saved .. ".txt")
     end
-    -- The locked areas as the map's own icons (the user, 2026-11-07: stamps drawn into the picture grew with the zoom
-    -- and sat in odd places): one WBP_WorldMap_IconBase_OnlyIcon per locked area, added with the screen's Add Icon By
-    -- Location at the area's deepest point, ignoring the fog's mask, then Update Map Icons; nothing drawn into the
-    -- picture. Only the main map's screen: the World Tree's keeps its own picture and gets none.
+    -- The locked areas as the map's own icons (stamps drawn into the picture grow with the zoom and sit in odd
+    -- places): one WBP_WorldMap_IconBase_OnlyIcon per locked area, added with the screen's Add Icon By Location at
+    -- the area's deepest point, ignoring the fog's mask, then Update Map Icons; nothing drawn into the picture.
+    -- Only the main map's screen: the World Tree's keeps its own picture and gets none.
     do
         local calls = {}
         recordMapScreen(calls)
@@ -360,8 +358,8 @@ group("the world map", function()
             W9.updateMap(true, {}, pawn)
         end
         expect(#mapBody.icons == 0, "no icons before the map screen exists")
-        -- dev.35 playtest: after Return to title and a second world load, the first world's screen was still about
-        -- (last in FindAllOf here); its player is gone, so it is left alone and the icons go on the live one.
+        -- After Return to title and a second world load, the first world's screen can still be about (last in
+        -- FindAllOf here); its player is gone, so it is left alone and the icons go on the live one.
         game.staleBody = { IsValid = function() return true end, GetAddress = function() return 79 end, icons = {},
                            MapName = FNameOf("MainMap"),
                       Image_MapBody = { IsValid = function() return true end },
@@ -414,8 +412,7 @@ group("the world map", function()
         expect(first.removed and #mapBody.icons == 2 * nLocked and logged("1 open not yet visited"),
                "a pass: the old icons go; one locked stamp fewer comes back, and an open one where the pass is " ..
                "(art/ap-map-stamp-open-*)")
-        -- An unlocked area not stood in yet: an open stamp there (the Art lane's ap-map-stamp-open, once the mod has
-        -- it).
+        -- An unlocked area not stood in yet: an open stamp there (art/ap-map-stamp-open, once the mod has it).
         local openArt = require("art").dir .. "\\art\\ap-map-stamp-open.png"   -- (where the mod looks for its art)
         local fa = io.open(openArt, "w")
         fa:write("png")
@@ -467,9 +464,9 @@ group("the world map", function()
 end)
 
 group("the world map: the Territories look", function()
-    -- "Territories" (the user's direction 1 with the Art lane, 2026-11-07): the C++ part composes an overlay from each
-    -- area's state and colour and the standing walls; the map picture is the game's own map with it drawn over; the fog
-    -- picture is made from its fog art. Visiting an area makes it again; map_style=chart keeps the explorer's chart.
+    -- "Territories": the C++ part composes an overlay from each area's state and colour and the standing walls; the
+    -- map picture is the game's own map with it drawn over; the fog picture is made from its fog art. Visiting an area
+    -- makes it again; map_style=chart keeps the explorer's chart.
     local jobs, fogArt = {}, nil
     AP_ComposeTerritories = function(labels, areas, walls, style, out, fogart, fog, size)
         jobs[#jobs + 1] = { labels = labels, areas = areas, walls = walls, style = style, out = out, fogart = fogart,
@@ -506,7 +503,7 @@ group("the world map: the Territories look", function()
     T.beyond = { [sealedArea] = true }
     T.visited = {}
     local passes = { [area4] = true }
-    local stale = io.open(MOD .. "/map-fog.png", "w")   -- (dev.31's chart fog, last session)
+    local stale = io.open(MOD .. "/map-fog.png", "w")   -- (a chart fog left from a last session)
     stale:write("png")
     stale:close()
     os.remove(MOD .. "/map-fog-territories.png")
@@ -582,7 +579,7 @@ group("the world map: the Territories look", function()
     expect(fogSize == "2048" and logged("map territories: composing from the label map at 2048"),
            "an older DLL (no AP_ComposeField): the label map at 2048, the fog at 2048")
     game.mapOpen = false
-    -- dev.34: with the DLL's AP_ComposeField, from the Art lane's distance field (shipped) at 4096, the fog at 4096.
+    -- With the DLL's AP_ComposeField: from the shipped distance field at 4096, the fog at 4096.
     local fjobs = {}
     AP_ComposeField = function(field, areas, walls, style, out, fogart, fog, size, colour, gamma)
         fjobs[#fjobs + 1] = { field = field, areas = areas, walls = walls, style = style, size = size, colour = colour,
@@ -602,8 +599,7 @@ group("the world map: the Territories look", function()
     local cf = io.open(colourFile, "w")
     cf:write("png")
     cf:close()
-    -- dev.34 playtest: the explored mask from the player's world map data, so the fog picture is new before the map
-    -- opens.
+    -- The explored mask from the player's world map data, so the fog picture is new before the map opens.
     local askedMap
     local mapData = { IsValid = function() return true end }
     function mapData.GetRenderTargetByMapName(_, name)
@@ -657,7 +653,7 @@ group("the world map: the Territories look", function()
     expect(fj and fj.style == job.style and fj.areas == job.areas and fj.walls == job.walls,
            "the same areas, walls and look as from the label map")
     expect(fogSize == "4096", "and the fog at 4096: " .. tostring(fogSize))
-    -- No colour map (and no game map to save one from): the overlay, drawn over the game's map as before.
+    -- No colour map (and no game map to save one from): the overlay, drawn over the game's map.
     os.remove(colourFile)
     local G2 = h.freshWalls()
     G2.beyond, G2.visited = { [sealedArea] = true }, {}

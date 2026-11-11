@@ -225,7 +225,7 @@ group("debuff icons, the hint plate and the goal banner", function()
     end
     expect(ended and #DB.active() == 0,
            "and the icon goes when the Slow Trap ends")
-    -- 2026-11-08 crash: Return to title during the goal banner; the update then called the old world's widget. With the
+    -- Return to title during the goal banner crashed the game when the update called the old world's widget. With the
     -- HUD gone (FindAllOf lists it no more) the banner is forgotten without a call to it.
     local POP = require("hint_popup")
     expect(POP.banner("10 Pals registered", 1) and logged("goal banner: shown %(10 Pals registered%)"),

@@ -260,8 +260,8 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     run(40)
     expect(ws.ExpRate == 25 and warned("Speed Boost changed your World Settings: EXP Rate 25"),
            "a world already sped up by hand is taken as its own (5 x5), and the warning says so")
-    -- dev.17 test (2026-11-07): the warning came 2 s after the world loaded, behind the loading screen. Now the speeds
-    -- change at once but the warning waits until the character has moved 3 m (or a minute has passed).
+    -- A warning 2 s after the world loads is hidden behind the loading screen, so the speeds change at once but the
+    -- warning waits until the character has moved 3 m (or a minute has passed).
     local pawnWas, atWas = pawnAddress, pawnAt
     newPawn()                                                     -- the world loaded again: a new pawn
     pawnAt = { X = atWas.X, Y = atWas.Y, Z = atWas.Z }            -- where the last one stood

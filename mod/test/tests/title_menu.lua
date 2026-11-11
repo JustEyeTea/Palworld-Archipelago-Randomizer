@@ -3,14 +3,13 @@
 
 group("the title menu's Archipelago menu", function()
     local MB = require("mailbox")
-    -- The banner opens one Archipelago menu (the user, 2026-11-07), the game's own title buttons swapped for ours in
-    -- the same list. dev.21 (the user, dev.20 test: "those should just be typable in the menu"): Server, Port, Slot and
-    -- Password are the game's own text box in the menu; the saved servers show under Server while it has the keyboard;
-    -- the banner brightens under the pointer. Without a text box class, the dev.20 rows and the text window (tested at
-    -- the end).
+    -- The banner opens one Archipelago menu, the game's own title buttons swapped for ours in the same list. The
+    -- fields are typed in the menu itself: Server, Port, Slot and Password are the game's own text box in the menu;
+    -- the saved servers show under Server while it has the keyboard; the banner brightens under the pointer. Without
+    -- a text box class, rows that open the text window (tested at the end).
     local WINDOW_OK = GAME_PATH.windowOk                       -- the text window's OK
     game.titleOpen = true
-    -- v0.13.5 playtest: a title menu whose buttons could not be made got a new banner every update (1,042 of them).
+    -- A title menu whose buttons could not be made must not get a new banner every update (once it got 1,042).
     local realCreate = wbl.Create
     wbl.Create = function() return nil end
     run(3)
@@ -45,13 +44,13 @@ group("the title menu's Archipelago menu", function()
     expect(bs and bs.size.X == 600 and bs.auto == false, "600 wide, at the size set (not sized to its content)")
     expect(logged("menu: title banner added on CanvasPanelMenu at 0,%-588"), "and says where")
     -- The list: Start Game (the game's), Server, six picks, Port, Slot, Password, Connect, Back, then Quit Game.
-    -- (dev.36: the panel's soft ends in pads of their own, above Server and below Back)
+    -- (the panel's soft ends in pads of their own, above Server and below Back)
     local R = { padtop = 2, server = 3, port = 4, slot = 5, password = 6, go = 7, back = 8, padbottom = 9 }
     -- The saved servers: their panel on the canvas, its rows in its VerticalBox.
     local function pickBox(i) return drop.children[2].children[i] end
     local function pick(i) return pickBox(i).child end
     local function rowBox(i) return menuChildren[i] end
-    -- (a row of ours: its size box, a dark Border (dev.34), then the row: label and text box, or the button)
+    -- (a row of ours: its size box, a dark Border, then the row: label and text box, or the button)
     local function inner(b)
         local c = b and b.child
         if c and c.kind == "Border" then
@@ -162,8 +161,8 @@ group("the title menu's Archipelago menu", function()
     local HOVER, UNHOVER = GAME_PATH.titleClick:gsub("Event_0_", "Event_1_"),
         GAME_PATH.titleClick:gsub("Event_0_", "Event_2_")
     expect(hooks[HOVER] and hooks[UNHOVER], "the title button's hover and unhover are hooked (kdump: events 1 and 2)")
-    -- dev.20 test: nothing showed the banner could be clicked. It waits a little dim and lights up under the pointer,
-    -- from the button's own hover events (dev.24 polled it every 60 ms, and the game crashed on the title).
+    -- The banner must show it can be clicked: it waits a little dim and lights up under the pointer, from the
+    -- button's own hover events (polling the pointer every 60 ms crashed the game on the title).
     expect(pic.colour and pic.colour.R < 1, "the banner waits a little dim")
     hooks[HOVER]({ get = function() return openBtn end })
     expect(pic.colour.R < 1, "nothing changes inside the hover's hook")
@@ -220,8 +219,8 @@ group("the title menu's Archipelago menu", function()
     expect(drop.canvasSlot.position and drop.canvasSlot.position.Y == -588 + 8 + 24 + 41
            and drop.canvasSlot.alignment.Y == 0,
            "their panel sits just under the Server box")
-    -- dev.27 test ("why does it still stick around at all?"): they stay while the pointer is on one of them (pressing
-    -- it takes the keyboard from the box before the click lands), and go at the next update otherwise.
+    -- The saved servers must not stick around: they stay only while the pointer is on one of them (pressing it takes
+    -- the keyboard from the box before the click lands), and go at the next update otherwise.
     edit(R.server).focus = false
     hooks[HOVER]({ get = function() return pick(2) end })
     tick()
@@ -319,7 +318,7 @@ group("the title menu's Archipelago menu", function()
     run(1)
     expect(gameButtonWrap.vis == 0 and #connects == cb and loggedSince(backAt, "Archipelago menu closed"),
            "Back: the game's buttons again, nothing connected")
-    -- dev.36 ("It would be nice if we could hit 'ESC' to back out of that Archipelago Menu"): Esc does what Back does.
+    -- Esc backs out of the Archipelago menu: it does what Back does.
     click(openBtn)
     run(1)
     typeInto(R.server, "10.0.0.9")
@@ -352,9 +351,8 @@ group("the title menu's Archipelago menu", function()
     push("status", "connected", "Other")
     run(2)
     local goBtn = btn(R.go)
-    -- dev.24 crash (2026-11-07): after Options and the Survival Guide our rows were gone from the title menu, the
-    -- remake failed, and the old rows were still used; the game crashed 4.6 s later. Now the old rows are never touched
-    -- again.
+    -- After Options and the Survival Guide our rows can be gone from the title menu and the remake can fail; using
+    -- the old rows then crashed the game 4.6 s later, so the old rows are never touched again.
     do
         local deadTouched = false
         for i = 2, 9 do
@@ -366,7 +364,7 @@ group("the title menu's Archipelago menu", function()
             if b and b.child then
                 b.child.gone = true
             end
-            local c = inner(b)                                           -- (through the Border, dev.34)
+            local c = inner(b)                                           -- (through the Border)
             if c then
                 c.gone = true
             end
@@ -417,7 +415,7 @@ group("the title menu's Archipelago menu", function()
     run(1)
     expect(disconnects == disconnectsBefore and #pushed == pushedBefore,
            "our old title buttons' addresses are forgotten")
-    -- Without a text box class (neither the game's nor UMG's): the dev.20 rows, each field in the text window (whose
+    -- Without a text box class (neither the game's nor UMG's): rows that open the text window, one per field (its
     -- heading is set where the window has one).
     game.palEditOk, game.umgEditOk = false, false
     for i = #menuChildren, 1, -1 do
