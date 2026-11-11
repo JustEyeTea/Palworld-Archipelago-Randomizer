@@ -1,9 +1,10 @@
-"""Writes apworld/palworld/game_data.py from Palworld's tables (dumped by the server probe) and the area model's output.
-The APWorld then needs no game files: names, levels, costs, areas and where each Pal comes from are plain Python data.
-    python3 tools/gen_apworld_data.py <tables dir> <areas json> <pal sources json> [<text tables dir>]
+"""Writes apworld/palworld/game_data.py from Palworld's tables (dumped by the server probe) and the lock model's output.
+The APWorld then needs no game files: names, levels, costs, regions and where each Pal comes from are plain Python data.
+    python3 tools/gen_apworld_data.py <tables dir> data/region-model-1.0.5.json data/region-pal-sources-1.0.5.json
+                                      [<text tables dir>]
 The text tables dir holds DT_PalFirstActivatedInfoText.tsv (which Pals fly or swim) when the tables dir does not.
-With data/area-model-1.0.5.json and data/area-pal-sources-1.0.5.json (tools/area_model.py run with AREA_SIZE=regions)
-it also writes REGION_MODE: the same locations placed in the game's own regions, for the area_size option.
+With data/area-model-1.0.5.json and data/area-pal-sources-1.0.5.json (tools/lock_model.py run with LOCK_SIZE=areas)
+it also writes AREA_MODE: the same locations placed in the game's 75 areas, for Lock Size: areas.
 Item and location ids are row positions (apworld/palworld/data.py), so the rows of the game_data.py already there keep
 their places and new rows go at the end; a row that is gone stops the script, for a person to decide.
 """
@@ -16,7 +17,7 @@ import runpy
 import sys
 
 T = pathlib.Path(sys.argv[1])
-AREAS_JSON = json.load(open(sys.argv[2]))
+MODEL_JSON = json.load(open(sys.argv[2]))                # the 15 regions' lock model (tools/lock_model.py)
 SOURCES_JSON = json.load(open(sys.argv[3]))
 TEXT_T = pathlib.Path(sys.argv[4]) if len(sys.argv) > 4 else T
 OUT = pathlib.Path(__file__).resolve().parent.parent / 'apworld' / 'palworld' / 'game_data.py'
@@ -57,14 +58,13 @@ def resolve(text):
     return re.sub(r'<(itemName|mapObjectName) id=\|([^|]+)\|/>', sub, text, flags=re.I).strip()
 
 
-# Areas (one Area Pass each) and their pieces: a location sits in a piece, the logic's region; a piece needs its area's
-# pass to enter, from a piece it borders (tools/area_walls.py, tools/area_model.py).
-from lock_groups import GROUPS, START as START_AREA
-area = lambda a: a
-PIECES = AREAS_JSON['pieces']
-AREA_OF = lambda piece: PIECES.get(piece, piece)
-AREAS = sorted(((k, v['levels']) for k, v in AREAS_JSON['areas'].items() if v['levels'] is not None),
-               key=lambda kv: (kv[1], kv[0]))
+# Regions (one Region Pass each) and their pieces: a location sits in a piece, an Archipelago Region in the logic; a
+# piece needs its region's pass to enter, from a piece it borders (tools/lock_walls.py, tools/lock_model.py).
+from lock_groups import AREAS, REGIONS, START_AREA, START_REGION
+PIECES = MODEL_JSON['pieces']
+REGION_OF = lambda piece: PIECES.get(piece, piece)
+PIECE_LEVELS = sorted(((k, v['levels']) for k, v in MODEL_JSON['piece_stats'].items() if v['levels'] is not None),
+                      key=lambda kv: (kv[1], kv[0]))
 
 # Techs: (id, name, level, cost, ancient, prerequisite tech id, tower boss needed, lab research needed).
 BOSS_TYPES = {'GrassBoss': 'Windswept (Grass)', 'ElectricBoss': 'Volcano (Electric)', 'ForestBoss': 'Forest',
@@ -102,8 +102,8 @@ for e, srcs in SOURCES_JSON['sources'].items():
     kept = []
     for s in srcs:
         t = s['type']
-        if t in ('wild', 'alpha'): kept.append((t, area(s['area']), s['level']))
-        elif t == 'dungeon': kept.extend(('dungeon', area(a), s['level']) for a in s['areas'])
+        if t in ('wild', 'alpha'): kept.append((t, s['piece'], s['level']))
+        elif t == 'dungeon': kept.extend(('dungeon', piece, s['level']) for piece in s['pieces'])
         elif t == 'breed_unique': kept.append(('breed', tuple(s['parents'])))
         elif t == 'fishing': kept.append(('fishing', None, s['level']))
     paldeck[e] = (entry_name.get(e, e), tuple(sorted(set(kept), key=str)))
@@ -120,68 +120,67 @@ for tribe, text in sorted(texts('DT_PalFirstActivatedInfoText.tsv').items()):
 
 alphas, alpha_keys, counts = [], [], {}
 spawners = {r['row']: r for r in rd('DT_BossSpawnerLoactionData.tsv')}
-for a in AREAS_JSON['alphas']:
+for a in MODEL_JSON['alphas']:
     alpha_keys.append((spawners[str(a['row'])]['SpawnerID'], spawners[str(a['row'])]['CharacterID']))
     cid = re.sub(r'^BOSS_', '', a['character'], flags=re.I)
     e = next((k for k, r in [(f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}", r) for r in mon
                               if r['row'].lower() == cid.lower()]), None)
     pal = entry_name.get(e, cid)
-    key = (pal, AREA_OF(a['area'])); counts[key] = counts.get(key, 0) + 1
-    alphas.append((f"Alpha: {pal} ({AREA_OF(a['area'])})" + (f" {counts[key]}" if counts[key] > 1 else ''),
-                   e, a['level'], area(a['area'])))
+    key = (pal, REGION_OF(a['piece'])); counts[key] = counts.get(key, 0) + 1
+    alphas.append((f"Alpha: {pal} ({REGION_OF(a['piece'])})" + (f" {counts[key]}" if counts[key] > 1 else ''),
+                   e, a['level'], a['piece']))
 # number duplicates from 1 when a name repeats
 names = [n for n, *_ in alphas]
 alphas = [((n + ' 1') if names.count(n) > 1 and not n[-1].isdigit() else n, *rest) for n, *rest in alphas]
 alpha_keys = dict(zip((a[0] for a in alphas), alpha_keys))
-alphas_in_json_order = list(alphas)                    # the same order as AREAS_JSON['alphas'] (REGION_MODE needs it)
+alphas_in_json_order = list(alphas)                    # the same order as MODEL_JSON['alphas'] (AREA_MODE needs it)
 alphas = keep_order(alphas, OLD.get('ALPHAS'), lambda a: a[0])
 
-fast_travel, per_area = [], {}
-fids = sorted(AREAS_JSON['fast_travel'], key=lambda f: (AREA_OF(AREAS_JSON['fast_travel'][f]), f))
+fast_travel, per_region = [], {}
+fids = sorted(MODEL_JSON['fast_travel'], key=lambda f: (REGION_OF(MODEL_JSON['fast_travel'][f]), f))
 for fid in keep_order(fids, [f[1] for f in OLD.get('FAST_TRAVEL', [])], lambda f: f):
-    piece = AREAS_JSON['fast_travel'][fid]
-    a = AREA_OF(piece); per_area[a] = per_area.get(a, 0) + 1
-    fast_travel.append((f"Fast Travel: {a} {per_area[a]}", fid, piece))
+    piece = MODEL_JSON['fast_travel'][fid]
+    region = REGION_OF(piece); per_region[region] = per_region.get(region, 0) + 1
+    fast_travel.append((f"Fast Travel: {region} {per_region[region]}", fid, piece))
 
-towers = sorted((TOWER_NAMES[k], area(v)) for k, v in AREAS_JSON['towers'].items() if k in TOWER_NAMES)
+towers = sorted((TOWER_NAMES[k], piece) for k, piece in MODEL_JSON['towers'].items() if k in TOWER_NAMES)
 towers = keep_order(towers, OLD.get('TOWERS'), lambda t: t[0])
 
 
-def region_mode():
-    """The per-region set (area_size: regions): every location keeps its name and id; only the piece it sits in, the
-    pieces, their borders and levels, and where each Pal comes from are the regions' own."""
+def area_mode():
+    """The 75 areas' set (Lock Size: areas): every location keeps its name and id; only the piece it sits in, the
+    pieces, their borders and levels, and where each Pal comes from are the areas' own."""
     data = pathlib.Path(__file__).resolve().parent.parent / 'data'
     if not (data / 'area-model-1.0.5.json').exists():
         return None
     rj = json.load(open(data / 'area-model-1.0.5.json'))
     rs = json.load(open(data / 'area-pal-sources-1.0.5.json'))
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-    from lock_groups import GROUPS as AREA_GROUPS, REGIONS, REGIONS_START
-    in_area = lambda area: [n for n, rows in REGIONS.items() if set(rows) & set(AREA_GROUPS[area])]
-    # A region with no Pals of its own (a tower's arena, a settlement, an oil rig) takes the level of the area it is part
-    # of, as a piece with no Pals takes its area's: at 0 its tower's boss would count as the easiest in the game.
-    area_level = dict(AREAS)
-    parent = {n: next(a for a, rows in AREA_GROUPS.items() if set(rows) & set(REGIONS[n])) for n in REGIONS}
-    own = {k: v['levels'] for k, v in rj['areas'].items() if v['levels'] is not None}
-    for piece, region in rj['pieces'].items():
-        if region in parent and own.get(piece) is None and own.get(region) is None:
-            own[piece] = area_level[parent[region]]
+    areas_in = lambda region: [n for n, rows in AREAS.items() if set(rows) & set(REGIONS[region])]
+    # An area with no Pals of its own (a tower's arena, a settlement, an oil rig) takes the level of the region it is
+    # part of, as a piece with no Pals takes its lock's: at 0 its tower's boss would count as the easiest in the game.
+    region_level = dict(PIECE_LEVELS)
+    region_of_area = {n: next(r for r, rows in REGIONS.items() if set(rows) & set(AREAS[n])) for n in AREAS}
+    own = {k: v['levels'] for k, v in rj['piece_stats'].items() if v['levels'] is not None}
+    for piece, area in rj['pieces'].items():
+        if area in region_of_area and own.get(piece) is None and own.get(area) is None:
+            own[piece] = region_level[region_of_area[area]]
     levels = sorted(own.items(), key=lambda kv: (kv[1], kv[0]))
     sources = {}
     for e, srcs in rs['sources'].items():
         kept = []
         for s in srcs:
             t = s['type']
-            if t in ('wild', 'alpha'): kept.append((t, s['area'], s['level']))
-            elif t == 'dungeon': kept.extend(('dungeon', a, s['level']) for a in s['areas'])
+            if t in ('wild', 'alpha'): kept.append((t, s['piece'], s['level']))
+            elif t == 'dungeon': kept.extend(('dungeon', piece, s['level']) for piece in s['pieces'])
             elif t == 'breed_unique': kept.append(('breed', tuple(s['parents'])))
             elif t == 'fishing': kept.append(('fishing', None, s['level']))
         sources[e] = tuple(sorted(set(kept), key=str))
-    by_row = {a['row']: a['area'] for a in rj['alphas']}
-    alpha_piece = {name: by_row[row] for (name, *_), row in zip(alphas_in_json_order, (a['row'] for a in AREAS_JSON['alphas']))}
+    by_row = {a['row']: a['piece'] for a in rj['alphas']}
+    alpha_rows = (a['row'] for a in MODEL_JSON['alphas'])
+    alpha_piece = {name: by_row[row] for (name, *_), row in zip(alphas_in_json_order, alpha_rows)}
     return {
-        'START': REGIONS_START,
-        'AREA_LIST': list(REGIONS),
+        'START': START_AREA,
+        'AREA_LIST': list(AREAS),
         'PIECES': rj['pieces'],
         'BORDERS': [tuple(b) for b in rj['borders']],
         'PIECE_LEVELS': dict(levels),
@@ -189,30 +188,30 @@ def region_mode():
         'ALPHAS': {a[0]: alpha_piece[a[0]] for a in alphas},
         'FAST_TRAVEL': {fid: rj['fast_travel'][fid] for _, fid, _ in fast_travel},
         'TOWERS': {TOWER_NAMES[k]: v for k, v in rj['towers'].items() if k in TOWER_NAMES},
-        'SKY': in_area('Sky Islands'),                  # up there only with a flying mount
-        'WORLD_TREE': in_area('World Tree')[0],
+        'SKY': areas_in('Sky Islands'),                 # up there only with a flying mount
+        'WORLD_TREE': areas_in('World Tree')[0],
     }
 
 
-REGION_MODE = region_mode()
+AREA_MODE = area_mode()
 
 body = [
     '"""Palworld 1.0.5 game data for the Palworld APWorld. Generated by tools/gen_apworld_data.py; do not edit by hand."""',
     '',
     f'GAME_VERSION = "1.0.5.102999"',
-    f'START_REGION = {START_AREA!r}',
+    f'START_REGION = {START_REGION!r}',
     '',
     '# The 15 regions, one Region Pass each (the first is where a game starts).',
-    'REGION_LIST = ' + pprint.pformat(list(GROUPS), width=118),
+    'REGION_LIST = ' + pprint.pformat(list(REGIONS), width=118),
     '',
     '# Piece (a connected part of a region, the logic\'s smallest part) -> its region. "Open sea" needs no pass.',
     'PIECES = ' + pprint.pformat(PIECES, width=118),
     '',
     '# Pieces that share a border (walls in game): moving between them needs the entered piece\'s Region Pass.',
-    'BORDERS = ' + pprint.pformat([tuple(b) for b in AREAS_JSON['borders']], width=118),
+    'BORDERS = ' + pprint.pformat([tuple(b) for b in MODEL_JSON['borders']], width=118),
     '',
     '# Piece -> typical Pal level (median of its spawners), in rough order of difficulty.',
-    'PIECE_LEVELS = ' + pprint.pformat(dict(AREAS), sort_dicts=False, width=118),
+    'PIECE_LEVELS = ' + pprint.pformat(dict(PIECE_LEVELS), sort_dicts=False, width=118),
     '',
     '# (tech id, name, level, cost, ancient, prerequisite tech id, tower needed, lab research needed)',
     'TECHS = ' + pprint.pformat(techs, width=118),
@@ -240,15 +239,15 @@ body = [
     'TOWERS = ' + pprint.pformat(towers, width=118),
     '',
 ]
-if REGION_MODE:
+if AREA_MODE:
     body += [
         '# Lock Size: areas. Every named area of the game on its own, one Area Pass each, from a start in the area',
         '# the first tower stands in. The locations above keep their names; here are the pieces they sit in instead, and',
         '# the areas\' own pieces, borders, levels and Pal sources (keys as above).',
-        'AREA_MODE = ' + pprint.pformat(REGION_MODE, width=118, sort_dicts=False),
+        'AREA_MODE = ' + pprint.pformat(AREA_MODE, width=118, sort_dicts=False),
         '',
     ]
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text('\n'.join(body))
 print(f'wrote {OUT}: {len(techs)} techs, {len(paldeck)} Paldeck entries, {len(alphas)} alphas, '
-      f'{len(fast_travel)} fast-travel points, {len(towers)} towers, {len(AREAS)} areas')
+      f'{len(fast_travel)} fast-travel points, {len(towers)} towers, {len(PIECE_LEVELS)} pieces with a level')

@@ -26,7 +26,7 @@ local decoded = {}             -- map row -> its runs, decoded when first used (
 local function useLayoutData(name)
     local prefix = name == "regions" and "area_" or "region_"  -- each cut's files: region_walls.lua, area_walls.lua
     local walls = require(prefix .. "walls")
-    layout.prefix, layout.walls, layout.areas, layout.start = prefix, walls.walls, walls.areas, walls.start
+    layout.prefix, layout.walls, layout.areas, layout.start = prefix, walls.walls, walls.locks, walls.start
     layout.map, layout.shapes = require(prefix .. "map"), nil
     local b = layout.map.bounds
     layout.bounds = { xMin = b[1], xMax = b[2], yMin = b[3], yMax = b[4] }

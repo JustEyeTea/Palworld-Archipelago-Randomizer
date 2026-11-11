@@ -251,11 +251,11 @@ group("the world map", function()
         end
         expect(again == fogs, "while the map stays open nothing is remade")
         local open1 = {}
-        for _, a in ipairs(require("region_walls").areas) do
+        for _, a in ipairs(require("region_walls").locks) do
             open1[a] = true
         end
-        W6.updateMap(true, { [require("region_walls").areas[4]] = true }, pawn)
-        W6.updateMap(true, { [require("region_walls").areas[4]] = true }, pawn)
+        W6.updateMap(true, { [require("region_walls").locks[4]] = true }, pawn)
+        W6.updateMap(true, { [require("region_walls").locks[4]] = true }, pawn)
         local last
         for _, j in ipairs(jobs) do
             if j.kind == "fog" then
@@ -405,7 +405,7 @@ group("the world map", function()
             W9.updateMap(true, {}, pawn)
         end
         expect(#mapBody.icons == nLocked and mapBody.iconUpdates == 1, "added once, not every update")
-        local area4 = require("region_walls").areas[4]
+        local area4 = require("region_walls").locks[4]
         for _ = 1, 3 do
             W9.updateMap(true, { [area4] = true }, pawn)
         end
@@ -418,7 +418,7 @@ group("the world map", function()
         fa:write("png")
         fa:close()
         local count = #mapBody.icons
-        local area5 = require("region_walls").areas[5]
+        local area5 = require("region_walls").locks[5]
         W9.visited = {}
         for _ = 1, 3 do   -- (a second pass: icons made again)
             W9.updateMap(true, { [area4] = true, [area5] = true }, pawn)
@@ -498,7 +498,7 @@ group("the world map: the Territories look", function()
     AP_SamplePNG = function(_, u) return u == "0.02" and "0,0,0,255" or "0,0,0,40" end
     mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_3")
     local AW = require("region_walls")
-    local area4, sealedArea = AW.areas[4], AW.areas[16]
+    local area4, sealedArea = AW.locks[4], AW.locks[16]
     local T = h.freshWalls()
     T.beyond = { [sealedArea] = true }
     T.visited = {}

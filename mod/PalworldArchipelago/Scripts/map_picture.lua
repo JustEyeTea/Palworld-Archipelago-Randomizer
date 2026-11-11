@@ -176,7 +176,7 @@ local function trianglesOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if triangles[key] then return triangles[key] end
     layout.shapes = layout.shapes or require(layout.prefix .. "shapes")
-    local corners, out = layout.shapes.areas[k] or {}, {}
+    local corners, out = layout.shapes.locks[k] or {}, {}
     for t = 1, #corners - 5, 6 do
         local tri = {}
         for j = 0, 2 do

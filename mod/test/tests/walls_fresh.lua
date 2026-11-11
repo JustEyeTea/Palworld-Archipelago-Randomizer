@@ -208,7 +208,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local fogsFirst = keptOf("map-fog-territories") - fogs0
         local made = fieldJobs or 0
         for n = 3, 12 do                                           -- ten passes, one at a time
-            passes[WD.areas[n]] = true
+            passes[WD.locks[n]] = true
             for _ = 1, 8 do
                 W.updateMap(true, passes, pawn)
             end
@@ -498,7 +498,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
             for _ = 1, SETTLE_UPDATES do
                 W.update(true, {}, offMap)
             end
-            W.update(true, { [WD.areas[4]] = true }, offMap)
+            W.update(true, { [WD.locks[4]] = true }, offMap)
             local list = {}
             for _, a in ipairs(mine()) do
                 if a.shrunkTo then
@@ -524,7 +524,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local W2, mine2 = h.freshWalls()
         local opening2 = openingAfterAPass(W2, mine2)
         opening2[1].IsValid = function() error("the opening step errors") end
-        W2.update(true, { [WD.areas[4]] = true }, offMap)
+        W2.update(true, { [WD.locks[4]] = true }, offMap)
         local afterError = standing(opening2) - 1                 -- (the piece that errors cannot be taken down)
         expect(logged("walls: the opening step failed %(.*the opening step errors%); %d+ opening piece%(s%) "
                       .. "taken down"),
@@ -684,7 +684,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local realClock = gameplay.GetTimeSeconds
         gameplay.GetTimeSeconds = function() error("no clock") end
         for _ = 1, 3 do
-            W.update(true, { [WD.areas[4]] = true }, offMap)
+            W.update(true, { [WD.locks[4]] = true }, offMap)
         end
         gameplay.GetTimeSeconds = realClock
         W.setSkin("red")

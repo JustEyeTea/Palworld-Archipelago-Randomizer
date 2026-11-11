@@ -172,7 +172,7 @@ end
 -- table (shared.WD if none is given).
 function h.wallRow(w, data)
     data = data or shared.WD
-    return { x = w[1], y = w[2], length = w[3], yaw = w[4], areaA = data.areas[w[5] + 1], areaB = data.areas[w[6] + 1] }
+    return { x = w[1], y = w[2], length = w[3], yaw = w[4], areaA = data.locks[w[5] + 1], areaB = data.locks[w[6] + 1] }
 end
 
 -- The area on the other side of a wall from the start, or nil if the wall does not touch the start.
