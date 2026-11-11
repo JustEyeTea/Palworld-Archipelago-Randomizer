@@ -184,13 +184,21 @@ namespace
         return id;
     }
 
-    // The one connection, made on first use.
+    // Whether a file is there.
+    auto file_exists(const std::string& path) -> bool
+    {
+        return GetFileAttributesA(path.c_str()) != INVALID_FILE_ATTRIBUTES;
+    }
+
+    // The one connection, made on first use. Logs the data folder and whether cacert.pem is in it.
     auto bridge() -> ApBridge&
     {
         if (!g_bridge)
         {
             const auto folder = mod_folder();
-            g_bridge = std::make_unique<ApBridge>(ARCHIPELAGO_GAME, client_uuid(folder), folder + "\\" + CERT_FILE);
+            const auto cert = folder + "\\" + CERT_FILE;
+            log_line("data folder " + folder + "; " + CERT_FILE + (file_exists(cert) ? " found" : " missing"));
+            g_bridge = std::make_unique<ApBridge>(ARCHIPELAGO_GAME, client_uuid(folder), cert);
         }
         return *g_bridge;
     }
