@@ -457,20 +457,16 @@ local function composeMap(ctx, passes, key, open)
     return false
 end
 
-function MAP_PICTURE.updateMap(enabled, passes, ctx)
-    local wasShown = MAP_FOG.forgetShown()        -- whether the map was on screen at the last update
-    if not enabled then
-        MAP_FOG.mapOff()
-        return
-    end
-    -- The game keeps a template of the map screen beside the real ones; only a real one has its map image. There may be
-    -- more than one real one (different menus), and a map screen sets its own picture again when it opens, so every
-    -- one is checked each time and given the greyed map whenever it shows anything else.
-    -- Only the main world's screen: the game also builds the World Tree's (MapName "Tree"), which shows T_WorldMap for a
-    -- moment as it is set up (dev.17 log, 2026-11-07); a screen whose name can't be read is kept, as before.
-    -- Not the last world's (dev.35 playtest: after Return to title and a second world load, the first world's screens
-    -- were still about until collected, and the icons went on one of them): a screen whose owning player is gone is left
-    -- alone; one whose owner can't be read is kept.
+-- The main world's live map screens, and their map images. The game keeps a template of the map screen beside the real
+-- ones; only a real one has its map image. There may be more than one real one (different menus), and a map screen
+-- sets its own picture again when it opens, so every one is checked each time and given the greyed map whenever it
+-- shows anything else.
+-- Only the main world's screen: the game also builds the World Tree's (MapName "Tree"), which shows T_WorldMap for a
+-- moment as it is set up (dev.17 log, 2026-11-07); a screen whose name can't be read is kept, as before.
+-- Not the last world's (dev.35 playtest: after Return to title and a second world load, the first world's screens
+-- were still about until collected, and the icons went on one of them): a screen whose owning player is gone is left
+-- alone; one whose owner can't be read is kept.
+local function mainMapScreens()
     local images, screens = {}, {}
     for _, b in ipairs(FindAllOf("WBP_Map_Body_C") or {}) do
         local ok, img = pcall(function() local i = b.Image_MapBody; return i:IsValid() and i or nil end)
@@ -483,7 +479,12 @@ function MAP_PICTURE.updateMap(enabled, passes, ctx)
         if gone then once("stalescreen", "map: a map screen of the last world left alone (its player is gone)") end
         if b:IsValid() and ok and img and main and not gone then images[#images + 1] = img; screens[#screens + 1] = b end
     end
-    local opening = MAP_FOG.noteShown(screens) > 0 and not wasShown
+    return images, screens
+end
+
+-- The look the map picture must show, as a key that changes whenever the picture must be made again; and how many
+-- areas are locked.
+local function pictureKey(passes)
     local locked = {}
     for _, name in ipairs(layout.areas) do
         if not isOpen(name, passes) then locked[#locked + 1] = name end
@@ -494,35 +495,42 @@ function MAP_PICTURE.updateMap(enabled, passes, ctx)
     if territories() then for area in pairs(W.visited) do been[#been + 1] = area end; table.sort(been) end
     local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "") .. (iconsActive() and "#icons" or "#stamps")
         .. (territories() and ("#territories#" .. table.concat(been, "|")) or "")
-    MAP_FOG.step(ctx, screens, opening, passes, key)
+    return key, #locked
+end
+
+-- Makes the picture for `key` if it is not made yet: composed by the C++ part in the background, or (without it, or
+-- after it failed) drawn here once a map screen is open. Returns whether there is a picture, and whether it was made
+-- just now.
+local function makePicture(ctx, passes, key, open, nLocked)
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then
-        local ok, ready = pcall(composeMap, ctx, passes, key, #images > 0)
+        local ok, ready = pcall(composeMap, ctx, passes, key, open)
         if not ok then once("composeerr" .. tostring(ready), "map error: " .. tostring(ready)); ready = false end
         if ready == "failed" then
             compose = false
         else
             if ready and key ~= mapKey then
                 mapKey, redrawn = key, true
-                log("map: " .. #locked .. " locked area(s) greyed")
+                log("map: " .. nLocked .. " locked area(s) greyed")
             end
-            if not mapKey or not mapRT then return end    -- nothing composed yet: the game's own map stays
+            if not mapKey or not mapRT then return false end    -- nothing composed yet: the game's own map stays
         end
     end
     if not compose and key ~= mapKey then
-        if #images == 0 then return end          -- without the compositor the map is drawn when it opens, as before
+        if not open then return false end          -- without the compositor the map is drawn when it opens, as before
         local ok, done = pcall(drawMap, ctx, passes)
-        if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return end
-        if not done then return end
+        if not ok then log("map overlay error: " .. tostring(done)); mapKey = key; return false end
+        if not done then return false end
         mapKey, redrawn = key, true
-        log("map: " .. #locked .. " locked area(s) greyed")
+        log("map: " .. nLocked .. " locked area(s) greyed")
     end
-    if not mapRT or not mapRT:IsValid() then return end
-    local okc, errc = pcall(MAP_FOG.tellCpp)
-    if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
-    if #images == 0 then return end
-    MAP_ICONS.show(screens, passes, key)
+    return true, redrawn
+end
+
+-- Puts the picture on every map image that shows the game's world map instead (the screen sets its own when it opens,
+-- unless C++ did it first), and on every one when the picture was made again.
+local function putPictureBack(images, redrawn)
     local want = UTIL.addr(mapRT)
     for _, image in ipairs(images) do
         local okr, shown = pcall(function()
@@ -545,6 +553,27 @@ function MAP_PICTURE.updateMap(enabled, passes, ctx)
             if not ok then once("mapshow", "map overlay: could not show it: " .. tostring(err)) end
         end
     end
+end
+
+-- Each update (main.lua): the map picture, the C++ map screen, the fog and the icons brought in line with the passes
+-- held. With area locks off (enabled false) C++ is switched off and nothing else is done.
+function MAP_PICTURE.updateMap(enabled, passes, ctx)
+    local wasShown = MAP_FOG.forgetShown()        -- whether the map was on screen at the last update
+    if not enabled then
+        MAP_FOG.mapOff()
+        return
+    end
+    local images, screens = mainMapScreens()
+    local opening = MAP_FOG.noteShown(screens) > 0 and not wasShown
+    local key, nLocked = pictureKey(passes)
+    MAP_FOG.step(ctx, screens, opening, passes, key)
+    local made, redrawn = makePicture(ctx, passes, key, #images > 0, nLocked)
+    if not made or not mapRT or not mapRT:IsValid() then return end
+    local okc, errc = pcall(MAP_FOG.tellCpp)
+    if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
+    if #images == 0 then return end
+    MAP_ICONS.show(screens, passes, key)
+    putPictureBack(images, redrawn)
 end
 
 
