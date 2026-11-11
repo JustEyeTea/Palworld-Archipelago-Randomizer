@@ -2,6 +2,8 @@
 -- the map's stamps; wall_skins.lua loads the wall patterns itself). Each is loaded once a session through the game
 -- instance and kept alive (main.lua sets A.keep): textures not kept are collected and come back as white placeholders
 -- (ui.md).
+-- Tests: mod/test/harness.lua, the block "the Art & Assets lane's round-1 art (art.lua)" in group "test tools: giving a
+-- Pal through the connector", and through the map's stamps and icons in group "the world map".
 local A = { dir = ".", keep = function() end }
 local textures, failed = {}, {}
 local log = require("util").log

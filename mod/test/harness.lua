@@ -4109,6 +4109,7 @@ do  -- Areas beyond the goal (slot data beyond_goal_areas and options.beyond_goa
            "open: its walls come down without a pass: " .. up .. " -> " .. wallCount())
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
 end
+print("area-coloured walls and the hint pop-up")
 ;(function()  -- area-coloured walls, sealed walls beyond the goal, the hint pop-up (v0.14.0-dev.3)
     local W = require("walls")
     local openedBeyond = hintArea                -- the open-beyond test above opened it
@@ -4217,6 +4218,7 @@ end
            .. tostring(a2) .. "'s colour when " .. tostring(a1) .. " opens")
     FindAllOf = savedFAO
 end)()
+print("debuff icons, the hint plate and the goal banner")
 ; (function()  -- debuff icons with their timers at the top of the HUD (the user, 2026-11-05)
     local hudKids = {}
     local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })

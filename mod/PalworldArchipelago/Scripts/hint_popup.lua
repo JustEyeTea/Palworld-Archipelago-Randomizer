@@ -1,6 +1,7 @@
 -- The hint plate at a locked wall and the goal banner, on the HUD: shown by main.lua with the chat line it sends
 -- anyway, taken down when their time is up or forgotten when the world goes.
--- Tests: mod/test/harness.lua, the HUD block with the debuff icons ("a hint plate", "the goal banner").
+-- Tests: mod/test/harness.lua, groups "area-coloured walls and the hint pop-up" and "debuff icons, the hint plate and
+-- the goal banner".
 local H = {}
 -- The plate (the user, 2026-11-05: "Centered and a little transparent so that it doesn't block your view in a major
 -- way"): the Art & Assets lane's art/ap-hint-plate-ready.png when the player has the points for a hint, -short.png when
