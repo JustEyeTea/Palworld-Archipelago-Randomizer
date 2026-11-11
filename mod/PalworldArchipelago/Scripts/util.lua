@@ -44,6 +44,21 @@ function UTIL.onceIn(owner)
     end
 end
 
+-- A log-once of a module's own whose lines can be logged again: for what is found out about one world. Returns
+-- once(key, msg) and forget(); after forget() every key is new again. Its keys never meet UTIL.once's.
+function UTIL.onceForgettable()
+    local said = {}           -- key -> true: the lines logged since the last forget()
+    local function onceHere(key, msg)
+        if said[key] then return end
+        said[key] = true
+        UTIL.log(msg)
+    end
+    local function forget()
+        said = {}
+    end
+    return onceHere, forget
+end
+
 -- For errors caught every update: the key drops numbers and addresses (an error naming an object's address would
 -- otherwise log anew on each update, three lines a second), and each kind logs at most ERRORS_PER_KIND errors.
 function UTIL.onceErr(kind, err, msg)

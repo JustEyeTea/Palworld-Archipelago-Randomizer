@@ -7,7 +7,11 @@ local M = {}
 local P = require("perf")
 local UTIL = require("util")
 local WIDGETS = require("widgets")
-local log, once = UTIL.log, UTIL.onceIn("mailbox")
+local log = UTIL.log
+-- The window's, the chest's and the list's lines are logged once a world (forgetOnWorldChange() forgets them); the
+-- bag's once a session, since the bag is also used with the mailbox off.
+local once, forgetOnce = UTIL.onceForgettable()
+local onceSession = UTIL.onceIn("mailbox")
 
 local BAG, WINDOW, CHEST = {}, {}, {}   -- the sections below: the bag, the LogicMod window, the hidden chest
 local LIST = M                          -- the list's functions, as the window and the chest sections use them
@@ -103,7 +107,7 @@ function BAG.nameOf(id)
         name = text and text:ToString()
     end)
     if not name or name == "" then
-        once("itemname", "mailbox: no item names from the game (showing ids)")
+        onceSession("itemname", "mailbox: no item names from the game (showing ids)")
         return id
     end
     names[id] = name
@@ -130,15 +134,16 @@ local function giveStack(inventory, playerState, id, count)
     local accepted = ok and (result == nil or OK_RESULTS[result]) or false
     local after = before and bagCount(playerState, id)
     if before and after and after - before ~= (accepted and count or 0) then
-        once("bag" .. tostring(result), "mailbox: adding " .. count .. " " .. id .. " answered " .. tostring(result)
-            .. " but the bag gained " .. (after - before))
+        onceSession("bag" .. tostring(result), "mailbox: adding " .. count .. " " .. id .. " answered "
+            .. tostring(result) .. " but the bag gained " .. (after - before))
     end
     if accepted then return true end
     if not ok then
         log("mailbox: could not give " .. id .. ": " .. tostring(answer))
         return false, "error"
     end
-    once("refused" .. tostring(result), "mailbox: the bag refused " .. id .. " (result " .. tostring(result) .. ")")
+    local refused = "mailbox: the bag refused " .. id .. " (result " .. tostring(result) .. ")"
+    onceSession("refused" .. tostring(result), refused)
     return false, "full"
 end
 
@@ -148,7 +153,7 @@ function BAG.give(id, count)
     local _, playerState = BAG.player()
     local inventory = playerState and playerState:GetInventoryData()
     if not inventory then
-        once("nobag", "mailbox: the player has no inventory data (no player state, or still loading); " .. id
+        onceSession("nobag", "mailbox: the player has no inventory data (no player state, or still loading); " .. id
             .. " not given")
         return 0, "no bag"
     end
@@ -1151,7 +1156,7 @@ function CHEST.followView()
     if view.chest:IsValid() then
         local ok, err = pcall(sweep, (BAG.player()))
         if not ok then
-            once("sweep" .. tostring(err), "mailbox: sweep error: " .. tostring(err))
+            UTIL.onceErr("mailbox sweep", err, "mailbox: sweep error: " .. tostring(err))
         end
     end
     -- The chest widget is looked for only when its answer is used: the id says it is not open, or the view is
@@ -1448,6 +1453,7 @@ local function forgetOnWorldChange(ctx)
     CHEST.forget()
     WINDOW.forget()
     openAsked = false
+    forgetOnce()
     world = worldNow
 end
 

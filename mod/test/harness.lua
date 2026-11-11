@@ -2159,6 +2159,13 @@ hooks[ESC_CLICK]({ get = function() return mailBtn end })
 run(3)
 kinds, items = require("mailbox").count()
 expect(items == 55 and slots[1].StackCount == 5, "the next open fills from the list, not the copy: " .. slots[1].StackCount)
+;(function()   -- what the mailbox found out in one world is logged again in the next
+    local permissionLines = 0
+    for _, l in ipairs(printed) do
+        if l:find("deposits refused by permission", 1, true) then permissionLines = permissionLines + 1 end
+    end
+    expect(permissionLines == 2, "a new world logs its own findings again (the chest's permission): " .. permissionLines)
+end)()
 run(1)
 hudWindows["chest" .. #shown].gone = true
 run(2)
