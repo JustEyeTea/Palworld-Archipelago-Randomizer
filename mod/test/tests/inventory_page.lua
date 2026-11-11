@@ -223,5 +223,35 @@ group("the Inventory page's mailbox button", function()
     game.escOpen = false
     inWorld(false)
     noController()
-
+    do   -- a page's mailbox button gone while the page is not: both buttons made again, and the old ones let go
+        controllerAgain()
+        inWorld(true)
+        local CR = require("crates")
+        local samePage, sameKids = inventoryPage()
+        mainMenu = MainMenu(inventoryTab(samePage), 8)
+        game.mainMenuOpen = true
+        run(1)
+        local oldMail, oldCrate = sameKids[1] and sameKids[1].child, sameKids[3] and sameKids[3].child
+        if oldMail then
+            oldMail.gone = true
+        end
+        run(1)
+        local remade = #sameKids
+        game.mainMenuOpen = false
+        run(2)
+        local saved = CR.list
+        CR.list = { "sphere" }
+        local stranger = Widget()                                -- a game button made later at the old one's address
+        stranger.addr = oldCrate and oldCrate.addr
+        h.clickCommonButton(stranger)
+        run(2)
+        local left = #CR.list
+        CR.list = saved
+        expect(oldCrate and remade == 6 and left == 1,
+               "a crate button made again on the same page leaves no claim behind: a game button at the old one's "
+               .. "address opens nothing: " .. left .. " crate(s) left")
+        game.mainMenuOpen = false
+        inWorld(false)
+        noController()
+    end
 end)

@@ -300,6 +300,9 @@ local function updateEsc(found)
             local key = UTIL.addr(menu)
             local entry = escMenus[key]
             if not entry or not entry.mailbox:IsValid() then
+                if entry then
+                    pcall(CLICKS.release, entry.mailbox)   -- the menu stays, its button is made again
+                end
                 entry = addEscMailbox(menu, key)
             end
             if entry then
@@ -392,14 +395,20 @@ local function addPageButtons(page, bar)
     return button, addCrateButton(page, bar)
 end
 
+-- Lets go of a page record's buttons in clicks.lua, so a game button made later at one of their addresses is not
+-- taken for ours (UTIL.addr reads the address, which a button that is no longer valid still has).
+local function releasePageButtons(entry)
+    pcall(CLICKS.release, entry.mailbox)
+    if entry.crate then
+        pcall(CLICKS.release, entry.crate.button)
+    end
+end
+
 local function forgetGonePages(found)
     local live = foundNow(found, function(entry) return entry.page end)
     for key, entry in pairs(pages) do
         if not live[key] or not entry.page:IsValid() then
-            pcall(CLICKS.release, entry.mailbox)
-            if entry.crate then
-                pcall(CLICKS.release, entry.crate.button)
-            end
+            releasePageButtons(entry)
             pages[key] = nil
         end
     end
@@ -470,6 +479,9 @@ local function updatePages(found)
         local key = UTIL.addr(item.page)
         local entry = pages[key]
         if (not entry or not entry.mailbox:IsValid()) and not pagesFailed[key] then
+            if entry then
+                releasePageButtons(entry)          -- the page stays, its buttons are made again
+            end
             entry = addToPage(item, key)
         end
         if entry then
