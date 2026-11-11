@@ -86,92 +86,7 @@ TECH_LOCK.install({ dir = modDir })
 TECH_LOCK.readLastResearch()
 local syncTechs = TECH_LOCK.sync
 
--- Which world save is loaded: the game instance's selected world folder (PalGameInstance, a pure UFunction returning
--- an FString). Untested from Lua: its first answer is logged. Nil when it can't be read.
-local function worldId()
-    local gi = FindFirstOf("PalGameInstance")
-    if not gi or not gi:IsValid() then return nil end
-    local ok, v = pcall(function() return gi:GetSelectedWorldSaveDirectoryName() end)
-    local okt, id = pcall(function() return type(v) == "string" and v or v:ToString() end)
-    id = ok and okt and type(id) == "string" and id or nil
-    once("worldid", "world save folder: " .. tostring(id) .. (ok and "" or (" (" .. tostring(v) .. ")")))
-    return id ~= "" and id or nil
-end
-
--- A seed belongs to one world: the first one the mod sees it played in (kept in the save file as world=). config.txt
--- connects at every start, whatever world is loaded next; in any other world nothing is locked, sent, given or
--- linked, or a vanilla world would have its techs relocked and its records sent as checks. If the world can't be told,
--- the seed is not tied to one (logged above).
--- A world that already has shop techs researched is tied only after the player says yes (the hint key): tying it
--- locks those techs again, and the points spent on them do not come back.
--- State: the seed's world. Forgotten: on a world change and on a new seed (resetSeedWorld, both times).
-local seedWorld = nil         -- whether the world loaded now is the seed's; nil until the records phase looks
-local worldAsk = nil          -- { id = world folder, yes = pressed }: a world with progress, asked about
--- Forgets whether the loaded world is the seed's, and any question about tying a world to it.
-local function resetSeedWorld()
-    seedWorld, worldAsk = nil, nil
-end
--- The researched techs of the loaded world that tying a seed to it would lock (nil: not readable yet).
-local function techsToRelock(ps)
-    local ok, names = pcall(function()
-        local td = ps:GetTechnologyData()
-        if not td or not td:IsValid() then error("no tech data yet") end
-        return TECH_LOCK.arrayNames(td.UnlockedTechnologyNameArray)
-    end)
-    if not ok then return nil end
-    local relock = 0
-    for _, n in ipairs(names) do
-        if D.shop[n] and not ap.techs[n] then relock = relock + 1 end
-    end
-    return relock
-end
--- Ties the seed to the loaded world when the world is new, or the player said yes. False while asking.
-local function tieWorld(ps, id)
-    if not (worldAsk and worldAsk.id == id and worldAsk.yes) then
-        local relock = techsToRelock(ps)
-        if not relock then return false end
-        if relock > 0 then
-            if not (worldAsk and worldAsk.id == id) then
-                worldAsk = { id = id, yes = false }
-                log("world: " .. id .. " has " .. relock .. " researched shop tech(s);"
-                    .. " asking before tying the seed to it")
-                notify("This world already has progress: " .. relock .. " researched tech(s) would be locked again"
-                    .. " and its records sent as checks. Load a new world for this seed, or press " .. HINT_KEY
-                    .. " to play the seed here anyway.")
-            end
-            return false
-        end
-    end
-    worldAsk = nil
-    ap.world = id
-    writeSave()
-    log("world: this seed is played in world " .. id)
-    return true
-end
--- Whether the loaded world is the seed's: true in the seed's world, and also when the world cannot be told (a seed
--- with no world yet is then not tied to one); false while asking about a world with progress.
-local function isSeedWorld(ps)
-    local id = worldId()
-    if not id and ap.world then
-        once("worldunread", "world: the loaded world's folder can't be read, so it is not taken as this seed's ("
-            .. ap.world .. ")")
-        return false
-    end
-    if not id then return true end                 -- a seed with no world yet: not tied to one (logged in worldId)
-    if not ap.world then return tieWorld(ps, id) end
-    if id == ap.world then return true end
-    if seedWorld ~= false then
-        log("world: " .. id .. " is not this seed's world (" .. ap.world .. "): nothing is locked, sent or given here"
-            .. " (to move the seed to this world, delete the world= line from " .. tostring(saveFile()) .. ")")
-        notify("This is not the world this Archipelago seed is played in: nothing is locked, sent or given here.")
-    end
-    return false
-end
--- Looks at whether the loaded world is the seed's (the records phase) and keeps the answer in seedWorld. The notice
--- that it is not is given once, while seedWorld still says otherwise.
-local function checkWorld(ps)
-    seedWorld = isSeedWorld(ps)
-end
+local WORLD = require("world")
 
 -- One-off effects of items, in index order; each is applied once per seed. False when it could not be applied yet (a
 -- bundle the bag refused, with the mailbox off): it is tried again later.
@@ -772,7 +687,7 @@ local function buy(tech)
         notify("Not connected to Archipelago: nothing bought.")
         return
     end
-    if seedWorld == false then
+    if WORLD.seedWorld() == false then
         notify("This is not the world this Archipelago seed is played in: nothing bought.")
         return
     end
@@ -952,48 +867,10 @@ local death = {
     route = 1,                -- which of ROUTES faints the player (the first that works)
 }
 local lockedTicks = 0         -- looks in a row inside a locked area: forgotten never (back to 0 outside one)
--- State: the world (the world step, noteWorld). Forgotten: never (the key is replaced at a world change, and the age
--- counted again from 0).
-local worldKey = nil          -- the world the player is in, as the pawn's address (see noteWorld); nil or false: none
-local worldAge = 0            -- updates since worldKey last changed
-local worldForgetters = {}    -- what each topic forgets at a world change, called in the order they were added
 -- Notices that would come while the loading screen is still up (Speed Boost's, 2026-11-07 test: sent 2 s after the world
 -- loaded, before the player could see it; they found it later in chat): held until the player's character has moved
 -- MOVED_CM from where it first stood in this world, or WAIT.heldNotice has passed, then shown. Dropped if the world
 -- changes first.
--- The world step: which world the player is in, how long ago it loaded, and whether it just changed. noteWorld runs
--- in every update once the connection is ready (before anything reads the world), so the age counts from the first
--- ready update: a world loaded before connecting also waits WAIT.settle after the connection is ready.
--- The key is the player's pawn's address. A new world brings a new pawn, so the key changes at every world load. The
--- pawn can also change, or read nil for a moment, inside one world, so a forget function must leave alone what is
--- still alive (WALLS.reset keeps the walls that still stand). The walls, Speed Boost (sync.lua) and the held notices
--- were built on this key, so it stays. The frame's controllerKey (player.lua), the first live controller's address,
--- is a second key: the mailbox and the perf probe use it to tell "the same controller", and it is not the world's.
-
--- Adds what a topic forgets at a world change. They run in the order they were added (main.lua's start-up list).
-local function onWorldChange(forget)
-    worldForgetters[#worldForgetters + 1] = forget
-end
-
--- Notes which world this update is in, and when it changed, calls every forget function. Returns the pawn.
-local function noteWorld()
-    local pawn = safe(function() local ps = playerState(); return ps and ps:GetPawn() end)
-    local world = pawn and pawn:IsValid() and safe(function() return tostring(pawn:GetAddress()) end)
-    if world ~= worldKey then
-        worldKey, worldAge = world, 0
-        for _, forget in ipairs(worldForgetters) do
-            forget()
-        end
-    end
-    worldAge = worldAge + 1
-    return pawn
-end
-
--- Whether the world has been loaded for WAIT.settle: spawning into a world still loading can crash the game.
-local function worldSettled()
-    return worldKey and worldAge >= WAIT.settle
-end
-
 -- State: forgotten when the world changes (the held notices are dropped, not shown).
 local heldNotices = {
     list = {},                -- the notices held, in order
@@ -1003,13 +880,13 @@ local heldNotices = {
 local MOVED_CM = 300
 local function noticeLater(msg)
     local held = heldNotices
-    if held.world ~= worldKey then held.list, held.world, held.from = {}, worldKey, nil end
+    if held.world ~= WORLD.key() then held.list, held.world, held.from = {}, WORLD.key(), nil end
     held.list[#held.list + 1] = msg
 end
 local function showLater(pawn)
     local held = heldNotices
     if #held.list == 0 then return end
-    if held.world ~= worldKey then
+    if held.world ~= WORLD.key() then
         held.list, held.from = {}, nil
         return
     end
@@ -1020,7 +897,7 @@ local function showLater(pawn)
         local dx, dy = at.X - held.from.X, at.Y - held.from.Y
         moved = dx * dx + dy * dy >= MOVED_CM * MOVED_CM
     end
-    if moved or worldAge >= WAIT.settle + WAIT.heldNotice then
+    if moved or WORLD.age() >= WAIT.settle + WAIT.heldNotice then
         for _, msg in ipairs(held.list) do notify(msg) end
         local why = moved and "the player moved" or "a minute in the world"
         log("held notice(s) shown (" .. why .. "): " .. #held.list)
@@ -1126,7 +1003,7 @@ local function resetSeed()
     TRAPS.reset()
     TECH_LOCK.techsChanged()
     resetGoal()
-    resetSeedWorld()
+    WORLD.resetSeedWorld()
     resetHints()
     resetTechScan()
     log("a different seed or slot: progress of the last one forgotten")
@@ -1316,11 +1193,7 @@ local function askHint()
 end
 -- Key binds run off the game thread: they only hand over a function made here, once (no new function there).
 local function hintKey()
-    if worldAsk and not worldAsk.yes then
-        worldAsk.yes = true
-        log("world: the player said yes to playing this seed in " .. worldAsk.id)
-        return
-    end
+    if WORLD.takeYes() then return end
     local ok, err = pcall(askHint)
     if not ok then log("hint error: " .. tostring(err)) end
 end
@@ -1400,7 +1273,7 @@ local function deathLink(ps)
     end
     -- An incoming death waits for a settled world with a character (as the traps do), then counts as late.
     local character = safe(function() return ps:GetPawn() end)
-    local settled = worldSettled() and character and character:IsValid()
+    local settled = WORLD.settled() and character and character:IsValid()
     if death.incoming and (settled or CLOCK.now() - death.at > WAIT.deathLate) then
         local cause = death.incoming
         death.incoming = nil
@@ -1615,10 +1488,10 @@ end
 -- Area locks: walls on the borders of areas whose pass has not arrived (only in a seed with area locks on), and the
 -- map. Nothing happens for WAIT.settle after a world loads: spawning into a world still loading can crash the game.
 local function updateAreaLocks(pawn)
-    if worldKey and seedWorld == false then
+    if WORLD.key() and WORLD.seedWorld() == false then
         pcall(WALLS.mapOff)                        -- (C++ would show the seed's map here)
     end
-    if not (worldSettled() and seedWorld) then return end
+    if not (WORLD.settled() and WORLD.seedWorld()) then return end
     local on = areaLocks
     -- Ctrl+7 (perf test tools) can hold the walls in a test state: nothing is raised, lowered or checked then.
     local held = P.walls ~= "full"
@@ -1643,7 +1516,7 @@ end
 -- settled, and with area locks on. Inside a stage (a dungeon, a tower's arena) the map position says nothing about
 -- the area the player entered it from: no notice, no visit and no sending home there.
 local function areaLocksApply(pawn)
-    if not (pawn and worldSettled() and seedWorld and areaLocks) then return false end
+    if not (pawn and WORLD.settled() and WORLD.seedWorld() and areaLocks) then return false end
     local okS, inStage = pcall(function() return playerState():IsInStage() end)
     return not (okS and inStage)
 end
@@ -1670,8 +1543,8 @@ local function phaseRecords()
     -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
     local okk, errk = pcall(TRAPS.tick, { tick = CLOCK.now(), pawn = pawn })
     if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
-    if ps and ap.ready then checkWorld(ps) end
-    if ps and ap.ready and seedWorld then
+    if ps and ap.ready then WORLD.checkWorld(ps) end
+    if ps and ap.ready and WORLD.seedWorld() then
         P.start("rec")
         pollRecords(ps, CLOCK.now())
         P.stop("rec")
@@ -1683,7 +1556,7 @@ end
 -- The items phase, in the seed's world only: techs and items; once the world has settled, the run style's sync and the
 -- held notices; Death Link; traps.
 local function phaseItems()
-    if not (ap.ready and seedWorld) then return end
+    if not (ap.ready and WORLD.seedWorld()) then return end
     local ps = playerState()
     if not ps then return end
     P.start("e7")
@@ -1693,8 +1566,8 @@ local function phaseItems()
     if changed then refreshTree() end
     local td = safe(function() return ps:GetTechnologyData() end)
     if td and td:IsValid() then applyItems(ps) end    -- (items wait while the tech data is still loading)
-    if worldSettled() then
-        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, worldKey, noticeLater)
+    if WORLD.settled() then
+        local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), noticeLater)
         if not oks then
             onceErr("sync", news, "sync error: " .. tostring(news))
         elseif news then
@@ -1709,8 +1582,8 @@ local function phaseItems()
     local okt, errt = pcall(function()
         local pawn = safe(function() return ps:GetPawn() end)
         local okd, dead = pcall(function() return ps:IsPlayerDead() end)
-        -- (Not worldSettled(): a pawn that is there but not valid makes the key false, which counts as settled here.)
-        TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = worldKey ~= nil and worldAge >= WAIT.settle,
+        -- (Not WORLD.settled(): a pawn that is there but not valid makes the key false, which counts as settled here.)
+        TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = WORLD.key() ~= nil and WORLD.age() >= WAIT.settle,
                        dead = not okd or dead, busy = MAIL.busy() })
     end)
     if not okt then onceErr("traps", errt, "traps error: " .. tostring(errt)) end
@@ -1752,7 +1625,7 @@ local function update(ctx)
     sendRemovedSlots()
     local pawn = nil
     if ap.ready then
-        pawn = noteWorld()
+        pawn = WORLD.note()
         updateAreaLocks(pawn)
     end
     runPhase(pawn)
@@ -1839,10 +1712,10 @@ end
 -- What a world change forgets, in this order: whether this world is the seed's (looked at again in the records phase
 -- before any wall goes up; a yes is for the world it was asked in), the pop-up or goal banner (it went with the old
 -- world's HUD), the walls, and the skip of the tech list's comparison (another world's list is compared in full).
-onWorldChange(resetSeedWorld)
-onWorldChange(POPUP.forget)
-onWorldChange(WALLS.reset)
-onWorldChange(TECH_LOCK.forgetSeen)
+WORLD.onChange(WORLD.resetSeedWorld)
+WORLD.onChange(POPUP.forget)
+WORLD.onChange(WALLS.reset)
+WORLD.onChange(TECH_LOCK.forgetSeen)
 
 -- Every UPDATE_MS (the harness's thread-rule check reads this loop: keep its shape).
 LoopAsync(UTIL.UPDATE_MS, function()

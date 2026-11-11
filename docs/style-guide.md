@@ -59,6 +59,11 @@ or a new file, look here and use the block. Never write a second copy. A block i
 - **A function the Lua mod calls in the connector:** `register_text` in `dllmain.cpp`. Code that turns text into
   numbers lives in `lua_text.*`, which is tested on Linux. An event line the bridge sends Lua is built and taken
   apart in `event_lines.*`.
+- **Which world the player is in, and forgetting the last one:** the world step in `world.lua`. `WORLD.note()` runs
+  near the start of every update; `WORLD.key()`, `WORLD.age()` and `WORLD.settled()` answer for every file. A file
+  that keeps anything from one world registers the function that forgets it with `WORLD.onChange(forget)`, in
+  `main.lua`'s start-up list. New code keeps no world key of its own (`mailbox.lua` and `menu.lua` still notice a
+  world change themselves).
 - **A hook on a Blueprint class:** `hookWhenLoaded(path, fn, tag)` in `util.lua`, called every update until it
   registers.
 
