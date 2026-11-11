@@ -71,42 +71,6 @@ P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = 
 -- The test tools (test_tools.lua). update() steps their probes every update; they stay idle unless installed, which
 -- only test_tools=1 in config.txt does (at the end of this file).
 local TEST_TOOLS = require("test_tools")
--- Bumped whenever what syncTechs compares against changes (the techs items unlocked, or which techs are the shop's),
--- so it can skip the comparison while neither that nor the game's list has changed.
-local techsVersion = 0
-
--- Techs a seed leaves as normal research (slot data research_techs, e.g. décor with tech_checks no_decor): they leave
--- D.shop for D.research, so nothing locks, labels or sends them. Set again on every connection. D is the generated
--- table (ap_data.lua); research is a field the mod adds to it, and techscan.lua reads it too.
-D.research = {}
-local function setResearch(list)
-    for tech, s in pairs(D.research) do D.shop[tech] = s end
-    D.research = {}
-    techsVersion = techsVersion + 1
-    for tech in (list or ""):gmatch("[^,]+") do
-        local s = D.shop[tech]
-        if s then D.research[tech], D.shop[tech] = s, nil end
-    end
-    local n = 0
-    for _ in pairs(D.research) do n = n + 1 end
-    if n > 0 then log(n .. " tech(s) are normal research in this seed (not checks)") end
-end
--- The last seed's list is kept in research.txt, so its normal-research techs can be researched before the first
--- connection of a session too (the server down, or playing before connecting).
-local function keepResearch(list)
-    local f = io.open(modDir .. "\\research.txt", "w")
-    if not f then log("could not write research.txt"); return end
-    f:write((list or "") .. "\n")
-    f:close()
-end
-do
-    local f = io.open(modDir .. "\\research.txt", "r")
-    if f then
-        setResearch(f:read("l"))
-        f:close()
-    end
-end
-
 local STATE = require("ap_state")
 local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
 local PLAYER = require("player")
@@ -117,6 +81,10 @@ WALLS.visited = ap.visited                -- (the same table: the map reads it)
 local SAVE = require("save")
 SAVE.install({ dir = modDir })
 local saveFile, loadSave, writeSave = SAVE.path, SAVE.load, SAVE.write
+local TECH_LOCK = require("tech_lock")
+TECH_LOCK.install({ dir = modDir })
+TECH_LOCK.readLastResearch()
+local syncTechs = TECH_LOCK.sync
 
 -- Which world save is loaded: the game instance's selected world folder (PalGameInstance, a pure UFunction returning
 -- an FString). Untested from Lua: its first answer is logged. Nil when it can't be read.
@@ -129,67 +97,6 @@ local function worldId()
     once("worldid", "world save folder: " .. tostring(id) .. (ok and "" or (" (" .. tostring(v) .. ")")))
     return id ~= "" and id or nil
 end
-
-local function arrayNames(arr)
-    local out = {}
-    arr:ForEach(function(_, e) out[#out + 1] = e:get():ToString() end)
-    return out
-end
-
--- The techs items have unlocked, and nothing else from the shop. Level-1 techs and anything outside the shop are left
--- alone. Runs only once the connection is ready, so playing offline never relocks anything.
--- The whole list was read and compared every 7th update (estimated 0.3-1.2 ms, unmeasured). It is skipped while the
--- game's list has the same length and techsVersion is unchanged since a comparison that changed nothing: the game adds
--- techs to the list, so a new one changes its length. Every 15th poll (about 30 s) compares in full regardless. The
--- skip is tied to the TechnologyData it was taken from (another world loaded with the same seed and an equally long
--- list must be compared at once, as 6dd356e did within 2.1 s), and it is forgotten on a world change as well.
-local techsSeen, techPolls = nil, 0
-local researchedNow = {}      -- tech -> true: the world's researched list at the last full read (prerequisites)
-local function syncTechs(ps)
-    local td = ps:GetTechnologyData()
-    if not td or not td:IsValid() then return end   -- still loading into the world
-    local arr = td.UnlockedTechnologyNameArray
-    techPolls = techPolls + 1
-    local okNum, num = pcall(function() return arr:GetArrayNum() end)
-    if not okNum then num = nil end
-    local okAddr, addr = pcall(function() return tostring(td:GetAddress()) end)
-    if not okAddr then addr = nil end
-    if num and addr and techsSeen and techsSeen.version == techsVersion and techsSeen.num == num and techsSeen.td == addr
-        and techPolls % 15 ~= 0 then
-        return false
-    end
-    techsSeen = nil
-    local okNames, names = pcall(arrayNames, arr)
-    if not okNames then return end                    -- not readable this moment (seen as the menu first opens)
-    P.count("techs", #names)
-    local keep, have, changed = {}, {}, false
-    for _, n in ipairs(names) do
-        have[n] = true
-        if D.shop[n] and not ap.techs[n] then
-            changed = true
-            log("locked " .. n .. " (its item has not arrived)")
-        else
-            keep[#keep + 1] = n
-        end
-    end
-    researchedNow = have
-    for tech in pairs(ap.techs) do
-        if not have[tech] then
-            keep[#keep + 1] = tech
-            changed = true
-            log("unlocked " .. tech)
-        end
-    end
-    if changed then
-        arr:Empty()
-        for i, n in ipairs(keep) do arr[i] = FName(n) end
-        safe(function() td:OnRep_UnlockedTechnologyNameArray() end)
-    elseif num and addr then
-        techsSeen = { version = techsVersion, num = num, td = addr }
-    end
-    return changed
-end
-
 
 -- A seed belongs to one world: the first one the mod sees it played in (kept in the save file as world=). config.txt
 -- connects at every start, whatever world is loaded next; in any other world nothing is locked, sent, given or
@@ -204,7 +111,7 @@ local function techsToRelock(ps)
     local ok, names = pcall(function()
         local td = ps:GetTechnologyData()
         if not td or not td:IsValid() then error("no tech data yet") end
-        return arrayNames(td.UnlockedTechnologyNameArray)
+        return TECH_LOCK.arrayNames(td.UnlockedTechnologyNameArray)
     end)
     if not ok then return nil end
     local relock = 0
@@ -875,7 +782,7 @@ local function slotUnlockable(td, tech)
     if (td[s.ancient and R.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
     local p = s.prereq
     -- A prerequisite the seed leaves as normal research is met once the player has researched it in the game.
-    if p and not (ap.techs[p] or D.starters[p] or (D.research[p] and researchedNow[p])) then return false end
+    if p and not (ap.techs[p] or D.starters[p] or (D.research[p] and TECH_LOCK.researchedNow(p))) then return false end
     if s.tower and not ap.beaten[s.tower] then return false end
     if s.research then
         local ok, yes = pcall(function() return td:IsLabResearchRequirementSatisfied(FName(s.research)) end)
@@ -1035,7 +942,7 @@ local function onItem(indexText, itemText, _locationText, playerText, _flagsText
     local index, id, player = tonumber(indexText), tonumber(itemText), tonumber(playerText)
     if ap.items[index] == id then return end
     ap.items[index] = id
-    techsVersion = techsVersion + 1
+    TECH_LOCK.techsChanged()
     local it = D.items[id]
     if not it then
         log("unknown item " .. id .. " (" .. tostring(name) .. ")")
@@ -1110,7 +1017,7 @@ local function resetSeed()
     WALLS.visited = ap.visited
     MAIL.reset()
     TRAPS.reset()
-    techsVersion = techsVersion + 1
+    TECH_LOCK.techsChanged()
     hints.known, hints.shown, hints.offer = {}, {}, nil
     techScan.sent = false
     log("a different seed or slot: progress of the last one forgotten")
@@ -1172,8 +1079,8 @@ local function onConnected(was)
         loadSave()
     end
     local research = AP_SlotData("research_techs")
-    setResearch(research)
-    keepResearch(research)
+    TECH_LOCK.setResearch(research)
+    TECH_LOCK.keepResearch(research)
     local locs = {}
     for _, slot in pairs(D.shop) do locs[#locs + 1] = tostring(slot.loc) end
     AP_Scout(table.concat(locs, ","))
@@ -1551,7 +1458,7 @@ local function noteWorldChange(world)
     worldAsk = nil                                 -- (a yes is for the world it was asked in)
     POPUP.forget()                                 -- (the pop-up or goal banner went with the old world's HUD)
     WALLS.reset()
-    techsSeen = nil                                -- another world's tech list: compare it in full
+    TECH_LOCK.forgetSeen()                         -- another world's tech list: compare it in full
 end
 
 -- Walking up to a wall: chat names the pass it needs and where it is if a hint said so, or offers to buy that hint
