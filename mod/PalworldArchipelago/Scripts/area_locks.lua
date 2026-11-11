@@ -64,7 +64,7 @@ function AREA_LOCKS.configureWalls(dir)
         settings.fade = { near * CM_PER_METRE, far * CM_PER_METRE }
     end
     WALLS.install(settings)
-    ART.install({ keepAlive = keepAlive, dir = dir })
+    ART.install({ dir = dir })
     WALLS.setSkin(cfg.wall_skin)
 end
 
