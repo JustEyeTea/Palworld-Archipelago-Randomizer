@@ -109,6 +109,38 @@ function UTIL.addr(obj)
     end)
 end
 
+-- The game instance, or nil. It lives all session (objects it owns are kept alive), so it is kept here and looked up
+-- again only when it is no longer valid.
+local gameInstanceKept = nil
+function UTIL.gameInstance()
+    if gameInstanceKept and gameInstanceKept:IsValid() then
+        return gameInstanceKept
+    end
+    local gi = FindFirstOf("PalGameInstance")
+    if not gi then
+        gi = FindFirstOf("GameInstance")
+        UTIL.took("util: the game instance", "a GameInstance (no PalGameInstance found)")
+    end
+    gameInstanceKept = gi and gi:IsValid() and gi or nil
+    return gameInstanceKept
+end
+
+-- An object's path without its class: GetFullName gives "Class /Path.Object", the engine's lookups take "/Path.Object".
+function UTIL.objectPath(obj)
+    local full = obj:GetFullName()
+    return full:match("^%S+%s+(.+)$") or full
+end
+
+-- Whether a file can be opened for reading.
+function UTIL.exists(path)
+    local f = io.open(path, "rb")
+    if not f then
+        return false
+    end
+    f:close()
+    return true
+end
+
 -- A class (or another object loaded from the game's files) by its full path, loading its package when the game has
 -- not loaded it yet; nil when it can't be had. LoadAsset needs the full "/Game/Dir/Asset.Asset", so the class path's
 -- "_C" is taken off (a package path or a class path loads nothing, and says nothing).
@@ -135,6 +167,15 @@ function UTIL.linear(hex, alpha)
         colour[channel] = srgb <= 0.04045 and srgb / 12.92 or ((srgb + 0.055) / 1.055) ^ 2.4
     end
     return colour
+end
+
+-- Whether a widget belongs to a player who is gone: after Return to title and another world load, FindAllOf still
+-- lists the last world's widgets for a while. A widget whose owner cannot be read counts as not gone.
+function UTIL.ownerGone(widget)
+    local ok, owner = pcall(function()
+        return widget:GetOwningPlayer()
+    end)
+    return ok and not (owner and owner:IsValid())
 end
 
 ------------------------------------------------------------------------------------------------------------------------
