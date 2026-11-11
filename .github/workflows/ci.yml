@@ -128,6 +128,11 @@ jobs:
           cd palworld-archipelago/cppmod/APConnector
           g++ -std=c++17 -O1 -Isrc test/lua_text_test.cpp src/lua_text.cpp -o "$RUNNER_TEMP/lua_text_test"
           "$RUNNER_TEMP/lua_text_test"
+      - name: The C++ part's event lines (the text the connector hands Lua for each thing the server sent)
+        run: |
+          cd palworld-archipelago/cppmod/APConnector
+          g++ -std=c++17 -O1 -Isrc test/event_lines_test.cpp src/event_lines.cpp -o "$RUNNER_TEMP/event_lines_test"
+          "$RUNNER_TEMP/event_lines_test"
       - name: Archipelago's test suites
         run: AP_DIR="$GITHUB_WORKSPACE/archipelago" palworld-archipelago/tools/ap_tests.sh
       - name: Test generations
