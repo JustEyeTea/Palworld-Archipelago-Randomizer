@@ -82,6 +82,16 @@ or a new file, look here and use the block. Never write a second copy. A block i
   error is logged once under the hook's name.
 - **A hook on a Blueprint class:** `hookWhenLoaded(path, fn, tag)` in `util.lua`, called every update until it
   registers.
+- **A harness test:** a `group(title, function() ... end)` in the file of `mod/test/tests/` for its topic, added at
+  the end of the group it extends (groups run in order and share the state they leave). Set the scene through the
+  stand-ins: a switch in `game` (declared in `fakes.lua`'s `GAME_START`), a world helper (`inWorld`,
+  `newController`, `newPawn`), or a field of a fake; a new stand-in goes in the fakes file of its topic
+  (`fakes.lua`, `fakes_map.lua`, `fakes_menus.lua`), beside the lookup that returns it. Send events with `pushItem`,
+  `pushScout`, `trap` and `push`, and move time with `run`, `runCycles`, `runSeconds` and `runPast(WAIT.<wait>)`,
+  never a typed count of a wait. Check with `expect(cond, "what should be true: " .. tostring(value))`, one
+  behaviour per check; ask the log about one step with `logMark()` and `loggedSince(mark, pattern)` (`logged` looks
+  at the whole run). A helper two groups need goes in `helpers.lua` as `h.<name>`; a value a later group needs goes
+  in `shared`. The steps are in the header of `mod/test/harness.lua`.
 
 ## Failures and fallbacks
 
@@ -111,7 +121,8 @@ or a new file, look here and use the block. Never write a second copy. A block i
 ## Lua (UE4SS)
 
 UE4SS runs some callbacks on a different thread from the game, over the same Lua state, and Lua code there corrupts
-that state. These rules keep the mod's code on the game thread. `mod/test/harness.lua` checks the first three.
+that state. These rules keep the mod's code on the game thread. The harness checks the first three
+(`mod/test/tests/rules.lua`).
 
 - **Never use `ExecuteWithDelay`.** For work later, use the queue in `soon.lua` (`later(n, fn)` runs `fn` after `n`
   core updates).
