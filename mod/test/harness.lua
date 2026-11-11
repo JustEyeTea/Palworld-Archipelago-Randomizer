@@ -1886,7 +1886,7 @@ local ESC_CLICK = "/Game/Pal/Blueprint/UI/UserInterface/ESCMenu/WBP_MenuESC_Butt
 print("the mailbox")
 local kinds, items = require("mailbox").count()
 expect(kinds == 1 and items == 50, "the Wood Bundle waits in the mailbox: " .. items)
-expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\nmailview=0", 1, true), "kept in the save file")
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=Wood:50\n", 1, true), "kept in the save file")
 expect(#announced > 0 and table.concat(announced, "|"):find("Esc menu > Archipelago Mailbox.", 1, true)
        and not table.concat(announced, "|"):find("Inventory", 1, true),
        "the player is told where it is: the Esc menu (the Inventory button is not named until a playtest has seen it)")
@@ -2053,7 +2053,8 @@ local slots = chests[1].c.slots
 expect(#shown == 1 and shown[1].kind == 7 and shown[1].param.MapObjectConcreteModel == chests[1], "the game's chest window opens on it")
 expect(slots[1].ItemId.StaticId:ToString() == "Wood" and slots[1].StackCount == 50, "filled from the mailbox")
 expect(chests[1].model.DeteriorationDamage == 0 and chests[1].model.DamagableType == 2 and chests[1].locked, "kept from decay and locked")
-expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview=1", 1, true), "the save knows a view is open")
+expect(not io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mailview", 1, true),
+       "the save holds the list only, with no line for an open view (nothing read it)")
 expect(chests[1].c.Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
        and slots[7].Permission.PermissionItemStaticIds.list[1]:ToString() == "AP_MailboxGivesOnly"
        and logged("deposits refused by permission: container set, 300 slot%(s%)"), "the chest accepts nothing (the game's own rule)")
@@ -2118,7 +2119,7 @@ expect(given[#given] == "Wood x1" and logged("put in at the last moment went bac
 expect(slots[1]:IsEmpty() and slots[2]:IsEmpty(), "the chest is emptied")
 expect(not logged("no chest window heading found"), "the heading is not looked for as the window closes")
 local saved = io.open(MOD .. "/save-12345-Tester.txt"):read("*a")
-expect(saved:find("mail=Wood:20,Stone:50\nmailview=0", 1, true), "saved: " .. saved)
+expect(saved:find("mail=Wood:20,Stone:50\n", 1, true), "saved: " .. saved)
 -- Open again: the chest is found, not made again. A plain stack left in it (a world save older than the mod's save,
 -- after a crash) is a copy: it goes before filling.
 slots[5].ItemId.StaticId, slots[5].StackCount = FNameOf("Wood"), 20
@@ -2226,7 +2227,7 @@ expect(given[#given] == "Wood x1" and #winRows == 1, "a row takes its item into 
 hooks[ROW_CLICK]({ get = function() return window.TakeAll end })
 run(1)
 expect(given[#given] == "Stone x50" and #winRows == 0 and require("mailbox").count() == 0, "Take all empties it")
-expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\nmailview=0", 1, true), "and the save")
+expect(io.open(MOD .. "/save-12345-Tester.txt"):read("*a"):find("mail=\n", 1, true), "and the save")
 hooks[ROW_CLICK]({ get = function() return window.Close end })
 run(1)
 hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false

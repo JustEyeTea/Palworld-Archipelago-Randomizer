@@ -615,7 +615,6 @@ local function emptyThenFillChest(chest)
             end
         end
     end
-    M.stale = false
     return waiting, slots, placed, inChest
 end
 
@@ -1060,7 +1059,6 @@ function CHEST.open(chest, pawn)
     parameter.MapObjectConcreteModel = chest
     local id = hud:ShowCommonUI(ITEM_CHEST_WINDOW, parameter)
     view = newView(id, hud, chest, held, inChest)
-    env.save()                                           -- mailview=1 until it closes
     log("mailbox: chest view open (" .. slots .. " slots, " .. placed .. " filled, " .. #held
         .. " kind(s) waiting behind)")
     if #held > 0 then
@@ -1095,7 +1093,7 @@ function CHEST.close()
     local ok, err = pcall(absorb)
     if not ok then
         log("mailbox: could not empty the chest (" .. tostring(err) .. "); it is emptied on the next open")
-        view, M.stale = nil, true
+        view = nil
         return
     end
     view = nil
@@ -1190,7 +1188,7 @@ function CHEST.forget()
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- The list and the save file (the lines mail=Wood:50,Stone:50 and mailview=0|1, in the mod's per-seed save).
+-- The list and the save file (the line mail=Wood:50,Stone:50, in the mod's per-seed save).
 
 -- The mailbox's states, as the player sees them, and the moves between them. Every state but "closed" is held in the
 -- records named; mailboxState() says which one the mailbox is in.
@@ -1225,7 +1223,6 @@ local WAIT = {
 
 -- State: the list. Forgotten: on a new seed (M.reset()); kept in the save file.
 M.queue = {}                  -- { { id = static item id, n = count } } in arrival order, one entry per item
-M.stale = false               -- the last chest view never closed (the game quit): the chest holds copies of the list
 -- State: the opening. Forgotten: on a new world (forgetOnWorldChange()), on a new seed (M.reset()).
 local openAsked = false       -- an open was asked for and is not done yet
 local updatesToWait = 0       -- updates left before an asked open is tried (the menu closes first)
@@ -1315,32 +1312,24 @@ function M.serialize()
     for _, entry in ipairs(M.queue) do
         parts[#parts + 1] = entry.id .. ":" .. entry.n
     end
-    local viewOpen = (CHEST.viewing() or M.stale) and "1" or "0"
-    return "mail=" .. table.concat(parts, ",") .. "\nmailview=" .. viewOpen .. "\n"
+    return "mail=" .. table.concat(parts, ",") .. "\n"
 end
 
 -- One line of the save file; true if it was the mailbox's.
 function M.load(line)
     local list = line:match("^mail=(.*)$")
-    if list then
-        if CHEST.viewing() then return true end       -- a chest view is open: the list in memory is newer
-        M.queue = {}
-        for id, count in list:gmatch("([^:,]+):(%d+)") do
-            M.addCount(M.queue, id, tonumber(count))
-        end
-        return true
-    end
-    local viewOpen = line:match("^mailview=(%d)")
-    if not viewOpen then return false end
-    if not CHEST.viewing() then
-        M.stale = viewOpen == "1"
+    if not list then return false end
+    if CHEST.viewing() then return true end           -- a chest view is open: the list in memory is newer
+    M.queue = {}
+    for id, count in list:gmatch("([^:,]+):(%d+)") do
+        M.addCount(M.queue, id, tonumber(count))
     end
     return true
 end
 
 -- Forgets the last seed's list and whatever was open.
 function M.reset()
-    M.queue, M.stale, openAsked = {}, false, false
+    M.queue, openAsked = {}, false
     WINDOW.forget()
     CHEST.forgetView()
 end
@@ -1419,9 +1408,6 @@ local function forgetOnWorldChange(ctx)
     if world and state ~= "closed" then
         log("mailbox: the world changed; " .. (CHEST.viewing() and "the open chest view is settled on the next open"
             or "dropped what was open"))
-    end
-    if CHEST.viewing() then
-        M.stale = true
     end
     CHEST.forget()
     WINDOW.forget()

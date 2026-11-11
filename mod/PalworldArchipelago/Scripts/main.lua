@@ -219,7 +219,7 @@ WALLS.visited = ap.visited                -- (the same table: the map reads it)
 --   bought=123,456            checks the mod sent itself (ap.bought): sent again on connecting
 --   visited=Area|Area         open areas the player has stood in (the map's open stamps)
 --   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
---   mail=id:n,... and mailview=0|1           mailbox.lua: the mailbox's items; whether a chest view was open
+--   mail=id:n,...             mailbox.lua: the mailbox's items
 --   crates=kind,... and cratebag=id:n,...    crates.lua: unopened crates; crate gear the bag refused
 --   syncbase=Field:value,...  sync.lua: the world's own rates from before the run style changed them
 --   end                       the last line: the file was written whole
