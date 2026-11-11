@@ -2265,6 +2265,25 @@ end)()
 hooks[ROW_CLICK]({ get = function() return window.Close end })
 run(1)
 hud.Push, wbl.Create, logicMod = pushPlain, wblCreate, false
+;(function()   -- a new seed while the hidden chest is being made: the chest templates get their size back at once
+    local chestsWere, spawnWas = chests, mapObjects.RequestSpawnMapObjectByPlayer_Server
+    chests = {}
+    mapObjects.RequestSpawnMapObjectByPlayer_Server = function() return true end   -- the chest never appears
+    MB.add("Wood", 1)
+    MB.open()
+    run(3)
+    local raised = chestTemplates[1].SlotNum
+    MB.reset()
+    local afterReset, toldBefore = chestTemplates[1].SlotNum, #announced
+    run(25)
+    local toldFailure = false
+    for i = toldBefore + 1, #announced do
+        if announced[i]:find("could not be made", 1, true) then toldFailure = true end
+    end
+    expect(raised == 300 and afterReset == 54 and not toldFailure and not MB.busy(),
+           "the templates are put back with the reset, and nothing more is made or said: " .. tostring(afterReset))
+    chests, mapObjects.RequestSpawnMapObjectByPlayer_Server = chestsWere, spawnWas
+end)()
 
 do   -- (its own block, as the traps tests below)
 print("the Inventory page's mailbox button")

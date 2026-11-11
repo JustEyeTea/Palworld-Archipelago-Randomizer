@@ -406,7 +406,8 @@ local HEADING_ROW_LEVELS = 3         -- how far above the heading the row it sit
 -- State: the chest view (the chest window the mailbox opened). Forgotten: when it closes (closeView()), on a new
 -- world (CHEST.forget()), on a new seed (CHEST.forget()). Its fields are listed in newView().
 local view = nil
--- State: the hidden chest being made. Forgotten: when it appears or the wait is over, on a new world (stopSpawning()).
+-- State: the hidden chest being made. Forgotten: when it appears or the wait is over, on a new world or a new seed
+-- (stopSpawning()).
 -- { updates = updates since it was asked for, templates = list of { component, slotsBefore }: the chest templates
 -- whose size was raised while it is made, put back by stopSpawning() }
 local spawning = nil
@@ -1196,11 +1197,6 @@ function CHEST.widget()
     return ok and widget or nil
 end
 
--- Forgets the view only; the chest being made goes on (M.reset, a new seed).
-function CHEST.forgetView()
-    view = nil
-end
-
 -- Forgets the view and the chest being made (a new world or a new seed: they belong to the old one). A view not yet
 -- settled leaves copies in the chest, which the next open removes.
 function CHEST.forget()
@@ -1352,7 +1348,7 @@ end
 function M.reset()
     M.queue, openAsked = {}, false
     WINDOW.forget()
-    CHEST.forgetView()
+    CHEST.forget()
 end
 
 -- Tells the player an item stays in the mailbox because the bag is full; any other reason is only logged.
