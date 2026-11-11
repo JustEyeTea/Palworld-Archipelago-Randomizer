@@ -266,7 +266,7 @@ the other modules.
 | `held_notices.lua` | Notices held through a loading screen. |
 | `run_style.lua` | Run Style (Nomad's hand-overs, `RUN_STYLE.gifts`) and Speed Boost: the world settings it multiplies (`RUN_STYLE.apply`), the world's own values (`syncbase=` in the save) and the warning. |
 | `death_link.lua` | Death Link: the faint routes (`ROUTES`), a death received, the player's own death and the amnesty. |
-| `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`S.phase`) that sends the checks of slots another mod removed. |
+| `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`TECHSCAN.phase`) that sends the checks of slots another mod removed. |
 
 How it works:
 

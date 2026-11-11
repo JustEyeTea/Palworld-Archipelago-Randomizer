@@ -1,61 +1,78 @@
--- Other mods' techs: reads the game's live tech table (after PalSchema and any .pak mods have changed it) and compares it
--- with vanilla 1.0.5 (ap_data's shop slots and level-1 techs). Techs other mods add are left as normal research (the
+-- Other mods' techs: reads the game's live tech table (after PalSchema and any .pak mods have changed it) and compares
+-- it with vanilla 1.0.5 (ap_data's shop slots and level-1 techs). Techs other mods add are left as normal research (the
 -- shop only touches its own slots); this reports them, notes vanilla techs whose level or cost a mod changed, and lists
 -- shop slots a mod removed, which can never be bought, so their checks can be sent instead of stranding the multiworld.
--- The scan runs once a session, in main.lua's tech-scan phase (S.phase). Wired by main.lua (S.install).
+-- The scan runs once a session, in main.lua's tech-scan phase (TECHSCAN.phase). Wired by main.lua (TECHSCAN.install).
 -- Tests: mod/test/tests/core.lua; group "other mods' techs" (tools/lua_harness.sh, in CI).
-local S = {}
+local TECHSCAN = {}
 local CHECKS = require("checks")
+local CLOCK = require("clock")
 local DATA = require("ap_data")
 local PERF = require("perf")
 local PLAYER = require("player")
 local STATE = require("ap_state")
 local UTIL = require("util")
 local ap = STATE.ap
-local log, safe = UTIL.log, UTIL.safe
+local log, safe, isValid = UTIL.log, UTIL.safe, UTIL.isValid
 local notify, playerState, sendChecks = PLAYER.notify, PLAYER.playerState, CHECKS.sendChecks
-local TECH_SCAN_TRIES = 40      -- one try per cycle until the player's tech data is there: about 84 s
 
--- What main.lua hands over (S.install).
+-- The scan is tried once a cycle until the player's tech data is there, for at most this long.
+local GIVE_UP_AFTER = UTIL.updates(84)
+local TECH_SCAN_TRIES = math.floor(GIVE_UP_AFTER / CLOCK.CYCLE + 0.5)
+
+-- What main.lua hands over (TECHSCAN.install).
 --   version   the mod's version, written at the top of mod_techs.txt
 --   dir       the mod's folder, where mod_techs.txt is written
 local env
 
 -- Takes what main.lua hands over.
-function S.install(handedOver)
+function TECHSCAN.install(handedOver)
     env = handedOver
 end
 
+-- The unmodded tech table's assets, read when the live table can't be reached.
 local TABLES = {
     "/Game/Pal/DataTable/Technology/DT_TechnologyRecipeUnlock.DT_TechnologyRecipeUnlock",
     "/Game/Pal/DataTable/Technology/DT_TechnologyRecipeUnlock_Common.DT_TechnologyRecipeUnlock_Common",
 }
-S.MIN_MATCH = 0.9      -- trust a read only if it finds at least this share of vanilla's techs
-S.LEVEL_SLACK = 5      -- a vanilla tech moved more than this many levels up is worth a warning
+TECHSCAN.MIN_MATCH = 0.9      -- trust a read only if it finds at least this share of vanilla's techs
+TECHSCAN.LEVEL_SLACK = 5      -- a vanilla tech moved more than this many levels up is worth a warning
+local MOST_CHANGED_SHARE = 0.5  -- more than this share of vanilla "changed": the rows were not really read
 
-local function valid(o) return o ~= nil and pcall(function() return o:IsValid() end) and o:IsValid() end
 local function str(v)
     if type(v) == "string" then return v end
     local ok, s = pcall(function() return v:ToString() end)
     return ok and s or tostring(v)
 end
-local function num(v) local n = tonumber(v); return n and math.floor(n) or nil end
+local function num(v)
+    local n = tonumber(v)
+    return n and math.floor(n) or nil
+end
 
 -- The table the game itself reads (PalMasterDataTables' technology data set), or the asset if that can't be reached.
+-- Which one was read is said once.
 local function liveTable()
-    local ok, t = pcall(function() return FindFirstOf("PalMasterDataTables").technologyDataSet.recipeUnlockDataTable end)
-    if ok and valid(t) then return t end
+    local ok, t = pcall(function()
+        return FindFirstOf("PalMasterDataTables").technologyDataSet.recipeUnlockDataTable
+    end)
+    if ok and isValid(t) then
+        UTIL.took("tech scan: the tech table", "the game's live one")
+        return t
+    end
     for _, path in ipairs(TABLES) do
         local o = StaticFindObject(path)
-        if valid(o) then return o end
+        if isValid(o) then
+            UTIL.took("tech scan: the tech table", "the asset " .. path .. " (other mods' changes may be missing)")
+            return o
+        end
     end
 end
 
 local function rowNames(dt)
     local lib = StaticFindObject("/Script/Engine.Default__DataTableFunctionLibrary")
-    if not valid(lib) then return nil, "no DataTableFunctionLibrary" end
+    if not isValid(lib) then return nil, "no DataTableFunctionLibrary" end
     local out, names = {}, {}
-    lib:GetDataTableRowNames(dt, out)              -- UE4SS fills the table with the out array's elements (seen on 1.0.5)
+    lib:GetDataTableRowNames(dt, out)              -- UE4SS fills the table with the out array's elements
     for _, e in ipairs(out) do
         local ok, n = pcall(function() return e:get():ToString() end)
         names[#names + 1] = ok and n or str(e)
@@ -68,59 +85,105 @@ end
 local function row(td, name)
     local ok, r = pcall(function() return td:GetTechlonogyBaseData(FName(name)) end)
     if not ok or r == nil then return {} end
-    local function field(k) local okf, v = pcall(function() return r[k] end); return okf and v or nil end
+    local function field(k)
+        local okf, v = pcall(function() return r[k] end)
+        return okf and v or nil
+    end
     local prereq = field("RequireTechnology")
     prereq = prereq ~= nil and str(prereq) or nil
     return { level = num(field("LevelCap")), cost = num(field("Cost")), ancient = field("IsBossTechnology") == true,
              prereq = (prereq ~= "None" and prereq ~= "") and prereq or nil }
 end
 
+-- Vanilla's techs (shop slots, starters and the techs this seed leaves as research), as a set; how many, and how many
+-- of them the live table has.
+local function readVanilla(data, live)
+    local vanilla, count, matched = {}, 0, 0
+    for _, list in ipairs({ data.shop, data.starters, data.research or {} }) do
+        for id in pairs(list) do
+            vanilla[id] = true
+        end
+    end
+    for id in pairs(vanilla) do
+        count = count + 1
+        if live[id] then
+            matched = matched + 1
+        end
+    end
+    return vanilla, count, matched
+end
+
+-- The techs the live table has that vanilla does not: { { id, level, cost, prereq, ancient } }, by id.
+local function addedTechs(td, names, vanilla)
+    local added = {}
+    for _, n in ipairs(names) do
+        if not vanilla[n] then
+            local r = row(td, n)
+            added[#added + 1] = { id = n, level = r.level, cost = r.cost, prereq = r.prereq, ancient = r.ancient }
+        end
+    end
+    table.sort(added, function(a, b) return a.id < b.id end)
+    return added
+end
+
+-- What another mod changed in one shop slot's row, as text ("" for nothing); and whether it moved up so far that the
+-- seed's logic no longer fits.
+local function slotChange(td, id, slot)
+    local r, what = row(td, id), {}
+    if r.level and r.level ~= slot.level then
+        what[#what + 1] = "level " .. slot.level .. " -> " .. r.level
+    end
+    if r.cost and r.cost ~= slot.cost then
+        what[#what + 1] = "cost " .. slot.cost .. " -> " .. r.cost
+    end
+    if r.level and r.prereq ~= slot.prereq then
+        what[#what + 1] = "prerequisite " .. tostring(slot.prereq) .. " -> " .. tostring(r.prereq)
+    end
+    return table.concat(what, ", "), r.level and r.level > slot.level + TECHSCAN.LEVEL_SLACK
+end
+
+-- Fills the report's changed and warn lists from the shop slots the live table still has.
+local function changedSlots(report, td, data, live)
+    for id, slot in pairs(data.shop) do
+        if live[id] then
+            local what, movedFar = slotChange(td, id, slot)
+            if what ~= "" then
+                report.changed[#report.changed + 1] = { id = id, what = what }
+            end
+            if movedFar then
+                report.warn[#report.warn + 1] = id
+            end
+        end
+    end
+end
+
 -- Returns a report, or nil and why: the table isn't readable yet (title screen, loading), or the read looks wrong.
--- report = { total, added = { {id, level, cost, prereq, ancient} }, changed = { {id, what} }, removed = { ids of vanilla
--- techs missing: shop slots, starters and research alike }, warn }
-function S.scan(td, D)
+-- report = { total, added = { {id, level, cost, prereq, ancient} }, changed = { {id, what} }, removed = { ids of
+-- vanilla techs missing: shop slots, starters and research alike }, warn = { ids moved far up }, unread = rows that
+-- differed when the rows could not be read }. `data` is ap_data.lua's.
+function TECHSCAN.scan(td, data)
     local dt = liveTable()
     if not dt then return nil, "tech table not found" end
     local names, err = rowNames(dt)
     if not names or #names == 0 then return nil, err or "tech table has no rows yet" end
-    local live, vanilla, matched, nvanilla = {}, {}, 0, 0
-    for _, n in ipairs(names) do live[n] = true end
-    for id in pairs(D.shop) do vanilla[id] = true end
-    for id in pairs(D.starters) do vanilla[id] = true end
-    for id in pairs(D.research or {}) do vanilla[id] = true end   -- shop techs this seed leaves as normal research
-    for id in pairs(vanilla) do
-        nvanilla = nvanilla + 1
-        if live[id] then matched = matched + 1 end
-    end
-    if matched < nvanilla * S.MIN_MATCH then
-        return nil, string.format("read only %d of %d vanilla techs: not trusted", matched, nvanilla)
-    end
-    local report = { total = #names, added = {}, changed = {}, removed = {}, warn = {} }
+    local live = {}
     for _, n in ipairs(names) do
-        if not vanilla[n] then
-            local r = row(td, n)
-            report.added[#report.added + 1] = { id = n, level = r.level, cost = r.cost, prereq = r.prereq, ancient = r.ancient }
-        end
+        live[n] = true
     end
-    table.sort(report.added, function(a, b) return a.id < b.id end)
+    local vanilla, count, matched = readVanilla(data, live)
+    if matched < count * TECHSCAN.MIN_MATCH then
+        return nil, string.format("read only %d of %d vanilla techs: not trusted", matched, count)
+    end
+    local report = { total = #names, added = addedTechs(td, names, vanilla), changed = {}, removed = {}, warn = {} }
     -- Every vanilla tech missing, not only this seed's shop slots: the scan runs once a session, and a tech this seed
-    -- leaves as research can be a shop slot of the next seed connected to. S.sendRemovedSlots keeps the shop's.
+    -- leaves as research can be a shop slot of the next seed connected to. TECHSCAN.sendRemovedSlots keeps the shop's.
     for id in pairs(vanilla) do
         if not live[id] then
             report.removed[#report.removed + 1] = id
         end
     end
-    for id, slot in pairs(D.shop) do
-        if live[id] then
-            local r, what = row(td, id), {}
-            if r.level and r.level ~= slot.level then what[#what + 1] = "level " .. slot.level .. " -> " .. r.level end
-            if r.cost and r.cost ~= slot.cost then what[#what + 1] = "cost " .. slot.cost .. " -> " .. r.cost end
-            if r.level and r.prereq ~= slot.prereq then what[#what + 1] = "prerequisite " .. tostring(slot.prereq) .. " -> " .. tostring(r.prereq) end
-            if #what > 0 then report.changed[#report.changed + 1] = { id = id, what = table.concat(what, ", ") } end
-            if r.level and r.level > slot.level + S.LEVEL_SLACK then report.warn[#report.warn + 1] = id end
-        end
-    end
-    if #report.changed > nvanilla / 2 then           -- most of vanilla "changed": the rows weren't really read
+    changedSlots(report, td, data, live)
+    if #report.changed > count * MOST_CHANGED_SHARE then
         report.unread, report.changed, report.warn = #report.changed, {}, {}
     end
     table.sort(report.removed)
@@ -129,17 +192,29 @@ function S.scan(td, D)
     return report
 end
 
--- The report as lines: for the log, and for mod_techs.txt (which a later version can turn into a YAML profile).
-function S.lines(report)
+-- The report as lines: for the log, and for mod_techs.txt (which a later version can turn into a YAML profile). The
+-- lines, fields split by tabs:
+--   tech table: <total> techs; <n> added by mods, <n> vanilla changed, <n> vanilla removed
+--   added<TAB><id><TAB>level=<n><TAB>cost=<n><TAB>prereq=<id or ->[<TAB>ancient]
+--   row details unreadable (<n> rows differed): levels and costs not compared
+--   changed<TAB><id><TAB><what changed, comma-separated: "level 23 -> 35", "cost 2 -> 3", "prerequisite A -> B">
+--   removed<TAB><id>
+function TECHSCAN.lines(report)
     local out = { string.format("tech table: %d techs; %d added by mods, %d vanilla changed, %d vanilla removed",
                                 report.total, #report.added, #report.changed, #report.removed) }
     for _, a in ipairs(report.added) do
-        out[#out + 1] = string.format("added\t%s\tlevel=%s\tcost=%s\tprereq=%s%s", a.id, tostring(a.level), tostring(a.cost),
-                                      tostring(a.prereq or "-"), a.ancient and "\tancient" or "")
+        out[#out + 1] = string.format("added\t%s\tlevel=%s\tcost=%s\tprereq=%s%s", a.id, tostring(a.level),
+                                      tostring(a.cost), tostring(a.prereq or "-"), a.ancient and "\tancient" or "")
     end
-    if report.unread then out[#out + 1] = "row details unreadable (" .. report.unread .. " rows differed): levels and costs not compared" end
-    for _, c in ipairs(report.changed) do out[#out + 1] = "changed\t" .. c.id .. "\t" .. c.what end
-    for _, id in ipairs(report.removed) do out[#out + 1] = "removed\t" .. id end
+    if report.unread then
+        out[#out + 1] = "row details unreadable (" .. report.unread .. " rows differed): levels and costs not compared"
+    end
+    for _, c in ipairs(report.changed) do
+        out[#out + 1] = "changed\t" .. c.id .. "\t" .. c.what
+    end
+    for _, id in ipairs(report.removed) do
+        out[#out + 1] = "removed\t" .. id
+    end
     return out
 end
 
@@ -154,45 +229,57 @@ local techScan = {
     sent = false,             -- the checks of slots whose tech another mod removed were sent for this seed
 }
 -- Lets the removed slots' checks be sent again for a new seed.
-function S.resetTechScan()
+function TECHSCAN.resetTechScan()
     techScan.sent = false
+end
+
+-- Writes the report's lines to mod_techs.txt beside the mod (said in the log when it can't).
+local function writeModTechs(lines)
+    local path = env.dir .. "\\mod_techs.txt"
+    local f, errOpen = io.open(path, "w")
+    if not f then
+        log("tech scan: could not write " .. path .. ": " .. tostring(errOpen))
+        return
+    end
+    f:write("# PalworldArchipelago " .. env.version .. ": techs other mods added, changed or removed"
+            .. " (vanilla is 1.0.5)\n", table.concat(lines, "\n"), "\n")
+    f:close()
 end
 
 -- Other mods' techs: read once a session, as soon as the player's tech data is there. Their own techs stay
 -- normal research; the report goes to the log and mod_techs.txt.
 local function tryTechScan(td)
     techScan.tries = techScan.tries + 1
-    local ok, report, why = pcall(S.scan, td, DATA)
+    local ok, report, why = pcall(TECHSCAN.scan, td, DATA)
     if not ok then
         techScan.tries = math.huge
         log("tech scan error: " .. tostring(report))
         return
     end
     if not report then
-        if techScan.tries == TECH_SCAN_TRIES then log("tech scan: gave up: " .. tostring(why)) end
+        if techScan.tries == TECH_SCAN_TRIES then
+            log("tech scan: gave up: " .. tostring(why))
+        end
         return
     end
     techScan.report = report
-    local lines = S.lines(report)
-    for _, l in ipairs(lines) do log(l) end
-    local path = env.dir .. "\\mod_techs.txt"
-    local f, errOpen = io.open(path, "w")
-    if f then
-        f:write("# PalworldArchipelago " .. env.version .. ": techs other mods added, changed or removed (vanilla is 1.0.5)\n",
-                table.concat(lines, "\n"), "\n")
-        f:close()
-    else
-        log("tech scan: could not write " .. path .. ": " .. tostring(errOpen))
+    local lines = TECHSCAN.lines(report)
+    for _, l in ipairs(lines) do
+        log(l)
     end
-    if #report.added > 0 then notify(#report.added .. " tech(s) from other mods: they stay normal research.") end
+    writeModTechs(lines)
+    if #report.added > 0 then
+        notify(#report.added .. " tech(s) from other mods: they stay normal research.")
+    end
     if #report.warn > 0 then
-        notify(#report.warn .. " shop tech(s) moved to much higher levels by other mods; this seed's logic expects vanilla levels.")
+        notify(#report.warn .. " shop tech(s) moved to much higher levels by other mods; this seed's logic expects"
+            .. " vanilla levels.")
     end
 end
 
 -- A shop slot whose tech another mod removed can never be bought: send its check, so no one waits on it forever.
 -- Once a seed, as soon as the scan has found them and the connection is ready.
-function S.sendRemovedSlots()
+function TECHSCAN.sendRemovedSlots()
     if not (ap.ready and techScan.report and not techScan.sent) then return end
     techScan.sent = true
     local locs = {}
@@ -210,13 +297,18 @@ function S.sendRemovedSlots()
 end
 
 -- The tech-scan phase: other mods' techs, once per cycle until the player's tech data is there.
-function S.phase()
+function TECHSCAN.phase()
     if techScan.report or techScan.tries >= TECH_SCAN_TRIES then return end
     PERF.start("scan")
-    local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
-    if td and safe(function() return td:IsValid() end) then tryTechScan(td) end
+    local td = safe(function()
+        local ps = playerState()
+        return ps and ps:GetTechnologyData()
+    end)
+    if isValid(td) then
+        tryTechScan(td)
+    end
     PERF.stop("scan")
-    S.sendRemovedSlots()                           -- (in the update the scan found them)
+    TECHSCAN.sendRemovedSlots()                    -- (in the update the scan found them)
 end
 
-return S
+return TECHSCAN
