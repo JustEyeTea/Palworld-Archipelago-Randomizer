@@ -11,6 +11,7 @@ local PLAYER = require("player")
 local RECORDS = require("records")
 local SHOP_CARDS = require("shop_cards")
 local STATE = require("ap_state")
+local TECH_LOCK = require("tech_lock")
 local UTIL = require("util")
 local WORLD = require("world")
 local ap = STATE.ap

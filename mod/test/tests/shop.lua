@@ -135,4 +135,17 @@ group("which slots can be bought", function()
     game.playerLevel = 4
     runCycles(1)
     expect(canBuy("AutoMealPouch_Tier2") == false, "not below the slot's level")
+    do   -- a prerequisite the seed leaves as normal research: met only once the player has researched it in the game
+        local ap = require("ap_state").ap
+        local levelWas, pointsWas, ownedWas = ap.level, td.bossTechnologyPoint, ap.techs.Lantern_High
+        D.research.Lantern, D.shop.Lantern = D.shop.Lantern, nil
+        ap.techs.Lantern_High, ap.level, td.bossTechnologyPoint = true, 30, 10
+        local errorsBefore = countLogged("hook IsUnlockableRecipeTechnology error")
+        local answer = canBuy("Lantern_High")
+        local errors = countLogged("hook IsUnlockableRecipeTechnology error") - errorsBefore
+        D.shop.Lantern, D.research.Lantern = D.research.Lantern, nil
+        ap.techs.Lantern_High, ap.level, td.bossTechnologyPoint = ownedWas, levelWas, pointsWas
+        expect(answer == false and errors == 0,
+               "owned, its prerequisite (normal research) not researched: the mod says no: " .. tostring(answer))
+    end
 end)
