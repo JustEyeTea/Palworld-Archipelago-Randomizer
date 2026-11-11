@@ -462,4 +462,13 @@ group("the mailbox", function()
         chests, util.GetMapObjectManager = chestsWere, managerWas
         expect(not busy and told, "an open that can't start making the chest is given up, and the player told")
     end
+    do   -- Take all writes the save file once, not once for every kind taken
+        MB.add("Wood", 2)
+        MB.add("Stone", 2)
+        MB.add("PalSphere", 2)
+        local writesBefore = saveWrites
+        MB.takeAll()
+        expect(saveWrites - writesBefore == 1 and MB.count() == 0,
+               "Take all writes the save once: " .. saveWrites - writesBefore .. " write(s)")
+    end
 end)

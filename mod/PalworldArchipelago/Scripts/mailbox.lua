@@ -176,7 +176,8 @@ function M.tellStays(id, why)
     log("mailbox: " .. id .. " stays in the mailbox: " .. tostring(why))
 end
 
--- Takes one item's whole entry into the bag; how many went in. What the bag refuses stays in the list.
+-- Takes one item's whole entry into the bag; how many went in. What the bag refuses stays in the list. The caller
+-- writes the save file (once, after all it takes: a write each kind would be one per kind on Take all).
 function M.take(id)
     for index, entry in ipairs(M.queue) do
         if entry.id == id then
@@ -188,7 +189,6 @@ function M.take(id)
             if got == 0 then
                 M.tellStays(id, why)
             end
-            env.save()
             return got
         end
     end
@@ -204,6 +204,7 @@ function M.takeAll()
         took = took + got
         left = left + (count - got)
     end
+    env.save()
     return took, left
 end
 

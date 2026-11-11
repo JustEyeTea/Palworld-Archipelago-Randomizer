@@ -13,6 +13,7 @@ local log = UTIL.log
 --   list                  the mailbox module: its queue, count(), take(id), takeAll() and TITLE
 --   once(key, msg)        the mailbox's log-once for this world
 --   notify(text)          shows a line to the player
+--   save()                writes the mod's save file (after a row's take)
 --   guardedHook(name, fn) optional: a hook callback that no update can run inside
 local env, LIST, once
 
@@ -138,7 +139,10 @@ end
 
 -- What each kind of button does. All but Close fill the window again afterwards.
 local WINDOW_ACTIONS = {
-    take = function(action) LIST.take(action.id) end,
+    take = function(action)
+        LIST.take(action.id)
+        env.save()
+    end,
     takeAll = takeAllAndTell,
     close = function() pcall(function() window.hud:Close(window.id) end) end,
 }
