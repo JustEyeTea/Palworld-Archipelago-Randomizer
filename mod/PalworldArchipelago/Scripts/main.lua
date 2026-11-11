@@ -71,23 +71,21 @@ P.install(cfg, { wallsCount = function() return (WALLS.count()) end, setWalls = 
 -- The test tools (test_tools.lua). update() steps their probes every update; they stay idle unless installed, which
 -- only test_tools=1 in config.txt does (at the end of this file).
 local TEST_TOOLS = require("test_tools")
--- tech id <-> shop slot
-local SLOT_TECH = {}
-for tech, s in pairs(D.shop) do SLOT_TECH[s.loc] = tech end
 -- Bumped whenever what syncTechs compares against changes (the techs items unlocked, or which techs are the shop's),
 -- so it can skip the comparison while neither that nor the game's list has changed.
 local techsVersion = 0
 
 -- Techs a seed leaves as normal research (slot data research_techs, e.g. décor with tech_checks no_decor): they leave
--- D.shop for D.research, so nothing locks, labels or sends them. Set again on every connection.
+-- D.shop for D.research, so nothing locks, labels or sends them. Set again on every connection. D is the generated
+-- table (ap_data.lua); research is a field the mod adds to it, and techscan.lua reads it too.
 D.research = {}
 local function setResearch(list)
-    for tech, s in pairs(D.research) do D.shop[tech], SLOT_TECH[s.loc] = s, tech end
+    for tech, s in pairs(D.research) do D.shop[tech] = s end
     D.research = {}
     techsVersion = techsVersion + 1
     for tech in (list or ""):gmatch("[^,]+") do
         local s = D.shop[tech]
-        if s then D.research[tech], D.shop[tech], SLOT_TECH[s.loc] = s, nil, nil end
+        if s then D.research[tech], D.shop[tech] = s, nil end
     end
     local n = 0
     for _ in pairs(D.research) do n = n + 1 end
@@ -1177,7 +1175,7 @@ local function onConnected(was)
     setResearch(research)
     keepResearch(research)
     local locs = {}
-    for loc in pairs(SLOT_TECH) do locs[#locs + 1] = tostring(loc) end
+    for _, slot in pairs(D.shop) do locs[#locs + 1] = tostring(slot.loc) end
     AP_Scout(table.concat(locs, ","))
     ap.sent = {}
     ap.goalSent = false                    -- a goal sent on a connection that was already dead goes again
