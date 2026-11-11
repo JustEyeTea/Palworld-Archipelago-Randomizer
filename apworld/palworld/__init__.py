@@ -72,6 +72,7 @@ class Levels:
         self.layout = layout
         self.tower = {name: TOWER_LEVELS[name] for name in layout.towers}
         self.pal_levels = {e: self.pal_level(e) for e in CATCHABLE}
+        self.caught_pal_levels = {e: self.pal_level(e, breed=False) for e in CATCHABLE}  # bred-only Pals: NO_LEVEL
 
     def world_tree_boss_level(self, piece: str) -> int:
         """The level the World Tree's boss, in this piece, asks for (as the logic has it)."""
@@ -206,9 +207,11 @@ class PalworldWorld(World):
 
     def cap_after_pals(self) -> int:
         """The Paldeck goal's auto cap: PALDECK_MARGIN past the level by which enough Pals can be had. It counts every
-        piece of the map and bred Pals (Levels.pal_levels), as the seed's map is not chosen yet; capture_levels, which
-        the goal's own count in check_counts uses, may count fewer, and then check_counts refuses the seed."""
-        last_pal = sorted(self.levels.pal_levels.values())[self.options.paldeck_count.value - 1]
+        piece of the map, as the seed's map is not chosen yet, and bred-only Pals only with Gear Logic, as the goal's
+        own count does (capture_levels, in check_counts). That count may still find fewer under a smaller map, and
+        then check_counts refuses the seed; so does a count no level reaches (NO_LEVEL puts the cap at MAX_LEVEL)."""
+        pal_levels = self.levels.pal_levels if self.gear else self.levels.caught_pal_levels
+        last_pal = sorted(pal_levels.values())[self.options.paldeck_count.value - 1]
         return min(MAX_LEVEL, last_pal + PALDECK_MARGIN)
 
     def cap_for_relics(self) -> int:

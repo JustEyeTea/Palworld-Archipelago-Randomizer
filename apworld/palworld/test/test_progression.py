@@ -174,6 +174,17 @@ class TestNoGearLogicPassesKeepsEveryPass(PalworldTestBase):
         self.assertNotIn(shop_location(TECH_BY_ID[TRIPLE_JUMP_BOOTS]), names)
 
 
+class TestPaldeckAutoCapWithoutGearLogic(PalworldTestBase):
+    """Without Gear Logic bred-only Pals aren't checks, so the Paldeck goal's auto cap counts only caught Pals: 150
+    of them are caught by level 37, and the seed generates (WorldTestBase's own tests)."""
+    options = {"goal": "paldeck", "paldeck_count": 150}
+
+    def test_cap_from_caught_pals(self):
+        from .. import PALDECK_MARGIN
+        caught = sorted(self.world.levels.caught_pal_levels.values())
+        self.assertEqual(self.world.cap, caught[150 - 1] + PALDECK_MARGIN)
+
+
 class TestTechPointItems(PalworldTestBase):
     options = {"tech_point_items": True}
 
