@@ -201,6 +201,8 @@ local ap = {
     me = nil,             -- our slot number
     seed = nil,
     checked = {},         -- location id -> true
+    bought = {},          -- location id -> true: checks the mod sent itself (purchases, removed slots), not read
+                          -- from the game's records; sent again on every connection and kept in the save file
     sent = {},            -- location id -> true: sent this session (waiting for the server to confirm)
     scouted = {},         -- location id -> { item, player, game, flags, own }
     items = {},           -- index -> item id, every item received
@@ -212,7 +214,7 @@ local ap = {
     from = {},            -- index -> the player who sent a trap item (nil: found in our own world)
     forgiven = 0,         -- own faints forgiven since a death was last sent (Death Link amnesty; in the save file)
     visited = {},         -- area -> true: open areas the player has stood in (the map's open stamps; in the save file)
-    goalSent = false,
+    goalSent = false,     -- sent on this connection (cleared on connecting, so a goal lost on the wire goes again)
     goalShown = false,    -- the goal's banner and notice have been shown (once per seed; in the save file)
     world = nil,          -- the world save this seed is played in (its folder name), kept in the save file
     slotName = nil,       -- the slot whose progress is in memory, set with the seed on connecting (names the save)
@@ -226,6 +228,7 @@ WALLS.visited = ap.visited                -- (the same table: the map reads it)
 --   world=<folder>            the world save this seed is played in (checkWorld)
 --   deaths=1                  own faints forgiven since a death was last sent (Death Link amnesty)
 --   goal=shown                the goal's banner and notice have been shown
+--   bought=123,456            checks the mod sent itself (ap.bought): sent again on connecting
 --   visited=Area|Area         open areas the player has stood in (the map's open stamps)
 --   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
 --   mail=id:n,... and mailview=0|1           mailbox.lua: the mailbox's items; whether a chest view was open
@@ -265,6 +268,7 @@ local function loadSave()
         local w = line:match("^world=(.+)$")
         local d = line:match("^deaths=(%d+)")
         local v = line:match("^visited=(.*)$")
+        local b = line:match("^bought=(.*)$")
         if line == "goal=shown" then
             ap.goalShown = true
         elseif n then
@@ -275,6 +279,8 @@ local function loadSave()
             ap.forgiven = tonumber(d)
         elseif v then
             for area in v:gmatch("[^|]+") do ap.visited[area] = true end
+        elseif b then
+            for loc in b:gmatch("%d+") do ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true end
         elseif not TRAPS.load(line) and not CRATES.load(line) and not SYNC.load(line) then
             MAIL.load(line)
         end
@@ -296,12 +302,16 @@ local function writeSave(always)
     local been = {}
     for area in pairs(ap.visited) do been[#been + 1] = area end
     table.sort(been)
+    local bought = {}
+    for loc in pairs(ap.bought) do bought[#bought + 1] = loc end
+    table.sort(bought)
     local text = table.concat({
         "given=" .. ap.given .. "\n",
         ap.world and ("world=" .. ap.world .. "\n") or "",
         "deaths=" .. ap.forgiven .. "\n",
         ap.goalShown and "goal=shown\n" or "",
         #been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "",
+        #bought > 0 and ("bought=" .. table.concat(bought, ",") .. "\n") or "",
         TRAPS.serialize(), MAIL.serialize(), CRATES.serialize(), SYNC.serialize(),
         "end\n",
     })
@@ -633,6 +643,17 @@ local function sendChecks(locs)
         log("sent " .. #fresh .. " check(s): " .. table.concat(fresh, ","))
     end
 end
+-- Checks the mod sent itself are not in the game's records, so nothing else would send them again: a purchase whose
+-- check went into a socket already dead (but not yet noticed) is sent on the next connection. The server ignores a
+-- check it already has.
+local function sendBoughtAgain()
+    local again = {}
+    for loc in pairs(ap.bought) do again[#again + 1] = tostring(loc) end
+    if #again == 0 then return end
+    table.sort(again)
+    AP_Check(table.concat(again, ","))
+    log("sent " .. #again .. " bought check(s) again on connecting")
+end
 
 -- Everything the game's records say is done: levels, captures, alphas, fast travel, towers. The server ignores
 -- locations this seed doesn't have (options turned off), so the mod doesn't need to know which are in play.
@@ -657,7 +678,7 @@ local function pollRecords(ps, tick)
     if not (out or tick - goalWait.since >= WAIT.goal) then return end
     ap.goalSent, done = true, goalWait.done
     goalWait = nil
-    AP_Goal()                                          -- (sent again each session: the server takes it once)
+    AP_Goal()                                          -- (sent again on each connection: the server takes it once)
     log("goal sent: " .. done .. (out and "" or " (still in a stage after 2 minutes)"))
     -- The banner and notice once per seed (kept in the save as goal=shown): 2026-11-08, loading a won world showed the
     -- banner again.
@@ -987,6 +1008,7 @@ local function buy(tech)
     td[field] = before - s.cost
     safe(function() td[s.ancient and R.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
     log(string.format("BOUGHT %s for %d %s: %d -> %d, sends %s", tech, s.cost, field, before, td[field], rewardText(tech)))
+    ap.bought[s.loc] = true
     sendChecks({ s.loc })
     ap.checked[s.loc] = true
     refreshTree()
@@ -1216,6 +1238,7 @@ local techScan = { report = nil, tries = 0, sent = false }   -- other mods' tech
 
 local function resetSeed()
     ap.checked, ap.sent, ap.scouted, ap.items, ap.techs, ap.passes = {}, {}, {}, {}, {}, {}
+    ap.bought = {}
     CRATES.reset()
     SYNC.reset()
     ap.given, ap.goalSent, ap.ready, ap.shown = -1, false, false, false     -- items are numbered from 0
@@ -1295,6 +1318,8 @@ local function onConnected(was)
     for loc in pairs(SLOT_TECH) do locs[#locs + 1] = tostring(loc) end
     AP_Scout(table.concat(locs, ","))
     ap.sent = {}
+    ap.goalSent = false                    -- a goal sent on a connection that was already dead goes again
+    sendBoughtAgain()
     if was ~= "connected" then notify("Connected to Archipelago as " .. cfg.slot) end
     applySeedOptions()
 end
@@ -1586,7 +1611,10 @@ local function sendRemovedSlots()
     local locs = {}
     for _, id in ipairs(techScan.report.removed) do
         local loc = D.shop[id] and D.shop[id].loc            -- (a tech this seed leaves as research has no check)
-        if loc and not ap.checked[loc] then locs[#locs + 1] = loc end
+        if loc and not ap.checked[loc] then
+            locs[#locs + 1] = loc
+            ap.bought[loc] = true
+        end
     end
     if #locs > 0 then
         sendChecks(locs)

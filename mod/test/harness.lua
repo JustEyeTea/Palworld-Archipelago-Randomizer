@@ -1723,6 +1723,20 @@ expect(cards[2].shown.clickable == true and cards[2].shown.name == "Campfire",
        "bought card showing your tech stays interactive for its tooltip: " .. tostring(cards[2].shown.name))
 req.v = FNameOf("Workbench"); research(nil, req)
 expect(req.v:ToString() == "Workbench", "level-1 research left alone")
+;(function()
+    print("a bought slot's check is sent again on every connection, and kept in the save file")
+    local loc = D.shop.RepairBench.loc
+    checks[loc] = nil                                -- as if it went into a socket that was already dead
+    push("status", "disconnected")
+    push("status", "connected", "Tester")
+    run(1)
+    expect(checks[loc], "after reconnecting, the purchase's check is sent again")
+    run(14)                                          -- (the save is written once the items are in again)
+    local f = io.open(MOD .. "/save-12345-Tester.txt", "r")
+    local text = f and f:read("*a") or ""
+    if f then f:close() end
+    expect(text:find("bought=[%d,]*" .. loc), "the save file keeps the bought slot: " .. (text:match("bought=[^\n]*") or "none"))
+end)()
 
 print("still loading into the world")
 td.valid = false
@@ -1744,6 +1758,7 @@ expect(f and f:read("*a"):match("given=7"), "save file records items applied")
 local MB = require("mailbox")
 do   -- (its own block, as above)
 print("the save file is written only when it changes")
+run(14)                                                      -- (the purchase above is saved first: bought=)
 local writes = saveWrites
 run(14)
 expect(saveWrites == writes, "nothing changed: not written again: " .. (saveWrites - writes) .. " write(s)")
@@ -3055,6 +3070,14 @@ expect(goals == before + 1 and logged("goal sent: 1 tower%(s%) beaten") and logg
     run(14)
     expect(n("goal sent: ") > sends and n("goal banner") == banners,
            "a won seed loaded again: the goal is sent again (the server takes it once), the banner not shown again")
+end)()
+;(function()
+    print("a goal sent on a dead connection is sent again after reconnecting")
+    local sent = goals
+    push("status", "disconnected")
+    push("status", "connected", "Other")
+    run(14)
+    expect(goals > sent, "after reconnecting, the goal is sent again: " .. (goals - sent) .. " sent")
 end)()
 print("mailbox off: bundles straight to the bag")
 local MB = require("mailbox")
