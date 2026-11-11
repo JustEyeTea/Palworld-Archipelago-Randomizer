@@ -43,8 +43,7 @@ local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "
 local function byArea(name) return name == "area" or name == "paws" end
 WALL_SKINS.SKINS = SKINS
 local SEALED = { R = 0.3231, G = 0.3663, B = 0.4564, A = 1 }  -- slate grey #9AA3B5 (Art lane's suggestion; the user may pick)
-local linearOf = UTIL.linear
-WALL_SKINS.linearOf = linearOf                                    -- (for the harness's colour tests)
+WALL_SKINS.linearOf = UTIL.linear                                 -- (for the harness's colour tests)
 local FLOW = 0.05
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
 local DENSE = { 10, 6 }
@@ -173,7 +172,7 @@ local function makePaws(name, gi, krl, kml)
     local tex = pawLayerTexture(gi, krl)
     if not tex then log("wall skin paws: could not load walls\\ap-wall-paws-layer.png"); return nil end
     local hex, own = name:match("^paws:(%x%x%x%x%x%x):?(%d*)$")
-    local back = hex and linearOf(hex) or SEALED
+    local back = hex and UTIL.linear(hex) or SEALED
     local s = nil
     if own and own ~= "" then
         -- (The Art lane's scatter, above: never hue, rotation or scale.)
@@ -293,7 +292,7 @@ local function patternFor(name)
     local hex = name:match("^area:(%x%x%x%x%x%x)$")
     if hex then
         areaFile = areaFile or patternOr("pawholes")
-        tint, file = linearOf(hex), areaFile
+        tint, file = UTIL.linear(hex), areaFile
     end
     if name == "sealed" then
         sealedFile = sealedFile or patternOr("sealed")

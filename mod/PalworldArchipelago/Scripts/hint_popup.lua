@@ -11,6 +11,7 @@ local H = {}
 -- seen working in the v0.13.9 playtest).
 local ART = require("art")
 local UTIL = require("util")
+local WIDGETS = require("widgets")
 local OPACITY = 0.8
 local SHOW_TICKS = UTIL.updates(6)      -- a hint plate stays 6 s
 local WIDTH, HEIGHT = 380, 84
@@ -19,19 +20,16 @@ local LINE1 = { left = 86, top = 15 }
 local LINE2 = { left = 86, top = 37 }
 local BAR = { left = 86, top = 60, width = 280, height = 9 }   -- the plate's own empty track, filled to have / cost
 local TITLE_PT, LINE_PT = 13, 10        -- text sizes: the title line, the second line (and the banner's line: TITLE_PT)
-local DEFAULT_FONT_PT = 24              -- UMG's default text size, scaled down from when the font cannot be set
 local OVER_HUD_Z = 1000                 -- the canvas Z order that puts the plate over the HUD's own widgets
 local PLATE_AT_Y, BANNER_AT_Y = 0.5, 0.3  -- how far down the screen the plate and the banner sit (0 top, 1 bottom)
 local HUD_DEPTH = 3                     -- how deep under the HUD layout's root the canvas is looked for
-local SELF_HIT_TEST_INVISIBLE = 4       -- ESlateVisibility::SelfHitTestInvisible: never takes a click
-local ALIGN_FILL, ALIGN_START = 0, 1    -- EHorizontalAlignment / EVerticalAlignment: Fill, and Left or Top
 local log = UTIL.log
 local once = UTIL.onceIn("hint_popup")
 
 -- The brand palette's sRGB colours (the project's art), as UMG's linear colour.
-local linear = UTIL.linear
-local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECBE6E"), linear("17324D", 0.94)
-local BANNER_INK = linear("CEE7E3")     -- the goal banner's text, on its pill
+local CREAM, LTEAL, SAND = UTIL.linear("FFF4DC"), UTIL.linear("7FD3CF"), UTIL.linear("ECBE6E")
+local NAVY = UTIL.linear("17324D", 0.94)
+local BANNER_INK = UTIL.linear("CEE7E3")   -- the goal banner's text, on its pill
 
 -- What is on screen: { box, untilTick, hud = the HUD layout's address (UTIL.addr), banner = true for the goal banner }.
 -- Forgotten: when taken down (H.hide), when its time is up or its HUD is gone (H.tick), and at a new pawn (H.forget).
@@ -57,34 +55,19 @@ local function hudCanvas()
     return nil, nil, "no canvas in the HUD layout"
 end
 
+-- A line of text on one line (the plate's lines and the banner's are short and placed by hand).
 local function text(outer, s, size, colour)
-    local t = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), outer)
-    local sized = pcall(function() local f = t.Font; f.Size = size; t:SetFont(f) end)
-    if not sized then          -- the default font: scale it down instead
-        local scale = size / DEFAULT_FONT_PT
-        pcall(function() t:SetRenderTransformPivot({ X = 0, Y = 0 }); t:SetRenderScale({ X = scale, Y = scale }) end)
-    end
-    pcall(function() t:SetColorAndOpacity({ SpecifiedColor = colour, ColorUseRule = 0 }) end)
-    t:SetText(FText(s))
-    return t
-end
--- A plain box w x h tinted `colour`, in a SizeBox.
-local function fill(outer, w, h, colour)
-    return (ART.sizedImage(outer, w, h, nil, colour))
-end
-local function place(over, w, left, top)
-    local s = over:AddChild(w)
-    pcall(function() s:SetHorizontalAlignment(ALIGN_START); s:SetVerticalAlignment(ALIGN_START) end)
-    pcall(function() s:SetPadding({ Left = left, Top = top, Right = 0, Bottom = 0 }) end)
-    return s
+    local block = WIDGETS.text(outer, s, size, colour)
+    pcall(function() block:SetAutoWrapText(false) end)
+    return block
 end
 
 -- A w x h box on the HUD layout with an Overlay in it, for the layers (art, text, bar). Returns both.
 local function hudBox(layout, w, h)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
+    local box = WIDGETS.construct(WIDGETS.UMG.sizeBox, layout)
     box:SetWidthOverride(w)
     box:SetHeightOverride(h)
-    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
+    local over = WIDGETS.construct(WIDGETS.UMG.overlay, layout)
     box:AddChild(over)
     return box, over
 end
@@ -97,7 +80,7 @@ local function pinToCanvas(canvas, box, anchorY)
     pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
     pcall(function() slot:SetAutoSize(true) end)
     pcall(function() slot:SetZOrder(OVER_HUD_Z) end)
-    pcall(function() box:SetVisibility(SELF_HIT_TEST_INVISIBLE) end)
+    pcall(function() box:SetVisibility(WIDGETS.VISIBILITY.selfHitTestInvisible) end)   -- never takes a click
 end
 
 -- Takes down what is shown (the plate or the banner), if anything.
@@ -118,18 +101,18 @@ function H.show(info, tick)
     local plateName = info.ready and "ap-hint-plate-ready" or "ap-hint-plate-short"
     local plate = ART.box(layout, plateName, WIDTH, HEIGHT)
     local box, over = hudBox(layout, WIDTH, HEIGHT)
-    local bg = plate or fill(layout, WIDTH, HEIGHT, NAVY)
+    local bg = plate or WIDGETS.plain(layout, WIDTH, HEIGHT, NAVY)
     local bs = over:AddChild(bg)
-    pcall(function() bs:SetHorizontalAlignment(ALIGN_FILL); bs:SetVerticalAlignment(ALIGN_FILL) end)
+    WIDGETS.fill(bs)
     if not plate then once("popupnoplate", "hint pop-up: no " .. plateName .. ".png yet; a plain box instead") end
-    place(over, text(layout, info.title or "", TITLE_PT, CREAM), LINE1.left, LINE1.top)
-    place(over, text(layout, info.line or "", LINE_PT, CREAM), LINE2.left, LINE2.top)
+    WIDGETS.place(over, text(layout, info.title or "", TITLE_PT, CREAM), LINE1.left, LINE1.top)
+    WIDGETS.place(over, text(layout, info.line or "", LINE_PT, CREAM), LINE2.left, LINE2.top)
     if info.cost and info.cost > 0 then
         local f = math.max(0, math.min(1, (info.have or 0) / info.cost))
         if f > 0 then
-            local filled = fill(layout, math.max(BAR.height, math.floor(BAR.width * f)), BAR.height,
+            local filled = WIDGETS.plain(layout, math.max(BAR.height, math.floor(BAR.width * f)), BAR.height,
                 info.ready and LTEAL or SAND)
-            place(over, filled, BAR.left, BAR.top)
+            WIDGETS.place(over, filled, BAR.left, BAR.top)
         end
     end
     pinToCanvas(canvas, box, PLATE_AT_Y)
@@ -153,8 +136,8 @@ function H.banner(line, tick)
     if not art then log("goal banner: no ap-goal-banner.png; chat only"); return false end
     local box, over = hudBox(layout, BANNER_W, BANNER_H)
     local bs = over:AddChild(art)
-    pcall(function() bs:SetHorizontalAlignment(ALIGN_FILL); bs:SetVerticalAlignment(ALIGN_FILL) end)
-    place(over, text(layout, line or "", TITLE_PT, BANNER_INK), BANNER_TEXT.left, BANNER_TEXT.top)
+    WIDGETS.fill(bs)
+    WIDGETS.place(over, text(layout, line or "", TITLE_PT, BANNER_INK), BANNER_TEXT.left, BANNER_TEXT.top)
     pinToCanvas(canvas, box, BANNER_AT_Y)
     shown = { box = box, untilTick = tick + BANNER_TICKS, hud = UTIL.addr(layout), banner = true }
     log("goal banner: shown (" .. tostring(line) .. ")")
