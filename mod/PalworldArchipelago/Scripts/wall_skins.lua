@@ -278,14 +278,15 @@ function WALL_SKINS.dropCaches()
     dissolveMaterials, dissolveStarts, glowAt, apWall, pawLayer = {}, {}, nil, nil, nil
 end
 -- The game instance and the rendering and material libraries a skin's material is made with, once the walls' own
--- material is known; nil while any of them is missing.
+-- material is known; nil and what is missing while any of them is.
 local function skinLibraries()
     local gi = owner()
     local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
-    if not (gi and skin.base and skin.base:IsValid() and krl and krl:IsValid() and kml and kml:IsValid()) then
-        return nil
-    end
+    if not gi then return nil, "no game instance" end
+    if not (skin.base and skin.base:IsValid()) then return nil, "the walls' own material is not known yet" end
+    if not (krl and krl:IsValid()) then return nil, "no KismetRenderingLibrary" end
+    if not (kml and kml:IsValid()) then return nil, "no KismetMaterialLibrary" end
     return gi, krl, kml
 end
 -- A pattern skin's tint, pattern file and tiling: the teal lattice and its variants, an area's colour, or sealed grey.
@@ -342,7 +343,7 @@ local function skinMaterial(name)
     skin.failed[name] = true                                   -- one try per skin per world; cleared on success
     local gi, krl, kml = skinLibraries()
     if not gi then
-        log("wall skin " .. name .. ": no game instance, wall material or material library yet")
+        log("wall skin " .. name .. ": " .. krl .. " yet; tried again later")
         skin.failed[name] = nil
         return nil
     end

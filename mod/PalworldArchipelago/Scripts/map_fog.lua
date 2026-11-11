@@ -440,7 +440,7 @@ function MAP_FOG.step(pawn, screens, opening, passes, key)
         if not cpp.maskDone then
             cpp.maskDone = true
             local ok, info = pcall(logFogMaterial, screens[#screens])
-            log("map fog: " .. tostring(info))
+            log("map fog: " .. (ok and tostring(info) or ("could not read the fog material: " .. tostring(info))))
         end
     end
 end

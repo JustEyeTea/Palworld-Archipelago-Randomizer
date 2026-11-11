@@ -2049,6 +2049,8 @@ do  -- Walls that are opening when the cut of the map changes, or when the openi
     opening2[1].IsValid = function() error("the opening step errors") end
     W2.update(true, { [WD.areas[4]] = true }, offMap)
     local afterError = standing(opening2) - 1                 -- (the piece that errors cannot be taken down)
+    expect(logged("walls: the opening step failed %(.*the opening step errors%); %d+ opening piece%(s%) taken down"),
+           "an error in the opening step is logged with how many opening pieces were taken down")
     expect(#opening > 0 and afterCut == 0 and #opening2 > 1 and afterError == 0,
            "opening walls are taken down at a change of cut (" .. afterCut .. " of " .. #opening .. " left) and after an"
            .. " error in the opening step (" .. afterError .. " of " .. (#opening2 - 1) .. " left)")
@@ -2187,6 +2189,21 @@ do  -- A fallback that is taken says so once: a wall's mesh found the second way
            and logged("walls: an opening piece's clock: the updates counted")
            and logged("map chart: the explored mask: from GetCurrentRenderTarget"),
            "fallbacks taken are logged once: the mesh, the opening clock, the explored mask")
+end
+do  -- A skin that cannot be made yet names what is missing
+    local W, mine = freshWalls()
+    local realFind = StaticFindObject
+    StaticFindObject = function(path)
+        if path:find("KismetMaterialLibrary", 1, true) then return nil end
+        return realFind(path)
+    end
+    for _ = 1, 3 do W.update(true, {}, offMap) end
+    W.setSkin("b")
+    W.update(true, {}, offMap)
+    StaticFindObject = realFind
+    expect(logged("wall skin b: no KismetMaterialLibrary yet; tried again later"),
+           "a skin that cannot be made yet names what is missing")
+    worldGoes(mine())
 end
 end
 end)()

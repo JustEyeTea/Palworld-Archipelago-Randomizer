@@ -19,7 +19,11 @@ function A.texture(name)
     if not (krl and krl:IsValid() and gi and gi:IsValid()) then return nil end
     local path = A.dir .. "\\art\\" .. name .. ".png"
     t = krl:ImportFileAsTexture2D(gi, path)
-    if not (t and t:IsValid()) then failed[name] = true; log("art: could not load " .. path); return nil end
+    if not (t and t:IsValid()) then
+        failed[name] = true
+        log("art: could not load " .. path .. " (not tried again this session)")
+        return nil
+    end
     A.keep(t)
     textures[name] = t
     return t

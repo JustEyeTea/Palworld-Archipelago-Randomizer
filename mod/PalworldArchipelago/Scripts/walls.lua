@@ -252,7 +252,8 @@ local function stepOpeningAndGlow()
     if #opening > 0 then
         local ok, err = pcall(stepOpeningPieces)
         if not ok then
-            log("opening error: " .. tostring(err))
+            log("walls: the opening step failed (" .. tostring(err) .. "); " .. #opening
+                .. " opening piece(s) taken down at once")
             destroyOpening()
         end
     end
