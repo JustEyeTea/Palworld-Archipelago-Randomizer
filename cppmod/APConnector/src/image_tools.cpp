@@ -143,20 +143,11 @@ namespace
 JobSlot map_slot, chart_slot, fog_slot, territory_slot;
 } // namespace
 
+auto map_jobs() -> JobSlot& { return map_slot; }
 auto chart_jobs() -> JobSlot& { return chart_slot; }
 auto fog_jobs() -> JobSlot& { return fog_slot; }
 auto territory_jobs() -> JobSlot& { return territory_slot; }
 
-auto compose_map_start(const std::string& colour, const std::string& labels, const std::string& locked,
-                       const std::string& out, double gamma) -> std::string
-{
-    return map_slot.start([=] { return compose_map(colour, labels, locked, out, gamma); });
-}
-
-auto compose_map_status() -> std::string
-{
-    return map_slot.status();
-}
 
 namespace
 {
