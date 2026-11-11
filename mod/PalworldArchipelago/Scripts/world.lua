@@ -39,7 +39,7 @@ end
 -- Notes which world this update is in, and when it changed, calls every forget function. Returns the pawn.
 function WORLD.note()
     local pawn = safe(function() local ps = playerState(); return ps and ps:GetPawn() end)
-    local world = pawn and pawn:IsValid() and safe(function() return tostring(pawn:GetAddress()) end)
+    local world = pawn and pawn:IsValid() and UTIL.addr(pawn)
     if world ~= worldKey then
         worldKey, worldAge = world, 0
         for _, forget in ipairs(worldForgetters) do

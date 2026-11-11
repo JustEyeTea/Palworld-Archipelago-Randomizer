@@ -143,9 +143,9 @@ local function stillShows(card, seen)
     logReadBackOnce("category", okg)
     if not okg or cat ~= seen.category then return false end
     if seen.tex then
-        local oki, res = pcall(function() return tostring(card.Image_Icon.Brush.ResourceObject:GetAddress()) end)
-        logReadBackOnce("icon", oki)
-        if not oki or res ~= seen.tex then return false end
+        local res = UTIL.addr(safe(function() return card.Image_Icon.Brush.ResourceObject end))
+        logReadBackOnce("icon", res ~= nil)
+        if res ~= seen.tex then return false end
     end
     local okc, on = pcall(function() return card.WBP_PalInvisibleButton:IsInteractionEnabled() end)
     logReadBackOnce("click state", okc)
@@ -225,7 +225,7 @@ function SHOP_CARDS.relabel(card, key, full)
     if not SHOP_CARDS.isShopSlot(tech) then return end
     local label = cardLabel(tech, card)
     local tex = label.texture
-    local texAddr = tex and safe(function() return tostring(tex:GetAddress()) end) or nil
+    local texAddr = tex and UTIL.addr(tex) or nil
     local sig = label.name .. "\0" .. label.category .. "\0" .. tostring(label.clickable) .. "\0" .. tostring(texAddr)
     local seen = labelled[key]
     if not full and seen and seen.tech == tech and seen.sig == sig and stillShows(card, seen) then
@@ -251,11 +251,14 @@ function SHOP_CARDS.refreshCards(full)
     full = full or UTIL.isDue(cardPasses, FULL_RELABEL_EVERY)
     local current = {}
     for _, card in ipairs(cards) do
-        if card:IsValid() then
-            local key = safe(function() return tostring(card:GetAddress()) end) or card
+        local key = card:IsValid() and UTIL.addr(card)
+        if key then
             current[#current + 1] = key
             local ok, err = pcall(SHOP_CARDS.relabel, card, key, full)
             if not ok then once("relabel", "relabel error: " .. tostring(err)) end
+        elseif key == nil then
+            -- Its entry could not be told from another card's, so it is left alone.
+            once("cardaddress", "cards: a card whose address can't be read is left alone")
         end
     end
     local kept = {}           -- cards gone are forgotten

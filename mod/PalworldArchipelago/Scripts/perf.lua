@@ -567,10 +567,8 @@ function P.replayOldCost(ctx)
     AP_SlotData("options.area_locks")
     env.oldCost.sweepWalls()                             -- every raised piece checked every update
     for _, card in ipairs(env.oldCost.cards() or {}) do  -- every card labelled every update
-        if card:IsValid() then
-            local key = UTIL.safe(function() return tostring(card:GetAddress()) end) or card
-            pcall(env.oldCost.relabel, card, key, true)
-        end
+        local key = card:IsValid() and UTIL.addr(card)
+        if key then pcall(env.oldCost.relabel, card, key, true) end
     end
     if ap.ready and CLOCK.isPhase(CLOCK.PHASE.items) then env.oldCost.writeSave(true) end   -- written even unchanged
     P.stop("legacy")

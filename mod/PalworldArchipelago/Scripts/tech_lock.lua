@@ -128,8 +128,7 @@ function TECH_LOCK.lockAndUnlockTechs(ps)
     techPolls = techPolls + 1
     local okNum, num = pcall(function() return arr:GetArrayNum() end)
     if not okNum then num = nil end
-    local okAddr, addr = pcall(function() return tostring(td:GetAddress()) end)
-    if not okAddr then addr = nil end
+    local addr = UTIL.addr(td)
     if techListUnchanged(num, addr) then return false end
     techsSeen = nil
     local okNames, names = pcall(TECH_LOCK.arrayNames, arr)

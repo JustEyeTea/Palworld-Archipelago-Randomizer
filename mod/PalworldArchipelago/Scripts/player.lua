@@ -25,7 +25,7 @@ local function liveControllerKey(pc)
     if not pc:IsValid() then return nil end
     local okn, n = pcall(function() return pc:GetFullName() end)
     if okn and tostring(n):find("Default__", 1, true) then return nil end
-    return tostring(pc:GetAddress())
+    return UTIL.addr(pc)
 end
 -- Looks up this update's player: the frame record every part of the update reads. Its fields:
 --   pc              the first live, non-default player controller, or nil (at the title screen)

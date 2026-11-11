@@ -127,6 +127,7 @@ local hooks, postHooks, loop, extraLoops = {}, {}, nil, {}
 gameSeconds = 1234.5                                         -- the game's clock: 33 ms a turn of the 33 ms loops
 local function Card(tech)
     local c = { IsValid = function() return true end, BindedTechnologyName = FNameOf(tech), shown = {} }
+    c.GetAddress = function() return c end                   -- (its address: the table, as a texture's)
     local function text(field)
         return { SetText = function(_, t) c.shown[field] = t.text end,
                  GetText = function() return { ToString = function() return c.shown[field] or "" end } end }
@@ -736,6 +737,14 @@ cards[#cards + 1] = passCard
 run(1)
 expect(passCard.shown.icon == "ap-pass-feybreak", "your Region Pass shows its own area's ticket: " .. tostring(passCard.shown.icon))
 
+do   -- a card whose address can't be read is skipped (its entry could not be told from another's)
+    local nameless = Card("Product_Cooking_Grade_01")
+    nameless.GetAddress = function() error("the card was freed") end
+    cards[#cards + 1] = nameless
+    run(1)
+    table.remove(cards)
+    expect(nameless.shown.name == nil, "a card with no readable address is left alone")
+end
 do   -- a card whose name text cannot be set says so, once
     local card = cards[3]
     local setText = card.RichText_TechnologyName_Lock.SetText
