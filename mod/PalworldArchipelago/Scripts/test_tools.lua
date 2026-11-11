@@ -28,6 +28,7 @@
 --   "test tools: giving a Pal through the connector" (tools/lua_harness.sh, in CI).
 local T = {}
 local UTIL = require("util")
+local WIDGETS = require("widgets")
 local log = UTIL.logger("test")
 local function try(what, fn)
     local ok, a = pcall(fn)
@@ -52,6 +53,20 @@ local function pawn()
     end
 end
 local function fixed(v) return type(v) == "table" and tostring(v.Value) or tostring(v) end
+
+-- A probe's step `ms` later, on the character `p` it started on: skipped when the player's character has changed since
+-- (a faint, Return to title), since what the probe kept of the old one (a component, the clock) may be freed. The
+-- address is read now, so the old character is never called later.
+local function laterOnSamePawn(ms, p, what, fn)
+    local address = UTIL.addr(p)
+    later(ms, function()
+        if UTIL.addr(pawn()) ~= address then
+            log(what .. ": skipped: the player character changed")
+            return
+        end
+        fn()
+    end)
+end
 
 -- Ctrl+F2: move faster for testing (walls can be minutes away on foot). The game's own named walk speed multiplier, as
 -- the Slow Trap uses it (seen working in game); on the player and on the Pal ridden, if any. Gone with the world (it
@@ -106,7 +121,7 @@ local function exhaustion()
     local before, max = try("GetSP", function() return fixed(cp:GetSP()) end), try("GetMaxSP", function() return fixed(cp:GetMaxSP()) end)
     try("SetSP({ Value = 0 })", function() cp:SetSP({ Value = 0 }) end)
     log("exhaustion: stamina " .. tostring(before) .. " of " .. tostring(max) .. " -> " .. tostring(try("GetSP after", function() return fixed(cp:GetSP()) end)))
-    later(2000, function() log("exhaustion: stamina 2 s later " .. fixed(cp:GetSP())) end)
+    laterOnSamePawn(2000, p, "exhaustion", function() log("exhaustion: stamina 2 s later " .. fixed(cp:GetSP())) end)
 end
 
 local function nightfall()
@@ -118,7 +133,9 @@ local function nightfall()
     local before = try("hour before", function() return tm:GetCurrentPalWorldTime_Hour() end)
     try("SetGameTime_FixDay(22)", function() tm:SetGameTime_FixDay(22) end)
     log("nightfall: hour " .. tostring(before) .. " -> " .. tostring(try("hour after", function() return tm:GetCurrentPalWorldTime_Hour() end)))
-    later(2000, function() log("nightfall: hour 2 s later " .. tostring(tm:GetCurrentPalWorldTime_Hour())) end)
+    laterOnSamePawn(2000, p, "nightfall", function()
+        log("nightfall: hour 2 s later " .. tostring(tm:GetCurrentPalWorldTime_Hour()))
+    end)
 end
 
 -- EPalStatusID values (LuaTypes/Pal_enums.lua): the safe ones first.
@@ -141,8 +158,10 @@ local function status()
     local sc = p.StatusComponent
     try("AddStatus(" .. name .. " " .. id .. ")", function() sc:AddStatus(id) end)
     log("status " .. name .. ": running right after: " .. tostring(try("GetExecutionStatus", function() return running(sc, id) end)))
-    later(2000, function() log("status " .. name .. ": running 2 s later: " .. running(sc, id)) end)
-    later(10000, function()
+    laterOnSamePawn(2000, p, "status " .. name, function()
+        log("status " .. name .. ": running 2 s later: " .. running(sc, id))
+    end)
+    laterOnSamePawn(10000, p, "status " .. name, function()
         try("RemoveStatus(" .. name .. ")", function() sc:RemoveStatus(id) end)
         log("status " .. name .. ": running after removal: " .. running(sc, id))
     end)
@@ -231,7 +250,7 @@ end
 -- same 6 s, for a screenshot to fit it by. Every step is logged.
 local SPIN_STEPS = 20                  -- one step per core update (300 ms, main.lua), so 6 s on screen
 local SPIN_DEGREES_PER_STEP = 18       -- 20 steps of 18 degrees: one full turn
-local hudProbe = nil   -- { box, img, steps, goal }
+local hudProbe = nil   -- { box, img, steps, goal, hud = the HUD layout's address }
 local function nameAndClass(w)
     local okn, n = pcall(function() return w:GetFName():ToString() end)
     local okc, c = pcall(function() return w:GetClass():GetFName():ToString() end)
@@ -246,8 +265,7 @@ local function hudProbeStart()
         if ok and vis then layout = l; break end
     end
     log("HUD probe: " .. #layouts .. " WBP_PalHUDLayout_C, " .. (layout and "one visible" or "none visible"))
-    layout = layout or layouts[#layouts]
-    if not layout then return end
+    if not layout then return end                 -- (one not visible can be the last world's, still listed)
     local root = layout.WidgetTree.RootWidget
     if not (root and root:IsValid()) then log("HUD probe: the layout has no root widget"); return end
     local kids = {}
@@ -275,7 +293,7 @@ local function hudProbeStart()
     try("HUD probe: size", function() slot:SetAutoSize(true) end)
     try("HUD probe: z order", function() slot:SetZOrder(1000) end)
     try("HUD probe: pivot", function() img:SetRenderTransformPivot({ X = 0.5, Y = 0.5 }) end)
-    hudProbe = { box = box, img = img, steps = 0 }
+    hudProbe = { box = box, img = img, steps = 0, hud = UTIL.addr(layout) }
     log("HUD probe: hint icon added at the top right, 240 down; spinning for 6 s")
     local goal, banner = require("art").box(layout, "ap-goal-banner", 600, 150)
     if not goal then log("HUD probe: no goal banner file"); return end
@@ -301,6 +319,11 @@ local function hudProbeStart()
 end
 local function hudProbeStep()
     local p = hudProbe
+    if not WIDGETS.hudLive(p.hud) then
+        hudProbe = nil
+        log("HUD probe: its HUD went with the world; its widgets are forgotten without a call")
+        return
+    end
     p.steps = p.steps + 1
     local ok = pcall(function() p.img:SetRenderTransformAngle(p.steps * SPIN_DEGREES_PER_STEP) end)
     if not ok then

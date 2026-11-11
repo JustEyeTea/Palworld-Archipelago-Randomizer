@@ -74,4 +74,61 @@ group("test tools", function()
     pawn.StatusComponent = nil
     keyBinds["key:F11"]()
     expect(logged("AddStatus%(Wetness 20%): FAILED"), "a failing probe is logged, not raised")
+    -- What a probe kept goes with its world (Return to title, a faint): it is never called after.
+    local function spyOn(widgets, methods, calls)
+        for _, w in ipairs(widgets) do
+            for _, method in ipairs(methods) do
+                w[method] = function()
+                    calls[#calls + 1] = method
+                    error("an object of the world gone, called")
+                end
+            end
+        end
+    end
+    do  -- the HUD probe's HUD goes with the world mid-spin
+        local layout, _, kids = fakeHud("Canvas_Root")
+        local listed = { layout }
+        local savedFAO = FindAllOf
+        FindAllOf = function(class)
+            if class == "WBP_PalHUDLayout_C" then return listed end
+            return savedFAO(class)
+        end
+        keyBinds["key:F4"]()
+        local img = kids[1] and kids[1].child
+        if img then
+            img.SetRenderTransformAngle = function() end
+        end
+        run(2)
+        listed = {}
+        local calls = {}
+        spyOn({ kids[1], kids[2], img }, { "SetRenderTransformAngle", "RemoveFromParent", "IsValid" }, calls)
+        run(25)
+        expect(img and #calls == 0 and logged("HUD probe: its HUD went with the world"),
+               "the HUD probe forgets its widgets without a call once its HUD is gone: " .. table.concat(calls, ","))
+        -- No HUD layout on screen (only the last world's, not visible): the probe adds nothing.
+        local hidden, _, hiddenKids = fakeHud("Canvas_Root")
+        hidden.IsVisible = function() return false end
+        listed = { hidden }
+        keyBinds["key:F4"]()
+        run(1)
+        FindAllOf = savedFAO
+        expect(#hiddenKids == 0, "with no HUD layout on screen the HUD probe adds nothing: " .. #hiddenKids)
+    end
+    do  -- the status probe's removal 10 s on, after the character changed
+        local removals = 0
+        pawn.StatusComponent = { AddStatus = function() end, GetExecutionStatus = function() return nil end,
+                                 RemoveStatus = function() removals = removals + 1 end }
+        keyBinds["key:F11"]()
+        run(1)
+        local pawnWas = pawnAddress
+        newPawn()
+        local skippedAt = logMark()
+        run(40)
+        pawnAddress = pawnWas
+        pawn.StatusComponent = nil
+        expect(removals == 0 and loggedSince(skippedAt, "status Poison: .*skipped: the player character changed"),
+               "a probe's later step skips a character that has changed: " .. removals .. " removal(s)")
+        local WAIT = require("clock").WAIT
+        runPast(WAIT.settle + WAIT.heldNotice)                   -- (later groups expect a world long settled)
+    end
 end)
