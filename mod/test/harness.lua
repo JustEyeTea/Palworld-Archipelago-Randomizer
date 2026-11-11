@@ -844,7 +844,8 @@ do  -- wall skins (wall_skin / Ctrl+F3): the AP walls get a teal copy of their m
     expect(logged("wall skin a: on %d+ pieces") and mid and mid ~= wallRed and mid.parent == wallRed
            and mid.textures.MainTexture01 and mid.textures.MainTexture01.path == "ap-wall-pattern-a"
            and mid.textures.MainTexture01.SRGB == false and mid.textures.MainTexture02 == nil
-           and mid.vectors.DayColor.G > 0.7 and math.abs(mid.vectors.NightColor.G - 0.745 * 0.421875) < 1e-6,
+           and mid.vectors.DayColor.G > 0.7
+           and math.abs(mid.vectors.NightColor.G - W.linearOf("24E0CC").G * 0.421875) < 1e-6,
            "wall skin a: a teal material with pattern a (linear) on the AP walls; the dither noise left alone")
     next(wallsUp):K2_DestroyActor(); run(3)
     local fresh = 0
@@ -4390,7 +4391,8 @@ print("area-coloured walls and the hint pop-up")
     run(80)
     local m = piece.Cube.mat
     expect(m and (m.textures.MainTexture01.path == "ap-wall-pattern-sealed" or m.textures.MainTexture01.path == "ap-wall-pattern-a")
-           and close(m.vectors.Color, { R = 0.3231, G = 0.3663, B = 0.4564 }), "a wall to an area beyond the goal wears the sealed grey")
+           and close(m.vectors.Color, require("walls").linearOf("9AA3B5")),
+           "a wall to an area beyond the goal wears the sealed grey, #9AA3B5")
     local sealedBox = popupAfter(#hudKids)
     expect(sealedBox and sealedBox.child.children[2].text == hintArea .. " is beyond the goal"
            and sealedBox.child.children[3].text == "Its walls stay up for good." and not sealedBox.child.children[4],

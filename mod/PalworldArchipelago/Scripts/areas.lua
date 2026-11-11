@@ -154,6 +154,14 @@ function AREAS.install(walls)
     useLayoutData("areas")
 end
 
+-- The project's other colours, as sRGB "RRGGBB"; the walls and the map turn them into what they draw with.
+AREAS.PALETTE = {
+    teal = "24E0CC",        -- the AP teal: the pattern skins, and the start island (its map colour, its paws)
+    wallSealed = "9AA3B5",  -- slate grey: the walls of an area beyond the goal
+    mapSealed = "5A6472",   -- the map's colour of an area beyond the goal
+    noColour = "9AA3B5",    -- the map's colour of an area with no colour of its own
+    fog = "0E1A24",         -- the Territories fog over the unexplored map
+}
 AREAS.layout, AREAS.SEA, AREAS.AREA_COLOURS = layout, SEA, AREA_COLOURS
 AREAS.useLayoutData, AREAS.isOpen, AREAS.slugOf, AREAS.standing = useLayoutData, isOpen, slugOf, standing
 AREAS.lockedList, AREAS.lockedIndexes, AREAS.openList = lockedList, lockedIndexes, openList

@@ -12,6 +12,7 @@ local owner = UTIL.gameInstance          -- (materials belong to the game instan
 -- isOpen, AREA_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(), passes(),
 -- pawn()) and DISSOLVE_S.
 local W, pieces, layout, isOpen, AREA_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
+local PALETTE, SEALED, TEAL = nil, nil, nil   -- areas.lua's palette, and its sealed grey and teal in linear light
 
 -- Wall skins (test builds: wall_skin=a, b, a3d or b3d in config.txt, or Ctrl+F3 with test_tools=1 to cycle them): the Art &
 -- Assets lane's patterns (walls/ap-wall-pattern-<skin>.png, 512x512, greyscale) in AP teal on our walls only. One
@@ -42,12 +43,10 @@ local SKINS = { "red", "colour-rainbow", "colour-rainbow-flow", "colour-paws", "
                 "a", "b", "a3d", "b3d", "a3d-dense", "b3d-dense", "area", "paws" }
 local function byArea(name) return name == "area" or name == "paws" end
 WALL_SKINS.SKINS = SKINS
-local SEALED = { R = 0.3231, G = 0.3663, B = 0.4564, A = 1 }  -- slate grey #9AA3B5 (Art lane's suggestion; the user may pick)
 WALL_SKINS.linearOf = UTIL.linear                                 -- (for the harness's colour tests)
 local FLOW = 0.05
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1   -- the Art lane: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first
 local DENSE = { 10, 6 }
-local TEAL = { R = 0.018, G = 0.745, B = 0.604, A = 1 }       -- sRGB #24E0CC, the user's pick
 local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
 local GLOW_MOVE_CM = 5        -- the player moves this far before the walls' glow is told again
 -- The paws' scatter: an Area's number turned into s, a fraction from 0 to 1 that looks random so neighbours differ
@@ -379,7 +378,7 @@ local function pieceSkin(i, passes, mode)
         -- 75 Areas: each Area its Region's look, varied by its own number (pattern offset, mirror, Back shade).
         local own = ""
         if W.layout == "regions" and W.parentOf(area) ~= area then own = ":" .. (area == a1 and w[5] or w[6]) end
-        return "paws:" .. (hex or "24E0CC") .. own             -- an area without a colour: the start island's teal
+        return "paws:" .. (hex or PALETTE.teal) .. own         -- an area without a colour: the start island's teal
     end
     if W.beyond[area] then return "sealed" end
     return hex and ("area:" .. hex) or "a"
@@ -550,6 +549,8 @@ function WALL_SKINS.install(env)
     W, pieces, DISSOLVE_S = env.W, env.pieces, env.DISSOLVE_S
     layout, isOpen, AREA_COLOURS = env.areas.layout, env.areas.isOpen, env.areas.AREA_COLOURS
     beyondSig = env.areas.beyondSig
+    PALETTE = env.areas.PALETTE
+    SEALED, TEAL = UTIL.linear(PALETTE.wallSealed), UTIL.linear(PALETTE.teal)
     W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own
     -- M_APWall's fade (the user, 2026-11-08: dev.40's 9 to 15 m "loads in MUCH closer"): fully there within
     -- W.fade[1] cm, gone at W.fade[2] (config wall_fade=near,far in metres).

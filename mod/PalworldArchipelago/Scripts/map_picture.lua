@@ -12,6 +12,7 @@ local once = UTIL.onceIn("walls")
 -- Handed over by install: W, and the areas part's layout, isOpen, SEA, AREA_COLOURS and lists.
 local W, layout, isOpen, SEA, AREA_COLOURS = nil, nil, nil, nil, nil
 local slugOf, lockedList, lockedIndexes, openList, standing, beyondSig = nil, nil, nil, nil, nil, nil
+local PALETTE = nil           -- areas.lua's colours
 
 -- Render targets are owned by the game instance, never by something in the world: an object kept alive for the
 -- session that belongs to the world stops the world being freed when leaving it, and the game crashes on the way back
@@ -290,8 +291,6 @@ end
 -- fog for the unexplored parts (the fog picture C++ shows). config.txt map_style=chart: the explorer's chart and
 -- greyscale instead.
 local TERR_SIZE = 2048        -- px: a Territories picture from the label map (an older DLL, without AP_ComposeField)
-local TERR_FOG_COLOUR = "0E1A24"
-local START_COLOUR, SEALED_COLOUR = "24E0CC", "5A6472"
 -- The walls' look. Format: image_tools.hpp, compose_territories, argument style. The Art lane's colours; see-through
 -- (dev.32 playtest, 2026-11-08: "I like the brightness, but perhaps we should add some translucence?"; the core was
 -- solid, the glow 0.55).
@@ -307,8 +306,8 @@ local function areaSpec(passes)
             elseif isOpen(name, passes) then st = (name == layout.start or W.visited[name]) and "v" or "u"
             else st = "l" end
             local parent = W.parentOf(name)
-            local hex = st == "s" and SEALED_COLOUR or AREA_COLOURS[parent]
-                or (parent == layout.start and START_COLOUR) or "9AA3B5"
+            local hex = st == "s" and PALETTE.mapSealed or AREA_COLOURS[parent]
+                or (parent == layout.start and PALETTE.teal) or PALETTE.noColour
             out[#out + 1] = (k - 1) .. ":" .. st .. ":" .. hex
         end
     end
@@ -402,12 +401,12 @@ local function startTerritories(krl, gi, passes, key)
         size = FIELD_SIZE
         -- AP_ComposeField(field, areas, walls, style, out, fogart, fog colour, size, colour, gamma): dllmain.cpp's list
         err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
-            W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR, tostring(size), whole and colour or "", GAMMA)
+            W.dir .. "\\" .. TERR_FOG, PALETTE.fog, tostring(size), whole and colour or "", GAMMA)
     else
         size = TERR_SIZE
         -- AP_ComposeTerritories(labels, areas, walls, style, out, fogart, fog colour, size): dllmain.cpp's list
         err = AP_ComposeTerritories(labelsFile(), areaSpec(passes),
-            wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, TERR_FOG_COLOUR,
+            wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, PALETTE.fog,
             tostring(size))
     end
     if err == "" then
@@ -678,7 +677,7 @@ function MAP_PICTURE.install(env)
     local areas = env.areas
     layout, isOpen, SEA, AREA_COLOURS = areas.layout, areas.isOpen, areas.SEA, areas.AREA_COLOURS
     slugOf, lockedList, lockedIndexes, openList = areas.slugOf, areas.lockedList, areas.lockedIndexes, areas.openList
-    standing, beyondSig = areas.standing, areas.beyondSig
+    standing, beyondSig, PALETTE = areas.standing, areas.beyondSig, areas.PALETTE
     W.dir = "."
     W.iconsOff = false
     W.mapStyle = "territories"
