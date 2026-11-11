@@ -29,7 +29,7 @@ local MIN_CHANNEL_GAP = 64
 
 -- State: what is on screen and what C++ was told. Forgotten: mapShownAt at a new world (resetMapShown), cpp.told and
 -- cpp.body when C++ is switched off (mapOff), and never the counts for the log. The chart and the fog picture, below.
-local mapShownAt = 0           -- map screens on screen at the last update (an opening is one coming on screen)
+local mapScreensShown = 0           -- map screens on screen at the last update (an opening is one coming on screen)
 -- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), told whether it was
 -- switched on and given the fog colour; opened and fixes count map openings and pictures Lua put back, for the log.
 local cpp = { body = nil, told = false, opened = 0, fixes = 0, maskDone = false }
@@ -58,9 +58,9 @@ local chart = {
 -- which would otherwise be opened on every update while nothing changes.
 local fogParts = { key = nil, stamps = "", regions = "" }
 
-function MAP_FOG.mapShown() return mapShownAt > 0 end
+function MAP_FOG.mapShown() return mapScreensShown > 0 end
 -- A new world: its map has not been on screen yet, so its first showing is an opening.
-function MAP_FOG.resetMapShown() mapShownAt = 0 end
+function MAP_FOG.resetMapShown() mapScreensShown = 0 end
 -- How many of the live map screens are on screen. A screen lasts from its first opening until Return to title, so
 -- being listed is not being open. One whose visibility cannot be read counts as on screen. Untested in game: that
 -- IsVisible reads false while the map is closed (if it reads true, an opening is seen once per world, as before).
@@ -119,27 +119,30 @@ end
 -- The fog's material and its two masks (the explored mask, a render target, and the default mask, a texture), as words
 -- for the log, and the two masks; or the reason there is no fog material.
 local function fogMasks(screen)
-    local dmi = screen.MaskTextureMaterial
-    if not (dmi and dmi:IsValid()) then return "no fog material" end
+    local fogMaterial = screen.MaskTextureMaterial
+    if not (fogMaterial and fogMaterial:IsValid()) then return "no fog material" end
     local function tex(param)
-        local ok, t = pcall(function() return dmi:K2_GetTextureParameterValue(FName(param)) end)
+        local ok, t = pcall(function() return fogMaterial:K2_GetTextureParameterValue(FName(param)) end)
         return ok and t and t:IsValid() and t or nil
     end
     local rt, def = tex("TargetTexture"), tex("DefaultMaskTexture")
-    local info = "fog material " .. dmi:GetFullName() .. "; mask " .. (rt and (rt:GetFullName() .. " " .. tostring(rt.SizeX)
-        .. "x" .. tostring(rt.SizeY) .. " format " .. tostring(rt.RenderTargetFormat)) or "none")
+    local mask = rt and (rt:GetFullName() .. " " .. tostring(rt.SizeX) .. "x" .. tostring(rt.SizeY) .. " format "
+        .. tostring(rt.RenderTargetFormat)) or "none"
+    local info = "fog material " .. fogMaterial:GetFullName() .. "; mask " .. mask
         .. "; default mask " .. (def and def:GetFullName() or "none")
     return info, rt, def
 end
 -- The default mask exported to fog-default-mask.png: drawn into a render target of its size, then saved. The words
 -- for the log.
-local function exportDefaultMask(def, gi)
+local function exportDefaultMask(def, gameInstance)
     local ok, err = pcall(function()
-        local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+        local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
         local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
-        local drt = krl:CreateRenderTarget2D(gi, w, h, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 0 }, false)
-        picture.drawInto(krl, gi, drt, function(canvas) picture.drawWhole(canvas, def, w, h, BLEND_OPAQUE) end)
-        krl:ExportRenderTarget(gi, drt, W.dir, DEFAULT_MASK_FILE)
+        local drt = rendering:CreateRenderTarget2D(gameInstance, w, h, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 0 }, false)
+        picture.drawInto(rendering, gameInstance, drt, function(canvas)
+            picture.drawWhole(canvas, def, w, h, BLEND_OPAQUE)
+        end)
+        rendering:ExportRenderTarget(gameInstance, drt, W.dir, DEFAULT_MASK_FILE)
         return w .. "x" .. h
     end)
     return ok and ("; default mask " .. tostring(err) .. " exported to " .. DEFAULT_MASK_FILE)
@@ -149,16 +152,16 @@ end
 -- (and, with the chart off, the explored mask too, for the log: with the chart on, its own step exports it).
 local function logFogMaterial(screen)
     local info, rt, def = fogMasks(screen)
-    local gi = owner()
-    if rt and gi and (W.chartOff or not AP_ComposeFog) then
+    local gameInstance = owner()
+    if rt and gameInstance and (W.chartOff or not AP_ComposeFog) then
         local ok, err = pcall(function()
-            local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-            krl:ExportRenderTarget(gi, rt, W.dir, MASK_FILE)
+            local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+            rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE)
         end)
         info = info .. (ok and ("; exported to " .. MASK_FILE) or ("; export failed: " .. tostring(err)))
     end
-    if def and gi then
-        info = info .. exportDefaultMask(def, gi)
+    if def and gameInstance then
+        info = info .. exportDefaultMask(def, gameInstance)
     end
     return info
 end
@@ -199,12 +202,12 @@ local function maskSpec(pawn)
     if math.abs(diff) < MIN_CHANNEL_GAP then return nil, info .. ": no channel tells them apart" end
     return ("rgba"):sub(best, best) .. (diff > 0 and "+" or "-"), info
 end
-local function exportMask(screen, krl, gi)
-    local dmi = screen.MaskTextureMaterial
-    if not (dmi and dmi:IsValid()) then return "no fog material" end
-    local rt = dmi:K2_GetTextureParameterValue(FName("TargetTexture"))
+local function exportMask(screen, rendering, gameInstance)
+    local fogMaterial = screen.MaskTextureMaterial
+    if not (fogMaterial and fogMaterial:IsValid()) then return "no fog material" end
+    local rt = fogMaterial:K2_GetTextureParameterValue(FName("TargetTexture"))
     if not (rt and rt:IsValid()) then return "no explored mask" end
-    krl:ExportRenderTarget(gi, rt, W.dir, MASK_FILE)
+    rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE)
     return true
 end
 -- The explored mask without the map screen (dev.34 playtest: the first opening showed the last session's fog picture,
@@ -214,11 +217,11 @@ end
 local function worldMask(pawn)
     local ok, rt = pcall(function()
         local util = StaticFindObject("/Script/Pal.Default__PalUtility")
-        local wmd = util and util:IsValid() and util:GetLocalWorldMapData(pawn)
-        if not (wmd and wmd:IsValid()) then return nil end
-        local r = wmd:GetRenderTargetByMapName(FName("MainMap"))
+        local mapData = util and util:IsValid() and util:GetLocalWorldMapData(pawn)
+        if not (mapData and mapData:IsValid()) then return nil end
+        local r = mapData:GetRenderTargetByMapName(FName("MainMap"))
         if r and r:IsValid() then return r end
-        r = wmd:GetCurrentRenderTarget()
+        r = mapData:GetCurrentRenderTarget()
         if not (r and r:IsValid()) then return nil end
         UTIL.took("map chart: the explored mask", "from GetCurrentRenderTarget (MainMap not found)")
         return r
@@ -231,13 +234,13 @@ local function stampList(locked)
     if iconsActive() then return "" end
     local parts = {}
     for _, k in ipairs(locked) do
-        local c, name = layout.centres[k], layout.areas[k + 1]
-        if c and name then
+        local centre, name = layout.centres[k], layout.areas[k + 1]
+        if centre and name then
             local file = W.beyond[name] and "ap-map-stamp-sealed" or ("ap-map-stamp-" .. slugOf(W.parentOf(name)))
             local path = artFile(file)
             if path == "" then path = artFile("ap-map-stamp") end
             if path ~= "" then
-                parts[#parts + 1] = table.concat({ path, c.stampU, c.stampV, stampSize(c) }, "|")
+                parts[#parts + 1] = table.concat({ path, centre.stampU, centre.stampV, stampSize(centre) }, "|")
             end
         end
     end
@@ -334,10 +337,10 @@ local function finishFog()
     return false
 end
 -- Before the map opens: the explored mask read from the world's map data (worldMask) and the fog picture made.
-local function readMaskEarly(pawn, krl, gi, stamps, regions, tag)
+local function readMaskEarly(pawn, rendering, gameInstance, stamps, regions, tag)
     chart.early = (chart.early or 0) + 1
     local rt = worldMask(pawn)
-    local okE = rt and pcall(function() krl:ExportRenderTarget(gi, rt, W.dir, MASK_FILE) end)
+    local okE = rt and pcall(function() rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE) end)
     local spec, info = chart.spec, nil
     if okE and not spec then spec, info = maskSpec(pawn) end
     if okE and spec then
@@ -351,9 +354,9 @@ local function readMaskEarly(pawn, krl, gi, stamps, regions, tag)
 end
 -- At a map opening: the explored mask exported from the screen, read once to learn which channel means explored, and
 -- the fog picture made.
-local function readMaskOnOpening(pawn, screen, krl, gi, stamps, regions, tag)
+local function readMaskOnOpening(pawn, screen, rendering, gameInstance, stamps, regions, tag)
     chart.exportedAt, chart.want = chart.ticks, false
-    local ok, res = pcall(exportMask, screen, krl, gi)
+    local ok, res = pcall(exportMask, screen, rendering, gameInstance)
     if not ok or res ~= true then
         once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res))
         return
@@ -373,23 +376,23 @@ local function readMaskOnOpening(pawn, screen, krl, gi, stamps, regions, tag)
 end
 -- A new fog picture when the mask is to be read (before the map opens, or at an opening) or when the stamps, the area
 -- borders or the look changed (a pass: the same mask).
-local function remakeFog(pawn, screens, passes, key, krl, gi)
+local function remakeFog(pawn, screens, passes, key, rendering, gameInstance)
     local tagged = territories()
     local stamps, regions = fogStampsAndRegions(key, passes)
     local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
     if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
        and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
-        readMaskEarly(pawn, krl, gi, stamps, regions, tag)
+        readMaskEarly(pawn, rendering, gameInstance, stamps, regions, tag)
     elseif chart.want and screens[#screens]
            and (not chart.exportedAt or chart.ticks - chart.exportedAt >= EXPORT_GAP) then
-        readMaskOnOpening(pawn, screens[#screens], krl, gi, stamps, regions, tag)
+        readMaskOnOpening(pawn, screens[#screens], rendering, gameInstance, stamps, regions, tag)
     elseif chart.spec and chart.stampKey and stamps .. "\n" .. regions .. tag ~= chart.stampKey then
         startFog(stamps, regions, tag)
     end
 end
 -- 3. The fog picture loaded and handed to C++, which shows it from the next opening.
-local function loadFogPicture(krl, gi)
-    local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. fogFile())
+local function loadFogPicture(rendering, gameInstance)
+    local tex = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\" .. fogFile())
     if not (tex and tex:IsValid()) then once("fogload", "map chart: could not load " .. fogFile()); return end
     chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
     chart.tex = tex
@@ -403,17 +406,17 @@ local function chartTick(pawn, screens, opening, passes, key)
     chart.ticks = chart.ticks + 1
     if opening then chart.want = true end                                    -- read the mask on this opening
     if #screens == 0 then chart.want = false end                             -- (closed before it was read)
-    local gi = owner()
-    if not gi then return end
-    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local gameInstance = owner()
+    if not gameInstance then return end
+    local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     if not stepChartArt() then return end
     local load = finishFog()
     if load == nil then return end
     if chart.fog == "idle" and not load then
-        remakeFog(pawn, screens, passes, key, krl, gi)
+        remakeFog(pawn, screens, passes, key, rendering, gameInstance)
     end
     if load then
-        loadFogPicture(krl, gi)
+        loadFogPicture(rendering, gameInstance)
     end
 end
 -- A new world: its explored mask is read again before its map opens; what the last world's reads found says nothing
@@ -447,14 +450,14 @@ end
 -- At the start of each map update: whether the map was on screen at the last update; it counts as not, until
 -- noteShown has looked again.
 function MAP_FOG.forgetShown()
-    local was = mapShownAt > 0
-    mapShownAt = 0
+    local was = mapScreensShown > 0
+    mapScreensShown = 0
     return was
 end
 -- How many of this update's live main-map screens are on screen, kept for the next update and for W.mapShown.
 function MAP_FOG.noteShown(screens)
-    mapShownAt = screensOnScreen(screens)
-    return mapShownAt
+    mapScreensShown = screensOnScreen(screens)
+    return mapScreensShown
 end
 -- Lua found the game's own picture on a screen and put ours back: counted, and the first three logged.
 function MAP_FOG.notePictureFixed()

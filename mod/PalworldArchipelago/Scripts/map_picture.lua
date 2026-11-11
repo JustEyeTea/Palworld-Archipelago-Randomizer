@@ -46,6 +46,7 @@ local GAMMA = "0.4545"
 local FIELD_SIZE = 4096       -- px: a Territories picture made from the distance field (area_field*.png is made for it)
 local FADE = { R = 0.38, G = 0.40, B = 0.46, A = 1 }      -- the locked areas' tint without a greyscale copy
 local WHITE = { R = 1, G = 1, B = 1, A = 1 }
+local BLACK = { R = 0, G = 0, B = 0, A = 1 }  -- a new render target's colour, before anything is drawn into it
 local EDGE_SHADE = 0.45      -- how dark the band is at the very edge (1: not at all)
 
 -- State: the map picture. Forgotten at a change of cut (forgetPictures): mapKey, greyJob, the shapes' triangles and
@@ -68,11 +69,11 @@ local colourSaved = false      -- colourMap saved the colour map again this sess
 local owner = UTIL.gameInstance          -- (render targets and materials belong to it: see above)
 -- Draws into a render target: draw(canvas) between the engine's Begin and End. Begin's context comes back in
 -- contextOut, or (as UE4SS passes the out-parameters) in the table after it; End is given whichever holds it.
-local function drawInto(krl, gi, target, draw)
+local function drawInto(rendering, gameInstance, target, draw)
     local canvasOut, contextOut, extra = {}, {}, {}
-    krl:BeginDrawCanvasToRenderTarget(gi, target, canvasOut, contextOut, extra)
+    rendering:BeginDrawCanvasToRenderTarget(gameInstance, target, canvasOut, contextOut, extra)
     draw(canvasOut.Canvas)
-    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    rendering:EndDrawCanvasToRenderTarget(gameInstance, contextOut.RenderTarget and contextOut or extra)
 end
 -- Draws a whole texture over a w x h canvas (blend: the engine's blend mode).
 local function drawWhole(canvas, tex, w, h, blend)
@@ -80,9 +81,9 @@ local function drawWhole(canvas, tex, w, h, blend)
         { X = 0.5, Y = 0.5 })
 end
 -- The map picture's render target, made (and kept for the session) when there is none; nil if it cannot be made.
-local function mapTarget(krl, gi)
+local function mapTarget(rendering, gameInstance)
     if not mapRT or not mapRT:IsValid() then
-        mapRT = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, RTF_RGBA8_SRGB, { R = 0, G = 0, B = 0, A = 1 }, false)
+        mapRT = rendering:CreateRenderTarget2D(gameInstance, RT_SIZE, RT_SIZE, RTF_RGBA8_SRGB, BLACK, false)
         if not mapRT or not mapRT:IsValid() then return nil end
         W.keep(mapRT)
     end
@@ -116,11 +117,11 @@ local function drawStamps(canvas, locked)
     if iconsActive() then once("stampsicons", "map: locked areas are shown as map icons, not drawn on the picture"); return end
     local n = 0
     for _, k in ipairs(locked) do
-        local c = layout.centres[k]
-        local tex = c and stampTexture(k)
+        local centre = layout.centres[k]
+        local tex = centre and stampTexture(k)
         if tex then
-            local u, v = c.stampU, c.stampV
-            local px = stampSize(c)
+            local u, v = centre.stampU, centre.stampV
+            local px = stampSize(centre)
             canvas:K2_DrawTexture(tex, { X = u * RT_SIZE - px / 2, Y = v * RT_SIZE - px / 2 },
                 { X = px, Y = px }, { X = 0, Y = 0 }, { X = 1, Y = 1 }, WHITE, BLEND_TRANSLUCENT, 0,
                 { X = 0.5, Y = 0.5 })
@@ -133,23 +134,25 @@ end
 -- game's own art, so it is never shipped): the map is drawn into a render target, saved as a PNG, turned grey by the
 -- C++ part (AP_GreyscalePNG; the saved PNG is in linear light, hence the gamma) and loaded back. nil without the C++
 -- part: locked areas are then a dimmed copy of the colour map.
-local function greyscaleMap(krl, tex)
+local function greyscaleMap(rendering, tex)
     if greyTex and greyTex:IsValid() then return greyTex end
     if greyTried or not AP_GreyscalePNG then return nil end
     greyTried = true
-    local gi = owner()
-    if not gi then greyTried = false; return nil end
+    local gameInstance = owner()
+    if not gameInstance then greyTried = false; return nil end
     local path = W.dir .. "\\" .. GREY_FILE
     if not UTIL.exists(path) then
-        local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
-        drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE) end)
-        krl:ExportRenderTarget(gi, rt, W.dir, TEMP_COLOUR_FILE)
+        local rt = rendering:CreateRenderTarget2D(gameInstance, RT_SIZE, RT_SIZE, RTF_RGBA8, BLACK, false)
+        drawInto(rendering, gameInstance, rt, function(canvas)
+            drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
+        end)
+        rendering:ExportRenderTarget(gameInstance, rt, W.dir, TEMP_COLOUR_FILE)
         local err = AP_GreyscalePNG(W.dir .. "\\" .. TEMP_COLOUR_FILE, path, GAMMA)
         os.remove(W.dir .. "\\" .. TEMP_COLOUR_FILE)
         if err ~= "" then log("map: no greyscale copy: " .. tostring(err)); return nil end
         log("map: made the greyscale copy " .. path)
     end
-    greyTex = krl:ImportFileAsTexture2D(gi, path)
+    greyTex = rendering:ImportFileAsTexture2D(gameInstance, path)
     if not greyTex or not greyTex:IsValid() then log("map: could not load " .. path); greyTex = nil; return nil end
     W.keep(greyTex)
     return greyTex
@@ -160,13 +163,13 @@ local function trianglesOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if triangles[key] then return triangles[key] end
     layout.shapes = layout.shapes or require("area_shapes" .. layout.suffix)
-    local v, out = layout.shapes.areas[k] or {}, {}
-    for t = 1, #v - 5, 6 do
+    local corners, out = layout.shapes.areas[k] or {}, {}
+    for t = 1, #corners - 5, 6 do
         local tri = {}
         for j = 0, 2 do
-            local u, w = v[t + 2 * j], v[t + 2 * j + 1]
-            tri["V" .. j .. "_Pos"] = { X = u * RT_SIZE, Y = w * RT_SIZE }
-            tri["V" .. j .. "_UV"] = { X = u, Y = w }
+            local u, v = corners[t + 2 * j], corners[t + 2 * j + 1]
+            tri["V" .. j .. "_Pos"] = { X = u * RT_SIZE, Y = v * RT_SIZE }
+            tri["V" .. j .. "_UV"] = { X = u, Y = v }
             tri["V" .. j .. "_Color"] = tint
         end
         out[#out + 1] = tri
@@ -180,14 +183,14 @@ local function bandOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if bands[key] then return bands[key] end
     layout.shapes = layout.shapes or require("area_shapes" .. layout.suffix)
-    local v, out = (layout.shapes.edges or {})[k] or {}, {}
-    for t = 1, #v - 8, 9 do
+    local corners, out = (layout.shapes.edges or {})[k] or {}, {}
+    for t = 1, #corners - 8, 9 do
         local tri = {}
         for j = 0, 2 do
-            local u, w, sh = v[t + 3 * j], v[t + 3 * j + 1], v[t + 3 * j + 2]
-            local f = EDGE_SHADE + (1 - EDGE_SHADE) * sh
-            tri["V" .. j .. "_Pos"] = { X = u * RT_SIZE, Y = w * RT_SIZE }
-            tri["V" .. j .. "_UV"] = { X = u, Y = w }
+            local u, v, shade = corners[t + 3 * j], corners[t + 3 * j + 1], corners[t + 3 * j + 2]
+            local f = EDGE_SHADE + (1 - EDGE_SHADE) * shade
+            tri["V" .. j .. "_Pos"] = { X = u * RT_SIZE, Y = v * RT_SIZE }
+            tri["V" .. j .. "_UV"] = { X = u, Y = v }
             tri["V" .. j .. "_Color"] = { R = tint.R * f, G = tint.G * f, B = tint.B * f, A = 1 }
         end
         out[#out + 1] = tri
@@ -200,17 +203,17 @@ end
 -- softly toward its edge (a narrow band whose corners are shaded dark at the edge). True once drawn; drawn again when
 -- the set of locked areas changes. (The exploration fog is a separate layer above the map image.)
 local function drawMap(passes)
-    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
     local tex = gameMapTexture()
     if not tex then return false end
-    local gi = owner()
-    if not gi then return false end
-    local okg, grey = pcall(greyscaleMap, krl, tex)
+    local gameInstance = owner()
+    if not gameInstance then return false end
+    local okg, grey = pcall(greyscaleMap, rendering, tex)
     if not okg then log("map: greyscale copy failed: " .. tostring(grey)); grey = nil end
-    if not mapTarget(krl, gi) then return false end
+    if not mapTarget(rendering, gameInstance) then return false end
     -- (Not through drawInto: with no canvas this gives up before End, and the map is drawn at a later update.)
     local canvasOut, contextOut, extra = {}, {}, {}
-    krl:BeginDrawCanvasToRenderTarget(gi, mapRT, canvasOut, contextOut, extra)
+    rendering:BeginDrawCanvasToRenderTarget(gameInstance, mapRT, canvasOut, contextOut, extra)
     local canvas = canvasOut.Canvas
     if not canvas then return false end
     drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
@@ -228,7 +231,7 @@ local function drawMap(passes)
     end
     local okS, errS = pcall(drawStamps, canvas, lockedList(passes))
     if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
-    krl:EndDrawCanvasToRenderTarget(gi, contextOut.RenderTarget and contextOut or extra)
+    rendering:EndDrawCanvasToRenderTarget(gameInstance, contextOut.RenderTarget and contextOut or extra)
     return true
 end
 -- With the C++ compositor (AP_ComposeMap): the whole picture is made on the player's machine in the background, from
@@ -240,14 +243,14 @@ end
 -- exporting the whole map every time).
 local PRINT_PX = 16           -- the map drawn this small for its fingerprint
 local PRINT_GRID = 4          -- that many pixels a row and a column are read, each in the middle of its cell
-local function mapPrint(krl, tex, gi)
-    local rt = krl:CreateRenderTarget2D(gi, PRINT_PX, PRINT_PX, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
-    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, PRINT_PX, PRINT_PX, BLEND_OPAQUE) end)
+local function mapPrint(rendering, tex, gameInstance)
+    local rt = rendering:CreateRenderTarget2D(gameInstance, PRINT_PX, PRINT_PX, RTF_RGBA8, BLACK, false)
+    drawInto(rendering, gameInstance, rt, function(canvas) drawWhole(canvas, tex, PRINT_PX, PRINT_PX, BLEND_OPAQUE) end)
     local parts = {}
     local cell = PRINT_PX // PRINT_GRID
     for i = 0, PRINT_GRID * PRINT_GRID - 1 do
         local x, y = (i % PRINT_GRID) * cell + cell // 2, (i // PRINT_GRID) * cell + cell // 2
-        local c = krl:ReadRenderTargetPixel(gi, rt, x, y)
+        local c = rendering:ReadRenderTargetPixel(gameInstance, rt, x, y)
         parts[#parts + 1] = string.format("%d,%d,%d", c.R, c.G, c.B)
     end
     return table.concat(parts, ";")
@@ -259,11 +262,11 @@ local function readFile(path)
     f:close()
     return s
 end
-local function colourMap(krl, tex, gi)
+local function colourMap(rendering, tex, gameInstance)
     local path = W.dir .. "\\" .. COLOUR_FILE
     if not printChecked then
         printChecked = true
-        local ok, fp = pcall(mapPrint, krl, tex, gi)
+        local ok, fp = pcall(mapPrint, rendering, tex, gameInstance)
         if ok then printNow = fp else log("map: no fingerprint (" .. tostring(fp) .. "): keeping the saved colour map") end
     end
     local saved = readFile(path .. ".txt")
@@ -272,9 +275,9 @@ local function colourMap(krl, tex, gi)
         if saved then log("map: the game's map picture changed (another mod?): saving it again")
         else log("map: saving the colour map again with a fingerprint (made before map changes were checked)") end
     end
-    local rt = krl:CreateRenderTarget2D(gi, RT_SIZE, RT_SIZE, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 1 }, false)
-    drawInto(krl, gi, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE) end)
-    krl:ExportRenderTarget(gi, rt, W.dir, COLOUR_FILE)
+    local rt = rendering:CreateRenderTarget2D(gameInstance, RT_SIZE, RT_SIZE, RTF_RGBA8, BLACK, false)
+    drawInto(rendering, gameInstance, rt, function(canvas) drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE) end)
+    rendering:ExportRenderTarget(gameInstance, rt, W.dir, COLOUR_FILE)
     colourSaved = true
     if printNow then                     -- the fingerprint: PRINT_GRID^2 pixels as "r,g,b;...", compared whole
         local out = io.open(path .. ".txt", "wb")
@@ -332,8 +335,8 @@ local function wallSpec(passes)
 end
 -- Draws the finished Territories picture into the map picture: "ready" when it is the look for `key` ("busy" when
 -- another is wanted by now), "failed" when a file could not be loaded.
-local function drawTerritories(krl, gi, k, key)
-    local over = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. TERR_OVERLAY)
+local function drawTerritories(rendering, gameInstance, k, key)
+    local over = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\" .. TERR_OVERLAY)
     local map = over                          -- the whole picture has the map in it; an overlay goes over the game's
     if not terr.whole then
         map = gameMapTexture()
@@ -341,7 +344,7 @@ local function drawTerritories(krl, gi, k, key)
     if not (map and map:IsValid() and over and over:IsValid()) then
         log("map territories: could not load " .. (map and map:IsValid() and TERR_OVERLAY or "the game's map")); terr.failed = k; return "failed"
     end
-    drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
+    drawInto(rendering, gameInstance, mapTarget(rendering, gameInstance), function(canvas)
         drawWhole(canvas, map, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
         if not terr.whole then
             drawWhole(canvas, over, RT_SIZE, RT_SIZE, BLEND_TRANSLUCENT)
@@ -354,7 +357,7 @@ local function drawTerritories(krl, gi, k, key)
 end
 -- As composeMap: true once the map picture holds this key's look, "failed" once composing it failed.
 -- A Territories composition finished: its picture drawn into the map picture. As composeTerritories returns.
-local function finishTerritories(krl, gi, key)
+local function finishTerritories(rendering, gameInstance, key)
     local st = AP_TerritoriesStatus()
     if st == "busy" then return "busy" end
     local k = terr.composing
@@ -365,7 +368,7 @@ local function finishTerritories(krl, gi, key)
         return "failed"
     end
     -- A picture that cannot be drawn is not composed again: it would fail the same way on every update.
-    local okD, drawn = pcall(drawTerritories, krl, gi, k, key)
+    local okD, drawn = pcall(drawTerritories, rendering, gameInstance, k, key)
     if okD then
         return drawn
     end
@@ -375,13 +378,13 @@ local function finishTerritories(krl, gi, key)
 end
 -- Whether the saved colour map is there to compose from (the player's own map, saved once; the user, dev.33: locked
 -- areas' "interior should be the greyscale"), saving it from the game's map first if it is not.
-local function haveColourMap(krl, gi)
+local function haveColourMap(rendering, gameInstance)
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local hasColour = UTIL.exists(colour)
     if not hasColour then
         local tex = gameMapTexture()
         if tex then
-            local okc, path = pcall(colourMap, krl, tex, gi)
+            local okc, path = pcall(colourMap, rendering, tex, gameInstance)
             hasColour = okc and path and UTIL.exists(path) or false
         end
     end
@@ -390,14 +393,14 @@ end
 -- Starts a Territories composition for `key` in the background. From the Art lane's distance field when the DLL has it
 -- (dev.34: smooth at 4096, where the 2048 label map gave stairs and octagons; area_field*.png, made from the label maps
 -- by tools/map_fields.py), else from the label map at 2048.
-local function startTerritories(krl, gi, passes, key)
+local function startTerritories(rendering, gameInstance, passes, key)
     local field = W.dir .. "\\area_field" .. layout.suffix .. ".png"
     local hasField = AP_ComposeField and UTIL.exists(field)
     local err, size, whole
     if hasField then
         -- With the colour map: the whole map picture, greyscale where locked, the walls there in the area's colour.
         local colour
-        whole, colour = haveColourMap(krl, gi)
+        whole, colour = haveColourMap(rendering, gameInstance)
         size = FIELD_SIZE
         -- AP_ComposeField(field, areas, walls, style, out, fogart, fog colour, size, colour, gamma): dllmain.cpp's list
         err = AP_ComposeField(field, areaSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
@@ -421,13 +424,13 @@ local function composeTerritories(passes, key)
         if terr.done == key then return "ready" end
         if terr.failed == key then return "failed" end
     end
-    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    local gi = owner()
-    if not gi then return "busy" end
+    local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local gameInstance = owner()
+    if not gameInstance then return "busy" end
     if terr.composing then
-        return finishTerritories(krl, gi, key)
+        return finishTerritories(rendering, gameInstance, key)
     end
-    startTerritories(krl, gi, passes, key)
+    startTerritories(rendering, gameInstance, passes, key)
     return "busy"
 end
 
@@ -438,24 +441,24 @@ local function colourMapRenewed()
         return false
     end
     local tex = gameMapTexture()
-    local gi = owner()
-    if not (tex and gi) then
+    local gameInstance = owner()
+    if not (tex and gameInstance) then
         return false
     end
-    colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gi)
+    colourMap(StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary"), tex, gameInstance)
     return colourSaved
 end
 -- Draws the finished composition into the map picture, the stamps on it; false (with greyJob.failed set) when it
 -- could not be loaded. A picture that errors while drawn is not composed again either (composeMap): it would fail the
 -- same way.
-local function drawComposed(krl, gi, done)
-    local tex = krl:ImportFileAsTexture2D(gi, W.dir .. "\\" .. COMPOSED_FILE)
+local function drawComposed(rendering, gameInstance, done)
+    local tex = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\" .. COMPOSED_FILE)
     if not tex or not tex:IsValid() then
         log("map: could not load the composed map; drawing it without the compositor")
         greyJob.failed = done
         return false
     end
-    drawInto(krl, gi, mapTarget(krl, gi), function(canvas)
+    drawInto(rendering, gameInstance, mapTarget(rendering, gameInstance), function(canvas)
         drawWhole(canvas, tex, RT_SIZE, RT_SIZE, BLEND_OPAQUE)
         local okS, errS = pcall(drawStamps, canvas, greyJob.locked)
         if not okS then once("stamperr", "map: stamps failed: " .. tostring(errS)) end
@@ -464,7 +467,7 @@ local function drawComposed(krl, gi, done)
     return true
 end
 -- A composition finished: its picture drawn into the map picture. As composeMap answers.
-local function finishCompose(krl, gi, key)
+local function finishCompose(rendering, gameInstance, key)
     local st = AP_ComposeStatus()
     if st == "busy" then return "busy" end
     local done = greyJob.composing
@@ -476,7 +479,7 @@ local function finishCompose(krl, gi, key)
         greyJob.failed = done
         return "busy"
     end
-    local okD, drawn = pcall(drawComposed, krl, gi, done)
+    local okD, drawn = pcall(drawComposed, rendering, gameInstance, done)
     if not okD then
         log("map: could not draw the composed map (" .. tostring(drawn) .. "); drawing it without the compositor")
         greyJob.failed = done
@@ -486,13 +489,13 @@ local function finishCompose(krl, gi, key)
 end
 -- Starts a composition for `key` in the background, from the saved colour map (saved again from the game's map at the
 -- first opening, or when there is none) and the area labels.
-local function startCompose(krl, gi, passes, key, open)
+local function startCompose(rendering, gameInstance, passes, key, open)
     local colour = W.dir .. "\\" .. COLOUR_FILE
     local saved = UTIL.exists(colour)
     if open or printChecked or not saved then
         local tex = gameMapTexture()
         if not tex then return end
-        colour = colourMap(krl, tex, gi)
+        colour = colourMap(rendering, tex, gameInstance)
     end
     -- AP_ComposeMap(colour, labels, locked area indexes, out, gamma): dllmain.cpp's list; image_tools.hpp, compose_map
     local err = AP_ComposeMap(colour, labelsFile(), lockedIndexes(passes), W.dir .. "\\" .. COMPOSED_FILE, GAMMA)
@@ -526,13 +529,13 @@ local function composeMap(passes, key, open)
         end
         if greyJob.failed == key then return "failed" end
     end
-    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    local gi = owner()
-    if not gi then return "busy" end
+    local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local gameInstance = owner()
+    if not gameInstance then return "busy" end
     if greyJob.composing then
-        return finishCompose(krl, gi, key)
+        return finishCompose(rendering, gameInstance, key)
     end
-    startCompose(krl, gi, passes, key, open)
+    startCompose(rendering, gameInstance, passes, key, open)
     return "busy"
 end
 

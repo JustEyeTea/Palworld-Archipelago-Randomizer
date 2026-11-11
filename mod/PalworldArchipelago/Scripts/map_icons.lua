@@ -101,14 +101,14 @@ local function iconClass()
     if not (class and class:IsValid()) then error("no icon class " .. ICON_ASSET .. "_C") end
     return class
 end
--- Adds an icon showing `tex` at the point c (an area's centre row) to the screen and to icons.list; true when the
+-- Adds an icon showing `tex` at an area's centre to the screen and to icons.list; true when the
 -- screen says it is shown. Raises an error when the icon cannot be made.
-local function addIcon(screen, icons, class, wbl, c, tex)
-    local icon = wbl:Create(screen, class, nil)
+local function addIcon(screen, icons, class, widgetLibrary, centre, tex)
+    local icon = widgetLibrary:Create(screen, class, nil)
     if not (icon and icon:IsValid()) then error("could not make a map icon") end
     icon:ChangeTexture(tex)
     local out = {}
-    screen["Add Icon By Location"](screen, icon, worldAt(c.deepU, c.deepV), true, false, out)
+    screen["Add Icon By Location"](screen, icon, worldAt(centre.deepU, centre.deepV), true, false, out)
     pcall(function() icon:SetVisibility(HIT_TEST_INVISIBLE) end)
     icons.list[#icons.list + 1] = icon
     return out.Added
@@ -127,20 +127,20 @@ local function placeIcons(screen, passes, key)
     icons = { key = key, list = {} }
     mapIcons[addr] = icons
     local class = iconClass()
-    local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
+    local widgetLibrary = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
     local added, shown = 0, 0
     for _, k in ipairs(lockedList(passes)) do
-        local c, tex = layout.centres[k], stampTexture(k)
-        if c and tex then
-            if addIcon(screen, icons, class, wbl, c, tex) then shown = shown + 1 end
+        local centre, tex = layout.centres[k], stampTexture(k)
+        if centre and tex then
+            if addIcon(screen, icons, class, widgetLibrary, centre, tex) then shown = shown + 1 end
             added = added + 1
         end
     end
     local opened = 0
     for _, k in ipairs(openList(passes)) do
-        local c, tex = layout.centres[k], openTexture(k)
-        if c and tex then
-            addIcon(screen, icons, class, wbl, c, tex)
+        local centre, tex = layout.centres[k], openTexture(k)
+        if centre and tex then
+            addIcon(screen, icons, class, widgetLibrary, centre, tex)
             opened = opened + 1
         end
     end

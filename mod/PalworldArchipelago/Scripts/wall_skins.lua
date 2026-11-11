@@ -76,11 +76,11 @@ local function patternOr(name)
     if UTIL.exists(W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png") then return name end
     return "a"
 end
-local function meshOf(a)
-    local ok, m = pcall(function() return a.Cube end)
+local function meshOf(actor)
+    local ok, m = pcall(function() return actor.Cube end)
     if ok and m and m:IsValid() then return m end
-    local smc = StaticFindObject("/Script/Engine.StaticMeshComponent")
-    ok, m = pcall(function() return a:GetComponentByClass(smc) end)
+    local meshClass = StaticFindObject("/Script/Engine.StaticMeshComponent")
+    ok, m = pcall(function() return actor:GetComponentByClass(meshClass) end)
     if ok and m and m:IsValid() then
         UTIL.took("wall skins: a wall's mesh", "found by GetComponentByClass (the actor has no Cube)")
         return m
@@ -103,8 +103,8 @@ local function modAsset(pkg, name, notes)
         local helpers = StaticFindObject("/Script/AssetRegistry.Default__AssetRegistryHelpers")
         if not (helpers and helpers:IsValid()) then return "no AssetRegistryHelpers" end
         local function fname(s) return EFindName and FName(s, EFindName.FNAME_Add) or FName(s) end
-        local a = helpers:GetAsset({ PackageName = fname(pkg), AssetName = fname(name) })
-        return a and a:IsValid() and a or "GetAsset gave nothing"
+        local actor = helpers:GetAsset({ PackageName = fname(pkg), AssetName = fname(name) })
+        return actor and actor:IsValid() and actor or "GetAsset gave nothing"
     end)
     if ok and type(got) ~= "string" then notes[#notes + 1] = name .. " from the asset registry"; return got end
     notes[#notes + 1] = name .. " registry: " .. tostring(got)
@@ -114,9 +114,9 @@ local function modAsset(pkg, name, notes)
     notes[#notes + 1] = name .. " LoadAsset " .. (okL and "found nothing" or ("errored: " .. tostring(err)))
 end
 WALL_SKINS.modAsset = modAsset
-local function fadeOn(mid)
-    mid:SetScalarParameterValue(FName("FadeStart"), W.fade[1])
-    mid:SetScalarParameterValue(FName("FadeEnd"), W.fade[2])
+local function fadeOn(material)
+    material:SetScalarParameterValue(FName("FadeStart"), W.fade[1])
+    material:SetScalarParameterValue(FName("FadeEnd"), W.fade[2])
 end
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
@@ -131,35 +131,39 @@ local function apWallMaterial()
     end
     if m then apWall = m; W.keep(m); return m end
 end
-local function colourMaterial(name, gi, krl, kml)
+local function colourMaterial(name, gameInstance, rendering, materials)
     local base = apWallMaterial()
     if not base then log("wall skin " .. name .. ": needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
     local flow = name:match("^(.-)%-flow$")
     local path = W.dir .. "\\walls\\ap-wall-" .. (flow or name) .. ".png"
-    local tex = krl:ImportFileAsTexture2D(gi, path)
+    local tex = rendering:ImportFileAsTexture2D(gameInstance, path)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
     W.keep(tex)                                                -- a colour picture: sRGB as imported
-    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), MID_FLAGS)
-    if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
-    W.keep(mid)
-    mid:SetTextureParameterValue(FName("Pattern"), tex)
-    fadeOn(mid)
+    local material = materials:CreateDynamicMaterialInstance(gameInstance, base, FName("None"), MID_FLAGS)
+    if not (material and material:IsValid()) then
+        log("wall skin " .. name .. ": could not make the material")
+        return nil
+    end
+    W.keep(material)
+    material:SetTextureParameterValue(FName("Pattern"), tex)
+    fadeOn(material)
     local scroll = flow and { FLOW, 0 } or W.scroll
     if scroll then
-        mid:SetScalarParameterValue(FName("ScrollU"), scroll[1])
-        mid:SetScalarParameterValue(FName("ScrollV"), scroll[2])
+        material:SetScalarParameterValue(FName("ScrollU"), scroll[1])
+        material:SetScalarParameterValue(FName("ScrollV"), scroll[2])
     end
-    skin.mids[name], skin.failed[name] = mid, nil
+    skin.mids[name], skin.failed[name] = material, nil
     log("wall skin " .. name .. ": material made on M_APWall" .. (scroll and (", scrolling " .. scroll[1] .. "," .. scroll[2]) or ""))
-    return mid
+    return material
 end
 -- The cream-paw layer: the pak's (with mips), else the PNG (none; the rims may shimmer far off). One for every area.
-local function pawLayerTexture(gi, krl)
+local function pawLayerTexture(gameInstance, rendering)
     if pawLayer and pawLayer:IsValid() then return pawLayer end
     local notes = {}
     local t, from = modAsset("/Game/Mods/PalworldArchipelagoArt/T_APWallPaws", "T_APWallPaws", notes), "the pak, with mips"
     if not (t and t:IsValid()) then
-        t, from = krl:ImportFileAsTexture2D(gi, W.dir .. "\\walls\\ap-wall-paws-layer.png"), "walls\\ap-wall-paws-layer.png, no mips"
+        t = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\walls\\ap-wall-paws-layer.png")
+        from = "walls\\ap-wall-paws-layer.png, no mips"
     end
     if not (t and t:IsValid()) then return nil end
     W.keep(t)
@@ -168,10 +172,10 @@ local function pawLayerTexture(gi, krl)
     return t
 end
 -- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour (made, not kept in skin.mids).
-local function makePaws(name, gi, krl, kml)
+local function makePaws(name, gameInstance, rendering, materials)
     local base = apWallMaterial()
     if not base then log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found)"); return nil end
-    local tex = pawLayerTexture(gi, krl)
+    local tex = pawLayerTexture(gameInstance, rendering)
     if not tex then log("wall skin paws: could not load walls\\ap-wall-paws-layer.png"); return nil end
     local hex, own = name:match("^paws:(%x%x%x%x%x%x):?(%d*)$")
     local back = hex and UTIL.linear(hex) or SEALED
@@ -183,31 +187,34 @@ local function makePaws(name, gi, krl, kml)
         local k = BACK_SHADE + BACK_SHADE_RANGE * s
         back = { R = back.R * k, G = back.G * k, B = back.B * k, A = 1 }
     end
-    local mid = kml:CreateDynamicMaterialInstance(gi, base, FName("None"), MID_FLAGS)
-    if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
-    W.keep(mid)
-    mid:SetTextureParameterValue(FName("Pattern"), tex)
-    mid:SetVectorParameterValue(FName("Back"), back)
-    mid:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
-    mid:SetScalarParameterValue(FName("Brightness"), PAW_BRIGHT)
+    local material = materials:CreateDynamicMaterialInstance(gameInstance, base, FName("None"), MID_FLAGS)
+    if not (material and material:IsValid()) then
+        log("wall skin " .. name .. ": could not make the material")
+        return nil
+    end
+    W.keep(material)
+    material:SetTextureParameterValue(FName("Pattern"), tex)
+    material:SetVectorParameterValue(FName("Back"), back)
+    material:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
+    material:SetScalarParameterValue(FName("Brightness"), PAW_BRIGHT)
     if s then
-        mid:SetScalarParameterValue(FName("OffsetU"), (s * OFFSET_U_RATE) % 1)
-        mid:SetScalarParameterValue(FName("OffsetV"), (s * OFFSET_V_RATE) % 1)
-        mid:SetScalarParameterValue(FName("MirrorU"), s > 0.5 and 1 or 0)
+        material:SetScalarParameterValue(FName("OffsetU"), (s * OFFSET_U_RATE) % 1)
+        material:SetScalarParameterValue(FName("OffsetV"), (s * OFFSET_V_RATE) % 1)
+        material:SetScalarParameterValue(FName("MirrorU"), s > 0.5 and 1 or 0)
     end
-    fadeOn(mid)
+    fadeOn(material)
     if W.scroll then
-        mid:SetScalarParameterValue(FName("ScrollU"), W.scroll[1])
-        mid:SetScalarParameterValue(FName("ScrollV"), W.scroll[2])
+        material:SetScalarParameterValue(FName("ScrollU"), W.scroll[1])
+        material:SetScalarParameterValue(FName("ScrollV"), W.scroll[2])
     end
-    return mid
+    return material
 end
-local function pawsMaterial(name, gi, krl, kml)
-    local mid = makePaws(name, gi, krl, kml)
-    if not mid then return nil end
-    skin.mids[name], skin.failed[name] = mid, nil
+local function pawsMaterial(name, gameInstance, rendering, materials)
+    local material = makePaws(name, gameInstance, rendering, materials)
+    if not material then return nil end
+    skin.mids[name], skin.failed[name] = material, nil
     log("wall skin " .. name .. ": material made on M_APWall")
-    return mid
+    return material
 end
 -- An opening piece's material: its paws, dissolving from now over DISSOLVE_S by the game's clock (M_APWall's
 -- DissolveStart and DissolveTime against its Time node; an edge glows as it goes). One per look per second, so the
@@ -219,18 +226,19 @@ function WALL_SKINS.dissolving(name, pawn)
     local key = name .. "@" .. math.floor(now)
     local made = dissolveMaterials[key]
     if made and made:IsValid() then return made, dissolveStarts[key] end
-    local gi = owner()
-    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
-    if not (gi and krl and krl:IsValid() and kml and kml:IsValid()) then return nil end
-    local mid = makePaws(name, gi, krl, kml)
-    if not mid then return nil end
-    mid:SetScalarParameterValue(FName("DissolveStart"), now)
-    mid:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
-    if glowAt then mid:SetVectorParameterValue(FName("PlayerPos"), glowAt) end
-    dissolveMaterials[key], dissolveStarts[key] = mid, now
+    local gameInstance = owner()
+    local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local materials = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
+    local ready = gameInstance and rendering and rendering:IsValid() and materials and materials:IsValid()
+    if not ready then return nil end
+    local material = makePaws(name, gameInstance, rendering, materials)
+    if not material then return nil end
+    material:SetScalarParameterValue(FName("DissolveStart"), now)
+    material:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
+    if glowAt then material:SetVectorParameterValue(FName("PlayerPos"), glowAt) end
+    dissolveMaterials[key], dissolveStarts[key] = material, now
     once("dissolve", "wall skin paws: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now) .. " s)")
-    return mid, now
+    return material, now
 end
 -- The glow near the player (M_APWall's PlayerPos; dev.41 playtest: keyed to the camera it sat off to the side of the
 -- character): the player's position on the M_APWall materials of pieces shown, each core update (300 ms; a faster
@@ -252,8 +260,11 @@ function WALL_SKINS.glowTick()
     -- Only the materials pieces shown now wear (dev.42 crash: every material ever made was called, those of the world
     -- before included), and the dissolving ones of pieces still there.
     local name, done = FName("PlayerPos"), {}
-    local function tell(mid)
-        if mid and not done[mid] and mid:IsValid() then done[mid] = true; mid:SetVectorParameterValue(name, glowAt) end
+    local function tell(material)
+        if material and not done[material] and material:IsValid() then
+            done[material] = true
+            material:SetVectorParameterValue(name, glowAt)
+        end
     end
     local wears = skin.now == "paws" and nil or skin.mids[skin.now]
     for i in pairs(pieces.raised()) do
@@ -279,14 +290,14 @@ end
 -- The game instance and the rendering and material libraries a skin's material is made with, once the walls' own
 -- material is known; nil and what is missing while any of them is.
 local function skinLibraries()
-    local gi = owner()
-    local krl = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
-    local kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
-    if not gi then return nil, "no game instance" end
+    local gameInstance = owner()
+    local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    local materials = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
+    if not gameInstance then return nil, "no game instance" end
     if not (skin.base and skin.base:IsValid()) then return nil, "the walls' own material is not known yet" end
-    if not (krl and krl:IsValid()) then return nil, "no KismetRenderingLibrary" end
-    if not (kml and kml:IsValid()) then return nil, "no KismetMaterialLibrary" end
-    return gi, krl, kml
+    if not (rendering and rendering:IsValid()) then return nil, "no KismetRenderingLibrary" end
+    if not (materials and materials:IsValid()) then return nil, "no KismetMaterialLibrary" end
+    return gameInstance, rendering, materials
 end
 -- A pattern skin's tint, pattern file and tiling: the teal lattice and its variants, an area's colour, or sealed grey.
 local function patternFor(name)
@@ -305,57 +316,62 @@ local function patternFor(name)
 end
 -- A pattern skin's material: a dynamic copy of the walls' own material with the pattern and tint set; nil (logged)
 -- when the pattern or the material cannot be made.
-local function makePatternMaterial(name, gi, krl, kml)
+local function makePatternMaterial(name, gameInstance, rendering, materials)
     local tint, file, tiling = patternFor(name)
     local path = W.dir .. "\\walls\\ap-wall-pattern-" .. file .. ".png"
-    local tex = krl:ImportFileAsTexture2D(gi, path)
+    local tex = rendering:ImportFileAsTexture2D(gameInstance, path)
     if not (tex and tex:IsValid()) then log("wall skin " .. name .. ": could not load " .. path); return nil end
     local srgb = pcall(function() tex.SRGB = false; tex:UpdateResource() end)   -- the game's pattern is linear
     W.keep(tex)
-    local mid = kml:CreateDynamicMaterialInstance(gi, skin.base, FName("None"), MID_FLAGS)
-    if not (mid and mid:IsValid()) then log("wall skin " .. name .. ": could not make the material"); return nil end
-    W.keep(mid)
-    mid:SetTextureParameterValue(FName("MainTexture01"), tex)
+    local material = materials:CreateDynamicMaterialInstance(gameInstance, skin.base, FName("None"), MID_FLAGS)
+    if not (material and material:IsValid()) then
+        log("wall skin " .. name .. ": could not make the material")
+        return nil
+    end
+    W.keep(material)
+    material:SetTextureParameterValue(FName("MainTexture01"), tex)
     local night = { R = tint.R * NIGHT, G = tint.G * NIGHT, B = tint.B * NIGHT, A = 1 }
-    for k, c in pairs({ Color = tint, DayColor = tint, NightColor = night }) do mid:SetVectorParameterValue(FName(k), c) end
+    for param, colour in pairs({ Color = tint, DayColor = tint, NightColor = night }) do
+        material:SetVectorParameterValue(FName(param), colour)
+    end
     if tiling then
-        mid:SetScalarParameterValue(FName("TilingU_01"), tiling[1])
-        mid:SetScalarParameterValue(FName("TilingV_01"), tiling[2])
+        material:SetScalarParameterValue(FName("TilingU_01"), tiling[1])
+        material:SetScalarParameterValue(FName("TilingV_01"), tiling[2])
     end
     if W.scroll then
-        mid:SetScalarParameterValue(FName("ScrollingU_01"), W.scroll[1])
-        mid:SetScalarParameterValue(FName("ScrollingV_01"), W.scroll[2])
+        material:SetScalarParameterValue(FName("ScrollingU_01"), W.scroll[1])
+        material:SetScalarParameterValue(FName("ScrollingV_01"), W.scroll[2])
     end
-    skin.mids[name], skin.failed[name] = mid, nil
+    skin.mids[name], skin.failed[name] = material, nil
     -- Blueprint_GetSizeX/Y: Lua sees only UFunctions (v0.13.5 playtest: GetSurfaceWidth is C++ only, and the call errored).
     local okw, size = pcall(function() return tex:Blueprint_GetSizeX() .. "x" .. tex:Blueprint_GetSizeY() end)
     log("wall skin " .. name .. ": material made (" .. (okw and size or "size unknown")
         .. (srgb and ", linear" or ", sRGB: could not change") .. ", tiling "
         .. (tiling and (tiling[1] .. "x" .. tiling[2]) or "the material's") .. ")")
-    return mid
+    return material
 end
 -- A skin's material, made on first use; nil when it cannot be made (tried once a world: W.dropCaches empties failed).
 local function skinMaterial(name)
-    local mid = skin.mids[name]
-    if mid and mid:IsValid() then return mid end
+    local material = skin.mids[name]
+    if material and material:IsValid() then return material end
     if skin.failed[name] then return nil end
     skin.failed[name] = true                                   -- one try per skin per world; cleared on success
-    local gi, krl, kml = skinLibraries()
-    if not gi then
-        log("wall skin " .. name .. ": " .. krl .. " yet; tried again later")
+    local gameInstance, rendering, materials = skinLibraries()
+    if not gameInstance then
+        log("wall skin " .. name .. ": " .. rendering .. " yet; tried again later")
         skin.failed[name] = nil
         return nil
     end
-    if name:find("^colour%-") then return colourMaterial(name, gi, krl, kml) end
-    if name:find("^paws:") then return pawsMaterial(name, gi, krl, kml) end
-    return makePatternMaterial(name, gi, krl, kml)
+    if name:find("^colour%-") then return colourMaterial(name, gameInstance, rendering, materials) end
+    if name:find("^paws:") then return pawsMaterial(name, gameInstance, rendering, materials) end
+    return makePatternMaterial(name, gameInstance, rendering, materials)
 end
 -- Puts the current skin on one piece (a new piece, or every raised one when the skin changes).
-local function dress(a, mid)
-    local m = meshOf(a)
+local function dress(actor, material)
+    local m = meshOf(actor)
     if not m then return false end
     if not skin.base then skin.base = m:GetMaterial(0); W.keep(skin.base) end   -- the red original, before any change
-    m:SetMaterial(0, mid or skin.base)
+    m:SetMaterial(0, material or skin.base)
     return true
 end
 -- The material a piece wears with the area skin (or paws), by name (see SKINS).
@@ -385,22 +401,22 @@ local function pieceSkin(i, passes, mode)
 end
 WALL_SKINS.pieceSkin = pieceSkin
 -- With the area skin (or paws): that piece's own material (made on first use; the teal lattice if it can't be made).
-local function areaDress(a, i, passes, mode)
+local function areaDress(actor, i, passes, mode)
     local name = pieceSkin(i, passes or {}, mode)
-    local mid = skinMaterial(name)
-    if not mid and name ~= "a" then
+    local material = skinMaterial(name)
+    if not material and name ~= "a" then
         UTIL.took("wall skin " .. name, "the teal lattice (a) instead: its own material could not be made")
-        name, mid = "a", skinMaterial("a")
+        name, material = "a", skinMaterial("a")
     end
-    if mid and dress(a, mid) then dressedAs[i] = name end
+    if material and dress(actor, material) then dressedAs[i] = name end
 end
 -- Dresses a piece just raised (i: its index) in the skin worn now; an error is logged once, not raised.
-function WALL_SKINS.skinNew(a, i)
+function WALL_SKINS.skinNew(actor, i)
     local ok, err = true, nil
     if byArea(skin.now) then
-        if i then ok, err = pcall(areaDress, a, i, pieces.passes(), skin.now) end
+        if i then ok, err = pcall(areaDress, actor, i, pieces.passes(), skin.now) end
     elseif skin.now ~= "red" then
-        ok, err = pcall(dress, a, skin.mids[skin.now])
+        ok, err = pcall(dress, actor, skin.mids[skin.now])
     end
     if not ok then
         UTIL.onceErr("walls:skinnew", err, "wall skin " .. skin.now .. ": could not dress a new piece: " .. tostring(err))
@@ -419,9 +435,9 @@ function WALL_SKINS.recolour(passes)
     if not recolourAt then return end
     local budget = RECOLOUR
     while recolourAt <= #layout.walls and budget > 0 do
-        local i, a = recolourAt, pieces.raised()[recolourAt]
-        if a and a:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
-            local ok, err = pcall(areaDress, a, i, passes, skin.now)
+        local i, actor = recolourAt, pieces.raised()[recolourAt]
+        if actor and actor:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
+            local ok, err = pcall(areaDress, actor, i, passes, skin.now)
             if not ok then
                 UTIL.onceErr("walls:recolour", err, "wall skin " .. skin.now .. ": could not recolour piece " .. i .. ": "
                     .. tostring(err))
@@ -454,21 +470,21 @@ function WALL_SKINS.cycleSkin()
 end
 -- Dresses one raised piece in the skin wanted (mid: its material, for a skin that is not by area). True when it is
 -- dressed; else false and the error, if there was one.
-local function dressOne(a, i, mid)
+local function dressOne(actor, i, material)
     if byArea(skin.want) then
-        local ok, err = pcall(areaDress, a, i, pieces.passes(), skin.want)
+        local ok, err = pcall(areaDress, actor, i, pieces.passes(), skin.want)
         return ok and dressedAs[i] ~= nil, not ok and err or nil
     end
-    local ok, done = pcall(dress, a, mid)
+    local ok, done = pcall(dress, actor, material)
     dressedAs[i] = nil
     return ok and done, not ok and done or nil
 end
 -- The walls' own red material, learnt from the first piece raised (the original, before any change). False until then.
 local function learnBaseMaterial()
     if skin.base then return true end
-    local _, a = next(pieces.raised())
-    if not a then return false end
-    local m = meshOf(a)
+    local _, actor = next(pieces.raised())
+    if not actor then return false end
+    local m = meshOf(actor)
     skin.base = m and m:GetMaterial(0)
     if not skin.base then return false end
     W.keep(skin.base)
@@ -487,11 +503,11 @@ local function pawsOrArea()
 end
 -- Dresses every raised piece in the skin wanted (mid: its material, for a skin not by area). Returns how many were
 -- dressed, how many not, and the first error.
-local function dressAll(mid)
+local function dressAll(material)
     local n, bad, firstErr = 0, 0, nil
-    for i, a in pairs(pieces.raised()) do
-        if a:IsValid() then
-            local done, err = dressOne(a, i, mid)
+    for i, actor in pairs(pieces.raised()) do
+        if actor:IsValid() then
+            local done, err = dressOne(actor, i, material)
             if done then
                 n = n + 1
             else
@@ -519,12 +535,12 @@ function WALL_SKINS.skinTick()
     if skin.want == skin.now then return end
     if not learnBaseMaterial() then return end
     if not pawsOrArea() then return end
-    local mid = nil
+    local material = nil
     if skin.want ~= "red" and not byArea(skin.want) then
-        mid = skinMaterial(skin.want)
-        if not mid then skin.want = skin.now; return end
+        material = skinMaterial(skin.want)
+        if not material then skin.want = skin.now; return end
     end
-    local n, bad, firstErr = dressAll(mid)
+    local n, bad, firstErr = dressAll(material)
     skin.now = skin.want
     logSkin(n, bad, firstErr)
 end
