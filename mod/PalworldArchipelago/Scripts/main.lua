@@ -29,30 +29,8 @@ local BAG = require("bag")
 local TRAPS = require("traps")
 local SYNC = require("sync")
 
--- The core update runs every UPDATE_MS (the LoopAsync at the end of this file). Waits are counted in updates;
--- updates() turns seconds into that count.
-local updates = UTIL.updates
-local WAIT = {
-    firstItems = updates(1.5),  -- after connecting, before anything is locked: the first batch of items arrives
-    settle = updates(5),        -- after a world loads, before any wall: spawning into a world still loading can crash
-    goal = updates(120),        -- the goal waits at most this long for the player to leave the boss's arena
-    hintOffer = updates(60),    -- a hint offered at a wall can be taken for this long
-    hintAnswer = updates(15),   -- the server's answer to a hint the player asked for is shown if it comes within this
-    wallNotice = updates(120),  -- the same wall's notice comes again only after this
-    heldNotice = updates(60),   -- notices held through a loading screen show after this even if the player hasn't moved
-    deathLate = updates(6),     -- a linked death older than this (received at the title, or loading) is dropped
-    ownDeath = updates(15),     -- a death this soon after the link fainted the player came from the link
-}
--- The heavier work runs on one update in CYCLE (2.1 s), spread over these phases so no one frame carries it all.
--- isPhase() (below, with the update counter) says which phase this update is.
-local CYCLE = 7
-local PHASE = {
-    records = 0,                -- trap timers, the seed's-world check, the game's records (checks and the goal)
-    techScan = 1,               -- other mods' techs, until found
-    items = 2,                  -- techs, items, the run style's sync, held notices, Death Link, traps
-    areas = 3,                  -- visited areas; sent home from inside a locked area
-    wallNotice = 5,             -- the chat notice and hint offer at a locked wall
-}
+local CLOCK = require("clock")
+local WAIT, PHASE, isPhase = CLOCK.WAIT, CLOCK.PHASE, CLOCK.isPhase
 local TECH_SCAN_TRIES = 40      -- one try per cycle until the player's tech data is there: about 84 s
 local SENT_HOME_AFTER = 2       -- looks in a row (one per cycle) inside a locked area before the player is sent home
 
@@ -709,7 +687,7 @@ end
 -- The goal waits for the player to leave the boss's arena (a stage, as for the Teleport Trap): the user, 2026-11-08,
 -- beat the tower goal and the release flooded chat mid-arena, the goal line lost in it, before the game took them out
 -- of the tower. Sent once a check finds them out of any stage, or WAIT.goal after (never stuck); with the banner.
-local goalWait = nil                     -- { done = what, since = tick }
+local goalWait = nil                     -- { done = what, since = the update it was reached on }
 local function pollRecords(ps, tick)
     local okp, found = pcall(R.progress, ps, D, os.time())
     if not okp then once("records", "records not readable yet (loading?): " .. tostring(found)); return end
@@ -1239,8 +1217,6 @@ end
 registerNativeHooks()
 
 ------------------------------------------------------------------------------------------------------------------------
-local tick = 0
-local function isPhase(phase) return tick % CYCLE == phase end
 local preloaded = false
 local hints = { known = {}, shown = {}, offer = nil, offeredAt = 0, asked = nil,
                 key = HINT_KEY }
@@ -1339,7 +1315,7 @@ local function onBounce(tags, json)
     local source = jsonField(data, "source") or "someone"
     local cause = jsonField(data, "cause")
     if source == cfg.slot then return end
-    death.incoming, death.at = cause and cause ~= "" and cause or (source .. " died."), tick
+    death.incoming, death.at = cause and cause ~= "" and cause or (source .. " died."), CLOCK.now()
 end
 
 -- message <text> <type>: chat; hints are shown, and a hint for one of our passes is kept for its wall's notice.
@@ -1351,7 +1327,7 @@ local function onMessage(textField, kindOf)
         -- The finder is told too: a hint for another player's pass that sits in our world is not about our walls.
         local who, pass = text:match("^%[Hint%]: (.-)'s %a+ Pass: (.-) is at ")       -- Area or Region Pass
         if pass and who == (ap.slotName or cfg.slot) then hints.known[pass] = text:gsub("^%[Hint%]: ", "") end
-    elseif kindOf == "CommandResult" and hints.asked and tick - hints.asked < WAIT.hintAnswer then
+    elseif kindOf == "CommandResult" and hints.asked and CLOCK.now() - hints.asked < WAIT.hintAnswer then
         notify(text)                               -- the server's answer to a hint the player asked for
     end
 end
@@ -1425,7 +1401,7 @@ end
 -- seed's options. `was` is the status before.
 local function onConnected(was)
     ap.status = "connected"
-    ap.connectedTick = tick
+    ap.connectedTick = CLOCK.now()
     ap.me = tonumber(AP_SlotData("slot"))
     local seed = AP_SlotData("seed")
     if seed ~= "" and (seed ~= ap.seed or cfg.slot ~= ap.slotName) then
@@ -1557,7 +1533,7 @@ local function wallNotice(area)
     local points, cost = (AP_HintPoints and AP_HintPoints() or ""):match("^(%d+),(%d+)$")
     if not points then return text, { title = area .. " is sealed", line = "It needs " .. pass .. "." } end
     points, cost = tonumber(points), tonumber(cost)
-    hints.offer, hints.offeredAt = area, tick
+    hints.offer, hints.offeredAt = area, CLOCK.now()
     -- Both cases say what the player has and what a hint costs (the user, 2026-11-04), with the configured key.
     if points >= cost then
         return text .. " Press " .. hints.key .. " for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
@@ -1570,13 +1546,13 @@ local function wallNotice(area)
 end
 local function askHint()
     local area = hints.offer
-    if not area or tick - hints.offeredAt > WAIT.hintOffer then return end
+    if not area or CLOCK.now() - hints.offeredAt > WAIT.hintOffer then return end
     local points, cost = (AP_HintPoints() or ""):match("^(%d+),(%d+)$")
     if points and tonumber(points) < tonumber(cost) then
         notify("Not enough hint points: you have " .. points .. ", a hint costs " .. cost .. ".")
         return
     end
-    hints.offer, hints.asked = nil, tick
+    hints.offer, hints.asked = nil, CLOCK.now()
     AP_Say("!hint " .. WALLS.passName(area))
     notify("Asking the Archipelago server where " .. WALLS.passName(area) .. " is...")
 end
@@ -1655,7 +1631,7 @@ local function deathLink(ps)
         elseif death.route < #ROUTES then
             local failed = ROUTES[death.route]
             death.route = death.route + 1
-            death.caused = tick
+            death.caused = CLOCK.now()
             local ok, err, how = faintNow(ps)
             if ok and death.route < #ROUTES then death.pending = cause end
             log("death link: the " .. failed .. " did not faint the player; used the " .. how .. ": " .. cause
@@ -1666,13 +1642,13 @@ local function deathLink(ps)
     -- An incoming death waits for a settled world with a character (as the traps do), then counts as late.
     local character = safe(function() return ps:GetPawn() end)
     local settled = wallsWorld and worldTicks >= WAIT.settle and character and character:IsValid()
-    if death.incoming and (settled or tick - death.at > WAIT.deathLate) then
+    if death.incoming and (settled or CLOCK.now() - death.at > WAIT.deathLate) then
         local cause = death.incoming
         death.incoming = nil
-        if tick - death.at > WAIT.deathLate then
-            log("death link received while no player was in the world (" .. (tick - death.at) .. " updates ago): not applied: " .. cause)
+        if CLOCK.now() - death.at > WAIT.deathLate then
+            log("death link received while no player was in the world (" .. (CLOCK.now() - death.at) .. " updates ago): not applied: " .. cause)
         elseif not dead then
-            death.caused = tick
+            death.caused = CLOCK.now()
             local ok, err, how = faintNow(ps)
             if ok and death.route < #ROUTES then death.pending = cause end
             notify("Death Link: " .. cause)
@@ -1680,7 +1656,7 @@ local function deathLink(ps)
         end
     end
     if dead and not death.wasDead then
-        if death.caused and tick - death.caused < WAIT.ownDeath then
+        if death.caused and CLOCK.now() - death.caused < WAIT.ownDeath then
             log("death link: this death came from the link, not sent back")
         else
             -- Amnesty (slot data options.death_link_amnesty): that many of your own faints are forgiven before one is
@@ -1759,9 +1735,9 @@ end
 local function stepSmallModules()
     local oktt, errtt = pcall(TEST_TOOLS.update)
     if not oktt then onceErr("testtools", errtt, "test tools error: " .. tostring(errtt)) end
-    local okp, errp = pcall(POPUP.tick, tick)
+    local okp, errp = pcall(POPUP.tick, CLOCK.now())
     if not okp then onceErr("popup", errp, "hint pop-up error: " .. tostring(errp)) end
-    local okdb, errdb = pcall(DEBUFFS.tick, tick)
+    local okdb, errdb = pcall(DEBUFFS.tick, CLOCK.now())
     if not okdb then once("debuffs" .. tostring(errdb), "debuffs error: " .. tostring(errdb)) end
 end
 
@@ -1793,7 +1769,7 @@ end
 
 -- Ready once the first batch of items is in, a moment after connecting: only then is anything locked.
 local function markReady()
-    if ap.status ~= "connected" or ap.ready or tick - ap.connectedTick < WAIT.firstItems then return end
+    if ap.status ~= "connected" or ap.ready or CLOCK.now() - ap.connectedTick < WAIT.firstItems then return end
     ap.ready = true
     ap.shown = true
     local n = 0
@@ -1843,11 +1819,11 @@ local function noticeLockedWall(pawn)
         local loc = pawn:K2_GetActorLocation()
         return WALLS.lockedNear(loc.X, loc.Y, ap.passes)
     end)
-    if not (okn and area) or (hints.shown[area] or -1e9) + WAIT.wallNotice > tick then return end
-    hints.shown[area] = tick
+    if not (okn and area) or (hints.shown[area] or -1e9) + WAIT.wallNotice > CLOCK.now() then return end
+    hints.shown[area] = CLOCK.now()
     local line, info = wallNotice(area)
     notify(line)
-    local okp, errp = pcall(POPUP.show, info, tick)
+    local okp, errp = pcall(POPUP.show, info, CLOCK.now())
     if not okp then log("hint pop-up error: " .. tostring(errp)) end
 end
 
@@ -1932,12 +1908,12 @@ local function phaseRecords()
     local ps = playerState()
     local pawn = ps and safe(function() return ps:GetPawn() end)
     -- A running Slow Trap or Fool Trap ends on time whether or not the connection is up.
-    local okk, errk = pcall(TRAPS.tick, { tick = tick, pawn = pawn })
+    local okk, errk = pcall(TRAPS.tick, { tick = CLOCK.now(), pawn = pawn })
     if not okk then onceErr("trapsk", errk, "traps error: " .. tostring(errk)) end
     if ps and ap.ready then seedWorld = checkWorld(ps) end
     if ps and ap.ready and seedWorld then
         P.start("rec")
-        pollRecords(ps, tick)
+        pollRecords(ps, CLOCK.now())
         P.stop("rec")
     end
     P.stop("e7")
@@ -1972,7 +1948,7 @@ local function phaseItems()
     local okt, errt = pcall(function()
         local pawn = safe(function() return ps:GetPawn() end)
         local okd, dead = pcall(function() return ps:IsPlayerDead() end)
-        TRAPS.update({ tick = tick, ps = ps, pawn = pawn, settled = wallsWorld ~= nil and worldTicks >= WAIT.settle,
+        TRAPS.update({ tick = CLOCK.now(), ps = ps, pawn = pawn, settled = wallsWorld ~= nil and worldTicks >= WAIT.settle,
                        dead = not okd or dead, busy = MAIL.busy() })
     end)
     if not okt then onceErr("traps", errt, "traps error: " .. tostring(errt)) end
@@ -1981,7 +1957,7 @@ end
 
 -- One core update (coreTick, every UPDATE_MS on the game thread): what runs every time, then this update's phase.
 local function update(ctx)
-    tick = tick + 1
+    CLOCK.advance()
     SOON.run()
     stepSmallModules()
     readEvents()
