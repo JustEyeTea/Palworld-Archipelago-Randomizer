@@ -1,6 +1,9 @@
 -- The mailbox's hidden chest, its slots: emptied of copies and filled from the list as its window opens
 -- (SLOTS.emptyThenFillChest), and emptied back into the list as it closes (SLOTS.absorb). Used by mailbox_chest.lua
 -- and mailbox_chest_sweep.lua.
+-- The list (the mod's save file) is the truth, and a take leaves it at once, while the item in the bag is kept only by
+-- the game's next world save: an item taken just before a crash is in neither save. That loss is chosen over the
+-- other order, which would give it twice.
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local SLOTS = {}
 local UTIL = require("util")

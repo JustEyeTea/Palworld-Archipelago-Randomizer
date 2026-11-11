@@ -312,7 +312,9 @@ uses three files of its own:
 
 `mailbox.lua` keeps the mailbox's list and opens it. Without the LogicMod window (`mailbox_window.lua`) it shows the
 list in the game's own chest window on a hidden chest, through `mailbox_chest.lua`, which uses three files of its own.
-The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other three are handed it.
+The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other three are handed it. The list is the
+truth: a take leaves it (and the mod's save file) at once, while the item in the bag is kept only by the game's next
+world save, so an item taken just before a crash is lost rather than given twice (`mailbox_chest_slots.lua` says so).
 
 | File | What it holds |
 |---|---|
