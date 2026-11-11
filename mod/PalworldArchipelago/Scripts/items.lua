@@ -1,8 +1,10 @@
 -- Items the server sends: what each does on arrival (ITEMS.onItem, on every connection) and its once-per-seed effect
 -- (ITEMS.applyItems: points, crates, bundles, a Nomad gift, traps, relics), and opening a Palworld Crate.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "connect and receive", "reconnect does not repeat
--- one-off items", "mailbox off: bundles straight to the bag" and "run style and speed boost: Nomad's hand-overs, and
--- world settings changed only when asked, with a warning".
+-- Tests: mod/test/tests/core.lua, mod/test/tests/core_loop.lua, mod/test/tests/goals.lua,
+--   mod/test/tests/crates_run_style.lua; groups "connect and receive", "reconnect does not repeat one-off items",
+--   "mailbox off: bundles straight to the bag",
+--   "run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning"
+--   (tools/lua_harness.sh, in CI).
 local ITEMS = {}
 local BAG = require("bag")
 local CRATES = require("crates")

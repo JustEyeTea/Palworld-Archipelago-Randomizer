@@ -1,6 +1,8 @@
 -- The names the menu files share: the game's class paths, widget fields and events they depend on, their waits
 -- and schedules in seconds, their sizes, and the engine values widgets.lua does not name.
--- Tests: those of menu.lua and its parts (mod/test/harness.lua; run by tools/lua_harness.sh).
+-- Tests: mod/test/tests/title_menu.lua, mod/test/tests/inventory_page.lua, mod/test/tests/mailbox.lua; groups
+--   "the title menu's Archipelago menu", "the Inventory page's mailbox button", "the mailbox"
+--   (tools/lua_harness.sh, in CI).
 local UTIL = require("util")
 local WIDGETS = require("widgets")
 

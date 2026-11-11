@@ -1,7 +1,7 @@
 -- The shop's cards: each tech card of level 2 and up is a shop slot, labelled with what it sends in the multiworld,
 -- its icon and whether it can still be bought. main.lua's update relabels the cards each update, when needed.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "shop cards", "cards are labelled again only when
--- needed" and "tooltips".
+-- Tests: mod/test/tests/shop.lua; groups "shop cards", "cards are labelled again only when needed", "tooltips"
+--   (tools/lua_harness.sh, in CI).
 -- The shape of the shop: the update looks at the cards every 300 ms and relabels a card only when it changed (and every
 -- card on a full pass, every 3 s), and the hooks (shop.lua) only change what the game's functions answer. No widget
 -- is labelled, made or added inside a Blueprint hook: earlier builds that did crashed the game. The one exception is

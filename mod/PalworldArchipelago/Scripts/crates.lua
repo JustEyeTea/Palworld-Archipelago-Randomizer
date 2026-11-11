@@ -10,6 +10,8 @@
 -- Plain items go to the mailbox (or the bag with mailbox=0); gear and accessories, which carry per-item data the
 -- mailbox chest can't hold, go straight to the bag, and what the bag refuses waits in `pending` and is tried again.
 -- Item ids from the 1.0.5 item table. Untested in game (2026-11-05).
+-- Tests: mod/test/tests/crates_run_style.lua; groups "Palworld Crates", "the crate window"
+--   (tools/lua_harness.sh, in CI).
 local C = { list = {}, pending = {} }
 local UTIL = require("util")
 local log = UTIL.log

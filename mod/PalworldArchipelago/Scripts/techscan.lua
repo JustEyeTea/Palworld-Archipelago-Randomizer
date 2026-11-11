@@ -3,7 +3,7 @@
 -- shop only touches its own slots); this reports them, notes vanilla techs whose level or cost a mod changed, and lists
 -- shop slots a mod removed, which can never be bought, so their checks can be sent instead of stranding the multiworld.
 -- The scan runs once a session, in main.lua's tech-scan phase (S.phase). Wired by main.lua (S.install).
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): group "other mods' techs".
+-- Tests: mod/test/tests/core.lua; group "other mods' techs" (tools/lua_harness.sh, in CI).
 local S = {}
 local CHECKS = require("checks")
 local DATA = require("ap_data")

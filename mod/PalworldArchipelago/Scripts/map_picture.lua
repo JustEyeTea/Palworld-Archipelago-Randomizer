@@ -2,7 +2,7 @@
 -- screen, the explored mask, the chart and the fog picture, and the locked areas' icons on the map screen. A part of
 -- walls.lua, which loads it (fresh for each copy of walls.lua) and hands it, by install, W (the table main.lua sees,
 -- with the map's settings) and the areas part.
--- Tests: mod/test/harness.lua, group "the world map".
+-- Tests: mod/test/tests/map.lua; group "the world map" (tools/lua_harness.sh, in CI).
 local MAP_PICTURE = {}
 local UTIL = require("util")
 local MAP_ICONS = nil            -- the icons part (map_icons.lua; install)

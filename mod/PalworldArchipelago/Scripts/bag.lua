@@ -1,6 +1,7 @@
 -- The player's bag: who the player is in this update, and giving items to their bag, with item names and stack
 -- sizes. The mailbox uses it, and so does main.lua: crates and Nomad gifts, and every item when the mailbox is off.
--- Tests: mod/test/harness.lua, groups "the mailbox" and "mailbox off: bundles straight to the bag" (lua_harness.sh).
+-- Tests: mod/test/tests/mailbox.lua, mod/test/tests/goals.lua; groups "the mailbox",
+--   "mailbox off: bundles straight to the bag" (tools/lua_harness.sh, in CI).
 local BAG = {}
 local UTIL = require("util")
 local log = UTIL.log

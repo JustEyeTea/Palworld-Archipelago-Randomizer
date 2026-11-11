@@ -24,6 +24,8 @@
 --    Pal's save parameter struct from Lua (v0.11.3). The C++ connector makes those calls with a block of the right size.
 --  * A2 captured cage (Ctrl+F7): SpawnPal makes a Pal handle but never a Pal in the world, so nothing can be captured;
 --    CapturePal_ServerInternal removes the handle and gives nothing (v0.11.3, v0.11.4).
+-- Tests: mod/test/tests/test_tools.lua, mod/test/tests/tools_probe.lua; groups "test tools",
+--   "test tools: giving a Pal through the connector" (tools/lua_harness.sh, in CI).
 local T = {}
 local UTIL = require("util")
 local log = UTIL.logger("test")

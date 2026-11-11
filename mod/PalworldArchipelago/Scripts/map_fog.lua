@@ -1,7 +1,7 @@
 -- The map screen from C++ and the fog: what C++ is told (switched on, the picture, the fog colour and picture),
 -- when the map is on screen, the explored mask, the explorer's chart and the fog picture made from them. A part of
 -- walls.lua (with map_picture.lua, which calls it each map update), loaded fresh for each copy of walls.lua.
--- Tests: mod/test/harness.lua, group "the world map".
+-- Tests: mod/test/tests/map.lua; group "the world map" (tools/lua_harness.sh, in CI).
 local MAP_FOG = {}
 local UTIL = require("util")
 local ART = require("art")

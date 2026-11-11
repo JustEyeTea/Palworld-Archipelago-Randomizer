@@ -4,6 +4,8 @@
 -- effect's short name until it arrives) with its time left under it (m:ss), in the order the effects started. Hosted
 -- on the HUD layout's canvas like the hint pop-up (hint_popup.lua; seen working in game), never taking a click.
 -- Untested in game.
+-- Tests: mod/test/tests/areas_hud.lua; group "debuff icons, the hint plate and the goal banner"
+--   (tools/lua_harness.sh, in CI).
 local D = {}
 local ART = require("art")
 local ICON, GAP, TOP = 44, 10, 112

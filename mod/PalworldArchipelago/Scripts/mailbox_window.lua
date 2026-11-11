@@ -1,7 +1,7 @@
 -- The mailbox's own window, from the LogicMod PalworldArchipelagoUI (logicmod/): one row per item; pick a row to take
 -- it, or Take all. The mod only fills the window and answers its buttons' AP_Clicked event (which each button's
 -- OnClicked calls). Wired by mailbox.lua (WINDOW.install), whose update calls it.
--- Tests: mod/test/harness.lua, group "the mailbox" (its LogicMod part; run by tools/lua_harness.sh).
+-- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local WINDOW = {}
 local UTIL = require("util")
 local WIDGETS = require("widgets")

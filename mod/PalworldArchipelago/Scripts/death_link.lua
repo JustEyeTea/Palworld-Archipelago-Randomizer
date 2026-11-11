@@ -1,6 +1,7 @@
 -- Death Link (the slot's death_link option): the player's death is sent to everyone linked, and a death from them
 -- faints the player. main.lua's items phase calls DEATH_LINK.step; the server's bounce event calls DEATH_LINK.onBounce.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "death link" and "death link amnesty".
+-- Tests: mod/test/tests/world.lua, mod/test/tests/traps.lua; groups "death link", "death link amnesty"
+--   (tools/lua_harness.sh, in CI).
 local DEATH_LINK = {}
 local CLOCK = require("clock")
 local CONFIG = require("config")

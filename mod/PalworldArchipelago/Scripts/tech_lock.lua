@@ -1,8 +1,9 @@
 -- The tech lock: the game's list of researched techs holds the techs items have unlocked and no other shop tech, and
 -- the techs a seed leaves as normal research leave the shop (research.txt keeps the last seed's list).
 -- Wired by main.lua (TECH_LOCK.install); its items phase calls TECH_LOCK.lockAndUnlockTechs.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "connect and receive", "techs the seed leaves as
--- research (tech_checks no_decor)" and "the tech list is compared only when it may have changed".
+-- Tests: mod/test/tests/core.lua, mod/test/tests/core_loop.lua; groups "connect and receive",
+--   "techs the seed leaves as research (tech_checks no_decor)",
+--   "the tech list is compared only when it may have changed" (tools/lua_harness.sh, in CI).
 local TECH_LOCK = {}
 local DATA = require("ap_data")
 local PERF = require("perf")

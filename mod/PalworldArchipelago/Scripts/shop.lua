@@ -1,8 +1,8 @@
 -- The shop's hooks: what the game's tech menu shows and allows for a shop slot (looks researched once bought, no
 -- tooltip but your own tech's, clickable when it can be bought, a confirm box that names what it sends), and buying
 -- a slot: the points are charged and the check sent, and the game unlocks nothing. Wired by main.lua.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "tooltips", "which slots can be bought" and
--- "buying a slot".
+-- Tests: mod/test/tests/shop.lua, mod/test/tests/core_loop.lua; groups "tooltips", "which slots can be bought",
+--   "buying a slot" (tools/lua_harness.sh, in CI).
 local SHOP = {}
 local CHECKS = require("checks")
 local DATA = require("ap_data")

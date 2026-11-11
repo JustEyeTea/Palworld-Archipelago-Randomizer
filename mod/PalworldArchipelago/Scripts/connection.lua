@@ -1,8 +1,9 @@
 -- The connection to the Archipelago server: connecting (at start-up from config.txt, and from the title menu),
 -- the server's events read each update, what a new seed forgets, the seed's options, and when the connection is
 -- ready. Wired by main.lua, which calls CONNECTION.readEvents and CONNECTION.markReady every update.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "connect and receive", "reconnect does not
--- repeat one-off items" and "the title menu's Archipelago menu".
+-- Tests: mod/test/tests/core.lua, mod/test/tests/core_loop.lua, mod/test/tests/title_menu.lua; groups
+--   "connect and receive", "reconnect does not repeat one-off items", "the title menu's Archipelago menu"
+--   (tools/lua_harness.sh, in CI).
 local CONNECTION = {}
 local AREA_LOCKS = require("area_locks")
 local CHECKS = require("checks")

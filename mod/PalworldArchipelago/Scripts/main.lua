@@ -2,7 +2,7 @@
 -- connection to Archipelago comes from the APConnector C++ mod, which registers the AP_* functions this mod calls
 -- (cppmod/APConnector/src/dllmain.cpp). Each topic lives in a file of its own; docs/architecture.md lists them.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
--- Tests: mod/test/harness.lua, run by tools/lua_harness.sh.
+-- Tests: every file in mod/test/tests/: the harness loads main.lua and runs them all (tools/lua_harness.sh, in CI).
 local VERSION = "0.14.1-dev.9"
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))

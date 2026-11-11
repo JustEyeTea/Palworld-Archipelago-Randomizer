@@ -2,7 +2,8 @@
 -- landing in the bag mid-fight. The list is the mod's own, kept in the save file, with no limit. It opens from the
 -- "Archipelago Mailbox" button on the Esc menu and the Inventory page (menu.lua), or an optional key (mailbox_key).
 -- config.txt: mailbox=0 gives items straight to the bag; mailbox_view=chest skips the LogicMod's window.
--- Tests: mod/test/harness.lua, groups "the mailbox" and "mailbox off: bundles straight to the bag" (lua_harness.sh).
+-- Tests: mod/test/tests/mailbox.lua, mod/test/tests/goals.lua; groups "the mailbox",
+--   "mailbox off: bundles straight to the bag" (tools/lua_harness.sh, in CI).
 local M = {}
 local UTIL = require("util")
 local BAG = require("bag")

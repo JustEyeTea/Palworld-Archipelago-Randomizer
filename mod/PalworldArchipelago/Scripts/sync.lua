@@ -14,6 +14,9 @@
 -- 0x200-byte call buffer, which overran and crashed the game for a Pal's save data (2026-11-03). If the in-place write
 -- doesn't take, the log says so and the C++ mod is the route (ReflectedCall gives each call a block of its own size).
 -- The world keeps the faster speeds in its own save; World Settings sets them back.
+-- Tests: mod/test/tests/crates_run_style.lua; group
+--   "run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning"
+--   (tools/lua_harness.sh, in CI).
 local S = {}
 local GIFTS = require("tech_gifts")
 local UTIL = require("util")

@@ -1,7 +1,7 @@
 -- config.txt, the player's settings next to the mod: read once at start-up, and written back by the title menu's
 -- connect, with the saved servers it offers. Wired by main.lua (CONFIG.install).
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): the last check, that every key the mod reads is kept, and
--- the group "the title menu's Archipelago menu".
+-- Tests: mod/test/tests/rules.lua; group
+--   "every config.txt key the mod reads is kept when the title menu rewrites the file" (tools/lua_harness.sh, in CI).
 local CONFIG = {}
 local UTIL = require("util")
 local log = UTIL.log

@@ -1,7 +1,8 @@
 -- Area locks: walls on the borders of areas whose pass has not arrived, the map that shows them, the open areas the
 -- player has visited, and sending the player home from inside a locked area. The walls themselves are walls.lua's;
 -- this file decides when they act. Wired by main.lua (AREA_LOCKS.configureWalls); its update calls AREA_LOCKS.update.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "area locks", "a new world" and "another world".
+-- Tests: mod/test/tests/walls.lua, mod/test/tests/world.lua; groups "area locks", "a new world", "another world"
+--   (tools/lua_harness.sh, in CI).
 local AREA_LOCKS = {}
 local ART = require("art")
 local CONFIG = require("config")

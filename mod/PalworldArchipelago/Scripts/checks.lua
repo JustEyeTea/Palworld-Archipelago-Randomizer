@@ -1,7 +1,7 @@
 -- Checks and the goal: the locations the game's records say are done are sent as checks, and the seed's goal is
 -- judged from the same records, then sent once the player is out of the boss's arena.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): groups "connect and receive", "the other goals" and
--- "buying a slot".
+-- Tests: mod/test/tests/core.lua, mod/test/tests/goals.lua, mod/test/tests/core_loop.lua; groups
+--   "connect and receive", "the other goals", "buying a slot" (tools/lua_harness.sh, in CI).
 local CHECKS = {}
 local CLOCK = require("clock")
 local DATA = require("ap_data")

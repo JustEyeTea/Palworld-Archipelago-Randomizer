@@ -2,7 +2,7 @@
 -- colour tiles, the area colours, the cream paws), their materials, the dissolve of an opened wall and the glow near
 -- the player. A part of walls.lua, which loads it (fresh for each copy of walls.lua) and hands it, by install, W (the
 -- table main.lua sees), the areas part and what it reads of the pieces.
--- Tests: mod/test/harness.lua, group "area locks".
+-- Tests: mod/test/tests/walls.lua; group "area locks" (tools/lua_harness.sh, in CI).
 local WALL_SKINS = {}
 local UTIL = require("util")
 local log = UTIL.log

@@ -11,6 +11,7 @@
 -- Firing waits for the connection; a Slow Trap or Fool Trap already running ends on time without it (T.tick).
 -- UNTESTED IN GAME (only Teleport's K2_TeleportTo and the notices are calls verified before): every trap logs what it
 -- read and what came back, and a trap that fails says "<name> fizzled." in chat and is never retried.
+-- Tests: mod/test/tests/traps.lua; group "traps" (tools/lua_harness.sh, in CI).
 local T = {}
 local DEBUFFS = require("debuffs")
 local UTIL = require("util")

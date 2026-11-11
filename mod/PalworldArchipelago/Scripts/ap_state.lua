@@ -1,6 +1,6 @@
 -- What the mod knows of the Archipelago session: the connection, the seed and slot, and the seed's progress (the ap
 -- table), and how slot data is read. Every core file reads and writes the same table.
--- Tests: mod/test/harness.lua (run by tools/lua_harness.sh): every group from "connect and receive" on.
+-- Tests: every group in mod/test/tests/ from "connect and receive" on (tools/lua_harness.sh, in CI).
 local STATE = {}
 
 -- Archipelago state. The server is the truth: on every connection it sends all items received so far and every

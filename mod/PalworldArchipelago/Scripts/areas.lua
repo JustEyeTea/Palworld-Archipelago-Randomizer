@@ -1,7 +1,8 @@
 -- The areas of the map and whether each is open: the seed's cut of the map (its walls, names and grid), which area a
 -- spot is in, the areas beyond the goal, and the lists of locked and open areas the walls and the map draw from. A part
 -- of walls.lua, which loads it (fresh for each copy of walls.lua) and hands it W, the table main.lua sees, by install.
--- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
+-- Tests: mod/test/tests/walls.lua, mod/test/tests/map.lua; groups "area locks", "the world map"
+--   (tools/lua_harness.sh, in CI).
 local AREAS = {}
 local W = nil                 -- walls.lua's public table (install): settings and data main.lua sets there
 local SEA = "Open sea"

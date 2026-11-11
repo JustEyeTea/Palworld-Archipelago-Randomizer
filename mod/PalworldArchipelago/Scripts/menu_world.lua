@@ -1,7 +1,7 @@
 -- In a world: the "Archipelago Mailbox" button on the Esc menu and on the Inventory page, and the crate button
 -- beside the latter. Wired by menu.lua (WORLD.install), whose update calls it.
--- Tests: mod/test/harness.lua, groups "the Inventory page's mailbox button" and the Esc menu's tests in "the
--- mailbox" (run by tools/lua_harness.sh).
+-- Tests: mod/test/tests/inventory_page.lua, mod/test/tests/mailbox.lua; groups "the Inventory page's mailbox button",
+--   "the mailbox" (tools/lua_harness.sh, in CI).
 local WORLD = {}
 local ART = require("art")
 local CLICKS = require("clicks")

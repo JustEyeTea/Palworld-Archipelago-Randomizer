@@ -1,7 +1,7 @@
 -- The locked areas as icons on the map screen: a stamp at each locked area, an open stamp at each area unlocked but not
 -- yet stood in, added with the screen's own Add Icon By Location so they keep one size at every zoom. A part of
 -- walls.lua (with map_picture.lua, which calls it each map update), loaded fresh for each copy of walls.lua.
--- Tests: mod/test/harness.lua, group "the world map".
+-- Tests: mod/test/tests/map.lua; group "the world map" (tools/lua_harness.sh, in CI).
 local MAP_ICONS = {}
 local UTIL = require("util")
 local ART = require("art")

@@ -1,7 +1,8 @@
 -- Clicks on the buttons the mod adds to the game's windows. A click hook only notes the click; the work runs outside
 -- the hook, when the button's owner runs its clicks in its next update (or at the next game tick, for a button
 -- claimed with claimSoon), because work done inside the hook can remove the very button whose click is running.
--- Tests: mod/test/harness.lua, groups "the mailbox", "the Inventory page's mailbox button", "the title menu's
+-- Tests: mod/test/tests/mailbox.lua, mod/test/tests/inventory_page.lua; groups "the mailbox",
+--   "the Inventory page's mailbox button" (tools/lua_harness.sh, in CI).
 -- Archipelago menu" and the crate window's (run by tools/lua_harness.sh).
 local CLICKS = {}
 local UTIL = require("util")

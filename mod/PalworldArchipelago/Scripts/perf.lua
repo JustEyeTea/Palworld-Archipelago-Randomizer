@@ -29,6 +29,8 @@
 --   n      counters: cards relabelled/skipped, sweep and refill slots looked at, record entries read, techs read,
 --          save files written
 --   st     world (1 in a world), walls raised/mode, mail (1 with the mailbox chest open), legacy, pause, bypass
+-- Tests: mod/test/tests/tools_probe.lua; group "the performance probe (perf_log=1, test_tools=1)"
+--   (tools/lua_harness.sh, in CI).
 local P = {}
 local function noop() end
 

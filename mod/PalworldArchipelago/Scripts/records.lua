@@ -5,6 +5,8 @@
 --   NormalBossDefeatFlag                  alpha spawner id or character id (not yet seen in a save: unknown keys logged)
 --   FastTravelPointUnlockFlag             the point actor's LevelObjectInstanceId as 32 hex digits, mapped to its
 --                                         FastTravelPointID by scanning the loaded fast-travel actors
+-- Tests: mod/test/tests/core.lua, mod/test/tests/goals.lua; groups "connect and receive", "the other goals"
+--   (tools/lua_harness.sh, in CI).
 local UTIL = require("util")
 local log = UTIL.log
 

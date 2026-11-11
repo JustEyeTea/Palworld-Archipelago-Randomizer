@@ -2,7 +2,8 @@
 -- pieces along every border between locked parts of the map; a piece stays up while either part it separates is locked.
 -- This file keeps the pieces (raising, hiding, opening, forgetting) and is the table main.lua sees (W). Its parts:
 -- areas.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
--- Tests: mod/test/harness.lua, groups "area locks" and "the world map".
+-- Tests: mod/test/tests/walls.lua, mod/test/tests/map.lua; groups "area locks", "the world map"
+--   (tools/lua_harness.sh, in CI).
 -- W, the table main.lua sees. Its fields:
 --   handed over by main.lua (W.install, from config.txt): keepAlive, keepInPlace, dir, radius, fade, tiling, scroll,
 --     mapStyle, cppOff, testFogColour, chartOff, iconsOff, regionsOff, visited (main.lua's own set, again through
