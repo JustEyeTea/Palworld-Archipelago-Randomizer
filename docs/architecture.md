@@ -135,13 +135,15 @@ Every item and every location, each with its name and permanent id.
   Its keys use the older names: `areas` is the 15 regions (Region Passes) and `regions` the 75 areas (Area Passes).
 - **Groups.** `ITEM_GROUPS` and `LOCATION_GROUPS` are the names players can use for hints and `start_inventory`.
 
-A few `assert`s at import time stop generation at once if two items share a name or an id.
+A few `assert`s at import time stop generation at once if two items or locations share a name or an id, or a
+hand-typed tech id is not in the game's table; each message names the rows that break it.
 
 #### Ids never move
 
 Every id is `BASE` (`0x50A10000`, 1352728576) plus an offset in a fixed block. Old seeds, trackers and other players'
 clients keep working after a game update because a row's id is its position in its table, and new rows are only ever
-added at the end. `test/test_ids.py` fails if any 1.0.5 id moves.
+added at the end. `test/test_ids.py` fails if any id in `test/frozen_ids.tsv` moves or is gone, and names it;
+`tools/freeze_ids.py` writes that file again after a rename that keeps every id.
 
 | Offset | Items | Locations |
 |---|---|---|
@@ -183,7 +185,7 @@ APWorld's version. `options_presets` holds the ready-made sets.
 5. `fill_slot_data`: what the mod receives.
 
 The heart of the logic is `max_level`: everyone reaches `FREE_LEVEL`, and each open region or area whose Pals can be
-caught lifts the player to `LEVEL_SLACK` past its Pals' level. `level_ok`, `can_catch_at` (sphere tier = level ÷
+caught lifts the player to `LEVELS_PAST_PIECE` past its Pals' level. `level_ok`, `can_catch_at` (sphere tier = level ÷
 `SPHERE_STEP`, rounded up), `can_fight_at`, `can_get_pal`, `can_enter` and `shop_ok` build on it. The tuning numbers
 are the constants at the top of the file.
 
@@ -276,7 +278,7 @@ follow as the tour reaches them). `util.lua` holds what every module shares: the
 
 - `tools/ap_tests.sh` runs Archipelago's own test suites for this world (unique names and ids, filling a multiworld,
   the docs pages, the website), then the world's own tests in `apworld/palworld/test/`:
-  - `test_ids.py`: ids never move (a fingerprint of every 1.0.5 name and id);
+  - `test_ids.py`: ids never move (every name and id, frozen in `frozen_ids.tsv`);
   - `test_logic.py`: the level climb, mounts for the sea and the sky;
   - `test_progression.py`: each goal's plan (cap, passes, Regions Beyond the Goal, Gear Logic, the points budget);
   - `test_areas.py`: Lock Size: areas;
@@ -296,7 +298,7 @@ follow as the tour reaches them). `util.lua` holds what every module shares: the
 | A game update adds Pals, techs or items | Don't edit `game_data.py`. Dump the tables and run `tools/gen_apworld_data.py`, then `tools/gen_lua_data.py`. | `test/test_ids.py` proves no old id moved. |
 | Can't connect, or the connection drops | The UE4SS log's `[PalworldAP] status:` lines (connecting, socket, connected; or refused, with the reason) | `ap_bridge.cpp`, `wire_handlers`; for a secure (`wss://`) server, that `cacert.pem` is beside the mod |
 | An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
-| A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVEL_SLACK`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
+| A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVELS_PAST_PIECE`, `LEVELS_BELOW_PIECE`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
 | A Pal gift ends `result: fail ...`, or the game dies during one | UE4SS.log's `[APConnector] [pal]` lines: the last one names the step, and the step names the function in `pal_gift.cpp` | After a game update: "function not found" or "no such parameter" means a path or parameter name in `pal_gift.cpp` changed; a UE4SS header dump of the new version (UE4SS's Dump CXX Headers) shows the new one |
 | The world map shows the game's own picture or its dark fog | UE4SS.log's `[APConnector] [map]` lines: `hooked`, `Setup #n ... FAILED: <reason>`, `Setup gone` / `found Setup again` (`map_screen.cpp`) | `SETUP_PATH` in `map_screen.cpp` after a game update; `map_cpp=0` in config.txt turns it off; Lua's `AP_MapScreen` calls in `walls.lua` |
 | The map picture looks wrong (colours, rims, walls, borders) | `image_tools.cpp`: `compose_field` for the Territories map, `compose_chart` and `compose_fog` for `map_style=chart` | What Lua sends it (`areaSpec`, `wallSpec` in `walls.lua`); reproduce it on Linux with `test/image_test.cpp` |

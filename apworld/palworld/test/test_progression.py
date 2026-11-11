@@ -1,5 +1,11 @@
+"""Pins each goal's plan in __init__.py: the cap (plan_cap), the passes and the map (areas_in_scope, Regions Beyond
+the Goal), Gear Logic (progression_techs, normal_research), the points budget (unaffordable_slots), the filler
+(filler_names) and the tech-slot names (data.shop_location)."""
 from . import PalworldTestBase
-from .. import TOWER_LEVELS
+from .. import ANCIENT_POINTS_PER_TOWER, TECH_POINTS_PER_LEVEL, TOWER_LEVELS, TOWER_MARGIN
+
+ONE_TOWER_CAP = TOWER_LEVELS["Starting Zone Tower"] + TOWER_MARGIN      # Zoe's level and the margin: 18
+TWO_TOWER_CAP = TOWER_LEVELS["Forest Tower"] + TOWER_MARGIN             # Lily's: 28
 
 # The regions with Pals at level 28 or below, besides the start: a two-tower seed's map (Lock Size: regions).
 TWO_TOWER_PASSES = {"Region Pass: Marsh Island", "Region Pass: Sea Breeze Archipelago", "Region Pass: Isles of Silence",
@@ -11,18 +17,19 @@ def passes(test):
 
 
 class TestTwoTowers(PalworldTestBase):
-    """The default goal, two towers: Zoe (10) and Lily (20), so nothing above level 28, and only the regions up to it."""
+    """The default goal, two towers: Zoe (10) and Lily (20), so nothing above level 28, and only the regions up to
+    it."""
 
     def test_cap_from_the_second_boss(self):
         self.assertEqual(self.world.goal_towers, ["Starting Zone Tower", "Forest Tower"])
-        self.assertEqual(self.world.cap, TOWER_LEVELS["Forest Tower"] + 8)
+        self.assertEqual(self.world.cap, TWO_TOWER_CAP)
 
     def test_no_check_above_the_cap(self):
         from ..data import LOCATIONS
         by_name = {l.name: l for l in LOCATIONS}
         for loc in self.multiworld.get_locations(self.player):
             if loc.address is not None:
-                self.assertLessEqual(self.world.loc_level(by_name[loc.name]), 28, loc.name)
+                self.assertLessEqual(self.world.loc_level(by_name[loc.name]), TWO_TOWER_CAP, loc.name)
 
     def test_only_the_regions_up_to_the_cap_have_passes(self):
         self.assertEqual(passes(self), TWO_TOWER_PASSES)
@@ -53,7 +60,7 @@ class TestOneTower(PalworldTestBase):
     options = {"tower_count": 1}
 
     def test_cap_and_goal(self):
-        self.assertEqual(self.world.cap, 18)
+        self.assertEqual(self.world.cap, ONE_TOWER_CAP)
         self.assertEqual(self.world.goal_towers, ["Starting Zone Tower"])
         self.assertNotIn("Region Pass: Crescent Moon Shore", passes(self))
 
@@ -87,7 +94,7 @@ class TestAreasTwoTowers(PalworldTestBase):
         got = passes(self)
         self.assertTrue(0 < len(got) < 74, len(got))
         self.assertTrue(all(p.startswith("Area Pass: ") for p in got))
-        self.assertEqual(self.world.cap, 28)
+        self.assertEqual(self.world.cap, TWO_TOWER_CAP)
 
 
 class TestWorldTreeKeepsEverything(PalworldTestBase):
@@ -144,7 +151,8 @@ class TestTechPointItems(PalworldTestBase):
 
 
 class TestPointsBudget(PalworldTestBase):
-    """Tech slots a player can't be sure to afford hold filler and traps only; the rest fit the points levelling gives."""
+    """Tech slots a player can't be sure to afford hold filler and traps only; the rest fit the points levelling
+    gives."""
 
     def test_affordable_slots_fit_the_points(self):
         from BaseClasses import LocationProgressType
@@ -154,12 +162,13 @@ class TestPointsBudget(PalworldTestBase):
         kept = [by_name[l.name] for l in slots if l.progress_type != LocationProgressType.EXCLUDED]
         excluded = [l for l in slots if l.progress_type == LocationProgressType.EXCLUDED]
         self.assertTrue(excluded, "a two-tower seed has more slots than levelling pays for")
-        normal = sorted((self.world.lv.tech(t), t.cost) for t in kept if not t.ancient)
+        normal = sorted((self.world.levels.tech(t), t.cost) for t in kept if not t.ancient)
         spent = 0
         for level, cost in normal:
             spent += cost
-            self.assertLessEqual(spent, 6 * (level - 1), f"slots up to level {level}")
-        self.assertLessEqual(sum(t.cost for t in kept if t.ancient), 5, "Ancient: Zoe's 5 points (Lily's come with the goal)")
+            self.assertLessEqual(spent, TECH_POINTS_PER_LEVEL * (level - 1), f"slots up to level {level}")
+        self.assertLessEqual(sum(t.cost for t in kept if t.ancient), ANCIENT_POINTS_PER_TOWER,
+                             "Ancient: Zoe's points only (Lily's come with the goal)")
 
     def test_excluded_slots_hold_no_important_items(self):
         from BaseClasses import LocationProgressType
@@ -192,7 +201,7 @@ class TestMaterialBundles(PalworldTestBase):
 
 
 class TestTechSlotNames(PalworldTestBase):
-    """Tech-tree checks are named by their place in the menu (2026-11-05 run: "Shop: <vanilla tech>" misled others)."""
+    """Tech-tree checks are named by their place in the menu, because a slot may hold anything."""
 
     def test_names_are_level_and_slot(self):
         from ..data import TECH_BY_ID, shop_location
