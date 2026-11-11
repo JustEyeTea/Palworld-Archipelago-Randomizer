@@ -342,10 +342,6 @@ function M.chestWidget()
     return CHEST.widget()
 end
 
--- main.lua's bundles, crates and Nomad gifts use the bag through these (the bag section above).
-M.give = BAG.give
-M.nameOf = BAG.nameOf
-
 -- Takes what main.lua hands over (see env above) and binds the mailbox key, if config.txt names one.
 function M.install(handedOver)
     env = handedOver
