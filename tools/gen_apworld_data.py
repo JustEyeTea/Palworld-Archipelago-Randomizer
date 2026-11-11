@@ -59,7 +59,7 @@ def resolve(text):
 
 # Areas (one Area Pass each) and their pieces: a location sits in a piece, the logic's region; a piece needs its area's
 # pass to enter, from a piece it borders (tools/area_walls.py, tools/area_model.py).
-from area_groups import GROUPS, START as START_AREA
+from lock_groups import GROUPS, START as START_AREA
 area = lambda a: a
 PIECES = AREAS_JSON['pieces']
 AREA_OF = lambda piece: PIECES.get(piece, piece)
@@ -156,7 +156,7 @@ def region_mode():
     rj = json.load(open(data / 'area-model-1.0.5.json'))
     rs = json.load(open(data / 'area-pal-sources-1.0.5.json'))
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-    from area_groups import GROUPS as AREA_GROUPS, REGIONS, REGIONS_START
+    from lock_groups import GROUPS as AREA_GROUPS, REGIONS, REGIONS_START
     in_area = lambda area: [n for n, rows in REGIONS.items() if set(rows) & set(AREA_GROUPS[area])]
     # A region with no Pals of its own (a tower's arena, a settlement, an oil rig) takes the level of the area it is part
     # of, as a piece with no Pals takes its area's: at 0 its tower's boss would count as the easiest in the game.

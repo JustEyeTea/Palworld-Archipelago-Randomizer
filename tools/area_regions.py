@@ -9,7 +9,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from area_groups import GROUPS, REGIONS  # noqa: E402
+from lock_groups import GROUPS, REGIONS  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'mod', 'PalworldArchipelago', 'Scripts', 'area_parents_regions.lua')
 

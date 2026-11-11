@@ -26,7 +26,7 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from area_groups import GROUPS, START, SUBREGION
+from lock_groups import GROUPS, START, SUBREGION
 
 REFS = pathlib.Path(sys.argv[1])
 X0, X1, Y0, Y1 = -1099400, 349400, -724400, 724400   # the map image's extent (DT_WorldMapUIData, MainMap)

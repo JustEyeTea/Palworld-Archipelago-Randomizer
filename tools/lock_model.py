@@ -6,7 +6,7 @@ For the per-region set: AREA_SIZE=regions AREA_GRID=<its grid .npz> (tools/area_
 """
 import os
 import csv, re, sys, collections, pathlib
-from area_groups import GROUPS, START as START_AREA
+from lock_groups import GROUPS, START as START_AREA
 from PIL import Image, ImageDraw, ImageFont
 
 T = pathlib.Path(sys.argv[1])
