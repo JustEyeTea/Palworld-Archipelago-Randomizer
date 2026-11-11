@@ -5,9 +5,26 @@ local MOD = assert(arg[1], "usage: lua harness.lua <mod folder copy> [plain|perf
 -- perf: config.txt has perf_log=1 and test_tools=1 (tools/lua_harness.sh): every test runs with the probe on, and the
 -- probe's own tests run at the end.
 local PERF = arg[2] == "perf"
+-- tools/lua_harness.sh copies the mod to a fresh folder and writes its config.txt; a folder used before holds saves
+-- that change what the tests see.
+do
+    local cfgFile = io.open(MOD .. "/config.txt")
+    local cfgText = cfgFile and cfgFile:read("a") or ""
+    if cfgFile then cfgFile:close() end
+    assert(cfgText:find("slot=Tester", 1, true), "no config.txt with slot=Tester: run this through tools/lua_harness.sh")
+    local old = io.open(MOD .. "/save-12345-Tester.txt")
+    if old then old:close() end
+    assert(not old, "this folder was used by an earlier run: run this through tools/lua_harness.sh")
+end
 local failures = 0
+-- A failure prints the harness line of the check, so it can be found without searching for its text.
 local function expect(cond, what)
-    if cond then print("  ok   " .. what) else failures = failures + 1; print("  FAIL " .. what) end
+    if cond then
+        print("  ok   " .. what)
+    else
+        failures = failures + 1
+        print("  FAIL " .. what .. "  (harness.lua:" .. debug.getinfo(2, "l").currentline .. ")")
+    end
 end
 
 -- Windows paths -> this machine's. Writes of the mod's save file are counted.
@@ -338,9 +355,13 @@ RegisterHook = function(path, fn, post)
     end
     hooks[path], postHooks[path] = fn, post
 end
-LoopAsync = function(ms, fn) if ms == 300 then loop = fn else extraLoops[#extraLoops + 1] = fn end end   -- 300 ms: the core
+loopIntervals = {}                                           -- (global) every interval the mod gave LoopAsync, in ms
+LoopAsync = function(ms, fn)                                 -- 300 ms (UTIL.UPDATE_MS): the core update
+    loopIntervals[#loopIntervals + 1] = ms
+    if ms == 300 then loop = fn else extraLoops[#extraLoops + 1] = fn end
+end
 ExecuteInGameThread = function(fn) fn() end
-ExecuteWithDelay = function(_, fn) fn() end
+ExecuteWithDelay = function() error("the mod must never call ExecuteWithDelay: its callback runs off the game thread") end
 
 -- APConnector.
 local D = dofile(MOD .. "/Scripts/ap_data.lua")
@@ -4080,7 +4101,7 @@ end)()
         for _, lv in ipairs({ 1, 20, 50 }) do
             CR.list = { kind }
             local k, out = CR.openNext(lv)
-            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then ok = false; print("  bad roll", kind, lv) end
+            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then ok = false; print("  bad roll: " .. kind .. " at level " .. lv) end
         end
     end
     expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
@@ -4260,42 +4281,62 @@ print("run style and speed boost: Nomad's hand-overs, and world settings changed
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     playerController.K2_GetPawn = pawnWas
 end)()
-;(function()  -- the rule from the 2026-11-08 crashes: a LoopAsync callback (another thread, the same Lua state) only
-    -- reads a flag and hands a function made beforehand to ExecuteInGameThread; no other Lua runs there
-    local bad = {}
-    for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates",
-                         "perf", "soon", "sync", "records", "art", "crate_window", "tech_gifts", "techscan", "tech_icons" }) do
-        local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
-        local src = fh and fh:read("a") or ""
-        if fh then fh:close() end
-        local lines, n = {}, 0
-        for line in (src .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
-        for k, line in ipairs(lines) do
-            -- (2026-11-08 tech-shop crash: ExecuteWithDelay runs its callback off the game thread too; and a key bind's
-            -- callback must hand over a function made beforehand, not make one there.)
-            local code = line:gsub("%-%-.*$", "")
-            if code:find("ExecuteWithDelay%(") then bad[#bad + 1] = f .. ".lua:" .. k .. ": ExecuteWithDelay (off-thread)" end
-            if code:find("RegisterKeyBind%(") and not code:find("function%(%) ExecuteInGameThread%([%w_.]+%) end%)") then
-                bad[#bad + 1] = f .. ".lua:" .. k .. ": a key bind that does more than hand over a function made beforehand"
-            end
-            local ind, ms = line:match("^(%s*)LoopAsync%((%d+), function%(%)%s*$")
-            if ind and tonumber(ms) < 300 then
-                bad[#bad + 1] = f .. ".lua:" .. k .. ": a " .. ms .. " ms loop (dev.45: a 33 ms loop corrupted Lua's state)"
-            end
-            if ind then
-                n = n + 1
-                local j = k + 1
-                while lines[j] and lines[j] ~= ind .. "end)" do
-                    local body = lines[j]:gsub("^%s+", "")
-                    local ok = body:match("^ExecuteInGameThread%([%w_.]+%)$") or body:match("^if [%w_.]+ then ExecuteInGameThread%([%w_.]+%) end$")
-                        or body == "return false" or body:match("^%-%-")
-                    if not ok then bad[#bad + 1] = f .. ".lua:" .. j .. ": " .. body end
-                    j = j + 1
-                end
-            end
+;(function()
+    print("Lua runs only on the game thread")
+    -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
+    -- hands a function made beforehand to ExecuteInGameThread. ExecuteWithDelay's callback runs off the game thread
+    -- too, so it is never used. The loop shape this check reads, one statement per line:
+    --     LoopAsync(<ms or UPDATE_MS>, function()
+    --         ExecuteInGameThread(<name>)        (or: if <flag> then ExecuteInGameThread(<name>) end, return false)
+    --     end)
+    local UPDATE_MS = require("util").UPDATE_MS
+    local bad, loops = {}, 0
+    local function checkLoopBody(f, lines, k, ind)
+        local j = k + 1
+        while lines[j] and lines[j] ~= ind .. "end)" do
+            local body = lines[j]:gsub("^%s+", "")
+            local ok = body:match("^ExecuteInGameThread%([%w_.]+%)$")
+                or body:match("^if [%w_.]+ then ExecuteInGameThread%([%w_.]+%) end$")
+                or body == "return false" or body:match("^%-%-")
+            if not ok then bad[#bad + 1] = f .. ":" .. j .. ": " .. body end
+            j = j + 1
         end
     end
-    expect(#bad == 0, "no Lua off the game thread: every LoopAsync and key bind callback only hands over a function made beforehand (no LoopAsync faster than 300 ms), and no ExecuteWithDelay: " .. table.concat(bad, " | "))
+    local function checkLine(f, lines, k)
+        local line = lines[k]
+        local code = line:gsub("%-%-.*$", "")
+        if code:find("ExecuteWithDelay%(") then bad[#bad + 1] = f .. ":" .. k .. ": ExecuteWithDelay (off-thread)" end
+        if code:find("RegisterKeyBind%(") and not code:find("function%(%) ExecuteInGameThread%([%w_.]+%) end%)") then
+            bad[#bad + 1] = f .. ":" .. k .. ": a key bind that does more than hand over a function made beforehand"
+        end
+        if not code:find("LoopAsync%(") then return end
+        local ind, every = line:match("^(%s*)LoopAsync%(([%w_.]+), function%(%)%s*$")
+        local ms = every and (tonumber(every) or (every:match("UPDATE_MS$") and UPDATE_MS))
+        if not ms then
+            bad[#bad + 1] = f .. ":" .. k .. ": a LoopAsync this check cannot read"
+            return
+        end
+        loops = loops + 1
+        if ms < 300 then bad[#bad + 1] = f .. ":" .. k .. ": a " .. ms .. " ms loop (faster than 300 ms corrupts Lua's state)" end
+        checkLoopBody(f, lines, k, ind)
+    end
+    local ls = io.popen('ls "' .. MOD .. '/Scripts"')
+    for f in ls:lines() do
+        local fh = f:match("%.lua$") and io.open(MOD .. "/Scripts/" .. f)
+        local src = fh and fh:read("a") or ""
+        if fh then fh:close() end
+        if not src:find("^%-%- Generated by") then
+            local lines = {}
+            for line in (src .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
+            for k = 1, #lines do checkLine(f, lines, k) end
+        end
+    end
+    ls:close()
+    local slow = true
+    for _, ms in ipairs(loopIntervals) do slow = slow and ms >= 300 end
+    expect(loops >= 1 and slow and #bad == 0, "every LoopAsync and key bind callback only hands over a function made"
+        .. " beforehand, no loop is faster than 300 ms, and nothing calls ExecuteWithDelay: " .. loops .. " loop(s); "
+        .. table.concat(bad, " | "))
 end)()
 ;(function()  -- every config.txt key the mod reads is one the title menu keeps when it rewrites the file (CONFIG_KEYS)
     local fh = io.open(MOD .. "/Scripts/main.lua")
