@@ -4111,7 +4111,8 @@ end)()
     local bad = {}
     for _, f in ipairs({ "main", "walls", "test_tools", "menu", "mailbox", "traps", "debuffs", "hint_popup", "crates",
                          "perf", "soon", "sync", "records", "art", "crate_window", "tech_gifts", "techscan", "tech_icons",
-                         "widgets", "clicks", "bag", "mailbox_window", "mailbox_chest" }) do
+                         "widgets", "clicks", "bag", "mailbox_window", "mailbox_chest", "menu_names", "menu_survey",
+                         "text_window", "menu_world", "menu_title" }) do
         local fh = io.open(MOD .. "/Scripts/" .. f .. ".lua")
         local src = fh and fh:read("a") or ""
         if fh then fh:close() end
