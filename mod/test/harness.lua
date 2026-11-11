@@ -3839,6 +3839,20 @@ end)()
     FindAllOf = liveFAO
     local okT2 = pcall(POP.tick, 3)
     expect(bannerBox and okT and okT2 and not touched, "the world gone (Return to title), the banner is forgotten without touching it")
+    -- A faint just after a wall hint: the pawn reads nil for a moment in the same world, with the same HUD.
+    local now
+    local realTick = POP.tick
+    POP.tick = function(t) now = t; return realTick(t) end   -- (the core's update count, as it hands it over)
+    run(1)
+    POP.show({ title = "Bamboo Groves is sealed", line = "It needs Region Pass: Bamboo Groves" }, now)
+    local plate = hudKids[#hudKids]
+    pawnGone = true
+    run(2)
+    pawnGone = false
+    run(3 * POP.SHOW_TICKS)
+    POP.tick = realTick
+    expect(plate and plate.removed,
+           "a hint plate on screen when the pawn reads nil for a moment (same world, same HUD) still comes down")
     FindAllOf = savedFAO
 end)()
 ;(function()  -- Palworld Crates (v0.14.0-dev.4): rolled on arrival, the same every time
