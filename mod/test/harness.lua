@@ -1956,6 +1956,27 @@ do  -- The second world of a session: its explored mask is read from its map dat
     takeAway()
     putBack()
 end
+do  -- One piece whose spawn raises an error holds up no other piece, and the rest of the update still runs
+    local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
+    local first, firstAt                                      -- the first piece that stands with no pass held
+    for k, w in ipairs(WD.walls) do
+        local function open(a) local nm = WD.areas[a + 1]; return nm == "Open sea" or nm == WD.start end
+        if not first and not (open(w[5]) and open(w[6])) then first, firstAt = w, k end
+    end
+    gameplay.BeginDeferredActorSpawnFromClass = function(self, ctx, cls, t, ...)
+        if t.Translation.X == first[1] and t.Translation.Y == first[2] then error("spawn failed for this piece") end
+        return realSpawn(self, ctx, cls, t, ...)
+    end
+    local W, mine = freshWalls()
+    W.radius = 7500
+    for _ = 1, SETTLE_UPDATES do W.update(true, {}, offMap) end
+    gameplay.BeginDeferredActorSpawnFromClass = realSpawn
+    local up = mine()
+    expect(#up >= 800 and hiddenOf(up) == #up and logged("could not raise wall " .. firstAt .. ": .*spawn failed"),
+           "a piece whose spawn errors is logged and the others go up and are hidden as usual: " .. #up .. " up, "
+           .. hiddenOf(up) .. " hidden")
+    worldGoes(up)
+end
 end
 end)()
 

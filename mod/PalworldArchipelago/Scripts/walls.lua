@@ -283,13 +283,12 @@ function W.update(enabled, passes, context)
         local up = enabled and not (isOpen(DATA.areas[w[5] + 1], passes) and isOpen(DATA.areas[w[6] + 1], passes))
         if up and not raised[i] and spawning then
             local ok, made = pcall(raise, i, context)
+            -- One piece that fails does not hold up the others: the loop goes on (the try counts against the budget).
             if not ok then
                 local err = tostring(made)
                 -- Once per kind of error: a raise that fails fails again on every update (three lines a second).
                 once("raise" .. err:gsub("0x%x+", ""):gsub("%d+", "#"), "could not raise wall " .. i .. ": " .. err)
-                return
-            end
-            if not made then
+            elseif not made then
                 once("raisenil", "could not raise wall " .. i .. ": the spawn gave no actor")
                 spawning = false
             end
