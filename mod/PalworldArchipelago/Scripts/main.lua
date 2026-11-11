@@ -1465,7 +1465,9 @@ local function scanTechs(td)
 end
 
 -- A shop slot whose tech another mod removed can never be bought: send its check, so no one waits on it forever.
+-- Once a seed, as soon as the scan has found them and the connection is ready.
 local function sendRemovedSlots()
+    if not (ap.ready and techScan.report and not techScan.sent) then return end
     techScan.sent = true
     local locs = {}
     for _, id in ipairs(techScan.report.removed) do
@@ -1545,13 +1547,14 @@ local function preloadMenuClasses()
     end)
 end
 
--- Other mods' techs, once per cycle in the tech-scan phase until the player's tech data is there.
-local function scanOtherModsTechs()
-    if techScan.report or techScan.tries >= TECH_SCAN_TRIES or not isPhase(PHASE.techScan) then return end
+-- The tech-scan phase: other mods' techs, once per cycle until the player's tech data is there.
+local function phaseTechScan()
+    if techScan.report or techScan.tries >= TECH_SCAN_TRIES then return end
     P.start("scan")
     local td = safe(function() local ps = playerState(); return ps and ps:GetTechnologyData() end)
     if td and safe(function() return td:IsValid() end) then scanTechs(td) end
     P.stop("scan")
+    sendRemovedSlots()                             -- (in the update the scan found them)
 end
 
 
@@ -1627,17 +1630,29 @@ local function updateAreaLocks(pawn)
         wallsLogged = true
         log("area locks: raising walls (" .. all .. " border pieces)")
     end
-    if not on then return end
-    -- Inside a stage (a dungeon, a tower's arena) the map position says nothing about the area the player entered it
-    -- from: no notice, no visit and no sending home there.
+end
+
+-- Whether the area locks act on the player this update: ready (a pawn was read), in the seed's world once it has
+-- settled, and with area locks on. Inside a stage (a dungeon, a tower's arena) the map position says nothing about
+-- the area the player entered it from: no notice, no visit and no sending home there.
+local function areaLocksApply(pawn)
+    if not (pawn and worldSettled() and seedWorld and areaLocks) then return false end
     local okS, inStage = pcall(function() return playerState():IsInStage() end)
-    if okS and inStage then return end
-    if isPhase(PHASE.wallNotice) then noticeLockedWall(pawn) end
-    if isPhase(PHASE.areas) then
-        rememberVisited(pawn)
-        -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
-        if not held then sendHomeIfLocked(pawn) end
-    end
+    return not (okS and inStage)
+end
+
+-- The areas phase: the open areas the player stands in, and sending the player home from inside a locked one.
+local function phaseAreas(pawn)
+    if not areaLocksApply(pawn) then return end
+    rememberVisited(pawn)
+    -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
+    if P.walls == "full" then sendHomeIfLocked(pawn) end
+end
+
+-- The wall-notice phase: the chat notice and hint offer at a locked wall the player walks up to.
+local function phaseWallNotice(pawn)
+    if not areaLocksApply(pawn) then return end
+    noticeLockedWall(pawn)
 end
 
 -- The records phase: trap timers, the seed's-world check, the game's records (checks and the goal).
@@ -1661,6 +1676,7 @@ end
 -- The items phase, in the seed's world only: techs and items; once the world has settled, the run style's sync and the
 -- held notices; Death Link; traps.
 local function phaseItems()
+    if not (ap.ready and seedWorld) then return end
     local ps = playerState()
     if not ps then return end
     P.start("e7")
@@ -1694,6 +1710,25 @@ local function phaseItems()
     P.stop("e7")
 end
 
+-- Which function runs in which phase of the cycle. This table is the whole schedule: to add timed work, add a phase to
+-- PHASE (clock.lua) and a row here. Each function tests for itself whether it may run (connected, world settled).
+-- Two of the seven updates in a cycle carry no phase.
+local PHASE_STEPS = {
+    [PHASE.records] = phaseRecords,         -- trap timers, the seed's-world check, the game's records
+    [PHASE.techScan] = phaseTechScan,       -- other mods' techs, until found
+    [PHASE.items] = phaseItems,             -- techs, items, held notices, Death Link, traps
+    [PHASE.areas] = phaseAreas,             -- visited areas; sent home from inside a locked area
+    [PHASE.wallNotice] = phaseWallNotice,   -- the chat notice and hint offer at a locked wall
+}
+
+-- Runs this update's phase, if it has one. `pawn` is the one the world step read (nil before ready).
+local function runPhase(pawn)
+    local step = PHASE_STEPS[CLOCK.now() % CLOCK.CYCLE]
+    if step then
+        step(pawn)
+    end
+end
+
 -- One core update (coreTick, every UPDATE_MS on the game thread): what runs every time, then this update's phase.
 local function update(ctx)
     CLOCK.advance()
@@ -1707,16 +1742,13 @@ local function update(ctx)
     P.start("cards")
     refreshCards()
     P.stop("cards")
-    scanOtherModsTechs()
-    if ap.ready and techScan.report and not techScan.sent then sendRemovedSlots() end
+    sendRemovedSlots()
+    local pawn = nil
     if ap.ready then
-        updateAreaLocks(noteWorld())
+        pawn = noteWorld()
+        updateAreaLocks(pawn)
     end
-    if isPhase(PHASE.records) then
-        phaseRecords()
-    elseif isPhase(PHASE.items) and ap.ready and seedWorld then
-        phaseItems()
-    end
+    runPhase(pawn)
 end
 
 -- Ctrl+0 (perf test tools): after each update, the per-update load 6dd356e had and this build no longer has, so one
