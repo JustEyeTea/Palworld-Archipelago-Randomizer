@@ -152,6 +152,9 @@ local function segDist(i, x, y)
 end
 W.segDist = segDist
 
+-- Raises piece i: the game's blocking cube, scaled to its length x 4 m x 3 km and turned by its yaw about the
+-- vertical (as a quaternion: Z = sin(yaw/2), W = cos(yaw/2)), its middle 500 m above sea level. False when the spawn
+-- gave no actor.
 local function raise(i, pawn)
     local w = layout.walls[i]
     local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
@@ -183,7 +186,8 @@ end
 -- goes at DISSOLVE_S + DISSOLVE_TAIL (the material's Time node may run behind GetTimeSeconds; the first one logs it).
 local DISSOLVE_S, DISSOLVE_TAIL = 1.6, 2.4
 -- One step of an opening piece at the game's time `now`: shrunk (unless it dissolves), let through halfway, destroyed
--- at the end. True while it is still opening.
+-- at the end. An opened piece stops blocking halfway through its time and is destroyed at the end: SHRINK_S for a
+-- shrink, DISSOLVE_S plus a DISSOLVE_TAIL for a dissolve. True while it is still opening.
 local function stepOne(s, now)
     local a = s.actor
     local span = s.dissolving and DISSOLVE_S or SHRINK_S

@@ -350,11 +350,19 @@ local function dress(a, mid)
     return true
 end
 -- The material a piece wears with the area skin (or paws), by name (see SKINS).
+-- The area whose colour a piece between a1 and a2 wears: the locked side when only one is locked; otherwise (both
+-- locked, or neither: such a piece is not standing) a1, unless a1 is beyond the goal: then a2.
+local function wornArea(a1, a2, passes)
+    local locked1, locked2 = not isOpen(a1, passes), not isOpen(a2, passes)
+    if locked1 and not locked2 then return a1 end
+    if locked2 and not locked1 then return a2 end
+    if W.beyond[a1] then return a2 end
+    return a1
+end
 local function pieceSkin(i, passes, mode)
     local w = layout.walls[i]
     local a1, a2 = layout.areas[w[5] + 1], layout.areas[w[6] + 1]
-    local l1, l2 = not isOpen(a1, passes), not isOpen(a2, passes)
-    local area = (l1 and not l2) and a1 or (l2 and not l1) and a2 or (W.beyond[a1] and a2 or a1)
+    local area = wornArea(a1, a2, passes)
     local hex = AREA_COLOURS[W.parentOf(area)]
     if mode == "paws" then
         if W.beyond[area] then return "paws:sealed" end
@@ -386,7 +394,8 @@ function WALL_SKINS.skinNew(a, i)
     end
 end
 -- A pass that opens one side of a piece still up turns it to the other side's colour; so does the list of areas
--- beyond the goal arriving. A few pieces an update (RECOLOUR), only after something changed.
+-- beyond the goal arriving. A few pieces an update (RECOLOUR), only after something changed: the trigger is the number
+-- of passes held and the areas beyond the goal (passes are only ever added, so a new one changes the count).
 local RECOLOUR = 40
 local recolourAt, passSig = nil, nil
 function WALL_SKINS.recolour(passes)

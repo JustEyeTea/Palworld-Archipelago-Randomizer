@@ -66,6 +66,8 @@ local function areaIndexAt(r, c)
         if c < col then return run.area end
     end
 end
+-- The map grid's cell at a world spot: rows run north to south (world X falling), columns west to east (world Y
+-- rising); the grid is square, so one cell size serves both.
 local function cellOf(x, y)
     local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local size = (x1 - x0) / layout.map.size

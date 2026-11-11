@@ -141,6 +141,8 @@ local function greyscaleMap(krl, tex)
     return greyTex
 end
 local triangles = {}          -- area index .. tint -> FCanvasUVTri list, built when first needed
+-- An area's shape as the canvas's triangles (area_shapes*.lua: 6 numbers a triangle, u, v of each of its 3 corners,
+-- on the map square), tinted.
 local function trianglesOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if triangles[key] then return triangles[key] end
@@ -160,6 +162,8 @@ local function trianglesOf(k, tint)
     return out
 end
 local bands = {}              -- area index .. tint -> FCanvasUVTri list of its edge band
+-- An area's edge band as triangles (area_shapes*.lua edges: 9 numbers a triangle, u, v and shade of each corner),
+-- darkened toward the edge by the shade.
 local function bandOf(k, tint)
     local key = k .. (tint == WHITE and "w" or "f")
     if bands[key] then return bands[key] end
