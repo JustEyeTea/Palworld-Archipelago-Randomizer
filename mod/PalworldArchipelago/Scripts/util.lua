@@ -84,6 +84,18 @@ function UTIL.addr(obj)
     end)
 end
 
+-- A class (or another object loaded from the game's files) by its full path, loading its package when the game has
+-- not loaded it yet; nil when it can't be had. LoadAsset needs the full "/Game/Dir/Asset.Asset", so the class path's
+-- "_C" is taken off (a package path or a class path loads nothing, and says nothing).
+function UTIL.findClass(path)
+    local found = StaticFindObject(path)
+    if found and found:IsValid() then return found end
+    pcall(LoadAsset, (path:gsub("_C$", "")))
+    found = StaticFindObject(path)
+    if found and found:IsValid() then return found end
+    return nil
+end
+
 ------------------------------------------------------------------------------------------------------------------------
 -- The clock. main.lua's LoopAsync runs the core update every UPDATE_MS. Every wait is written in seconds and turned
 -- into a count of updates here.

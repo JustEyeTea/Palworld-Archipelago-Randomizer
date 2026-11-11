@@ -37,7 +37,7 @@ local INVENTORY_TAB = "WBP_InventoryEquipment_ForDisplay_C"
 local NOTHING = "\1"           -- what the window's result holds until OK is pressed
 
 local api                      -- status(), server(), slot(), password(), connect(server, slot, password), disconnect(),
-                               -- mailboxLabel(), openMailbox(context), guardedHook(name, fn): a hook callback that
+                               -- mailboxLabel(), openMailbox(), guardedHook(name, fn): a hook callback that
                                -- no update can run inside (main.lua)
 local menus = {}               -- title menu address -> { rows = kind -> button, boxes = kind -> size box, list, banner,
                                --   open = the Archipelago menu is showing, hidden = the game's buttons it collapsed }
@@ -1512,7 +1512,7 @@ function M.update(ctx)
         log(c.from == "inventory" and ("menu: main menu closed for the mailbox from the inventory (" .. how .. ")")
             or ("menu: Esc menu closed for the mailbox (" .. how .. ")"))
         mainMenuLook, lookFrom = 2, c.from
-        api.openMailbox(c.button)
+        api.openMailbox()
     elseif mainMenuLook then
         mainMenuLook = mainMenuLook - 1
         if mainMenuLook == 0 then

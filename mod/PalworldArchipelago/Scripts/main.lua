@@ -1468,7 +1468,7 @@ MENU.install({
     crateLabel = CRATES.label,
     openCrate = function() local ok, err = pcall(openCrate); if not ok then log("crate error: " .. tostring(err)) end end,
     crateWindow = function(action) local ok, err = pcall(CWIN.action, action); if not ok then log("crate window error: " .. tostring(err)) end end,
-    openMailbox = function(context) MAIL.open(context) end,
+    openMailbox = function() MAIL.open() end,
     guardedHook = guardedHook,
 })
 MAIL.install({ notify = notify, save = writeSave, cfg = cfg, connected = function() return ap.status == "connected" end,
