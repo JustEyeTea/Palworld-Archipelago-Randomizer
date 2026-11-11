@@ -112,7 +112,11 @@ local ACTIONS = {
     end,
     open = function(kind)
         local opened, out = env.openCrate(kind)
-        if not opened then return end
+        if not opened then
+            log("crate window: no " .. tostring(CRATES.NAMES[kind] or kind) .. " was opened (none of that kind left, "
+                .. "or no player in a world)")
+            return
+        end
         last = { kind = opened, out = out, stamp = (last and last.stamp or 0) + 1 }
         selected = opened
     end,

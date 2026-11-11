@@ -3882,6 +3882,36 @@ end)()
     run(1)
     expect(kids[#kids].removed, "and it all goes with the chest window")
 end)()
+;(function()   -- a crate the window asks for and can't open (none of that kind left) is logged
+    local CR, MB = require("crates"), require("mailbox")
+    local kids = {}
+    local canvas = Widget({ GetClass = function() return classed("CanvasPanel") end })
+    function canvas:AddChildToCanvas(w)
+        kids[#kids + 1] = w
+        w.RemoveFromParent = function(self) self.removed = true end
+        return { SetAnchors = function() end, SetAlignment = function() end, SetPosition = function() end,
+                 SetAutoSize = function() end, SetZOrder = function() end }
+    end
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedWidget, savedList = MB.chestWidget, CR.list
+    MB.chestWidget = function() return chestWin end
+    CR.list = { "sphere" }
+    run(1)
+    local open, clickHook
+    for _, c in ipairs(kids[#kids] and kids[#kids].child.children or {}) do
+        if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then open = c.child end
+    end
+    for k, f in pairs(hooks) do
+        if k:find("WBP_CommonButton_C:BndEvt", 1, true) then clickHook = f end
+    end
+    clickHook({ get = function() return open end })
+    clickHook({ get = function() return open end })            -- twice before the next update: one crate only
+    run(1)
+    expect(open and #CR.list == 0 and logged("crate window: no Sphere Crate was opened"),
+           "the second click finds no crate left, and says so")
+    MB.chestWidget, CR.list = savedWidget, savedList
+    run(1)
+end)()
 print("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning")
 ;(function()
     local MB = require("mailbox")
