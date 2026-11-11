@@ -7,12 +7,7 @@ local WIDGETS = require("widgets")
 -- Where the game's names below come from: "kdump", a tool that reads the game's Blueprints (widget trees, bound
 -- events, script) out of the dedicated server's pak files as JSON; how to run it is in the palworld-modding skill's
 -- references/research-and-testing.md. The client's widgets can differ from the server's: where a name was read from
--- kdump and not yet seen in the client, the untested-in-game list below says so.
---
--- Untested in game (each mark is about this file only):
---   * the Inventory page's mailbox button, placed on the page's name bar as the server's files lay it out;
---   * whether a controller can reach that button (the focus logs below report it);
---   * Close() on the in-game main menu from Lua, which the Inventory page's button uses to close the menu.
+-- kdump and not yet seen in the client, menu_world.lua's untested-in-game list says so.
 
 local TITLE_FOLDER = "/Game/Pal/Blueprint/UI/UserInterface/Title/"
 local TITLE_BUTTON = WIDGETS.TITLE_BUTTON.path

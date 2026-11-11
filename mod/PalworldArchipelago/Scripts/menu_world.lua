@@ -26,6 +26,11 @@ local log, once = UTIL.log, UTIL.onceIn("menu")
 local className, nameOf, setLabel = WIDGETS.className, WIDGETS.nameOf, WIDGETS.setLabel
 local HALIGN, VALIGN = WIDGETS.HALIGN, WIDGETS.VALIGN
 
+-- Untested in game (the only marks for the menu files):
+--   * the Inventory page's mailbox button, placed on the page's name bar as the server's files lay it out;
+--   * whether a controller can reach that button (SURVEY.focusOnce logs it);
+--   * Close() on the in-game main menu from Lua, which the Inventory page's button uses to close the menu.
+
 -- What main.lua hands over, through menu.lua (WORLD.install): see menu.lua.
 local api
 
