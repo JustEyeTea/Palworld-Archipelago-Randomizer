@@ -879,7 +879,7 @@ function WORLD.update(inWorld)
     if inWorld then
         local ok, err = pcall(function() escLooked, escFound, pagesFound = menusUp() end)
         if not ok then
-            once("mm" .. tostring(err), "menu: main menu error: " .. tostring(err))
+            UTIL.onceErr("menu main menu", err, "menu: main menu error: " .. tostring(err))
         end
     else
         CLICKS.releaseAll(WORLD_OWNER)
@@ -887,12 +887,12 @@ function WORLD.update(inWorld)
     if escLooked then
         local ok, err = pcall(updateEsc, escFound)
         if not ok then
-            once("esc" .. tostring(err), "menu: Esc menu error: " .. tostring(err))
+            UTIL.onceErr("menu Esc menu", err, "menu: Esc menu error: " .. tostring(err))
         end
     end
     local ok, err = pcall(updatePages, pagesFound)
     if not ok then
-        once("inv" .. tostring(err), "menu: inventory page error: " .. tostring(err))
+        UTIL.onceErr("menu inventory page", err, "menu: inventory page error: " .. tostring(err))
     end
 end
 
@@ -1757,7 +1757,7 @@ local function refreshPickPanel(m, picking)
     if not show then return end
     local ok, err = pcall(placePickPanel, m)
     if not ok then
-        once("drop" .. tostring(err), "menu: placing the saved servers: " .. tostring(err))
+        UTIL.onceErr("menu saved servers", err, "menu: placing the saved servers: " .. tostring(err))
     end
 end
 

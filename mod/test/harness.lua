@@ -2508,6 +2508,23 @@ commonClick(lastBtn)
 run(3)
 expect(lastBtn and not mainMenu.closed and linesWith("main menu closed for the mailbox") == closeLines and #shown == shownBefore,
        "out of a world, a click at an old button's address does nothing")
+;(function()   -- an error every update that names a new address each time is logged once
+    playerController.K2_GetPawn = function() return pawn end
+    local raised, was = 0, mainMenu
+    mainMenu = MainMenu(inventoryTab((inventoryPage())), 8)
+    mainMenu.IsValid = function()
+        raised = raised + 1
+        error(string.format("boom at 0x%x", 4096 + raised))
+    end
+    mainMenuOpen = true
+    run(5)
+    mainMenu = was
+    local lines = 0
+    for _, l in ipairs(printed) do
+        if l:find("menu: main menu error", 1, true) and l:find("boom at", 1, true) then lines = lines + 1 end
+    end
+    expect(raised >= 5 and lines == 1, "one line, not one an update: " .. lines .. " for " .. raised .. " errors")
+end)()
 mainMenuOpen, inputSubsystems = false, nil
 escOpen = false
 playerController.K2_GetPawn, playerController.GetAddress = nil, nil
