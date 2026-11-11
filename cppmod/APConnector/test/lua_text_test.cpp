@@ -43,17 +43,18 @@ static void check_ids()
 static void check_int_or()
 {
     expect(int_or("2048", 7) == 2048, "int_or: a number");
-    expect(int_or("12abc", 7) == 12, "int_or: \"12abc\" reads as 12 (only the start must be a number)");
+    expect(int_or("12abc", 7) == 7, "int_or: \"12abc\" gives the fallback (the whole text must be a number)");
     expect(int_or("", 7) == 7, "int_or: \"\" gives the fallback");
     expect(int_or(" 12", 7) == 12, "int_or: a leading space is allowed");
     expect(int_or(TOO_BIG, 7) == 7, "int_or: a number too big to hold gives the fallback");
-    expect(int_or("2048.7", 7) == 2048, "int_or: \"2048.7\" reads as 2048");
+    expect(int_or("2048.7", 7) == 7, "int_or: \"2048.7\" gives the fallback");
 }
 
 static void check_double_or()
 {
     expect(double_or("0.4545", 1.0) == 0.4545, "double_or: a number");
-    expect(double_or("1.5x", 1.0) == 1.5, "double_or: \"1.5x\" reads as 1.5");
+    expect(double_or("1.5x", 1.0) == 1.0, "double_or: \"1.5x\" gives the fallback");
+    expect(double_or("2048", 1.0) == 2048.0, "double_or: a whole number");
     expect(double_or("", 1.0) == 1.0, "double_or: \"\" gives the fallback");
     expect(double_or(" 2", 1.0) == 2.0, "double_or: a leading space is allowed");
     expect(double_or("1e999", 1.0) == 1.0, "double_or: a number too big to hold gives the fallback");

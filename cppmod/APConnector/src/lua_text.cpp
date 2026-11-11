@@ -43,7 +43,9 @@ namespace lua_text
     {
         try
         {
-            return std::stoi(text);
+            std::size_t used = 0;
+            const int number = std::stoi(text, &used);
+            return used == text.size() ? number : fallback;
         }
         catch (...)
         {
@@ -55,7 +57,9 @@ namespace lua_text
     {
         try
         {
-            return std::stod(text);
+            std::size_t used = 0;
+            const double number = std::stod(text, &used);
+            return used == text.size() ? number : fallback;
         }
         catch (...)
         {

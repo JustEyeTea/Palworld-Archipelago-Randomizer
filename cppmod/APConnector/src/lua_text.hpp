@@ -13,10 +13,13 @@ namespace lua_text
     // "A,B,,C" as its non-empty parts, in order: {"A", "B", "C"}.
     auto split_csv(std::string_view csv) -> std::vector<std::string>;
 
+    // The three number readers share one rule for "a number Lua sent as text": the whole text is the number (a
+    // leading space is allowed, as std::stoll allows it). "12abc", "" and, for an int, "2048.7" are not numbers.
+    //
     // "id,id,..." as numbers. A part that isn't a number is skipped.
     auto ids(std::string_view csv) -> std::vector<int64_t>;
 
-    // A number Lua sent as text, or `fallback` when it doesn't start with one.
+    // A number Lua sent as text, or `fallback` when the text isn't one.
     auto int_or(const std::string& text, int fallback) -> int;
     auto double_or(const std::string& text, double fallback) -> double;
 } // namespace lua_text
