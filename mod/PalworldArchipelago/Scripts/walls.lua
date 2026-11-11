@@ -1573,7 +1573,18 @@ local function startFog(stamps, regions, tag)
     if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. regions .. (tag or "")
     elseif err ~= "busy" then once("fogstart" .. err, "map chart: could not make the fog: " .. err) end
 end
-local function chartTick(ctx, screens, opening, passes)
+-- The stamps and area borders for the fog picture, made again only when the map's key changes: they test art files,
+-- which would otherwise be opened on every update while nothing changes.
+local fogParts = { key = nil, stamps = "", regions = "" }
+local function fogStampsAndRegions(key, passes)
+    if fogParts.key ~= key then
+        local tagged = territories()
+        fogParts = { key = key, stamps = tagged and "" or stampList(lockedList(passes)),
+                     regions = tagged and "" or regionSpec(passes) }
+    end
+    return fogParts.stamps, fogParts.regions
+end
+local function chartTick(ctx, screens, opening, passes, key)
     if W.chartOff or not (AP_ComposeChart and AP_ComposeFog and AP_SamplePNG and AP_MapScreen) then return end
     chart.ticks = chart.ticks + 1
     if opening then chart.want = true end                                    -- read the mask on this opening
@@ -1612,8 +1623,7 @@ local function chartTick(ctx, screens, opening, passes)
     end
     if chart.fog == "idle" and not load then
         local tagged = territories()
-        local stamps = tagged and "" or stampList(lockedList(passes))
-        local regions = tagged and "" or regionSpec(passes)
+        local stamps, regions = fogStampsAndRegions(key, passes)
         local tag = tagged and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
         if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
            and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
@@ -1804,8 +1814,18 @@ function W.updateMap(enabled, passes, ctx)
     end
     mapShownAt = screensOnScreen(screens)
     local opening = mapShownAt > 0 and not wasShown
+    local locked = {}
+    for _, name in ipairs(DATA.areas) do
+        if not isOpen(name, passes) then locked[#locked + 1] = name end
+    end
+    -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
+    -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
+    local been = {}
+    if territories() then for area in pairs(W.visited) do been[#been + 1] = area end; table.sort(been) end
+    local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "") .. (iconsActive() and "#icons" or "#stamps")
+        .. (territories() and ("#territories#" .. table.concat(been, "|")) or "")
     -- The chart is drawn in the background from the start; the mask is read while the map is open.
-    local okt, errt = pcall(chartTick, ctx, screens, opening, passes)
+    local okt, errt = pcall(chartTick, ctx, screens, opening, passes, key)
     if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
     -- C++ is switched on from the start, not once the picture is ready (dev.16 playtest, 2026-11-07: the map opened
     -- 3 s before the picture was, and C++ logged "OFF; Setup ran 0x" though its hook saw Setup run).
@@ -1822,16 +1842,6 @@ function W.updateMap(enabled, passes, ctx)
             log("map fog: " .. tostring(info))
         end
     end
-    local locked = {}
-    for _, name in ipairs(DATA.areas) do
-        if not isOpen(name, passes) then locked[#locked + 1] = name end
-    end
-    -- The stamps differ for areas beyond the goal; and the picture has them drawn in only without the icons (so a
-    -- failure of the icons, or map_icons=0, makes the picture and the chart fog again with the stamps).
-    local been = {}
-    if territories() then for area in pairs(W.visited) do been[#been + 1] = area end; table.sort(been) end
-    local key = table.concat(locked, "|") .. "#" .. (W.beyondSig or "") .. (iconsActive() and "#icons" or "#stamps")
-        .. (territories() and ("#territories#" .. table.concat(been, "|")) or "")
     local redrawn = false
     local compose = AP_ComposeMap and AP_ComposeStatus
     if compose then

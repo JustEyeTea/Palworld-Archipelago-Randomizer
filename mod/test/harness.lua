@@ -2064,6 +2064,25 @@ do  -- The chart look's parchment fog colour is sent only with the test tools, a
            "the parchment fog colour only with test_tools=1 and the chart fog on: " .. tostring(plain) .. ", "
            .. tostring(tools) .. ", " .. tostring(toolsNoChart))
 end
+do  -- The chart look with its stamps drawn in (map_icons=0): while nothing changes, the map update opens no file
+    local takeAway = territoriesStandIns({})
+    local putBack = savedColourMap(mapArt)
+    AP_ComposeChart = function(_, _, _, _, out) local h = io.open(out, "w"); h:write("png"); h:close(); return "" end
+    for _ = 1, 3 do AP_ComposeStatus() end                    -- (an earlier copy's composition, finished)
+    local W = freshWalls()
+    W.mapStyle, W.iconsOff = "chart", true
+    mapOpen = true
+    for _ = 1, 30 do W.updateMap(true, {}, pawn) end         -- the chart, the first fog picture
+    local opens, realOpen = 0, io.open
+    io.open = function(...) opens = opens + 1; return realOpen(...) end
+    for _ = 1, 20 do W.updateMap(true, {}, pawn) end
+    io.open = realOpen
+    expect(opens == 0, "the chart look's idle map update opens no file: " .. opens .. " opens in 20 updates")
+    mapOpen = false
+    os.remove(MOD .. "/map-chart.png"); os.remove(MOD .. "/map-fog.png")
+    takeAway()
+    putBack()
+end
 end
 end)()
 
