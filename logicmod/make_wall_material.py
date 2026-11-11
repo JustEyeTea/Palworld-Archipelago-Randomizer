@@ -21,12 +21,12 @@ distance from the camera like the game's walls. Parameters the Lua mod sets on i
   ScrollU, ScrollV      tiles per second (0, 0)
   Tint (colour)         multiplies the colour (white)
   Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws skin
-                        puts each area's colour at 0.34 under the cream-paw layer (the Art lane's formula, 2026-11-08:
+                        puts each region's colour at 0.34 under the cream-paw layer (the Art lane's formula, 2026-11-08:
                         A = a + BackAlpha*(1 - a), colour = (rgb*a + Back*BackAlpha*(1 - a)) / A)
   Brightness            emissive strength (1.5); NightDim multiplies it (1, the Lua mod lowers it at night)
   Opacity               overall (0.85)
   FadeStart, FadeEnd    centimetres from the camera where it starts to fade, and where it is gone (1500, 2500)
-  OffsetU, OffsetV, MirrorU  the pattern shifted (tiles) and mirrored (1) per area (the Art lane, 2026-11-08: sister
+  OffsetU, OffsetV, MirrorU  the pattern shifted (tiles) and mirrored (1) per Area (the Art lane, 2026-11-08: sister
                         Areas of one Region differ by an offset, a mirror and a shade of the Back colour, never hue)
   PlayerPos, ReactRadius, ReactStrength, RippleSize, RippleSpeed, ReactColor  the wall glows and ripples near the
                         player (PlayerPos, set by the Lua mod each update, 300 ms; dev.41 measured from the camera,

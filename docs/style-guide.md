@@ -15,8 +15,8 @@ rules and old code is not made worse.
 
 - **Say what it is in words a player would recognize.** Use `tower_level`, not `tl`. Use game terms (Area Pass,
   Paldeck, alpha, fast-travel point) the way the game and this project's docs use them. A *region* is one of the 15
-  large locked parts and an *area* one of the game's 75 named places; the full list is under
-  [Words](architecture.md#words).
+  large locked parts, an *area* one of the game's 75 named places, and a *lock* either one, in code that serves both
+  sizes alike; the full list is under [Words](architecture.md#words).
 - **Read fields by name, never by position.** Write `tech.level`, not `tech[2]`. Give a row of data a `NamedTuple`
   (Python) or a table with named keys (Lua).
 - **Define in-house words once.** Words this project made up, such as *piece* (the smallest part of the map the logic
