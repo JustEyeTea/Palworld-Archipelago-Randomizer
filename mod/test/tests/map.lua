@@ -388,6 +388,10 @@ group("the world map", function()
         expect(at and first.loc and math.abs(first.loc.X - at.X) < 1 and math.abs(first.loc.Y - at.Y) < 1
                and first.loc.Z == 0,
                "at the region's deepest point, as a world location")
+        local topLeft, bottomRight = W9.worldAt(0, 0), W9.worldAt(1, 1)
+        expect(topLeft.X == 349400 and topLeft.Y == -724400 and bottomRight.X == -1099400 and bottomRight.Y == 724400,
+               "a map point's world location runs from the map's north-west corner to its south-east (region_map.lua's"
+               .. " bounds): " .. topLeft.X .. "," .. topLeft.Y .. " to " .. bottomRight.X .. "," .. bottomRight.Y)
         expect(mapBody.iconUpdates == 1 and logged("map icons: " .. nLocked
                                                    .. " locked area%(s%) added on Canvas_ForIcon_NoMask"),
                "then the screen sizes them for its zoom, and the log says where they went")
