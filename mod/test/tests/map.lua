@@ -15,8 +15,8 @@ group("the world map", function()
     do  -- stamps at each region's deepest point sat under the fog of war, so they go on the side facing home
         local c = require("region_centres")[3]                        -- Sea Breeze Archipelago, still locked
         local at = stampAt["ap-map-stamp-sea-breeze-archipelago"]
-        expect(at and c[3] and math.abs(at.X - (c[3] * 4096 - 44)) < 0.01 and math.abs(at.Y - (c[4] * 4096 - 44)) < 0.01
-               and (c[3] ~= c[1] or c[4] ~= c[2]),
+        expect(at and c.stampU and math.abs(at.X - (c.stampU * 4096 - 44)) < 0.01
+               and math.abs(at.Y - (c.stampV * 4096 - 44)) < 0.01 and (c.stampU ~= c.deepU or c.stampV ~= c.deepV),
                "a locked region's stamp goes on its side nearest the start, not its middle")
     end
     do  -- the full 88 px stamp buried a small area (Small Settlement), so a small one is drawn smaller
@@ -27,11 +27,11 @@ group("the world map", function()
                "a small lock's stamp is about as wide as the lock, but at least 28 px")
         local small, tiny = 0, 0
         for _, c in pairs(dofile(MOD .. "/Scripts/area_centres.lua")) do
-            expect(c[5], "every area's centre carries its room")
-            if c[5] and liveWalls.stampSize({ room = c[5] }) < 88 then
+            expect(c.room, "every area's centre carries its room")
+            if c.room and liveWalls.stampSize({ room = c.room }) < 88 then
                 small = small + 1
             end
-            if c[5] and c[5] < 14 then
+            if c.room and c.room < 14 then
                 tiny = tiny + 1
             end
         end
@@ -376,7 +376,7 @@ group("the world map", function()
         local first = mapBody.icons[1]
         local locked1 = job and tonumber(job.locked:match("^(%d+)"))
         local c = locked1 and CENTRES[locked1] -- (keyed by the 0-based lock index, as drawStamps)
-        local at = c and W9.worldAt(c[1], c[2])
+        local at = c and W9.worldAt(c.deepU, c.deepV)
         expect(#mapBody.icons == nLocked and nLocked >= 10, "one icon per locked region: " .. #mapBody.icons .. " of "
                .. nLocked)
         expect(#game.staleBody.icons == 0 and logged("a map screen of the last world left alone"),

@@ -29,11 +29,7 @@ local function useLayoutData(name)
     layout.map, layout.shapes = require(prefix .. "map"), nil
     local b = layout.map.bounds
     layout.bounds = { xMin = b[1], xMax = b[2], yMin = b[3], yMax = b[4] }
-    layout.centres = {}
-    for k, row in pairs(require(prefix .. "centres")) do
-        layout.centres[k] = { deepU = row[1], deepV = row[2], stampU = row[3] or row[1], stampV = row[4] or row[2],
-                              room = row[5] }
-    end
+    layout.centres = require(prefix .. "centres")    -- rows by name, as tools/lock_centres.py writes them (see above)
     decoded = {}
 end
 
