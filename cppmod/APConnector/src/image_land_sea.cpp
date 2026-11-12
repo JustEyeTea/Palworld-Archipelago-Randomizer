@@ -38,14 +38,20 @@ auto classify_map(const Rgba& map, double gamma, Plane* brightness) -> LandAndSe
     LandAndSea planes;
     planes.outside.assign(N, 0.f);
     Plane sea(N);
-    if (brightness) brightness->assign(N, 0.f);
+    if (brightness)
+    {
+        brightness->assign(N, 0.f);
+    }
     for (size_t i = 0; i < N; ++i)
     {
         const float* p = &map.px[i * 4];
         const float R = static_cast<float>(std::pow(p[0], gamma)), G = static_cast<float>(std::pow(p[1], gamma)),
                     B = static_cast<float>(std::pow(p[2], gamma));
         const float Y = luminance(R, G, B);
-        if (brightness) (*brightness)[i] = Y;
+        if (brightness)
+        {
+            (*brightness)[i] = Y;
+        }
         const bool grey = std::fabs(R - G) < GREY_CHANNELS_WITHIN && std::fabs(G - B) < GREY_CHANNELS_WITHIN;
         const bool outside = grey && Y < OUTSIDE_DARKER_THAN;
         const bool teal = B > R + SEA_BLUE_OVER_RED && G > R && Y < SEA_DARKER_THAN && R < SEA_RED_BELOW;

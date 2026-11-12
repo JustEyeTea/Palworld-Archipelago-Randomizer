@@ -34,7 +34,10 @@ auto locked_mask(const unsigned char* labels, int w, int h, const bool (&locked)
     const size_t count = static_cast<size_t>(w) * h;
     LockedMask mask;
     mask.soft.resize(count);
-    for (size_t i = 0; i < count; ++i) mask.soft[i] = locked[labels[i]] ? 255 : 0;
+    for (size_t i = 0; i < count; ++i)
+    {
+        mask.soft[i] = locked[labels[i]] ? 255 : 0;
+    }
     mask.shade = mask.soft;
     const int edge = std::max(BOUNDARY_SOFTEN_MIN_PX, w / BOUNDARY_SOFTEN_DIVISOR);
     const int shadow = std::max(SHADOW_MIN_PX, w / SHADOW_DIVISOR);
@@ -52,7 +55,10 @@ void paint_map_pixel(unsigned char* p, const GammaTable& lut, double locked, dou
 {
     if (locked <= 0)
     {
-        for (int c = 0; c < 3; ++c) p[c] = lut[p[c]];
+        for (int c = 0; c < 3; ++c)
+        {
+            p[c] = lut[p[c]];
+        }
         return;
     }
     const double r = lut[p[0]], g = lut[p[1]], b = lut[p[2]];
@@ -112,7 +118,10 @@ auto sample_png(const std::string& path, double u, double v) -> std::string
     {
         for (int x = std::max(cx - 1, 0); x <= std::min(cx + 1, w - 1); ++x, ++count)
         {
-            for (int c = 0; c < 4; ++c) sum[c] += px.get()[(static_cast<size_t>(y) * w + x) * 4 + c];
+            for (int c = 0; c < 4; ++c)
+            {
+                sum[c] += px.get()[(static_cast<size_t>(y) * w + x) * 4 + c];
+            }
         }
     }
     std::ostringstream out;

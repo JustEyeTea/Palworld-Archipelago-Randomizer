@@ -281,7 +281,10 @@ namespace pal_gift_unreal
         {
             got_id = to_string(reinterpret_cast<FName*>(call.ptr(out) + cid->GetOffset_Internal())->ToString());
         }
-        if (lvl->GetSize() == 1) got_level = std::to_string(*(call.ptr(out) + lvl->GetOffset_Internal()));
+        if (lvl->GetSize() == 1)
+        {
+            got_level = std::to_string(*(call.ptr(out) + lvl->GetOffset_Internal()));
+        }
         const bool same = got_id == request.species && got_level == std::to_string(request.level);
         report.line(std::string("savedata: ") + (same ? "ok" : "warn") + " CharacterID=" + got_id +
                     " Level=" + got_level);
@@ -391,7 +394,10 @@ namespace pal_gift_unreal
         report.line("check: party " + std::to_string(now) + "/" + std::to_string(player.party_max) +
                     ", FindByHandle=" + slot_text(slot));
         if (slot >= 0) return true;
-        if (added) report.line("add: true but FindByHandle found nothing (the bool only means the party had room)");
+        if (added)
+        {
+            report.line("add: true but FindByHandle found nothing (the bool only means the party had room)");
+        }
         if (!pal_gift::arrived_by_count(id.ready, player.party_count, now)) return false;
         report.line("check: the party grew, no id to match it by");
         return true;
@@ -409,7 +415,10 @@ namespace pal_gift_unreal
         const NewId id = read_id(handle);
         report.line("create: handle=" + name_of(handle) + " id=" + pal_gift::format_guid(id.player) + "/" +
                     pal_gift::format_guid(id.instance));
-        if (!id.ready) report.line("create: id not ready");
+        if (!id.ready)
+        {
+            report.line("create: id not ready");
+        }
         const bool added = route == Route::Handle && add_by_handle(player, handle, id, report);
         if (in_party_now(player, handle, id, added, report)) return RESULT_OK_PARTY;
 
@@ -485,7 +494,10 @@ namespace pal_gift_unreal
 
             const Player player = find_player(report, true);
             const Route taken = pal_gift::choose_route(request.route, player.party_count, player.party_max);
-            if (taken != request.route) report.line(std::string("route: auto -> ") + pal_gift::route_name(taken));
+            if (taken != request.route)
+            {
+                report.line(std::string("route: auto -> ") + pal_gift::route_name(taken));
+            }
             const std::string result = taken == Route::Palbox ? give_to_palbox(player, request, report)
                                                               : give_to_party(player, request, taken, report);
             return report.finish(result);
@@ -577,6 +589,14 @@ namespace pal_gift_unreal
         return s;
     }
 
+    // What a poll finds of the gift: its Pal looked for where the player stands Here; elsewhere nothing, with `why`.
+    auto look_for_gift(const PendingGift& gift, PlayerAtPoll where, const Player& player, const std::string& why)
+        -> Sighting
+    {
+        if (where != PlayerAtPoll::Here) return {false, why};
+        return gift.route == Route::Palbox ? look_in_palbox(player, gift) : look_in_party(player, gift);
+    }
+
     // Ends the pending gift: forgets it, and finishes the report with `result`.
     auto end_gift(Report& report, const std::string& result) -> std::string
     {
@@ -602,11 +622,7 @@ namespace pal_gift_unreal
             Player player;
             std::string why;
             const PlayerAtPoll where = player_at_poll(gift, player, why);
-            Sighting found{false, why};
-            if (where == PlayerAtPoll::Here)
-            {
-                found = gift.route == Route::Palbox ? look_in_palbox(player, gift) : look_in_party(player, gift);
-            }
+            const Sighting found = look_for_gift(gift, where, player, why);
             report.line("check: " + found.what);
             const Route route = gift.route;
             switch (pal_gift::next_poll(gift, where, found.seen))

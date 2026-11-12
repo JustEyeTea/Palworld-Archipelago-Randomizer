@@ -117,11 +117,20 @@ void normalise(Plane& p)
 {
     constexpr float FLAT = 1e-6f;           // keeps a flat plane from dividing by zero
     double mean = 0, sq = 0;
-    for (float v : p) mean += v;
+    for (float v : p)
+    {
+        mean += v;
+    }
     mean /= p.size();
-    for (float v : p) sq += (v - mean) * (v - mean);
+    for (float v : p)
+    {
+        sq += (v - mean) * (v - mean);
+    }
     const float sd = static_cast<float>(std::sqrt(sq / p.size())) + FLAT;
-    for (auto& v : p) v = static_cast<float>((v - mean) / sd);
+    for (auto& v : p)
+    {
+        v = static_cast<float>((v - mean) / sd);
+    }
 }
 
 // Everything the chart's ink is drawn from, each the chart's size.
@@ -170,11 +179,20 @@ auto load_chart_art(const std::string& paper, const std::string& sea, const std:
                     ChartArt& art) -> std::string
 {
     std::string err;
-    if (!paper.empty()) art.paper = load_rgba(paper, size / PAPER_TILES_ACROSS, err);
+    if (!paper.empty())
+    {
+        art.paper = load_rgba(paper, size / PAPER_TILES_ACROSS, err);
+    }
     if (!err.empty()) return err;
-    if (!sea.empty()) art.sea_marks = load_rgba(sea, std::max(SEA_TILE_MIN_PX, size / SEA_TILE_DIVISOR), err);
+    if (!sea.empty())
+    {
+        art.sea_marks = load_rgba(sea, std::max(SEA_TILE_MIN_PX, size / SEA_TILE_DIVISOR), err);
+    }
     if (!err.empty()) return err;
-    if (!compass.empty()) art.compass = load_rgba(compass, size / COMPASS_DIVISOR, err);
+    if (!compass.empty())
+    {
+        art.compass = load_rgba(compass, size / COMPASS_DIVISOR, err);
+    }
     if (!err.empty()) return err;
     if (art.paper.s == 0)
     {
@@ -198,11 +216,17 @@ void paper_at(const ChartArt& art, int size, int x, int y, float (&colour)[3])
     if (art.paper.s)
     {
         const float* t = art.paper.at(x % art.paper.s, y % art.paper.s);
-        for (int c = 0; c < 3; ++c) colour[c] = t[c] * vig;
+        for (int c = 0; c < 3; ++c)
+        {
+            colour[c] = t[c] * vig;
+        }
         return;
     }
     const float k = (1.f + MOTTLE_DEPTH * art.mottle[i] + FIBRE_DEPTH * art.fibre[i]) * vig;
-    for (int c = 0; c < 3; ++c) colour[c] = PAPER_CREAM[c] * k;
+    for (int c = 0; c < 3; ++c)
+    {
+        colour[c] = PAPER_CREAM[c] * k;
+    }
 }
 
 // How much ink (0..1) covers (x, y): the strongest of the coast, the frame, the ripples, the land's contours and
@@ -230,14 +254,20 @@ auto ink_at(const ChartPlanes& p, const ChartArt& art, int size, int x, int y) -
         };
         const bool right = x + 1 < size && band(x, y) != band(x + 1, y);
         const bool below = y + 1 < size && band(x, y) != band(x, y + 1);
-        if (right || below) ink = std::max(ink, CONTOUR_INK);
+        if (right || below)
+        {
+            ink = std::max(ink, CONTOUR_INK);
+        }
         const float relief = (p.brightness[i] - p.surroundings[i]) * -RELIEF_GAIN;
         ink = std::max(ink, std::min(1.f, std::max(0.f, relief)) * RELIEF_INK);
     }
     const bool downHatch = (x + y) % HATCH_SPACING_PX == 0;
     const bool upHatch = ((x - y) % HATCH_SPACING_PX + HATCH_SPACING_PX) % HATCH_SPACING_PX == 0;
     const bool onHatch = downHatch || upHatch;
-    if (p.map.outside_soft[i] > HATCH_BEYOND && onHatch) ink = std::max(ink, HATCH_INK);
+    if (p.map.outside_soft[i] > HATCH_BEYOND && onHatch)
+    {
+        ink = std::max(ink, HATCH_INK);
+    }
     if (art.sea_marks.s && !land && !nearEdge && p.near_land[i] < NEAR_LAND_ABOVE)
     {
         ink = std::max(ink, art.sea_marks.at(x % art.sea_marks.s, y % art.sea_marks.s)[3] * SEA_MARK_INK);
@@ -251,7 +281,10 @@ void compass_at(const Rgba& compass, int size, int x, int y, float (&colour)[3])
     const int cx = x - static_cast<int>(size * COMPASS_LEFT), cy = y - static_cast<int>(size * COMPASS_TOP);
     if (cx < 0 || cy < 0 || cx >= compass.s || cy >= compass.s) return;
     const float* a = compass.at(cx, cy);
-    for (int c = 0; c < 3; ++c) colour[c] = colour[c] * (1 - a[3]) + a[c] * a[3];
+    for (int c = 0; c < 3; ++c)
+    {
+        colour[c] = colour[c] * (1 - a[3]) + a[c] * a[3];
+    }
 }
 } // namespace
 
@@ -281,8 +314,14 @@ auto compose_chart(const std::string& colour, const std::string& paper, const st
             {
                 col[c] = base[c] * tint[c] * (1 - ink * INK_COVER) + CHART_INK[c] * ink * INK_COVER;
             }
-            if (art.compass.s) compass_at(art.compass, size, x, y, col);
-            for (int c = 0; c < 3; ++c) img[i * 3 + c] = to_byte(col[c]);
+            if (art.compass.s)
+            {
+                compass_at(art.compass, size, x, y, col);
+            }
+            for (int c = 0; c < 3; ++c)
+            {
+                img[i * 3 + c] = to_byte(col[c]);
+            }
         }
     }
     return write_png_fast(out, size, size, 3, img.data()) ? "" : "could not write " + out;

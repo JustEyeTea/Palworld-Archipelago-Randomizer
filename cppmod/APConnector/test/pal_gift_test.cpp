@@ -36,7 +36,8 @@ int main()
     expect(choose_route(Route::Auto, 3, 5) == Route::PartyDebug, "auto with room: the party");
     expect(choose_route(Route::Auto, 5, 5) == Route::Palbox, "auto with a full party: the Palbox");
     expect(choose_route(Route::PartyPlain, 5, 5) == Route::PartyPlain, "a named route is kept, even when full");
-    expect(std::string(route_name(Route::PartyDebug)) == "party_debug" && std::string(route_name(Route::Palbox)) == "palbox",
+    expect(std::string(route_name(Route::PartyDebug)) == "party_debug" &&
+               std::string(route_name(Route::Palbox)) == "palbox",
            "route names match what Lua passes");
 
     const uint8_t g[16] = {0x4D, 0x3C, 0x2B, 0x1A, 0, 0, 0, 0, 1, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF};

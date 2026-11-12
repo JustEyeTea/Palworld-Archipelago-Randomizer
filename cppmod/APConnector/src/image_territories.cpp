@@ -93,7 +93,10 @@ auto read_look(const std::string& areas, const std::string& style, const std::st
     {
         std::vector<std::string> f;
         std::stringstream parts(style);
-        for (std::string part; std::getline(parts, part, ',');) f.push_back(part);
+        for (std::string part; std::getline(parts, part, ',');)
+        {
+            f.push_back(part);
+        }
         bool read = (f.size() == STYLE_FIELDS || f.size() == STYLE_FIELDS_WITH_MAP) &&
                     parse_hex_rgb(f[0], look.glow_colour) && read_float(f[1], look.glow_alpha) &&
                     parse_hex_rgb(f[2], look.core_colour) && read_float(f[3], look.core_alpha) &&
@@ -175,17 +178,24 @@ auto area_edges(const std::vector<unsigned char>& labels, int size) -> std::vect
                 {
                     const int nx = x + dx, ny = y + dy;
                     if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-                    if (labels[static_cast<size_t>(ny) * size + nx] != labels[i]) edge = true;
+                    if (labels[static_cast<size_t>(ny) * size + nx] != labels[i])
+                    {
+                        edge = true;
+                    }
                 }
             }
-            if (edge) dist[i] = 0;
+            if (edge)
+            {
+                dist[i] = 0;
+            }
         }
     }
     return dist;
 }
 
-// The chamfer's two passes over area_edges' start (see STRAIGHT_STEP).
-void chamfer_passes(std::vector<int>& dist, int size)
+// The chamfer's pass from the top-left over area_edges' start: each pixel's least of its left and three upper
+// neighbours plus a step (see STRAIGHT_STEP).
+void chamfer_forward(std::vector<int>& dist, int size)
 {
     auto at = [&](int x, int y) -> int& { return dist[static_cast<size_t>(y) * size + x]; };
     for (int y = 0; y < size; ++y)
@@ -193,23 +203,47 @@ void chamfer_passes(std::vector<int>& dist, int size)
         for (int x = 0; x < size; ++x)
         {
             int& d = at(x, y);
-            if (x > 0) d = std::min(d, at(x - 1, y) + STRAIGHT_STEP);
+            if (x > 0)
+            {
+                d = std::min(d, at(x - 1, y) + STRAIGHT_STEP);
+            }
             if (y == 0) continue;
             d = std::min(d, at(x, y - 1) + STRAIGHT_STEP);
-            if (x > 0) d = std::min(d, at(x - 1, y - 1) + DIAGONAL_STEP);
-            if (x + 1 < size) d = std::min(d, at(x + 1, y - 1) + DIAGONAL_STEP);
+            if (x > 0)
+            {
+                d = std::min(d, at(x - 1, y - 1) + DIAGONAL_STEP);
+            }
+            if (x + 1 < size)
+            {
+                d = std::min(d, at(x + 1, y - 1) + DIAGONAL_STEP);
+            }
         }
     }
+}
+
+// The chamfer's pass back from the bottom-right: the same with the other four neighbours.
+void chamfer_back(std::vector<int>& dist, int size)
+{
+    auto at = [&](int x, int y) -> int& { return dist[static_cast<size_t>(y) * size + x]; };
     for (int y = size - 1; y >= 0; --y)
     {
         for (int x = size - 1; x >= 0; --x)
         {
             int& d = at(x, y);
-            if (x + 1 < size) d = std::min(d, at(x + 1, y) + STRAIGHT_STEP);
+            if (x + 1 < size)
+            {
+                d = std::min(d, at(x + 1, y) + STRAIGHT_STEP);
+            }
             if (y + 1 == size) continue;
             d = std::min(d, at(x, y + 1) + STRAIGHT_STEP);
-            if (x + 1 < size) d = std::min(d, at(x + 1, y + 1) + DIAGONAL_STEP);
-            if (x > 0) d = std::min(d, at(x - 1, y + 1) + DIAGONAL_STEP);
+            if (x + 1 < size)
+            {
+                d = std::min(d, at(x + 1, y + 1) + DIAGONAL_STEP);
+            }
+            if (x > 0)
+            {
+                d = std::min(d, at(x - 1, y + 1) + DIAGONAL_STEP);
+            }
         }
     }
 }
@@ -296,14 +330,20 @@ auto write_overlay(const Overlay& img, int size, const TerritoryLook& look, cons
 {
     const size_t count = static_cast<size_t>(size) * size;
     std::vector<unsigned char> overlay(count * 4);
-    for (size_t i = 0; i < count * 4; ++i) overlay[i] = to_byte(img[i]);
+    for (size_t i = 0; i < count * 4; ++i)
+    {
+        overlay[i] = to_byte(img[i]);
+    }
     if (!write_png_fast(out, size, size, 4, overlay.data())) return "could not write " + out;
     if (fogart.empty()) return "";
     std::vector<unsigned char> fogPicture(count * 3);
     for (size_t i = 0; i < count; ++i)
     {
         const float a = img[i * 4 + 3];
-        for (int c = 0; c < 3; ++c) fogPicture[i * 3 + c] = to_byte(img[i * 4 + c] * a + look.fog_colour[c] * (1 - a));
+        for (int c = 0; c < 3; ++c)
+        {
+            fogPicture[i * 3 + c] = to_byte(img[i * 4 + c] * a + look.fog_colour[c] * (1 - a));
+        }
     }
     return write_png_fast(fogart, size, size, 3, fogPicture.data()) ? "" : "could not write " + fogart;
 }
@@ -405,7 +445,10 @@ auto piece_distances(const std::vector<WallPiece>& pieces, const Field& field, i
             along += field.distance_at(x, y, size) / static_cast<float>(ALONG_SAMPLES);
         }
         const bool free = along > FREE_PIECE_PX;
-        if (free && out.free.empty()) out.free.assign(count, NO_PIECE);
+        if (free && out.free.empty())
+        {
+            out.free.assign(count, NO_PIECE);
+        }
         distance_to_piece(free ? out.free : out.near_border, piece, size, reach, scale);
     }
     return out;
@@ -506,7 +549,10 @@ void map_picture_pixel(const FieldPaint& how, const FieldPixel& p, const unsigne
         c[0] = c[1] = c[2] = grey;
     }
     paint_field(how, p, c, a);
-    for (int k = 0; k < 3; ++k) out[k] = to_byte(c[k]);
+    for (int k = 0; k < 3; ++k)
+    {
+        out[k] = to_byte(c[k]);
+    }
     out[3] = 255;
 }
 
@@ -523,7 +569,10 @@ void duotone_fog_pixel(const FieldPaint& how, const FieldPixel& p, const unsigne
     float c[3] = {0, 0, 0}, a = 1.f;
     if (!own)
     {
-        for (int k = 0; k < 3; ++k) c[k] = lum * DUOTONE_SEA_MAP + look.fog_colour[k] * DUOTONE_SEA_FOG;
+        for (int k = 0; k < 3; ++k)
+        {
+            c[k] = lum * DUOTONE_SEA_MAP + look.fog_colour[k] * DUOTONE_SEA_FOG;
+        }
     }
     else
     {
@@ -537,7 +586,10 @@ void duotone_fog_pixel(const FieldPaint& how, const FieldPixel& p, const unsigne
         }
     }
     paint_field(how, p, c, a);
-    for (int k = 0; k < 3; ++k) out[k] = to_byte(c[k]);
+    for (int k = 0; k < 3; ++k)
+    {
+        out[k] = to_byte(c[k]);
+    }
 }
 
 // Without the player's map: the overlay's pixel (RGBA into `overlay`) and, if `fog` is given, the same over the fog
@@ -546,10 +598,16 @@ void overlay_pixel(const FieldPaint& how, const FieldPixel& p, unsigned char* ov
 {
     float c[3] = {0, 0, 0}, a = 0;
     paint_field(how, p, c, a);
-    for (int k = 0; k < 3; ++k) overlay[k] = to_byte(c[k]);
+    for (int k = 0; k < 3; ++k)
+    {
+        overlay[k] = to_byte(c[k]);
+    }
     overlay[3] = to_byte(a);
     if (!fog) return;
-    for (int k = 0; k < 3; ++k) fog[k] = to_byte(c[k] * a + how.look.fog_colour[k] * (1 - a));
+    for (int k = 0; k < 3; ++k)
+    {
+        fog[k] = to_byte(c[k] * a + how.look.fog_colour[k] * (1 - a));
+    }
 }
 
 // Reads the distance field into `field`; "" or what went wrong.
@@ -594,7 +652,10 @@ void field_pictures(const Field& field, const PlayerMap& map, const PieceDistanc
             }
             const unsigned char* m = map.at(x, y, size);
             map_picture_pixel(onMap, p, m, map.lut, &picture[p.i * 4]);
-            if (fogOut) duotone_fog_pixel(onFog, p, m, map.lut, fogOut);
+            if (fogOut)
+            {
+                duotone_fog_pixel(onFog, p, m, map.lut, fogOut);
+            }
         }
     }
 }
@@ -618,7 +679,8 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
     if (!badWalls.empty()) return badWalls;
     const std::vector<unsigned char> areaAt = labels_at_size(lab.get(), lw, lh, size);
     std::vector<int> dist = area_edges(areaAt, size);
-    chamfer_passes(dist, size);
+    chamfer_forward(dist, size);
+    chamfer_back(dist, size);
     Overlay img(static_cast<size_t>(size) * size * 4, 0.f);
     fill_and_rim(img, areaAt, dist, look, scale);
     draw_walls(img, pieces, look, size, scale);

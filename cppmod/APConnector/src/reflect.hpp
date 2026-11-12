@@ -244,7 +244,10 @@ namespace ap_reflect
                             UObject* arg = nullptr) -> UObject*
     {
         ReflectedCall c(self, resolve(self, fn));
-        if (arg_name) *c.at<UObject*>(c.param(arg_name)) = arg;
+        if (arg_name)
+        {
+            *c.at<UObject*>(c.param(arg_name)) = arg;
+        }
         c.run();
         return *c.at<UObject*>(c.param(STR("ReturnValue")));
     }

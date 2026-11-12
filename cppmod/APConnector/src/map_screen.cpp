@@ -159,7 +159,10 @@ namespace map_screen_unreal
         did << " map " << map;
         Screen s{widget, false, object_field(widget, STR("Image_MapBody")), "none"};
         UObject* shown = s.body ? brush_resource(s.body) : nullptr;
-        if (shown) s.shown = to_string(shown->GetFullName());
+        if (shown)
+        {
+            s.shown = to_string(shown->GetFullName());
+        }
         did << ", showing " << s.shown;
         // Only the main world's map: the World Tree has a screen of its own (MapName "Tree"), which also shows
         // T_WorldMap while it is set up, so the picture's name alone can't tell the two apart.
@@ -206,7 +209,10 @@ namespace map_screen_unreal
             std::lock_guard<std::mutex> guard(g_lock);
             g_last = did;
         }
-        if (++g_logged <= SETUPS_LOGGED_IN_FULL || n % SETUP_LOG_EVERY == 0) say(did);
+        if (++g_logged <= SETUPS_LOGGED_IN_FULL || n % SETUP_LOG_EVERY == 0)
+        {
+            say(did);
+        }
     }
 
     // After the game's Setup, inside the same call: the map's picture and the fog, before the screen draws.
@@ -250,14 +256,20 @@ namespace map_screen_unreal
         g_burst_frame = frame;
         if (g_bursts > LOG_BURSTS) return;
         const std::string name = to_string(fn->GetName());
-        if (g_burst_names.insert(name).second) say("frame " + std::to_string(frame) + ": " + name + " (" + route + ")");
+        if (g_burst_names.insert(name).second)
+        {
+            say("frame " + std::to_string(frame) + ": " + name + " (" + route + ")");
+        }
     }
 
     // An exception from a callback the game called (every Blueprint call, every frame) would take the game down, so
     // the callbacks catch it here and log the first one; the rest are counted in silence.
     auto caught(const char* where, const std::exception& e) -> void
     {
-        if (++g_errors == 1) say(std::string("error in ") + where + " (later ones not logged): " + e.what());
+        if (++g_errors == 1)
+        {
+            say(std::string("error in ") + where + " (later ones not logged): " + e.what());
+        }
     }
 
     // Every Blueprint call: Setup is acted on; the screen's own functions go to the call log.
@@ -267,9 +279,15 @@ namespace map_screen_unreal
         try
         {
             const bool setup = fn == g_setup.load(std::memory_order_relaxed);
-            if (setup && g_enabled.load(std::memory_order_relaxed)) on_setup(context, route);
+            if (setup && g_enabled.load(std::memory_order_relaxed))
+            {
+                on_setup(context, route);
+            }
             UObject* cls = g_class.load(std::memory_order_relaxed);
-            if (cls && fn->GetOuterPrivate() == cls) log_screen_call(fn, route);
+            if (cls && fn->GetOuterPrivate() == cls)
+            {
+                log_screen_call(fn, route);
+            }
         }
         catch (const std::exception& e)
         {
@@ -281,7 +299,10 @@ namespace map_screen_unreal
     auto script_post(Hook::TCallbackIterationData<void>&, UObject* context, FFrame& stack, void*) -> void
     {
         UFunction* fn = stack.Node();
-        if (!fn) fn = stack.CurrentNativeFunction();
+        if (!fn)
+        {
+            fn = stack.CurrentNativeFunction();
+        }
         seen(context, fn, "script");
     }
 
@@ -325,7 +346,10 @@ namespace map_screen_unreal
         if (fn == before) return;
         // Forgotten when the old Setup goes, not when a new one is found: Lua may hand over the new world's picture
         // before the new world's screen class loads.
-        if (before) forget_fog_picture();
+        if (before)
+        {
+            forget_fog_picture();
+        }
         if (!fn)                                   // (the class unloaded, as at Return to title)
         {
             g_setup = nullptr;
@@ -354,7 +378,10 @@ namespace map_screen_unreal
     auto set_kept(std::string& kept, const std::string& value, const std::string& what, const std::string& none)
         -> void
     {
-        if (value != kept) say(what + ": " + (value.empty() ? none : value));
+        if (value != kept)
+        {
+            say(what + ": " + (value.empty() ? none : value));
+        }
         kept = value;
     }
 
@@ -401,7 +428,10 @@ namespace map_screen
         }
         if (cmd == "status") return status_line();
         // Lua reads only the status's answer, so a misspelt command would otherwise leave no trace.
-        if (g_unknown_logged.insert(cmd).second) say("unknown command '" + cmd + "' (value '" + value + "') ignored");
+        if (g_unknown_logged.insert(cmd).second)
+        {
+            say("unknown command '" + cmd + "' (value '" + value + "') ignored");
+        }
         return "unknown command " + cmd;
     }
 

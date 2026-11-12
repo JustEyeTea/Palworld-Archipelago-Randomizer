@@ -40,7 +40,10 @@ auto JobSlot::status() -> std::string
 {
     std::lock_guard<std::mutex> guard(m_lock);
     std::string st = m_state;
-    if (st != "busy") m_state.clear();
+    if (st != "busy")
+    {
+        m_state.clear();
+    }
     return st;
 }
 

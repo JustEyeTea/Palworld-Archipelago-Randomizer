@@ -86,7 +86,10 @@ void box_blur_pass(std::vector<Pixel>& img, std::vector<Pixel>& scratch, int w, 
     for (int y = 0; y < h; ++y)
     {
         Sum sum = 0;
-        for (int x = -r; x <= r; ++x) sum += img[at(std::clamp(x, 0, w - 1), y)];
+        for (int x = -r; x <= r; ++x)
+        {
+            sum += img[at(std::clamp(x, 0, w - 1), y)];
+        }
         for (int x = 0; x < w; ++x)
         {
             scratch[at(x, y)] = static_cast<Pixel>(sum / span);
@@ -96,7 +99,10 @@ void box_blur_pass(std::vector<Pixel>& img, std::vector<Pixel>& scratch, int w, 
     for (int x = 0; x < w; ++x)
     {
         Sum sum = 0;
-        for (int y = -r; y <= r; ++y) sum += scratch[at(x, std::clamp(y, 0, h - 1))];
+        for (int y = -r; y <= r; ++y)
+        {
+            sum += scratch[at(x, std::clamp(y, 0, h - 1))];
+        }
         for (int y = 0; y < h; ++y)
         {
             img[at(x, y)] = static_cast<Pixel>(sum / span);
@@ -144,7 +150,10 @@ auto area_average(const Source& src, int s, int x, int y, int c) -> float
     float sum = 0;
     for (int sy = y0; sy < y1; ++sy)
     {
-        for (int sx = x0; sx < x1; ++sx) sum += src.at(sx, sy, c);
+        for (int sx = x0; sx < x1; ++sx)
+        {
+            sum += src.at(sx, sy, c);
+        }
     }
     return sum / (static_cast<float>((x1 - x0) * (y1 - y0)) * 255.f);
 }

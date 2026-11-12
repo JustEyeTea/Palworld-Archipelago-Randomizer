@@ -48,8 +48,14 @@ auto border_fields(const std::string& regions) -> std::vector<std::string>
 {
     std::vector<std::string> fields;
     std::stringstream parts(regions);
-    for (std::string field; std::getline(parts, field, '|');) fields.push_back(field);
-    if (!regions.empty() && regions.back() == '|') fields.push_back("");
+    for (std::string field; std::getline(parts, field, '|');)
+    {
+        fields.push_back(field);
+    }
+    if (!regions.empty() && regions.back() == '|')
+    {
+        fields.push_back("");
+    }
     return fields;
 }
 
@@ -70,7 +76,10 @@ auto read_border_spec(const std::string& regions, BorderSpec& spec) -> std::stri
     {
         return "regions '" + regions + "': ink '" + f[3] + "' (want r,g,b or r,g,b,a, 0-255)";
     }
-    for (size_t c = 0; c < ink.size(); ++c) spec.ink[c] = ink[c] / 255.f;
+    for (size_t c = 0; c < ink.size(); ++c)
+    {
+        spec.ink[c] = ink[c] / 255.f;
+    }
     using lua_text::read_float;
     if (!(read_float(f[4], spec.width_px) && read_float(f[5], spec.dash_px) && read_float(f[6], spec.gap_px) &&
           read_float(f[7], spec.hatch_opacity)))
@@ -98,7 +107,10 @@ auto on_land(const Plane& land, size_t i) -> float
 void ink_pixel(Rgba& art, size_t i, const float* c, float a)
 {
     float* d = &art.px[i * 4];
-    for (int k = 0; k < 3; ++k) d[k] = d[k] * (1 - a) + c[k] * a;
+    for (int k = 0; k < 3; ++k)
+    {
+        d[k] = d[k] * (1 - a) + c[k] * a;
+    }
 }
 
 // The hatch over the locked areas' land: the hatch tile repeated, or plain diagonal lines in the ink.
@@ -142,7 +154,10 @@ auto border_pixels(const std::vector<unsigned char>& labels, const Plane& land, 
         {
             const size_t i = static_cast<size_t>(y) * size + x;
             const bool here = labels[i] && on_land(land, i) >= BORDER_ON_LAND;
-            if (here && (other(i, i + 1) || other(i, i + size))) border.push_back(i);
+            if (here && (other(i, i + 1) || other(i, i + size)))
+            {
+                border.push_back(i);
+            }
         }
     }
     return border;
@@ -178,11 +193,17 @@ void walk_border(size_t start, std::vector<int>& dist, int size, std::vector<siz
 auto dist_along(const std::vector<size_t>& border, int size) -> std::vector<int>
 {
     std::vector<int> dist(static_cast<size_t>(size) * size, NOT_BORDER);
-    for (size_t i : border) dist[i] = NOT_WALKED;
+    for (size_t i : border)
+    {
+        dist[i] = NOT_WALKED;
+    }
     std::vector<size_t> queue;
     for (size_t start : border)
     {
-        if (dist[start] == NOT_WALKED) walk_border(start, dist, size, queue);
+        if (dist[start] == NOT_WALKED)
+        {
+            walk_border(start, dist, size, queue);
+        }
     }
     return dist;
 }
@@ -214,7 +235,10 @@ void ink_borders(Rgba& art, const std::vector<size_t>& border, const std::vector
     blur(cover, size, size, BORDER_SOFTEN_PX);
     for (size_t i = 0; i < cover.size(); ++i)
     {
-        if (cover[i] > 0.f) ink_pixel(art, i, spec.ink, spec.ink[3] * std::min(1.f, cover[i] * COVER_GAIN));
+        if (cover[i] > 0.f)
+        {
+            ink_pixel(art, i, spec.ink, spec.ink[3] * std::min(1.f, cover[i] * COVER_GAIN));
+        }
     }
 }
 
@@ -279,13 +303,19 @@ auto explored_mask(const std::string& mask, const std::string& default_mask, int
     if (!err.empty()) return {};
     if (!high)
     {
-        for (auto& e : explored) e = 1.f - e;
+        for (auto& e : explored)
+        {
+            e = 1.f - e;
+        }
     }
     if (!default_mask.empty())
     {
         const Plane d = load_channel(default_mask, size, channel, err);
         if (!err.empty()) return {};
-        for (size_t i = 0; i < explored.size(); ++i) explored[i] = std::max(explored[i], high ? d[i] : 1.f - d[i]);
+        for (size_t i = 0; i < explored.size(); ++i)
+        {
+            explored[i] = std::max(explored[i], high ? d[i] : 1.f - d[i]);
+        }
     }
     blur(explored, size, size, std::max(FOG_EDGE_SOFTEN_MIN_PX, size / FOG_EDGE_SOFTEN_DIVISOR));
     return explored;
@@ -385,7 +415,10 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
         int w = 0, h = 0;
         raw = read_png(chart, 4, w, h);
         if (!raw) return read_failure(chart);
-        if (w != size || h != size) raw.reset();
+        if (w != size || h != size)
+        {
+            raw.reset();
+        }
     }
     if (!raw)
     {
