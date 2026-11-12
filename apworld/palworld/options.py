@@ -70,8 +70,8 @@ class CheckLevel(Range):
 
 class AreaLocks(DefaultOnToggle):
     """The map beyond the starting zone is locked, and each locked part opens when its pass item arrives (Lock Size
-    sets how big the parts are). Until then a locked part is walled off (a red grid at its border) and shown grey on
-    the map; the open sea is always free."""
+    sets how big the parts are). Until then a locked part is walled off (a wall in its region's colour at its border)
+    and shown grey on the map; the open sea is always free."""
     display_name = "Area Locks"
 
 
