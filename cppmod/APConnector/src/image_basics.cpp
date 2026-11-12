@@ -42,6 +42,13 @@ auto read_failure(const std::string& path) -> std::string
     return "could not read " + path + ": " + stbi_failure_reason();
 }
 
+auto write_png_fast(const std::string& path, int w, int h, int channels, const unsigned char* pixels) -> bool
+{
+    constexpr int FASTEST_COMPRESSION = 1;   // stb's own default is 8
+    stbi_write_png_compression_level = FASTEST_COMPRESSION;
+    return stbi_write_png(path.c_str(), w, h, channels, pixels, w * channels) != 0;
+}
+
 auto gamma_table(double gamma) -> GammaTable
 {
     GammaTable table{};
@@ -109,7 +116,7 @@ void blur(Plane& a, int w, int h, int r)
 {
     if (r < 1) return;
     Plane scratch(a.size());
-    for (int pass = 0; pass < 3; ++pass)
+    for (int pass = 0; pass < GAUSSIAN_BOX_PASSES; ++pass)
     {
         box_blur_pass<float, float>(a, scratch, w, h, r);
     }

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -14,6 +15,39 @@
 
 namespace image_basics
 {
+// Lua gives the pictures' sizes (a stamp's width, a wall's glow) in pixels of a map this wide; each picture scales
+// them to its own size.
+constexpr int REFERENCE_MAP_PX = 4096;
+
+// The smallest picture a composer makes: below this the borders and rims would not show.
+constexpr int MIN_PICTURE_PX = 64;
+
+// The explorer's chart's ink, a dark brown (red, green, blue 0..1): its coasts, its frame and the fog's inked edge,
+// and the fog's borders when Lua gives no ink. Copy: map_fog.lua's BORDER_INK ("59,42,26", the same in 0-255).
+constexpr float CHART_INK[3] = {0.231f, 0.165f, 0.102f};
+
+// Rec. 709 luminance, how bright a colour looks: the weights of red, green and blue.
+constexpr double LUMA_RED = 0.2126, LUMA_GREEN = 0.7152, LUMA_BLUE = 0.0722;
+inline auto luminance(double r, double g, double b) -> double
+{
+    return LUMA_RED * r + LUMA_GREEN * g + LUMA_BLUE * b;
+}
+inline auto luminance(float r, float g, float b) -> float
+{
+    constexpr float red = static_cast<float>(LUMA_RED), green = static_cast<float>(LUMA_GREEN);
+    constexpr float blue = static_cast<float>(LUMA_BLUE);
+    return red * r + green * g + blue * b;
+}
+
+// Writes a PNG with stb's fastest compression: each picture is read back once, by the game, straight after, so
+// speed matters more than size. False if it could not be written.
+auto write_png_fast(const std::string& path, int w, int h, int channels, const unsigned char* pixels) -> bool;
+
+// A value 0..1 as a byte 0..255, rounded; outside 0..1 it is clamped.
+inline auto to_byte(float v) -> unsigned char
+{
+    return static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, v))));
+}
 // An area label picture holds one byte per pixel: area indexes 0..255 (0 is no area).
 constexpr int AREA_LABELS = 256;
 
@@ -62,12 +96,15 @@ inline void blend_over(float* colour, float& alpha, const float* top, float top_
     alpha = out;
 }
 
-// Box blur of an 8-bit image, horizontally then vertically; three passes come close to a Gaussian.
+// Box blurs repeated this many times come close to a Gaussian blur.
+constexpr int GAUSSIAN_BOX_PASSES = 3;
+
+// One box blur of an 8-bit image, horizontally then vertically (GAUSSIAN_BOX_PASSES of them come close to a Gaussian).
 void box_blur(std::vector<uint8_t>& img, int w, int h, int r);
 
 using Plane = std::vector<float>;
 
-// Box blur of a float plane, three passes (close to a Gaussian), as box_blur above.
+// A box blur of a float plane GAUSSIAN_BOX_PASSES times, close to a Gaussian.
 void blur(Plane& a, int w, int h, int r);
 
 // An RGBA picture as floats 0..1, resampled to s x s (area average when shrinking, bilinear when growing).

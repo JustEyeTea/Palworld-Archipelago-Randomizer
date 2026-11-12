@@ -44,7 +44,7 @@ auto classify_map(const Rgba& map, double gamma, Plane* brightness) -> LandAndSe
         const float* p = &map.px[i * 4];
         const float R = static_cast<float>(std::pow(p[0], gamma)), G = static_cast<float>(std::pow(p[1], gamma)),
                     B = static_cast<float>(std::pow(p[2], gamma));
-        const float Y = 0.2126f * R + 0.7152f * G + 0.0722f * B;
+        const float Y = luminance(R, G, B);
         if (brightness) (*brightness)[i] = Y;
         const bool grey = std::fabs(R - G) < GREY_CHANNELS_WITHIN && std::fabs(G - B) < GREY_CHANNELS_WITHIN;
         const bool outside = grey && Y < OUTSIDE_DARKER_THAN;

@@ -16,8 +16,14 @@ auto JobSlot::start(std::function<std::string()> job) -> std::string
     {
         std::thread([this, job] {
             std::string err;
-            try { err = job(); }
-            catch (const std::exception& e) { err = e.what(); }
+            try
+            {
+                err = job();
+            }
+            catch (const std::exception& e)
+            {
+                err = e.what();
+            }
             std::lock_guard<std::mutex> guard(m_lock);
             m_state = err.empty() ? "done" : "error: " + err;
         }).detach();
