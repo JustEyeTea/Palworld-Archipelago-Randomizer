@@ -116,6 +116,18 @@ class MapPlan:
             out[b].add(a)
         return {p: sorted(n) for p, n in out.items()}
 
+    # The route rule. A route is a chain of pieces from the start to the target, each across a border from the one
+    # before. Its cost is the pair (worst, steps): worst is the highest `low` (a lock's lowest Pal level, from
+    # locks_in_scope) among the locks on the route that are outside `scope`, a lock in scope counting 0; steps is the
+    # number of borders crossed. Routes compare on worst first and on steps only to break a tie, so the seed takes in
+    # the gentlest locks it can and, among routes as gentle, the fewest. The search is Dijkstra's with that cost, and
+    # UNVISITED is the cost of a piece not reached yet. On an equal cost it keeps the route it found first.
+    # For example, with Lock Size: regions, say `scope` holds the regions whose Pals start at level 22 or lower
+    # (Windswept Island up to Crescent Moon Shore, plus the open sea, always in scope), and the target is the Desert
+    # Tower's piece in Desiccated Dunes, whose Pals start at level 35. Through Marsh Island (in scope) the route costs
+    # (35, 2 steps): the Dunes are its only region outside the scope. Through Verdant Stream (33) it would cost
+    # (35, 3 steps), no worse a region but one step more; through Astral Mountains (39), (39, 3 steps). So corridor
+    # returns ["Desiccated Dunes"], the one region the seed adds for that tower.
     def corridor(self, target: str, scope, low: Dict[str, int]) -> List[str]:
         """The pieces outside `scope` on the way from the start to `target`: the route whose highest such lock is
         lowest, then the one through the fewest pieces."""
