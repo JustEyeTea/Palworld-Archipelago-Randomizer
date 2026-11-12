@@ -50,6 +50,10 @@ int main()
     expect(text == "party: 3/5\nresult: ok party", "the report ends with its result line");
     expect(mirrored.size() == 2 && mirrored[1] == "result: ok party", "every line is mirrored as it is added");
 
+    expect(arrived_by_count(false, 3, 4), "a gift with no id: the party growing counts as its arrival");
+    expect(!arrived_by_count(true, 3, 4), "a gift with an id: the party growing does not count (another Pal moved in?)");
+    expect(!arrived_by_count(false, 3, 3), "a gift with no id: the party the same size, not arrived");
+
     PendingGift p;
     PollVerdict v = PollVerdict::Wait;
     for (int i = 0; i < MAX_POLLS - 1; ++i) v = next_poll(p, false);

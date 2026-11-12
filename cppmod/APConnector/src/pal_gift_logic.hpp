@@ -81,6 +81,11 @@ namespace pal_gift
         int polls{};
     };
 
+    // Whether a party gift counts as arrived because the party grew: only when the create gave no id to look for it
+    // by. A gift with an id is matched by its id alone: moving a Pal from the Palbox, or a capture, grows the party
+    // too.
+    auto arrived_by_count(bool has_id, int count_before, int count_now) -> bool;
+
     // About 6 s: the Lua side polls once per core update, every 300 ms.
     constexpr int MAX_POLLS = 20;
 

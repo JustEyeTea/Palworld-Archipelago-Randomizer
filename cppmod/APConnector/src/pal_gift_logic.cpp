@@ -107,6 +107,11 @@ namespace pal_gift
         return out;
     }
 
+    auto arrived_by_count(bool has_id, int count_before, int count_now) -> bool
+    {
+        return !has_id && count_now > count_before;
+    }
+
     auto next_poll(PendingGift& gift, bool seen) -> PollVerdict
     {
         ++gift.polls;

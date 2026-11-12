@@ -189,7 +189,8 @@ namespace pal_gift_unreal
     }
 
     // The handle for a kept id, through the manager (never a handle pointer kept from an earlier tick). DebugName is left
-    // empty; UNCONFIRMED that the game's lookup ignores it (if not, the poll falls back on the party count).
+    // empty; untested in game that the lookup ignores it. If it does not, every party gift with an id ends in
+    // "fail timeout" though the Pal arrived (the party count is not used once there is an id): fix the lookup then.
     auto handle_by_id(const Player& p, const PendingGift& g) -> UObject*
     {
         ReflectedCall c(p.cm, find_function(STR("/Script/Pal.PalCharacterManager:GetIndividualHandle")));
@@ -312,7 +313,7 @@ namespace pal_gift_unreal
                ", FindByHandle=" + (slot >= 0 ? "slot " + std::to_string(slot) : std::string("none")));
         if (slot >= 0) return "ok party";
         if (added) r.line("add: true but FindByHandle found nothing (the bool only means the party had room)");
-        if (!id.ready && now > p.count)
+        if (pal_gift::arrived_by_count(id.ready, p.count, now))
         {
             r.line("check: the party grew, no id to match it by");
             return "ok party";
@@ -448,7 +449,7 @@ namespace pal_gift_unreal
         s.what = "party " + std::to_string(p.count) + "/" + std::to_string(p.max) +
                  (g.has_id ? ", FindByHandle=" + (slot >= 0 ? "slot " + std::to_string(slot) : std::string("none"))
                            : std::string(", no id"));
-        if (!s.seen && p.count > g.count_before)
+        if (!s.seen && pal_gift::arrived_by_count(g.has_id, g.count_before, p.count))
         {
             s.seen = true;
             s.what += ", the party grew (matched by count only)";
