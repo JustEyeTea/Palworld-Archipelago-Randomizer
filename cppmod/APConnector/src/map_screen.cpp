@@ -299,7 +299,10 @@ namespace map_screen
         if (cmd == "enable")
         {
             g_enabled = value == "1";
-            say(std::string("changing the map screen: ") + (g_enabled ? "on" : "off (config.txt map_cpp=0)"));
+            // Lua switches it off for either reason; MAP_FOG.mapOff logs the second ("switched off, the game's own
+            // map here").
+            const char* off = "off (config.txt map_cpp=0, or a world or seed without the mod's map)";
+            say(std::string("changing the map screen: ") + (g_enabled ? "on" : off));
             return "";
         }
         if (cmd == "status")
