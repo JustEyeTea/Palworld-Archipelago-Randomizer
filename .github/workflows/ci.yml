@@ -5,7 +5,7 @@
 # Windows build (about 25 minutes) runs only when the C++ part or this file changed since the branch's last good one
 # (the changes job); tags, main and manual runs always build.
 # A version tag (v0.14.0, matching the mod's VERSION) also makes a DRAFT release with the mod zip, palworld.apworld and
-# their checksums; a person reads it and publishes it.
+# their checksums; a person reads it, attaches the art pak built in the Modding Kit, and publishes it.
 name: CI
 
 on:
@@ -263,6 +263,8 @@ jobs:
           path: package
 
   # A version tag: a draft release with both builds. Its notes are a starting point; publishing is a person's call.
+  # The art pak (PalworldArchipelagoArt.pak) is built by hand in the Modding Kit, so the notes remind the person
+  # publishing to attach it; the setup guide sends players to the release for it.
   release:
     name: Draft release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -293,7 +295,12 @@ jobs:
 
           - \`PalworldArchipelago-$GITHUB_REF_NAME.zip\`: the mod. Its \`ue4ss\` folder goes over \`Pal/Binaries/Win64/ue4ss\`.
           - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago 0.6.8 or newer).
+          - \`PalworldArchipelagoArt.pak\` (optional): the walls' own material. It goes in \`Pal/Content/Paks/LogicMods\`.
           - Setup: [setup guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/apworld/palworld/docs/setup_en.md).
+
+          Before publishing: attach \`PalworldArchipelagoArt.pak\` (and its \`.ucas\` and \`.utoc\` if the build made them),
+          then delete this paragraph. CI can't build it: it is built by hand in the Palworld Modding Kit on Windows
+          (logicmod/README.md, "The wall material").
 
           The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction.
           Unofficial fan project; not affiliated with Pocketpair or the Archipelago project.

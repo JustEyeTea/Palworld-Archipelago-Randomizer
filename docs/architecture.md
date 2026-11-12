@@ -350,6 +350,15 @@ The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other 
   and players' YAMLs are refused.
 - Point `AP_DIR` at your Archipelago 0.6.8 folder (with its venv in `.venv`).
 
+### Releases
+
+A version tag (`v0.14.0`, the same as the mod's `VERSION` in `main.lua`) makes CI's release job draft a release with
+the mod zip, `palworld.apworld` and their checksums. A person then:
+1. attaches `PalworldArchipelagoArt.pak` (and its `.ucas` and `.utoc`, if the build made them), which CI can't
+   build: it is built by hand in the Palworld Modding Kit on Windows (`logicmod/README.md`, "The wall material");
+2. edits the drafted notes, which carry a reminder of step 1;
+3. publishes it.
+
 ## Where to look when something breaks
 
 | Symptom | Look first | Then |

@@ -12,9 +12,10 @@ with `[PalworldAP]`.
 - The mod package, `PalworldArchipelago-v<version>.zip`, from the project's
   [Releases](https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases) page. It holds
   `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
-- Optional: `PalworldArchipelagoArt.pak` from the same release, the walls' own material (paws in each region's
-  colour, a glow near you, a dissolve when a region opens). Without it the walls use the game's own wall material in
-  your region colours.
+- Optional: `PalworldArchipelagoArt.pak`, the walls' own material (paws in each region's colour, a glow near you, a
+  dissolve when a region opens), among the same release's downloads. It is built by hand in the Palworld Modding Kit
+  and added to each release separately, so an early release may not have it yet. Without it the walls use the game's
+  own wall material in your region colours.
 
 ## Installing
 
