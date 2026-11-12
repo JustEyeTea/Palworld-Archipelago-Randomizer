@@ -140,13 +140,21 @@ auto JobSlot::start(std::function<std::string()> job) -> std::string
         if (m_state == "busy") return "busy";
         m_state = "busy";
     }
-    std::thread([this, job] {
-        std::string err;
-        try { err = job(); }
-        catch (const std::exception& e) { err = e.what(); }
+    try
+    {
+        std::thread([this, job] {
+            std::string err;
+            try { err = job(); }
+            catch (const std::exception& e) { err = e.what(); }
+            std::lock_guard<std::mutex> guard(m_lock);
+            m_state = err.empty() ? "done" : "error: " + err;
+        }).detach();
+    }
+    catch (const std::exception& e)   // no thread could be made: else the slot would stay "busy" all session
+    {
         std::lock_guard<std::mutex> guard(m_lock);
-        m_state = err.empty() ? "done" : "error: " + err;
-    }).detach();
+        m_state = std::string("error: could not start the job's thread: ") + e.what();
+    }
     return "";
 }
 

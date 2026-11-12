@@ -4,11 +4,47 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <exception>
 #include <string>
 #include <vector>
+#include <sys/resource.h>
 #include "image_tools.hpp"
 #include "stb_image.h"
 #include "stb_image_write.h"
+
+// A job slot whose thread cannot start must say so through its status, not stay "busy" for the session. Threads are
+// refused by lowering this process's limit on the user's processes (not for root, which the limit does not bind:
+// then the check is skipped). Returns whether it passed.
+static bool check_job_without_thread()
+{
+    rlimit before{};
+    getrlimit(RLIMIT_NPROC, &before);
+    rlimit none = before;
+    none.rlim_cur = 1;
+    setrlimit(RLIMIT_NPROC, &none);
+    std::string started;
+    try
+    {
+        started = chart_jobs().start([] { return std::string(); });
+    }
+    catch (const std::exception& e)
+    {
+        started = std::string("threw ") + e.what();
+    }
+    setrlimit(RLIMIT_NPROC, &before);
+    std::string first = chart_jobs().status();
+    if (started == "" && (first == "busy" || first == "done"))
+    {
+        while (first == "busy") first = chart_jobs().status();
+        std::printf("skipped job without a thread: the thread started anyway (running as root?)\n");
+        return true;
+    }
+    const std::string after = chart_jobs().status();
+    const bool ok = started == "" && first.rfind("error: ", 0) == 0 && after == "";
+    std::printf("%s job without a thread: start '%s', status '%s', then '%s'\n", ok ? "ok" : "FAIL", started.c_str(),
+                first.c_str(), after.c_str());
+    return ok;
+}
 
 int main()
 {
@@ -42,6 +78,7 @@ int main()
     std::printf("%s compose: %s, inside %d, open %d, edge %d/%d\n", st == "done" && grey && colour && soft ? "ok" : "FAIL",
                 st.c_str(), o ? at(20, 50)[0] : -1, o ? at(180, 50)[0] : -1, o ? at(99, 50)[0] : -1, o ? at(99, 50)[1] : -1);
     if (!(st == "done" && grey && colour && soft)) return 1;
+    if (!check_job_without_thread()) return 1;
 
     // compose_map refuses a locked list it cannot read whole ("257" is no area, not area 1; "1x" is not a number),
     // instead of greying the wrong area.

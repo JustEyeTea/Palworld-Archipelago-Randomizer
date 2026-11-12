@@ -78,8 +78,8 @@ auto compose_field(const std::string& field, const std::string& areas, const std
                    const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0) -> std::string;
 
 // One background job at a time per slot (the map, the chart, the fog and the Territories each have their own).
-// start returns "" (started) or "busy". Every error, even a bad argument, comes from status, which returns "busy",
-// then once "done" or "error: ...", then "".
+// start returns "" (started) or "busy". Every error, even a bad argument or a thread that could not start, comes
+// from status, which returns "busy", then once "done" or "error: ...", then "". Neither throws.
 class JobSlot
 {
   public:
