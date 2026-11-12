@@ -11,8 +11,16 @@ installed="$ap/custom_worlds/palworld.apworld"
 # The test installs this repo's world; whatever was installed before is put back afterwards.
 [ -f "$installed" ] && cp "$installed" "$work/installed.bak"
 server=                                                    # (set once the server starts; the clean-up checks it)
+LOG_LINES=20                                               # how much of each log a failed run prints
+# On a failure, the generation's and the server's logs are printed before the work folder (and they) are deleted.
 restore() {
+  local status=$?
   [ -n "$server" ] && kill "$server" 2>/dev/null || true
+  if [ "$status" -ne 0 ]; then
+    for log in "$work/gen.log" "$work/server.log"; do
+      [ -f "$log" ] && { echo "--- the last $LOG_LINES lines of $(basename "$log"):"; tail -n "$LOG_LINES" "$log"; }
+    done
+  fi
   [ -f "$work/installed.bak" ] && cp "$work/installed.bak" "$installed"
   rm -rf "$work"
 }
