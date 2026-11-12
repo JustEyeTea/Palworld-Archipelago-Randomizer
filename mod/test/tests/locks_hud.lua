@@ -20,6 +20,14 @@ group("Lock Size: areas", function()
     expect(liveWalls.regionOf("Golden Hills") == "Bamboo Groves"
            and liveWalls.regionOf("Gobfin's Turf") == "Crescent Moon Shore",
            "an area wears its region's colour, ticket and stamp (area_regions.lua)")
+    -- An Area Pass's card shows the area's own ticket (art/area-passes/), not its region's.
+    pushScout({ location = D.shop.Special_PalSphere_Grade_02.loc, name = "Area Pass: Golden Hills" })
+    local areaCard = Card("Special_PalSphere_Grade_02")
+    cards[#cards + 1] = areaCard
+    run(2)
+    expect(areaCard.shown.icon == "ap-area-pass-golden-hills" and logged("its area's own pass ticket"),
+           "an Area Pass's card shows its area's own ticket: " .. tostring(areaCard.shown.icon))
+    table.remove(cards)
     local perHex = {}
     for i in ipairs(RD.walls) do
         local name = liveWalls.pieceSkin(i, {}, "paws")
