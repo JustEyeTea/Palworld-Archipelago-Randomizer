@@ -1,4 +1,9 @@
-// Linux check of image_tools: a 2x1 PNG (pure red, pure green) comes back grey with the expected luminance.
+// Linux check of the map pictures (image_tools.hpp): greyscale_png, compose_map and its job slot, a slot whose thread
+// cannot start, compose_chart, compose_fog (plain, with a stamp, with borders, dashed, kept to land), sample_png,
+// compose_territories and compose_field (as the overlay, and as the map picture with its duotone fog picture), and
+// bad arguments refused. Each check prints "ok" or "FAIL" with what it saw; the first failure ends the run (exit 1).
+// It writes its pictures to /tmp/*.png and reads them back. Run by CI ("The C++ part's image helper"); by hand, from
+// cppmod/APConnector:
 //   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/lua_text.cpp src/image_*.cpp
 //       -o /tmp/image_test && /tmp/image_test
 #include <algorithm>
