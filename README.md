@@ -1,3 +1,5 @@
+<img src="art/png/readme-banner.png" alt="Palworld Archipelago Randomizer: the paw of islands logo beside a fan of region pass tickets" width="800">
+
 # Palworld Archipelago Randomizer
 
 > **Players:** download the mod from [Releases](https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases)
