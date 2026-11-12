@@ -67,7 +67,8 @@ for l in data.LOCATIONS:
         t = data.TECH_BY_ID[l.key]
         shop[l.key] = {'loc': l.id, 'name': t[1], 'level': t[2], 'cost': t[3], 'ancient': t[4]}
         # The game's own gates on researching it (the slot keeps them): prerequisite tech, tower boss, lab research.
-        for k, v in (('prereq', t[5]), ('tower', TOWER_BOSS.get(t[6])), ('research', t[7])):
+        # A tower name TOWER_BOSS lacks stops the script (a KeyError naming it), rather than dropping the gate.
+        for k, v in (('prereq', t[5]), ('tower', TOWER_BOSS[t[6]] if t[6] else None), ('research', t[7])):
             if v:
                 shop[l.key][k] = v
 items = {}

@@ -99,7 +99,10 @@ for r in rd('DT_TechnologyRecipeUnlock.tsv'):
     if name in seen:                      # a few techs share a display name: keep both, distinguish by id
         name = f"{name} [{r['row']}]"
     seen[name] = r['row']
-    tower = BOSS_TYPES.get(r['RequireDefeatTowerBoss'])
+    boss = r['RequireDefeatTowerBoss']
+    if boss != 'None' and boss not in BOSS_TYPES:
+        sys.exit(f"tech {r['row']} needs the tower boss {boss}, which is none of BOSS_TYPES: add its tower")
+    tower = BOSS_TYPES.get(boss)
     techs.append((r['row'], name, int(r['LevelCap']), int(r['Cost']), ancient,
                   None if r['RequireTechnology'] == 'None' else r['RequireTechnology'],
                   TOWER_NAMES.get(tower) if tower else None,
