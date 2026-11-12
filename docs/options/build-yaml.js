@@ -194,5 +194,7 @@ function valueProblem(option, value) {
   if (!isRange(option)) return '';
   if (typeof value !== 'number' || !isFinite(value) || Math.floor(value) !== value) return 'Enter a whole number.';
   if (value < option.min || value > option.max) return 'Enter a number from ' + option.min + ' to ' + option.max + '.';
+  // Values inside the range that generation refuses all the same (options.json's `refused`, from the APWorld).
+  if (option.refused && option.refused.values.indexOf(value) >= 0) return option.refused.problem;
   return '';
 }

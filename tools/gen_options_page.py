@@ -57,6 +57,17 @@ def option_type(option):
     return option.__base__.__name__
 
 
+def refused_values(key, option):
+    """Values inside a range that generation refuses all the same, with what the page says instead, or None. The rule
+    is PalworldWorld.plan_cap's (Check Level Cap: 1 up to data.STARTER_LEVEL has nothing to buy); the number is read
+    from data.py, so only the rule's shape is copied here."""
+    if key != 'check_level':
+        return None
+    starter_level = importlib.import_module('worlds.palworld.data').STARTER_LEVEL
+    return {'values': list(range(1, starter_level + 1)),
+            'problem': f'Enter 0 for auto, or a number from {starter_level + 1} to {option.range_end}.'}
+
+
 def describe(key, option):
     entry = {
         'key': key,
@@ -71,6 +82,9 @@ def describe(key, option):
         names = dict(getattr(option, 'special_range_names', {}))
         if names:
             entry['named_values'] = names
+        refused = refused_values(key, option)
+        if refused:
+            entry['refused'] = refused
     elif getattr(option, 'options', None):
         # Choices and toggles: name_lookup is id -> name in definition order, which is how the template lists them.
         # `yaml` is the name as the template writes it (yaml.dump quotes false, true, off...), so the page needn't

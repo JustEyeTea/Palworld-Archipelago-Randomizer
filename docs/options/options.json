@@ -315,7 +315,13 @@
      "help": "The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,\nalphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.\n0 (auto) sets it from the goal: 8 levels past the last tower boss you need (18 for one tower, 28 for two), 5 levels\npast the level by which you can\nregister enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2.",
      "min": 0,
      "max": 80,
-     "default": 0
+     "default": 0,
+     "refused": {
+      "values": [
+       1
+      ],
+      "problem": "Enter 0 for auto, or a number from 2 to 80."
+     }
     },
     {
      "key": "tech_checks",
