@@ -182,6 +182,37 @@ group("walls and the map, on fresh copies of walls.lua", function()
                .. " calls on " .. #old .. " old icons, " .. #mapBody.icons .. " new")
         mapBody.GetAddress, mapBody.icons, game.mapOpen = screenAddress, {}, false
     end
+    do  -- A new world's map screen at the address the last world's had (the engine reuses addresses): the last
+        -- world's icons are still never called
+        mapBody.icons, mapBody.iconUpdates = {}, 0
+        local W = h.freshWalls()
+        game.mapOpen = true
+        for _ = 1, 3 do
+            W.updateMap(true, {}, pawn)
+        end
+        local placed = #mapBody.icons
+        local old, deadCalls = mapBody.icons, 0
+        for _, icon in ipairs(old) do
+            for _, method in ipairs({ "IsValid", "GetParent", "RemoveFromParent" }) do
+                icon[method] = function()
+                    deadCalls = deadCalls + 1
+                    return nil
+                end
+            end
+        end
+        mapBody.icons = {}
+        local controllerWas = playerController.GetAddress
+        newController()                                       -- the new world's, owning its new map screen
+        W.reset()
+        for _ = 1, 3 do
+            W.updateMap(true, {}, pawn)
+        end
+        playerController.GetAddress = controllerWas
+        expect(placed >= 10 and deadCalls == 0 and #mapBody.icons == placed,
+               "a new world's map screen at the old one's address: the last world's icons are never called: "
+               .. deadCalls .. " calls on " .. #old .. " old icons, " .. #mapBody.icons .. " new")
+        mapBody.icons, game.mapOpen = {}, false
+    end
     -- Ten passes in one session: no map overlay is kept (it is drawn into the map picture and done with), and the fog
     do
         -- pictures keep one place among the kept objects, not one more each

@@ -73,6 +73,7 @@ mapBody["Add Icon By Location"] = function(self, icon, loc, ignoreMask, toPriori
     out.Added = true
 end
 mapBody["Update Map Icons"] = function(self) self.iconUpdates = self.iconUpdates + 1 end
+mapBody.GetOwningPlayer = function() return playerController end   -- (the player controller of its world)
 -- The World Tree's own screen (MapName "Tree"), built beside the main one; it shows T_WorldMap while it is set up.
 treeBody = { IsValid = function() return true end, GetAddress = function() return 78 end, MapName = FNameOf("Tree"),
              icons = {}, Image_MapBody = mapImage() }
