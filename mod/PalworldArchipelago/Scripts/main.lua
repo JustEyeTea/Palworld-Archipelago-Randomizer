@@ -377,11 +377,11 @@ local function installWindows()
 end
 
 -- What a world change forgets, in this order: whether this world is the seed's (looked at again in the records phase
--- before any wall goes up; a yes is for the world it was asked in), the pop-up or goal banner and the debuff icons
--- (they went with the old world's HUD), the walls, and the skip of the tech list's comparison (another world's list is
--- compared in full).
+-- before any wall goes up; a question asked, and its yes, are kept with the world folder they are for), the pop-up or
+-- goal banner and the debuff icons (they went with the old world's HUD), the walls, and the skip of the tech list's
+-- comparison (another world's list is compared in full).
 local function forgetOnWorldChange()
-    WORLD.onChange(WORLD.resetSeedWorld)
+    WORLD.onChange(WORLD.forgetWorldCheck)
     WORLD.onChange(POPUP.forget)
     WORLD.onChange(DEBUFFS.forget)
     WORLD.onChange(WALLS.reset)

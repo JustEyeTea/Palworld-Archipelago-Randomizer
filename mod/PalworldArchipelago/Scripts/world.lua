@@ -96,12 +96,19 @@ end
 -- the seed is not tied to one (logged above).
 -- A world that already has shop techs researched is tied only after the player says yes (the hint key): tying it
 -- locks those techs again, and the points spent on them do not come back.
--- State: the seed's world. Forgotten: on a world change and on a new seed (resetSeedWorld, both times).
+-- State: the seed's world. Forgotten: seedWorld on a world change (forgetWorldCheck) and on a new seed; worldAsk and
+-- toldNotSeed on a new seed only (resetSeedWorld): each names the world folder it is about, and a pawn change inside
+-- one world (a faint) is a world change too.
 local seedWorld = nil         -- whether the world loaded now is the seed's; nil until the records phase looks
 local worldAsk = nil          -- { id = world folder, yes = pressed }: a world with progress, asked about
--- Forgets whether the loaded world is the seed's, and any question about tying a world to it.
+local toldNotSeed = nil       -- the world folder the player was last told is not the seed's
+-- A world change: whether the loaded world is the seed's is looked at again in the records phase.
+function WORLD.forgetWorldCheck()
+    seedWorld = nil
+end
+-- A new seed: forgets whether the loaded world is the seed's, any question about tying a world to it, and the notice.
 function WORLD.resetSeedWorld()
-    seedWorld, worldAsk = nil, nil
+    seedWorld, worldAsk, toldNotSeed = nil, nil, nil
 end
 -- The researched techs of the loaded world that tying a seed to it would lock (nil: not readable yet).
 local function techsToRelock(ps)
@@ -158,8 +165,12 @@ local function isSeedWorld(ps)
     end
     if not id then return true end                 -- a seed with no world yet: not tied to one (logged in worldId)
     if not ap.world then return tieWorld(ps, id) end
-    if id == ap.world then return true end
-    if seedWorld ~= false then
+    if id == ap.world then
+        toldNotSeed = nil                          -- (another world loaded after this one is told again)
+        return true
+    end
+    if toldNotSeed ~= id then
+        toldNotSeed = id
         log("world: " .. id .. " is not this seed's world (" .. ap.world .. "): nothing is locked, sent or given here"
             .. " (to move the seed to this world, delete the world= line from " .. tostring(SAVE.path()) .. ")")
         notify(WORLD.NOT_SEED_WORLD .. ": nothing is locked, sent or given here.")
@@ -167,7 +178,7 @@ local function isSeedWorld(ps)
     return false
 end
 -- Looks at whether the loaded world is the seed's (the records phase) and keeps the answer in seedWorld. The notice
--- that it is not is given once, while seedWorld still says otherwise.
+-- that it is not is given once for each world folder (toldNotSeed).
 function WORLD.checkWorld(ps)
     seedWorld = isSeedWorld(ps)
 end

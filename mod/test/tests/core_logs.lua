@@ -230,3 +230,28 @@ group("a world change's forget that errors stops none of the others", function()
            "every forget after one that errors still runs at the world change, and the error is logged: ran "
            .. lastRan)
 end)
+
+group("a new character in a world that is not the seed's is not a new world", function()
+    -- A pawn change (a faint) in a world this seed is not played in: the notice is not given again.
+    local function notices()
+        local n = 0
+        for _, a in ipairs(announced) do
+            if a:find("not the world this Archipelago seed", 1, true) then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    inWorld(true)
+    h.loadWorld("VANILLA")
+    run(40)
+    local told = notices()
+    newPawn()
+    run(40)
+    local toldAgain = notices()
+    h.loadWorld("AP_WORLD")
+    run(80)
+    inWorld(false)
+    expect(told >= 1 and toldAgain == told, "a new pawn in the same other world brings no second notice: " .. told
+           .. " then " .. toldAgain)
+end)
