@@ -87,7 +87,7 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 
 | File | Made by | From |
 |---|---|---|
-| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py` | the table dumps, `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` (and the `area-` versions) |
+| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py`, given the game version | the table dumps, and that version's `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` and their `area-` versions |
 | `mod/.../Scripts/ap_data.lua` | `tools/gen_lua_data.py` | the APWorld's own tables (`data.py`), so the mod and the APWorld agree on every id |
 | `mod/.../Scripts/region_*.lua`, `area_*.lua`, and `region_labels.png`, `area_labels.png` beside them | `tools/lock_walls.py`, `tools/lock_centres.py` (each run once per size; `LOCK_SIZE=areas` for the 75 areas) | the game's world map, its map rows and `tools/lock_groups.py` |
 | `mod/.../Scripts/area_regions.lua` | `tools/area_regions.py` | `tools/lock_groups.py` |
@@ -99,8 +99,10 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 
 **After a Palworld update:**
 1. Dump the tables again.
-2. Run `gen_apworld_data.py`, then `gen_lua_data.py`.
-3. Run the tests.
+2. Make the new version's lock model files: `lock_walls.py`, then `lock_model.py`, once for each lock size.
+3. Run `gen_apworld_data.py` with the new version (it writes `GAME_VERSION` and reads that version's files in
+   `data/`), then `gen_lua_data.py`.
+4. Run the tests.
 
 `gen_apworld_data.py` keeps every existing row where it was and adds new rows at the end, so ids never move.
 
