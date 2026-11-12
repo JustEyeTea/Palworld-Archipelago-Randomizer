@@ -22,7 +22,7 @@ same pull request as the code it describes. The rules for writing the code itsel
 6. [The APConnector (C++)](#the-apconnector-c) *(the connection written; the helpers not yet)*
 7. [The Lua mod](#the-lua-mod) *(not written yet)*
 8. [The LogicMod paks](#the-logicmod-paks) *(not written yet)*
-9. [Tests, tools and releases](#tests-tools-and-releases) *(tests and the build written; tools, CI and releases not yet)*
+9. [Tests, tools and releases](#tests-tools-and-releases) *(tests, the build, tools and releases written; CI not yet)*
 10. [Where to look when something breaks](#where-to-look-when-something-breaks)
 
 ## Overview
@@ -96,6 +96,11 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 | `mod/.../Scripts/tech_icons.lua` | `tools/gen_tech_icons.py` | the table dumps |
 | `mod/.../Scripts/tech_gifts.lua` | `tools/gen_tech_gifts.py` | the table dumps |
 | `docs/options/options.json` | `tools/gen_options_page.py` | the APWorld's options, groups and presets |
+| `apworld/palworld/test/frozen_ids.tsv` | `tools/freeze_ids.py` | `data.py` (and the file it replaces: no id may move) |
+| `mod/.../art/ap-menu-panel-*.png` | `tools/menu_panel_art.py` | nothing (drawn from numbers) |
+| `mod/.../icons/*.png` | `tools/make_ap_icons.py` | Archipelago's logo |
+
+Each generator's private input files, by name, and its exact command are in [`tools/README.md`](../tools/README.md).
 
 **After a Palworld update:**
 1. Dump the tables again.
@@ -350,9 +355,17 @@ The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other 
 - Every `.apworld` (tests, playtests, releases) is made by `tools/build_apworld.py`. It adds the manifest fields
   Archipelago needs and checks that the world loads with its own version; a plain zip of the folder loads as 0.0.0
   and players' YAMLs are refused.
-- Point `AP_DIR` at your Archipelago folder (with its venv in `.venv`), of the version `apworld/palworld/archipelago.json`
-  names as `minimum_ap_version`. Without it the tools look for `archipelago-<that version>` beside this repository's
-  folder (`tools/ap_dir.sh`), which is wrong in a git worktree.
+- Point `AP_DIR` at your Archipelago folder (with its venv in `.venv`), of the version
+  `apworld/palworld/archipelago.json` names as `minimum_ap_version`. Without it the tools look for
+  `archipelago-<that version>` beside this repository's folder (`tools/ap_dir.sh`), which is wrong in a git worktree.
+
+### Tools
+
+[`tools/README.md`](../tools/README.md) lists every tool: what each generator makes and reads, and whether it needs
+the private game files (the table dumps, the map picture, the region volumes), with the steps after a game update;
+the build and the test runners; the two test clients for a live room (`deathlink_send.py`, `send_checks.py`); the
+modules the tools share (`lock_groups.py`, `towers.py`, `table_dumps.py`, `apworld_loader.py`); and the server probe
+that dumps the tables. Each script's header gives its command and says how it is tested.
 
 ### Releases
 
