@@ -3,6 +3,7 @@
 #include "image_tools.hpp"
 #include "image_basics.hpp"
 #include "image_land_sea.hpp"
+#include "lua_text.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -31,15 +32,18 @@ static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::s
     const std::string badLocked = read_locked_areas(f[1], locked);
     if (!badLocked.empty()) return "regions: " + badLocked;
     float ink[4] = {0.231f, 0.165f, 0.102f, 0.8f};
-    float width = 2.f, dash = 0.f, gap = 0.f, hop = 0.25f;
-    try
+    std::vector<float> inkRead;
+    if (!lua_text::parse_floats(f[3], ',', inkRead) || inkRead.size() > 4)
     {
-        std::stringstream cs(f[3]);
-        int c = 0;
-        for (std::string p; std::getline(cs, p, ',') && c < 4; ++c) ink[c] = std::stof(p) / 255.f;
-        width = std::stof(f[4]); dash = std::stof(f[5]); gap = std::stof(f[6]); hop = std::stof(f[7]);
+        return "regions '" + regions + "': ink '" + f[3] + "' (want r,g,b or r,g,b,a, 0-255)";
     }
-    catch (...) { return "regions '" + regions + "': a number would not read"; }
+    for (size_t c = 0; c < inkRead.size(); ++c) ink[c] = inkRead[c] / 255.f;
+    float width = 2.f, dash = 0.f, gap = 0.f, hop = 0.25f;
+    using lua_text::read_float;
+    if (!(read_float(f[4], width) && read_float(f[5], dash) && read_float(f[6], gap) && read_float(f[7], hop)))
+    {
+        return "regions '" + regions + "': a number would not read";
+    }
     int tw = 0, th = 0;
     StbPixels tile = no_pixels();
     if (!f[2].empty())
@@ -52,7 +56,7 @@ static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::s
     if (f.size() == 10 && !f[8].empty())
     {
         double gamma = 1.0;
-        try { gamma = std::stod(f[9]); } catch (...) { return "regions: gamma '" + f[9] + "'"; }
+        if (!lua_text::read_double(f[9], gamma)) return "regions: gamma '" + f[9] + "'";
         std::string err;
         land = land_mask(f[8], S, gamma, err);
         if (!err.empty()) return err;
@@ -204,9 +208,13 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
         if (item.empty()) continue;
         std::stringstream parts(item);
         std::string path, su, sv, spx;
-        std::getline(parts, path, '|'); std::getline(parts, su, '|'); std::getline(parts, sv, '|'); std::getline(parts, spx, '|');
+        std::getline(parts, path, '|');
+        std::getline(parts, su, '|');
+        std::getline(parts, sv, '|');
+        std::getline(parts, spx, '|');
         double u = 0, v = 0, px = 0;
-        try { u = std::stod(su); v = std::stod(sv); px = std::stod(spx); } catch (...) { return "stamp '" + item + "'"; }
+        using lua_text::read_double;
+        if (!(read_double(su, u) && read_double(sv, v) && read_double(spx, px))) return "stamp '" + item + "'";
         const int sp = std::max(4, static_cast<int>(std::lround(px * S / 4096.0)));
         Rgba st = load_rgba(path, sp, err);
         if (!err.empty()) return err;

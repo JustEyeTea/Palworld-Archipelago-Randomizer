@@ -15,6 +15,7 @@
 // with the frame number, so a log shows the order if Setup ever stops being the right moment (after a game update).
 // In game, Setup ran in the frame the map first opened, just after OnInitialized, and the map showed the mod's picture.
 #include "map_screen.hpp"
+#include "lua_text.hpp"
 #include "reflect.hpp"
 
 #include <atomic>
@@ -22,6 +23,7 @@
 #include <mutex>
 #include <sstream>
 #include <unordered_set>
+#include <vector>
 
 #include <Unreal/FFrame.hpp>
 #include <Unreal/Hooks/Hooks.hpp>
@@ -82,8 +84,10 @@ namespace map_screen_unreal
         struct LinearColor
         {
             float r, g, b, a;
-        } c{};
-        if (std::sscanf(rgba.c_str(), "%f,%f,%f,%f", &c.r, &c.g, &c.b, &c.a) != 4) throw Fail{"fog colour '" + rgba + "'"};
+        };
+        std::vector<float> parts;
+        if (!lua_text::parse_floats(rgba, ',', parts) || parts.size() != 4) throw Fail{"fog colour '" + rgba + "'"};
+        const LinearColor c{parts[0], parts[1], parts[2], parts[3]};
         ReflectedCall call(material, resolve(material, STR("/Script/Engine.MaterialInstanceDynamic:SetVectorParameterValue")));
         *call.at<FName>(call.param(STR("ParameterName"))) = FName(STR("Color"), FNAME_Find);
         *call.at<LinearColor>(call.param(STR("Value"))) = c;

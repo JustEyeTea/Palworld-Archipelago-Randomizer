@@ -69,12 +69,46 @@ static void check_double_or()
     expect(double_or("-inf", 1.0) == 1.0, "double_or: \"-inf\" gives the fallback");
 }
 
+static void check_read_float()
+{
+    float f = 0;
+    expect(read_float("0.55", f) && f == 0.55f, "read_float: a number, as std::stof reads it");
+    expect(!read_float("0.55x", f), "read_float: \"0.55x\" is not a number");
+    expect(!read_float("", f), "read_float: \"\" is not a number");
+    expect(!read_float("nan", f) && !read_float("inf", f), "read_float: \"nan\" and \"inf\" are not numbers");
+    double d = 0;
+    expect(read_double("1.5", d) && d == 1.5 && !read_double("1.5x", d), "read_double: the same rule");
+}
+
+static void check_parse_floats()
+{
+    std::vector<float> n;
+    expect(parse_floats("59,42,26,210", ',', n) && n == std::vector<float>{59, 42, 26, 210}, "parse_floats: four");
+    expect(parse_floats("", ',', n) && n.empty(), "parse_floats: \"\" is no numbers");
+    expect(!parse_floats("1,,2", ',', n), "parse_floats: an empty part is not a number");
+    expect(!parse_floats("1,2x", ',', n), "parse_floats: a part that is not a number");
+    expect(parse_floats("0.5|0.25", '|', n) && n.size() == 2, "parse_floats: another separator");
+}
+
+static void check_parse_hex_rgb()
+{
+    float c[3] = {9, 9, 9};
+    expect(parse_hex_rgb("FF8000", c) && c[0] == 1.f && c[1] == 128 / 255.f && c[2] == 0.f, "parse_hex_rgb: FF8000");
+    expect(parse_hex_rgb("ffe9b0", c) && c[1] == 0xe9 / 255.f, "parse_hex_rgb: lower case");
+    expect(!parse_hex_rgb("FF80", c) && !parse_hex_rgb("FF8000AA", c), "parse_hex_rgb: not six digits");
+    expect(!parse_hex_rgb("-1FFFF", c) && !parse_hex_rgb("0xFFFF", c), "parse_hex_rgb: \"-1FFFF\", \"0xFFFF\" refused");
+    expect(c[0] == 0xff / 255.f, "parse_hex_rgb: a refused text leaves the colour as it was");
+}
+
 int main()
 {
     check_split_csv();
     check_parse_ids();
     check_int_or();
     check_double_or();
+    check_read_float();
+    check_parse_floats();
+    check_parse_hex_rgb();
     std::printf("%s\n", failures ? "FAILED" : "all passed");
     return failures ? 1 : 0;
 }

@@ -13,16 +13,8 @@
 
 using namespace image_basics;
 
-static auto hex_rgb(const std::string& h, float* c) -> bool
-{
-    if (h.size() != 6) return false;
-    try
-    {
-        for (int k = 0; k < 3; ++k) c[k] = static_cast<float>(std::stoi(h.substr(k * 2, 2), nullptr, 16)) / 255.f;
-    }
-    catch (...) { return false; }
-    return true;
-}
+using lua_text::parse_hex_rgb;
+using lua_text::read_float;
 
 // How strong an area's rim is at d px (of a 4096 map) inside its edge: full for RIM_FULL_PX, then fading by a
 // factor of e every RIM_FADE_PX.
@@ -73,12 +65,11 @@ static auto parse_look(const std::string& areas, const std::string& style, const
     {
         const size_t a = item.find(':'), b = item.find(':', a + 1);
         if (a == std::string::npos || b == std::string::npos || b != a + 2) return "areas item '" + item + "'";
-        int idx = -1;
-        try { idx = std::stoi(item.substr(0, a)); } catch (...) {}
+        const int idx = lua_text::int_or(item.substr(0, a), -1);
         if (idx < 0 || idx > 255) return "areas index in '" + item + "'";
         const char st = item[a + 1];
         if (std::string("vuls").find(st) == std::string::npos) return "areas state in '" + item + "'";
-        if (!hex_rgb(item.substr(b + 1), t.colour[idx])) return "areas colour in '" + item + "'";
+        if (!parse_hex_rgb(item.substr(b + 1), t.colour[idx])) return "areas colour in '" + item + "'";
         t.state[idx] = st;
     }
     if (!style.empty())
@@ -86,16 +77,13 @@ static auto parse_look(const std::string& areas, const std::string& style, const
         std::vector<std::string> f;
         std::stringstream sf(style);
         for (std::string p; std::getline(sf, p, ',');) f.push_back(p);
-        try
-        {
-            if ((f.size() != 7 && f.size() != 9) || !hex_rgb(f[0], t.glowC) || !hex_rgb(f[2], t.coreC)) throw 0;
-            t.glowA = std::stof(f[1]); t.coreA = std::stof(f[3]); t.glowW = std::stof(f[4]); t.glowSigma = std::stof(f[5]);
-            t.coreW = std::stof(f[6]);
-            if (f.size() == 9) { t.mapGlowA = std::stof(f[7]); t.mapCoreA = std::stof(f[8]); }
-        }
-        catch (...) { return "style '" + style + "'"; }
+        bool read = (f.size() == 7 || f.size() == 9) && parse_hex_rgb(f[0], t.glowC) && read_float(f[1], t.glowA) &&
+                    parse_hex_rgb(f[2], t.coreC) && read_float(f[3], t.coreA) && read_float(f[4], t.glowW) &&
+                    read_float(f[5], t.glowSigma) && read_float(f[6], t.coreW);
+        if (read && f.size() == 9) read = read_float(f[7], t.mapGlowA) && read_float(f[8], t.mapCoreA);
+        if (!read) return "style '" + style + "'";
     }
-    if (!fog.empty() && !hex_rgb(fog, t.fogC)) return "fog colour '" + fog + "'";
+    if (!fog.empty() && !parse_hex_rgb(fog, t.fogC)) return "fog colour '" + fog + "'";
     return "";
 }
 
@@ -118,15 +106,9 @@ static auto parse_walls(const std::string& walls, float scale, std::vector<std::
     for (std::string item; std::getline(ss, item, ';');)
     {
         if (item.empty()) continue;
-        std::array<float, 4> s{};
-        std::stringstream is(item);
-        std::string p;
-        for (int q = 0; q < 4; ++q)
-        {
-            if (!std::getline(is, p, ',')) return "walls item '" + item + "'";
-            try { s[q] = std::stof(p) * scale; } catch (...) { return "walls item '" + item + "'"; }
-        }
-        segs.push_back(s);
+        std::vector<float> ends;
+        if (!lua_text::parse_floats(item, ',', ends) || ends.size() != 4) return "walls item '" + item + "'";
+        segs.push_back({ends[0] * scale, ends[1] * scale, ends[2] * scale, ends[3] * scale});
     }
     return "";
 }

@@ -231,6 +231,12 @@ int main()
     const bool seaClear = tg && tp(60, 245)[3] == 0;                                // the sea: no fill
     const bool fogBase = tf && tf[(100 * 256 + 200) * 3] == 0x10 && tf[(100 * 256 + 200) * 3 + 2] == 0x30;   // fog colour
     const bool badState = compose_territories("/tmp/terr_labels.png", "1:x:FF0000", "", "", "/tmp/terr_bad.png", "", "", 64) != "";
+    // A number with trailing text is not a number (lua_text's rule): the style is refused, not read as 0.55.
+    const auto badStyle = compose_territories("/tmp/terr_labels.png", "1:l:FF0000", "", "FFE9B0,0.55x,FFF4DC,1,10,3,5",
+                                              "/tmp/terr_bad.png", "", "", 64);
+    std::printf("%s territories: style with '0.55x': %s\n", badStyle.empty() ? "FAIL" : "ok",
+                badStyle.empty() ? "read" : badStyle.c_str());
+    if (badStyle.empty()) return 1;
     const bool terrOk = lockedFill && rimNearEdge && visitedClear && wallCore && seaClear && fogBase && badState;
     std::printf("%s territories: %s, locked %d/a%d, rim a%d, visited a%d, wall %d,%d,%d a%d, sea a%d\n", terrOk ? "ok" : "FAIL",
                 terr.empty() ? "written" : terr.c_str(), tg ? tp(40, 100)[0] : -1, tg ? tp(40, 100)[3] : -1, tg ? tp(40, 223)[3] : -1,
