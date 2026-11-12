@@ -29,6 +29,7 @@ local POPUP = require("hint_popup")
 local SAVE = require("save")
 local SHOP = require("shop")
 local SHOP_CARDS = require("shop_cards")
+local SLOT = require("slot_data")
 local SOON = require("soon")
 local STATE = require("ap_state")
 local RUN_STYLE = require("run_style")
@@ -126,7 +127,7 @@ end
 -- The run style's sync (Speed Boost's world settings) and the notices held through the loading screen, once the
 -- world has settled.
 local function syncRunStyle(ps)
-    local oks, news = pcall(RUN_STYLE.apply, ps, AP_SlotData, PLAYER.frame().controllerKey, HELD.holdNotice)
+    local oks, news = pcall(RUN_STYLE.apply, ps, SLOT.text, PLAYER.frame().controllerKey, HELD.holdNotice)
     if not oks then
         onceErr("sync", news, "sync error: " .. tostring(news))
     elseif news then

@@ -7,11 +7,12 @@ local CLOCK = require("clock")
 local CONFIG = require("config")
 local PLAYER = require("player")
 local SAVE = require("save")
+local SLOT = require("slot_data")
 local STATE = require("ap_state")
 local UTIL = require("util")
 local WORLD = require("world")
 local WAIT = CLOCK.WAIT
-local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
+local ap = STATE.ap
 local cfg = CONFIG.cfg
 local log, once = UTIL.log, UTIL.once
 local notify, writeSave = PLAYER.notify, SAVE.write
@@ -186,7 +187,7 @@ local function reportOwnDeath(dead)
         log("death link: this death came from the link, not sent back")
         return
     end
-    local amnesty = slotNumber("options.death_link_amnesty", 0)
+    local amnesty = SLOT.number("options.death_link_amnesty", 0)
     if ap.forgiven >= amnesty then
         sendOwnDeath()
         return
@@ -224,10 +225,10 @@ end
 
 -- Reads the seed's death_link option (each connection) and tells the server this slot takes part.
 function DEATH_LINK.applyOption()
-    death.on = slotFlag("options.death_link") and AP_SetTags ~= nil
+    death.on = SLOT.flag("options.death_link") and AP_SetTags ~= nil
     if death.on then
         AP_SetTags("AP,DeathLink")
-        log("Death Link on: amnesty " .. slotNumber("options.death_link_amnesty", 0) .. ", "
+        log("Death Link on: amnesty " .. SLOT.number("options.death_link_amnesty", 0) .. ", "
             .. ap.forgiven .. " faint(s) forgiven so far")
     end
 end

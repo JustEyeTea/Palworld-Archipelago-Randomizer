@@ -12,13 +12,14 @@ local MAIL = require("mailbox")
 local PLAYER = require("player")
 local RECORDS = require("records")
 local SAVE = require("save")
+local SLOT = require("slot_data")
 local STATE = require("ap_state")
 local RUN_STYLE = require("run_style")
 local TECH_LOCK = require("tech_lock")
 local TRAPS = require("traps")
 local UTIL = require("util")
 local WORLD = require("world")
-local ap, slotNumber = STATE.ap, STATE.slotNumber
+local ap = STATE.ap
 local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
 
@@ -51,7 +52,7 @@ end
 local function receiveCrate(index)
     local weights = {}
     for _, k in ipairs(CRATES.KINDS) do
-        weights[k] = slotNumber("options." .. CRATES.WEIGHT_KEYS[k])
+        weights[k] = SLOT.number("options." .. CRATES.WEIGHT_KEYS[k])
     end
     local kind = CRATES.receive(ap.seed, index, weights)
     notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
@@ -168,7 +169,7 @@ end
 -- crate's (what the bag refuses waits with the crates' and is tried again); a stack goes to the mailbox. The recipe
 -- unlocks as in every style, so a hand-over that fails still leaves the tech.
 local function giveTechGift(it)
-    local gifts = RUN_STYLE.gifts(AP_SlotData, it.tech)
+    local gifts = RUN_STYLE.gifts(SLOT.text, it.tech)
     if not gifts then return end
     local parts = {}
     for _, gift in ipairs(gifts) do
@@ -203,7 +204,7 @@ local function applyNewItems(ps)
             TRAPS.add(it.name, i)
         end
         if it and it.kind == "relic" then
-            local need = slotNumber("relics_needed")
+            local need = SLOT.number("relics_needed")
             notify("Palpagos Relic " .. ITEMS.relicCount(i) .. (need and ("/" .. need) or "") .. " found!")
         end
         ap.given = i
