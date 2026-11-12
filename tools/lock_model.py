@@ -1,16 +1,21 @@
 """Lock model from the game tables and the lock grid (tools/lock_walls.py, run first): what each piece of each lock
 holds and where every Pal can be had. Prints each piece's level range and contents, and draws them.
-    <AP venv python> tools/lock_model.py <tables dir> <out.png>   (reads <tables dir>/../areas/grid.npz; also writes
-    <out>.json and <out>-sources.json: data/region-model-1.0.5.json and data/region-pal-sources-1.0.5.json)
-For the 75 areas: LOCK_SIZE=areas LOCK_GRID=<its grid .npz> (tools/lock_walls.py run the same way first); the files are
-data/area-model-1.0.5.json and data/area-pal-sources-1.0.5.json.
+    LOCK_GRID=<grid .npz> <AP venv python> tools/lock_model.py <tables dir> <model .json> <sources .json> <picture .png>
+For the 15 regions, with the grid lock_walls.py wrote for them:
+    ... tools/lock_model.py <tables dir> data/region-model-1.0.5.json data/region-pal-sources-1.0.5.json <picture .png>
+For the 75 areas, LOCK_SIZE=areas and the areas' grid (tools/lock_walls.py run the same way first):
+    ... tools/lock_model.py <tables dir> data/area-model-1.0.5.json data/area-pal-sources-1.0.5.json <picture .png>
+The picture is private (a check of the pieces by eye); the two .json files are what gen_apworld_data.py reads.
 """
 import os
 import csv, re, sys, collections, pathlib
 from lock_groups import LOCKS, START
 from PIL import Image, ImageDraw, ImageFont
 
+if len(sys.argv) != 5:
+    sys.exit(__doc__)
 T = pathlib.Path(sys.argv[1])
+MODEL_OUT, SOURCES_OUT, PICTURE_OUT = sys.argv[2:5]
 rd = lambda n: list(csv.DictReader(open(T / n), delimiter='\t'))
 xyz = lambda s: tuple(float(v) for v in re.findall(r'-?[\d.]+', s)[:3])
 BOSS = {1: 'Windswept (Grass)', 2: 'Volcano (Electric)', 3: 'Forest', 4: 'Snow', 5: 'Desert', 6: 'Sakurajima',
@@ -117,7 +122,7 @@ for name, x, y in seeds:
     px, py = P(x, y); d.rectangle([px - 6, py - 6, px + 6, py + 6], outline=(255, 255, 255), width=2)
 for i, (k, _) in enumerate(rows):
     d.rectangle([10, 10 + 14 * i, 22, 22 + 14 * i], fill=colour[k]); d.text((28, 10 + 14 * i), k, fill=(230, 230, 230), font=font)
-img.save(sys.argv[2])
+img.save(PICTURE_OUT)
 
 # Paldeck entries per piece: character ids resolve through the Pal table (BOSS_ prefixes are alphas of the same entry).
 import json
@@ -207,6 +212,6 @@ out = {'piece_stats': {k: {'levels': med(v['lv']), 'spawners': len(v['lv']), 'fa
        'pieces': {PIECE_NAME[q]: LOCK_NAMES[PIECE_LOCK[q]] for q in PIECE_NAME},
        'borders': sorted(sorted([PIECE_NAME[a], PIECE_NAME[b]]) for a, b in G['piece_borders'].tolist()),
        'start': START}
-json.dump(out, open(pathlib.Path(sys.argv[2]).with_suffix('.json'), 'w'), indent=1, sort_keys=True)
+json.dump(out, open(MODEL_OUT, 'w'), indent=1, sort_keys=True)
 json.dump({'sources': {e: dedup(sources.get(e, [])) for e in dex}, 'breeding': breeding},
-          open(pathlib.Path(sys.argv[2]).with_name(pathlib.Path(sys.argv[2]).stem + '-sources.json'), 'w'), indent=1, sort_keys=True)
+          open(SOURCES_OUT, 'w'), indent=1, sort_keys=True)
