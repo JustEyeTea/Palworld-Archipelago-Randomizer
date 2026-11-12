@@ -2,7 +2,7 @@
 the Goal), Gear Logic (progression_techs, normal_research), the points budget (unaffordable_slots), the filler
 (filler_names) and the tech-slot names (data.shop_location)."""
 from . import PalworldTestBase
-from .. import ANCIENT_POINTS_PER_TOWER, TECH_POINTS_PER_LEVEL, TOWER_LEVELS, TOWER_MARGIN
+from ..levels import ANCIENT_POINTS_PER_TOWER, TECH_POINTS_PER_LEVEL, TOWER_LEVELS, TOWER_MARGIN
 
 ONE_TOWER_CAP = TOWER_LEVELS["Starting Zone Tower"] + TOWER_MARGIN      # Zoe's level and the margin: 18
 TWO_TOWER_CAP = TOWER_LEVELS["Forest Tower"] + TOWER_MARGIN             # Lily's: 28
@@ -180,7 +180,7 @@ class TestPaldeckAutoCapWithoutGearLogic(PalworldTestBase):
     options = {"goal": "paldeck", "paldeck_count": 150}
 
     def test_cap_from_caught_pals(self):
-        from .. import PALDECK_MARGIN
+        from ..levels import PALDECK_MARGIN
         caught = sorted(self.world.levels.caught_pal_levels.values())
         self.assertEqual(self.world.cap, caught[150 - 1] + PALDECK_MARGIN)
 

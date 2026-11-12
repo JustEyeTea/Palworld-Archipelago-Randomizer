@@ -1,43 +1,24 @@
 """Palworld for Archipelago: the Technology tree (levels 2+) is a shop of checks, every tech is an item, regions open
 with Region Passes, and captures, alphas, fast-travel points, levels and towers are further checks."""
-import heapq
 import logging
 import math
-from collections import defaultdict
-from typing import Any, Callable, Dict, FrozenSet, List, NamedTuple, Optional
+from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
 from BaseClasses import CollectionState, Item, ItemClassification, Location, LocationProgressType, Region, Tutorial
 from Options import OptionError
 from worlds.AutoWorld import WebWorld, World
 
-from .data import (BREEDING_TECH, BUNDLES, CATCHABLE, CAUGHT_KINDS, CRATE, DECOR_TECHS, DIRECT, FLYING_MOUNTS,
-                   ITEM_GROUPS, ITEM_NAME_TO_ID, ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID,
-                   LOCATIONS, MAX_LEVEL, PREREQ_TECHS, PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHARED_ALPHAS,
-                   SHOP_TECHS, SPHERE_NEEDS, SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID, TECH_POINT_ITEMS, TOWER_EVENTS,
-                   TOWERS, TRAP_WEIGHT_OPTION, TRAPS, Layout, PalSource, Tech, shop_location, tech_item)
+from .checks import CheckPlan
+from .data import (BREEDING_TECH, BUNDLES, CAUGHT_KINDS, CRATE, DIRECT, FLYING_MOUNTS, ITEM_GROUPS, ITEM_NAME_TO_ID,
+                   ITEMS, LAB_TECH, LAYOUTS, LOCATION_GROUPS, LOCATION_NAME_TO_ID, LOCATIONS, MAX_LEVEL, PREREQ_TECHS,
+                   PROGRESSIVE_SPHERE, RELIC, SEA, SEA_MOUNTS, SHOP_TECHS, SPHERE_TECHS, STARTER_LEVEL, TECH_BY_ID,
+                   TECH_POINT_ITEMS, TOWER_EVENTS, TOWERS, TRAP_WEIGHT_OPTION, TRAPS, PalSource, Tech, tech_item)
 from .game_data import GAME_VERSION
+from .levels import LEVELS_BY_LAYOUT, PALDECK_MARGIN, RELIC_LEVEL, TOWER_MARGIN, LevelModel
+from .map_plan import MapPlan
 from .options import Goal, PalworldOptions, option_groups, options_presets
 
-# Tuning, in player levels unless said. The options' descriptions (options.py) and the game page
-# (docs/en_Palworld.md) repeat TOWER_LEVELS, TOWER_MARGIN, PALDECK_MARGIN and RELIC_LEVEL, and the game page also
-# LEVELS_BELOW_PIECE and TECH_POINTS_PER_LEVEL; test_options.py's TestPlayerTextMatchesTheCode checks every copy.
-FREE_LEVEL = 15              # levels anyone reaches in the starting zone
-LEVELS_PAST_PIECE = 8        # a piece lets a player level about this far past its typical Pal level
-LEVELS_BELOW_PIECE = 8       # and only a player at most this far below that level can start levelling there
-WORLD_TREE_BOSS_MARGIN = 4   # the World Tree boss asks for this much past its piece's Pal level (half a climb)
-SPHERE_STEP = 10             # each sphere tier catches Pals about this many levels higher
-TOWER_MARGIN = 8             # levels a player passes the last tower they need (the Towers goal's check level)
-PALDECK_MARGIN = 5           # the same for the Pal that completes a Paldeck goal
-RELIC_LEVEL = 30             # the Relic Hunt goal's check level when left on auto
-TECH_POINTS_PER_LEVEL = 6    # the game's tech points for each level (1.0.5 tables)
-ANCIENT_POINTS_PER_TOWER = 5  # Ancient tech points a tower boss gives
-NO_LEVEL = MAX_LEVEL + 1     # "never": above every real level, so it fails any "<= cap" test
-UNVISITED = (NO_LEVEL + 1, 0)  # corridor's cost of a piece it has not reached yet: worse than any real route
 WORLD_TREE_EVENT = "World Tree Boss Defeated"
-# The level each tower's boss fight asks for (Zoe, Lily, Axel, Marcus, Victor, Saya, Bjorn, Auri; from web research,
-# not the game's tables), which is also the order a Towers goal takes them in.
-TOWER_LEVELS = {"Starting Zone Tower": 10, "Forest Tower": 20, "Volcano Tower": 30, "Desert Tower": 40,
-                "Snow Tower": 50, "Sakurajima Tower": 55, "Feybreak Tower": 60, "Sky Islands Tower": 68}
 # Early spots for the first sphere: the shop slots of the first level that has any (level 2), and the level checks
 # a new player reaches within minutes (vanilla gives the Pal Sphere at level 2).
 EARLY_SPHERE_LEVELS = (2, 3)
@@ -58,47 +39,6 @@ class GoalRules(NamedTuple):
     last_tower_wins: bool          # beating its last tower is the win, so that tower's Ancient points come too late
     win_rule: Callable[["PalworldWorld"], Rule]    # makes the rule of "Goal Complete"
 
-
-def piece_level(layout: Layout, piece: str) -> int:
-    """A piece's typical Pal level. A piece with no Pals of its own takes the level of the piece named after its lock
-    (the lock's main piece), and 0 when that has none either."""
-    return int(layout.piece_levels.get(piece) or layout.piece_levels.get(layout.pieces.get(piece, piece)) or 0)
-
-
-class Levels:
-    """The levels a layout (the Lock Size option) gives: towers' bosses, techs behind them, and the first level each Pal
-    can be had at."""
-    def __init__(self, layout: Layout):
-        self.layout = layout
-        self.tower = {name: TOWER_LEVELS[name] for name in layout.towers}
-        self.pal_levels = {e: self.pal_level(e) for e in CATCHABLE}
-        self.caught_pal_levels = {e: self.pal_level(e, breed=False) for e in CATCHABLE}  # bred-only Pals: NO_LEVEL
-
-    def world_tree_boss_level(self, piece: str) -> int:
-        """The level the World Tree's boss, in this piece, asks for (as the logic has it)."""
-        return piece_level(self.layout, piece) + WORLD_TREE_BOSS_MARGIN
-
-    def tech(self, tech: Tech) -> int:
-        """The level from which a tech can be had: its own, or its tower's if it needs one."""
-        return max(tech.level, self.tower[tech.tower] if tech.tower else 0)
-
-    def pal_level(self, entry: str, live: Optional[FrozenSet[str]] = None, breed: bool = True) -> int:
-        """The lowest level at which a Pal can be had: where it is caught, or for a bred-only Pal (with `breed`), its
-        parents' level and the Breeding Farm's. With `live`, only sources in those pieces count."""
-        sources = self.layout.sources
-        caught = lambda source: source.kind in CAUGHT_KINDS and (live is None or source.piece in live)
-        best = NO_LEVEL
-        for source in sources[entry]:
-            if caught(source):
-                best = min(best, int(source.level))
-            elif breed and source.kind == "breed" and all(p in DIRECT for p in source.parents):
-                parents = max(min((int(s.level) for s in sources[p] if caught(s)), default=NO_LEVEL)
-                              for p in source.parents)
-                best = min(best, max(parents, self.tech(TECH_BY_ID[BREEDING_TECH])))
-        return best
-
-
-LEVELS_BY_LAYOUT = {name: Levels(layout) for name, layout in LAYOUTS.items()}
 
 # The options sent to the mod in slot data ("options"): every option that shapes the seed or the game, so a tracker
 # can rebuild the seed from slot data alone.
@@ -130,7 +70,7 @@ class PalworldWeb(WebWorld):
                           "setup_en.md", "setup/en", ["JustEyeTea"])]
 
 
-class PalworldWorld(World):
+class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
     """Catch, build and fight across the Palpagos Islands, where every technology is a shop slot that may hold
     another player's item, and new regions open as Region Passes arrive from the multiworld."""
     game = "Palworld"
@@ -239,359 +179,6 @@ class PalworldWorld(World):
         if towers == "none":
             return []
         raise ValueError(towers)
-
-    def plan_map(self) -> None:
-        """The goal's towers, the locks in this seed, the pieces in play (live), whether the sea and sky
-        mounts are needed, the techs the logic counts on, and each Pal's level; then the cap is held to what the map
-        lets a player reach."""
-        o = self.options
-        self.goal_towers = self.goal_towers_in_order()
-        self.scope = self.locks_in_scope()
-        if self.goal_rules().pals and self.scope != self.every_lock():
-            # Counts every piece of the scope and bred Pals, before live and Gear Logic narrow them, so it can pass
-            # where check_counts' count (capture_levels) still refuses the seed.
-            in_scope = sum(1 for e in CATCHABLE
-                           if self.levels.pal_level(e, self.pieces_of(self.scope)) <= self.asked_cap)
-            if in_scope < o.paldeck_count.value:      # the goal's Pals come first: keep every lock instead
-                logging.warning(f"Palworld ({self.player_name}): Regions Beyond the Goal would leave {in_scope} "
-                                f"Pals to register; every region is kept")
-                self.scope = self.every_lock()
-        self.live = (self.pieces_of(self.scope) if o.area_locks and o.beyond_goal == o.beyond_goal.option_locked
-                     else frozenset(self.layout.pieces))
-        # Mounts count only where the map needs them: the open sea always with Gear Logic; without it only when the
-        # goal can't be reached by land, and otherwise the pieces only the sea reaches are left out of the seed (no
-        # checks there; a player may still swim over). The Sky Islands need a flying mount whenever the seed has them.
-        land = self.reach_by_land(self.live)
-        self.sea_needed = self.gear or any(p not in land for p in self.goal_pieces())
-        if not self.sea_needed:
-            self.leave_out_sea_only_pieces(land)
-        self.sky_needed = any(lock in self.layout.sky for p, lock in self.layout.pieces.items() if p in self.live)
-        self.prog_techs = self.progression_techs()
-        # A Pal is a capture check only where this seed has checks: not in locks beyond the goal, open or not.
-        checked = self.live & self.pieces_of(self.scope)
-        self.capture_levels = ({e: self.levels.pal_level(e, checked, breed=self.gear) for e in CATCHABLE}
-                               if checked != frozenset(self.layout.pieces) or not self.gear
-                               else self.levels.pal_levels)
-        # No check above what the map in this seed lets a player reach.
-        self.cap = min(self.asked_cap, self.climb_top(self.live))
-        if o.check_level.value and self.cap < o.check_level.value:      # on auto, lowering it is routine
-            logging.warning(f"Palworld ({self.player_name}): the Check Level Cap is {o.check_level.value}, but the "
-                            f"regions in this seed let a player level only to {self.cap}; checks stop there")
-
-    def leave_out_sea_only_pieces(self, land: FrozenSet[str]) -> None:
-        """Takes the pieces only the open sea reaches out of play. With Area Locks and Regions Beyond the Goal locked or
-        open, a lock left with no piece in play (the Sky Islands and the World Tree, say) also goes beyond the goal: its
-        pass would open nothing the logic knows, so it leaves the pool, and the mod seals or opens its walls like any
-        other lock beyond the goal. With passes, every pass stays, as that option promises."""
-        o = self.options
-        self.live = frozenset(p for p in self.live if p in land)
-        if o.area_locks and o.beyond_goal != o.beyond_goal.option_passes:
-            locks_in_play = {self.layout.pieces[p] for p in self.live}
-            self.scope = frozenset(lock for lock in self.scope if lock in locks_in_play)
-
-    def plan_checks(self) -> None:
-        """Which techs stay normal research, and which shop slots hold only filler: both need the final cap."""
-        self.research_techs = self.normal_research()
-        self.unaffordable = self.unaffordable_slots()
-
-    def check_counts(self) -> None:
-        """Stops a seed the options can't fill: a Paldeck goal above the cap, or more items and filler-only slots than
-        checks."""
-        o = self.options
-        if self.goal_rules().pals:              # the goal must fit under the cap, as the map has lowered it
-            reachable = sum(1 for level in self.capture_levels.values() if level <= self.cap)
-            if reachable < o.paldeck_count.value:
-                raise OptionError(f"Palworld ({self.player_name}): only {reachable} Pals can be registered by level "
-                                f"{self.cap}; lower Pals to Register or raise the Check Level Cap.")
-        # Every item needs a location, and every unaffordable tech slot a filler item or trap, since Archipelago puts
-        # nothing else there: the passes and techs alone can outnumber the checks when most kinds are off.
-        relic_hunt = self.goal_rules().relics
-        locations = sum(1 for loc in LOCATIONS if self.wanted(loc))
-        items = len(self.pool_names())
-        filler_only = len(self.unaffordable)
-        if locations - items - filler_only < relic_hunt:
-            raise OptionError(f"Palworld ({self.player_name}): {locations} checks for {items} items, "
-                              f"{filler_only} tech slots that hold only filler (the ones a player can't be sure to "
-                              f"afford)" + (" and at least one relic" if relic_hunt else "")
-                              + "; turn on more checks (capture, alpha, fast-travel or level checks) or raise the "
-                                "Check Level Cap.")
-        if o.trap_chance and not any(self.trap_weights()):
-            logging.warning(f"Palworld ({self.player_name}): Trap Chance is {o.trap_chance.value}% but every trap "
-                            f"weight is 0, so there are no traps")
-
-    def normal_research(self) -> FrozenSet[str]:
-        """Techs that stay normal research in this seed (no check, no item): décor with Tech Checks: no décor; techs
-        above the Check Level Cap; techs behind a tower outside this seed (its lock beyond the goal, or its piece out
-        of play, so the logic never has it beaten); and, without Gear Logic, every card that needs another tech or Lab
-        research first (gated)."""
-        decor = DECOR_TECHS if self.options.tech_checks == self.options.tech_checks.option_no_decor else frozenset()
-        beyond = {t for t, piece in self.layout.towers.items()
-                  if self.layout.pieces[piece] not in self.scope or piece not in self.live}
-        return decor | {t.id for t in SHOP_TECHS if self.levels.tech(t) > self.cap or t.tower in beyond
-                        or (not self.gear and self.gated(t))}
-
-    def loc_level(self, loc) -> int:
-        """The level from which a location can be checked, for the check level cap."""
-        if loc.kind == "shop":
-            return self.levels.tech(TECH_BY_ID[loc.key])
-        if loc.kind == "capture":
-            return self.capture_levels[loc.key]
-        if loc.kind == "alpha":
-            return loc.level
-        if loc.kind == "fast_travel":
-            return piece_level(self.layout, self.layout.location_piece[loc.name])
-        if loc.kind == "level":
-            return loc.key
-        if loc.kind == "tower":
-            return self.levels.tower[loc.key]
-        raise ValueError(loc.kind)
-
-    def wanted(self, loc) -> bool:
-        """Whether this location is a check in this seed: in a lock of the seed, under the cap, and of a
-        kind the options turn on."""
-        o = self.options
-        piece = self.layout.location_piece[loc.name]
-        if piece and (self.layout.pieces[piece] not in self.scope or piece not in self.live):
-            return False                            # not in this seed
-        if self.loc_level(loc) > self.cap:
-            return False
-        if loc.name in SHARED_ALPHAS:
-            return False                            # its defeat records as another alpha's: that one is the check
-        if loc.kind == "shop":
-            return loc.key not in self.research_techs
-        if loc.kind == "capture":
-            return bool(o.capture_checks)
-        if loc.kind == "alpha":
-            return bool(o.alpha_checks)
-        if loc.kind == "fast_travel":
-            return bool(o.fast_travel_checks)
-        if loc.kind == "level":     # the option's choice number is the step: every level, every 5th, every 10th
-            return o.level_checks.value != 0 and loc.key % o.level_checks.value == 0
-        if loc.kind == "tower":
-            return True
-        raise ValueError(loc.kind)
-
-    def progression_techs(self) -> FrozenSet[str]:
-        """The techs the logic counts on in this seed: every prerequisite, the Lab, breeding, spheres, their furnaces
-        and the sea mounts with Gear Logic; without it only the first sphere and the saddles the map needs."""
-        if self.gear:
-            return frozenset(PREREQ_TECHS)
-        out = {SPHERE_TECHS[0].id}
-        if self.sea_needed:
-            out |= set(SEA_MOUNTS)
-        if self.sky_needed:
-            out |= set(FLYING_MOUNTS)
-        todo = list(out)                        # and whatever those techs' cards need first
-        while todo:
-            tech = TECH_BY_ID[todo.pop()]
-            for need in (tech.prereq, LAB_TECH if tech.research else None):
-                if need and TECH_BY_ID[need].level > STARTER_LEVEL and need not in out:
-                    out.add(need)
-                    todo.append(need)
-        return frozenset(out)
-
-    def gated(self, tech: Tech) -> bool:
-        """A tech card that needs another (non-starter) tech or Lab research first: without Gear Logic it stays normal
-        research, so no check waits on a gear item."""
-        return bool(tech.research) or bool(tech.prereq and TECH_BY_ID[tech.prereq].level > STARTER_LEVEL)
-
-    def unaffordable_slots(self) -> FrozenSet[str]:
-        """Tech-slot checks a player can't be sure to afford in time; they hold only filler and traps (anyone's), so no
-        one's progression or useful item waits on tech points the logic doesn't count. Normal slots are taken in the
-        order they open, cheapest first, while their running cost stays within the points levelling gives by then
-        (6 a level; fast travel, Technical Manuals and the like are the player's spare). Ancient slots: within the
-        Ancient points of the towers beaten before the goal (5 each; the last goal tower's come with the goal), and at
-        least one tower's."""
-        slots = [t for t in SHOP_TECHS if t.id not in self.research_techs]
-        towers = len(self.goal_towers) - (1 if self.goal_rules().last_tower_wins else 0)
-        ancient_points = ANCIENT_POINTS_PER_TOWER * max(1, towers)
-        keep, normal, ancient = set(), 0, 0
-        for t in sorted(slots, key=lambda t: (self.levels.tech(t), t.cost, t.id)):
-            if t.ancient:
-                if ancient + t.cost <= ancient_points:
-                    keep.add(t.id)
-                    ancient += t.cost
-            elif normal + t.cost <= TECH_POINTS_PER_LEVEL * (self.levels.tech(t) - 1):
-                keep.add(t.id)
-                normal += t.cost
-        return frozenset(shop_location(t) for t in slots if t.id not in keep)
-
-    def passes_in_pool(self) -> List[str]:
-        """The pass of each lock in this seed (none without Area Locks)."""
-        if not self.options.area_locks:
-            return []
-        return [p for lock, p in self.layout.passes.items() if lock in self.scope]
-
-    def pool_names(self) -> List[str]:
-        """The items every seed's pool holds before relics and filler, in pool order: the passes, then each tech that
-        is not normal research (a Progressive Sphere in place of each sphere tech, with Progressive Spheres on)."""
-        names = list(self.passes_in_pool())
-        for tech in SHOP_TECHS:
-            if tech.id in self.research_techs:
-                continue
-            if self.options.progressive_spheres and tech in SPHERE_TECHS:
-                names.append(PROGRESSIVE_SPHERE)
-            else:
-                names.append(tech_item(tech.id))
-        return names
-
-    def beyond_goal_locks(self) -> List[str]:
-        """The locks with a pass in the game but not in this seed: walls that stay up (locked) or are down (open)."""
-        return sorted(lock for lock in self.layout.passes if lock not in self.scope)
-
-    # --- the map this seed uses (Regions Beyond the Goal) ------------------------------------------------------------
-    # tests: test_progression.py (TestTwoTowers, TestBeyondGoalPasses, TestBeyondGoalOpen), test_areas.py; corridor
-    # and reach_by_land: none of their own
-    def every_lock(self) -> FrozenSet[str]:
-        """Every lock of this layout, the open sea and the start too."""
-        return frozenset(self.layout.pieces.values())
-
-    def pieces_of(self, locks) -> FrozenSet[str]:
-        """The pieces that make up these locks."""
-        return frozenset(p for p, lock in self.layout.pieces.items() if lock in locks)
-
-    def start_pieces(self) -> List[str]:
-        """The pieces of the lock a game starts in, sorted."""
-        return sorted(p for p, lock in self.layout.pieces.items() if lock == self.layout.start)
-
-    def goal_pieces(self) -> List[str]:
-        """The pieces the goal needs the player to reach: its towers', and the World Tree's for that goal."""
-        pieces = [self.layout.towers[t] for t in self.goal_towers]
-        if self.goal_rules().world_tree:
-            pieces.append(self.layout.world_tree)
-        return pieces
-
-    def locks_in_scope(self) -> FrozenSet[str]:
-        """The locks this seed has passes and checks in: the start, the open sea, every lock with Pals at or below the
-        Check Level Cap (or the goal's towers' level, if higher), and the locks on the cheapest way to the goal's
-        towers (and the World Tree). Locks the start can't reach through these are left out too. Without Area Locks,
-        or with Regions Beyond the Goal on passes, all."""
-        o, layout = self.options, self.layout
-        if not o.area_locks or o.beyond_goal == o.beyond_goal.option_passes:
-            return self.every_lock()
-        low: Dict[str, int] = {}
-        for piece, lock in layout.pieces.items():
-            low[lock] = min(low.get(lock, NO_LEVEL), piece_level(layout, piece))
-        # Up to the cap, but never short of what the goal's towers need to level for (a low cap set by hand only
-        # takes checks away, not the locks a player levels in).
-        need = max([self.asked_cap] + [self.levels.tower[t] + TOWER_MARGIN for t in self.goal_towers])
-        scope = {lock for lock, level in low.items() if level <= need} | {layout.start, SEA}
-        for target in self.goal_pieces():
-            scope |= {layout.pieces[p] for p in self.corridor(target, scope, low)}
-        reached = self.reach(scope)
-        return frozenset(lock for lock in scope if any(layout.pieces[p] == lock for p in reached))
-
-    def neighbours(self) -> Dict[str, List[str]]:
-        """Each piece's neighbours across a border, sorted (so the route searches are the same in every run)."""
-        out = defaultdict(set)
-        for a, b in self.layout.borders:
-            out[a].add(b)
-            out[b].add(a)
-        return {p: sorted(n) for p, n in out.items()}
-
-    def corridor(self, target: str, scope, low: Dict[str, int]) -> List[str]:
-        """The pieces outside `scope` on the way from the start to `target`: the route whose highest such lock is
-        lowest, then the one through the fewest pieces."""
-        layout, nbrs = self.layout, self.neighbours()
-        start = self.start_pieces()
-        best = {p: (0, 0) for p in start}
-        prev: Dict[str, str] = {}
-        heap = [(0, 0, p) for p in start]
-        while heap:
-            worst, steps, piece = heapq.heappop(heap)
-            if (worst, steps) > best[piece]:
-                continue
-            if piece == target:
-                break
-            for nxt in nbrs.get(piece, ()):
-                lock = layout.pieces[nxt]
-                key = (max(worst, 0 if lock in scope else low[lock]), steps + 1)
-                if key < best.get(nxt, UNVISITED):
-                    best[nxt], prev[nxt] = key, piece
-                    heapq.heappush(heap, (key[0], key[1], nxt))
-        path, piece = [], target
-        while piece in prev:
-            path.append(piece)
-            piece = prev[piece]
-        return [p for p in path if layout.pieces[p] not in scope]
-
-    def flood(self, may_enter: Callable[[str], bool]) -> FrozenSet[str]:
-        """The pieces the start reaches across borders, entering only the pieces may_enter allows."""
-        nbrs = self.neighbours()
-        todo = self.start_pieces()
-        seen = set(todo)
-        while todo:
-            for nxt in nbrs.get(todo.pop(), ()):
-                if nxt not in seen and may_enter(nxt):
-                    seen.add(nxt)
-                    todo.append(nxt)
-        return frozenset(seen)
-
-    def reach(self, scope) -> FrozenSet[str]:
-        """The pieces the start reaches through the borders of these locks (mounts aside: the logic sees to those)."""
-        return self.flood(lambda piece: self.layout.pieces[piece] in scope)
-
-    def reach_by_land(self, live: FrozenSet[str]) -> FrozenSet[str]:
-        """The pieces in play (live) the start reaches without the open sea (and without going up to the sky)."""
-        def by_land(piece: str) -> bool:
-            lock = self.layout.pieces[piece]
-            return piece in live and lock != SEA and lock not in self.layout.sky
-        return self.flood(by_land)
-
-    # --- the level model: how far the player can level, and what they can catch and fight ----------------------------
-    # tests: test_logic.py (TestLevels); climb_top: none of its own
-    # The climb asks, for each piece, whether the player can catch its Pals at the level reached so far. That question
-    # (can_catch_at, then sphere_tier, has_tech and shop_ok) takes `level_so_far` and must pass it on: without it,
-    # shop_ok asks level_ok, which calls max_level again, and the logic recurses without end in any seed where a sphere
-    # or furnace tech stays normal research.
-    def climb(self, live: FrozenSet[str], can_level_in: Callable[[str, int], bool]) -> int:
-        """The level climb that max_level and climb_top share: from FREE_LEVEL, the pieces in `live` in order of their
-        Pals' level. A piece no more than LEVELS_BELOW_PIECE above the level so far, and that can_level_in(piece, level
-        so far) allows, takes the player to LEVELS_PAST_PIECE past its Pals' level; the first piece too far above
-        ends the climb."""
-        level_so_far = FREE_LEVEL
-        levels = self.layout.piece_levels
-        for piece in sorted((piece for piece in levels if piece in live), key=levels.get):
-            if levels[piece] - LEVELS_BELOW_PIECE > level_so_far:
-                break
-            if can_level_in(piece, level_so_far):
-                level_so_far = max(level_so_far, int(levels[piece]) + LEVELS_PAST_PIECE)
-        return level_so_far
-
-    def climb_top(self, live: FrozenSet[str]) -> int:
-        """The highest level these pieces let a player reach: the climb with everything in hand."""
-        return min(MAX_LEVEL, self.climb(live, lambda piece, level_so_far: True))
-
-    def max_level(self, state: CollectionState) -> int:
-        """How far the player can level: the climb, through each piece that is open and whose Pals they can catch."""
-        levels = self.layout.piece_levels
-        return self.climb(self.live, lambda piece, level_so_far: self.piece_open(state, piece)
-                          and self.can_catch_at(state, levels[piece], level_so_far))
-
-    def level_ok(self, state: CollectionState, level: int) -> bool:
-        """Whether the player can reach this level: anyone reaches FREE_LEVEL, the rest is the climb (max_level)."""
-        return level <= FREE_LEVEL or level <= self.max_level(state)
-
-    def sphere_tier(self, state: CollectionState, level_so_far: Optional[int] = None) -> int:
-        """Spheres the player can make, in order: each sphere's tech and what its recipe needs (SPHERE_NEEDS; the Pal
-        Sphere has no row there, so it needs its tech alone). level_so_far: see the note above climb."""
-        tier = 0
-        for tech in SPHERE_TECHS:
-            needs = SPHERE_NEEDS.get(tech.id, ()) if self.gear else ()
-            if not all(self.has_tech(state, t, level_so_far) for t in (tech.id,) + needs):
-                break
-            tier += 1
-        return tier
-
-    def can_catch_at(self, state: CollectionState, level: int, level_so_far: Optional[int] = None) -> bool:
-        """Spheres good enough for Pals of this level. level_so_far: the player's level inside the climb (see the note
-        above climb); None elsewhere."""
-        need = min(len(SPHERE_TECHS), max(1, math.ceil(level / SPHERE_STEP))) if self.gear else 1
-        return self.sphere_tier(state, level_so_far) >= need
-
-    def can_fight_at(self, state: CollectionState, level: int) -> bool:
-        """A boss of this level: the level, and a team of Pals caught at about it."""
-        return self.level_ok(state, level) and self.can_catch_at(state, level)
 
     # --- logic helpers: what the player has and where they can go ----------------------------------------------------
     # tests: test_logic.py (TestMounts), test_areas.py (TestAreasSky, TestAreasLockSize)
