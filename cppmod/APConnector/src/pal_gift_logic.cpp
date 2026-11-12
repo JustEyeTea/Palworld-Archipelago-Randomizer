@@ -112,8 +112,14 @@ namespace pal_gift
         return !has_id && count_now > count_before;
     }
 
-    auto next_poll(PendingGift& gift, bool seen) -> PollVerdict
+    auto next_poll(PendingGift& gift, PlayerAtPoll player, bool seen) -> PollVerdict
     {
+        switch (player)
+        {
+        case PlayerAtPoll::Gone: return PollVerdict::Dropped;
+        case PlayerAtPoll::BetweenPawns: return PollVerdict::Wait;
+        case PlayerAtPoll::Here: break;
+        }
         ++gift.polls;
         if (seen) return PollVerdict::Ok;
         return gift.polls >= MAX_POLLS ? PollVerdict::Timeout : PollVerdict::Wait;

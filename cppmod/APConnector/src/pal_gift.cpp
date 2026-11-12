@@ -64,6 +64,7 @@ namespace pal_gift_unreal
     using namespace RC;
     using namespace RC::Unreal;
     using pal_gift::PendingGift;
+    using pal_gift::PlayerAtPoll;
     using pal_gift::Report;
     using pal_gift::Request;
     using pal_gift::Route;
@@ -77,6 +78,9 @@ namespace pal_gift_unreal
         Output::send<LogLevel::Verbose>(STR("[APConnector] [pal] {}\n"), ensure_str(line));
     }
 
+
+    // The argument name of every PalUtility lookup below.
+    constexpr auto WORLD_CONTEXT = STR("WorldContextObject");
 
     // The local player, found fresh on every call: world subsystems and the pawn are remade on every world load, so
     // nothing here is kept between calls.
@@ -93,15 +97,24 @@ namespace pal_gift_unreal
         int max{};
     };
 
-    auto find_player(Report& r, bool verbose) -> Player
+    // `obj` if it is there and live; else a Fail naming `what`. An unreachable object is one left from the last world
+    // until garbage collection runs (the test UE4SS's Lua IsValid makes, LuaType/LuaUObject.hpp).
+    auto live(UObject* obj, const std::string& what) -> UObject*
     {
-        Player p;
+        if (!obj) throw Fail{"no " + what};
+        if (obj->IsUnreachable()) throw Fail{what + " unreachable (world loading?)"};
+        return obj;
+    }
+
+    // PalUtility and the local player controller, into p.util and p.pc.
+    auto find_controller(Player& p) -> void
+    {
         p.util = UObjectGlobals::StaticFindObject<UObject*>(nullptr, nullptr, STR("/Script/Pal.Default__PalUtility"));
         if (!p.util) throw Fail{"no Default__PalUtility"};
         // Any live controller to start from (FindAllOf as UE4SSProgram.cpp's get_player_controller; class defaults
         // skipped by their flags as USMapGenerator/Generator.cpp does). After a return to title or a world load the old
-        // world's controller can stay in the object array, unreachable, until garbage collection runs; it is skipped by
-        // the test UE4SS's Lua IsValid makes (LuaType/LuaUObject.hpp), as the Lua side checks IsValid (menu.lua).
+        // world's controller can stay in the object array, unreachable, until garbage collection runs; it is skipped,
+        // as the Lua side checks IsValid (menu.lua).
         std::vector<UObject*> controllers;
         UObjectGlobals::FindAllOf(STR("PalPlayerController"), controllers);
         UObject* any = nullptr;
@@ -115,29 +128,49 @@ namespace pal_gift_unreal
             }
         }
         if (!any) throw Fail{"no PalPlayerController (not in a world?)"};
-        constexpr auto ctx = STR("WorldContextObject");
-        p.pc = call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPalPlayerController"), ctx, any);
-        if (!p.pc) throw Fail{"no local player controller"};
-        if (p.pc->IsUnreachable()) throw Fail{"local player controller unreachable (world loading?)"};
-        p.pawn = call_object(p.util, STR("/Script/Pal.PalUtility:GetPlayerCharacter"), ctx, p.pc);
-        if (!p.pawn) throw Fail{"no player character"};
-        if (p.pawn->IsUnreachable()) throw Fail{"player character unreachable (world loading?)"};
-        p.ps = call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPlayerState"), ctx, p.pc);
-        if (!p.ps) throw Fail{"no player state"};
-        if (p.ps->IsUnreachable()) throw Fail{"player state unreachable (world loading?)"};
-        p.holder = call_object(p.util, STR("/Script/Pal.PalUtility:GetOtomoHolderComponent"), ctx, p.pawn);
-        if (!p.holder) throw Fail{"no party holder (GetOtomoHolderComponent)"};
-        if (p.holder->IsUnreachable()) throw Fail{"party holder unreachable (world loading?)"};
-        p.cm = call_object(p.util, STR("/Script/Pal.PalUtility:GetCharacterManager"), ctx, p.pawn);
-        if (!p.cm) throw Fail{"no character manager"};
+        p.pc = live(call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPalPlayerController"), WORLD_CONTEXT, any),
+                    "local player controller");
+    }
 
+    // The player's pawn and what is found from it: the party holder and the character manager. While the player has
+    // no pawn (fainted, respawning) these are missing, but the controller is the same.
+    auto find_pawn_parts(Player& p) -> void
+    {
+        p.pawn = live(call_object(p.util, STR("/Script/Pal.PalUtility:GetPlayerCharacter"), WORLD_CONTEXT, p.pc),
+                      "player character");
+        p.holder = live(call_object(p.util, STR("/Script/Pal.PalUtility:GetOtomoHolderComponent"), WORLD_CONTEXT,
+                                    p.pawn),
+                        "party holder (GetOtomoHolderComponent)");
+        p.cm = live(call_object(p.util, STR("/Script/Pal.PalUtility:GetCharacterManager"), WORLD_CONTEXT, p.pawn),
+                    "character manager");
+    }
+
+    // The player state and the player's UId (an FGuid: four plain uint32), into p.ps and p.uid.
+    auto find_player_state(Player& p) -> void
+    {
+        p.ps = live(call_object(p.util, STR("/Script/Pal.PalUtility:GetLocalPlayerState"), WORLD_CONTEXT, p.pc),
+                    "player state");
         FProperty* uid = p.ps->GetPropertyByNameInChain(FromCharTypePtr<TCHAR>(STR("PlayerUId")));
         if (!uid || uid->GetSize() != 16) throw Fail{"PalPlayerState.PlayerUId: missing or not 16 bytes"};
-        std::memcpy(p.uid, uid->ContainerPtrToValuePtr<void>(p.ps), 16);   // an FGuid: four plain uint32
+        std::memcpy(p.uid, uid->ContainerPtrToValuePtr<void>(p.ps), 16);
         if (pal_gift::guid_is_zero(p.uid)) throw Fail{"player UId is zero"};
+    }
 
+    // How many Pals the party holds now, and how many it can.
+    auto read_party(Player& p) -> void
+    {
         p.count = call_int(p.holder, STR("/Script/Pal.PalOtomoHolderComponentBase:GetOtomoCount"));
         p.max = call_int(p.holder, STR("/Script/Pal.PalOtomoHolderComponentBase:GetMaxOtomoNum"));
+    }
+
+    // The local player in full, found fresh; verbose adds the player and the party to the report.
+    auto find_player(Report& r, bool verbose) -> Player
+    {
+        Player p;
+        find_controller(p);
+        find_pawn_parts(p);
+        find_player_state(p);
+        read_party(p);
         if (verbose)
         {
             r.line("ctx: pc=" + name_of(p.pc) + " pawn=" + name_of(p.pawn) + " uid=" + pal_gift::format_guid(p.uid));
@@ -396,27 +429,45 @@ namespace pal_gift_unreal
         }
     }
 
-    // The player now, if the pending gift can still arrive; nullopt, with the report's fail reason in `why`, when there
-    // is no player or the world changed. The controller is compared, not the pawn: a player who dies gets a new pawn in
-    // the same world, where the game can still finish the gift; a world load makes a new controller.
-    auto player_for_poll(Report& r, const PendingGift& g, std::string& why) -> std::optional<Player>
+    // Where the player stands for this poll (pal_gift_logic.hpp, PlayerAtPoll), with `p` filled when Here; else the
+    // reason in `why`. The controller is compared, not the pawn: a player who faints gets a new pawn in the same world,
+    // where the game can still finish the gift; a world load makes a new controller.
+    auto player_at_poll(const PendingGift& g, Player& p, std::string& why) -> PlayerAtPoll
     {
-        Player p;
         try
         {
-            p = find_player(r, false);
+            find_controller(p);
+            if (reinterpret_cast<uintptr_t>(p.pc) != g.controller)
+            {
+                why = "world changed (another player controller), gift dropped";
+                return PlayerAtPoll::Gone;
+            }
         }
         catch (const Fail& f)
         {
             why = "player not found, gift dropped (" + f.reason + ")";
-            return std::nullopt;
+            return PlayerAtPoll::Gone;
         }
-        if (reinterpret_cast<uintptr_t>(p.pc) != g.controller)
+        try
         {
-            why = "world changed (another player controller), gift dropped";
-            return std::nullopt;
+            find_pawn_parts(p);
         }
-        return p;
+        catch (const Fail& f)
+        {
+            why = "no pawn to look from yet (" + f.reason + "), the gift is kept";
+            return PlayerAtPoll::BetweenPawns;
+        }
+        try
+        {
+            find_player_state(p);
+            read_party(p);
+        }
+        catch (const Fail& f)
+        {
+            why = "player not found, gift dropped (" + f.reason + ")";
+            return PlayerAtPoll::Gone;
+        }
+        return PlayerAtPoll::Here;
     }
 
     // What one poll found: whether the gift's Pal is there yet, and what was looked at, for the report.
@@ -471,18 +522,17 @@ namespace pal_gift_unreal
             }
             PendingGift& g = *g_pending;
             r.line("poll " + std::to_string(g.polls + 1) + " route=" + pal_gift::route_name(g.route));
+            Player p;
             std::string why;
-            const std::optional<Player> p = player_for_poll(r, g, why);
-            if (!p)
+            const PlayerAtPoll where = player_at_poll(g, p, why);
+            Sighting found{false, why};
+            if (where == PlayerAtPoll::Here)
             {
-                g_pending.reset();
-                return r.finish("fail " + why);
+                found = g.route == Route::Palbox ? look_in_palbox(p, g) : look_in_party(p, g);
             }
-
-            const Sighting found = g.route == Route::Palbox ? look_in_palbox(*p, g) : look_in_party(*p, g);
             r.line("check: " + found.what);
             const Route route = g.route;
-            switch (pal_gift::next_poll(g, found.seen))
+            switch (pal_gift::next_poll(g, where, found.seen))
             {
             case pal_gift::PollVerdict::Ok:
                 g_pending.reset();
@@ -490,6 +540,9 @@ namespace pal_gift_unreal
             case pal_gift::PollVerdict::Timeout:
                 g_pending.reset();
                 return r.finish("fail timeout (" + found.what + ")");
+            case pal_gift::PollVerdict::Dropped:
+                g_pending.reset();
+                return r.finish("fail " + why);
             case pal_gift::PollVerdict::Wait:
                 break;
             }

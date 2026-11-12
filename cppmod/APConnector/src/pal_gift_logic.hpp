@@ -89,12 +89,26 @@ namespace pal_gift
     // About 6 s: the Lua side polls once per core update, every 300 ms.
     constexpr int MAX_POLLS = 20;
 
+    // Where the player stood when a poll looked for the gift (pal_gift.cpp, player_at_poll):
+    //   Here          the same player controller as at the gift, with a pawn and a party to look in
+    //   BetweenPawns  the same controller with no pawn to read (fainted, respawning): the game can still finish the
+    //                 gift once the player has a pawn again
+    //   Gone          no controller, or another one (a world load makes a new one): the gift can no longer arrive
+    enum class PlayerAtPoll
+    {
+        Here,
+        BetweenPawns,
+        Gone
+    };
+
     enum class PollVerdict
     {
         Wait,
         Ok,
-        Timeout
+        Timeout,
+        Dropped
     };
-    // Counts one poll: Ok once the Pal was seen, Timeout after MAX_POLLS polls without it, else Wait.
-    auto next_poll(PendingGift& gift, bool seen) -> PollVerdict;
+    // Counts one poll. Here: Ok once the Pal was seen, Timeout after MAX_POLLS polls without it, else Wait.
+    // BetweenPawns: Wait, not counted, so time spent respawning does not use up the gift's polls. Gone: Dropped.
+    auto next_poll(PendingGift& gift, PlayerAtPoll player, bool seen) -> PollVerdict;
 } // namespace pal_gift
