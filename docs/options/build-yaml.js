@@ -1,7 +1,8 @@
 // Turns the options page's choices into a player YAML. Kept free of the page (no DOM) so the test can run it
-// outside a browser (tools/test_options_page.py). The output follows Archipelago 0.6.8's template generator
-// (Options.generate_yaml_templates with data/options.yaml) line for line: for the defaults and each preset, with the
-// name Player{number}, it is the same text as the Launcher's "Generate Template Options" files.
+// outside a browser (tools/test_options_page.py). The output follows the template generator of the Archipelago
+// options.json was made with (its archipelago_version: Options.generate_yaml_templates with data/options.yaml) line
+// for line: for the defaults and each preset, with the name Player{number}, it is the same text as the Launcher's
+// "Generate Template Options" files.
 //
 // `data` is options.json. `values` maps each option key the page has a control for to its value: a choice's name
 // ("towers", "true"...) or a range's number. Options without a control (item and location names) are written with
@@ -79,17 +80,17 @@ function yamlScalar(text) {
   return JSON.stringify(text);
 }
 
-// The weighted entries the template writes for a range (its dictify_range), as [key, weight, note] in its order.
+// The weighted entries the template writes for a range (its dictify_range), as {value, weight, note} in its order.
 function rangeEntries(option, value) {
-  var entries = [[value, 50]];
+  var entries = [{ value: value, weight: 50 }];
   var notes = {};
   var randoms = ['random', 'random-low', 'random-high', 'random-range-' + option.min + '-' + option.max];
-  randoms.forEach(function (name) { if (name !== value) entries.push([name, 0]); });
+  randoms.forEach(function (name) { if (name !== value) entries.push({ value: name, weight: 0 }); });
   notes['random-low'] = 'random value weighted towards lower values';
   notes['random-high'] = 'random value weighted towards higher values';
   notes[randoms[3]] = 'random value between ' + option.min + ' and ' + option.max;
   var index = function (key) {
-    for (var i = 0; i < entries.length; i++) if (entries[i][0] === key) return i;
+    for (var i = 0; i < entries.length; i++) if (entries[i].value === key) return i;
     return -1;
   };
   Object.keys(option.named_values || {}).forEach(function (name) {
@@ -98,16 +99,15 @@ function rangeEntries(option, value) {
     var at = index(number);
     if (at >= 0) {
       // A value with a name is written by its name, moved to the end as the template's dict does.
-      var weight = entries[at][1];
+      var weight = entries[at].weight;
       entries.splice(at, 1);
-      entries.push([name, weight]);
+      entries.push({ value: name, weight: weight });
     } else if (index(name) < 0) {
-      entries.push([name, 0]);
+      entries.push({ value: name, weight: 0 });
     }
   });
-  return entries.map(function (entry) {
-    return [entry[0], entry[1], notes[entry[0]] || ''];
-  });
+  entries.forEach(function (entry) { entry.note = notes[entry.value] || ''; });
+  return entries;
 }
 
 function optionLines(option, value) {
@@ -121,7 +121,7 @@ function optionLines(option, value) {
     lines.push('    # Minimum value is ' + option.min);
     lines.push('    # Maximum value is ' + option.max);
     rangeEntries(option, value).forEach(function (entry) {
-      lines.push('    ' + entry[0] + ': ' + entry[1] + (entry[2] ? ' # ' + entry[2] : ''));
+      lines.push('    ' + entry.value + ': ' + entry.weight + (entry.note ? ' # ' + entry.note : ''));
     });
   } else if (isChoice(option)) {
     var picked = findChoice(option, value);
@@ -176,12 +176,15 @@ function buildYaml(data, values, playerName, presetName) {
   return lines.join('\n') + '\n';
 }
 
-// What's wrong with a player name, or '' if Archipelago will take it. Archipelago (Generate.handle_name) fills in
-// {number}, {NUMBER}, {player} and {PLAYER}, then keeps the first 16 characters; its website's form allows 16.
+// The longest player name, in characters: Archipelago (Generate.handle_name) fills in {number}, {NUMBER}, {player}
+// and {PLAYER}, then keeps the first 16; its website's form allows 16. index.html's help text says it too.
+var MAX_NAME_LENGTH = 16;
+
+// What's wrong with a player name, or '' if Archipelago will take it.
 function nameProblem(name) {
   if (!name.trim()) return 'Enter a player name.';
   if (name !== name.trim()) return 'The name can\'t start or end with a space.';
-  if (Array.from(name).length > 16) return 'The name can be at most 16 characters.';
+  if (Array.from(name).length > MAX_NAME_LENGTH) return 'The name can be at most ' + MAX_NAME_LENGTH + ' characters.';
   if (name === 'Archipelago') return 'Archipelago doesn\'t allow the name "Archipelago".';
   if (/[{}]/.test(name.replace(/\{(number|NUMBER|player|PLAYER)\}/g, ''))) {
     return 'Braces are only for {number}, {NUMBER}, {player} or {PLAYER}.';
@@ -194,5 +197,7 @@ function valueProblem(option, value) {
   if (!isRange(option)) return '';
   if (typeof value !== 'number' || !isFinite(value) || Math.floor(value) !== value) return 'Enter a whole number.';
   if (value < option.min || value > option.max) return 'Enter a number from ' + option.min + ' to ' + option.max + '.';
+  // Values inside the range that generation refuses all the same (options.json's `refused`, from the APWorld).
+  if (option.refused && option.refused.values.indexOf(value) >= 0) return option.refused.problem;
   return '';
 }

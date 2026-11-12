@@ -1,5 +1,5 @@
-"""Territory distance fields for the world map overlay (made by the Art & Assets lane for the mod). Our own data, made
-from the mod's lock label map (no game pixels). One 4096x4096 RGB PNG per layout:
+"""Territory distance fields for the world map overlay, which the C++ part draws the Territories map from. Our own
+data, made from the mod's lock label map (no game pixels). One 4096x4096 RGB PNG per layout:
   R  lock label, identical to the label map (0 = open sea)
   G  the lock on the other side of the nearest border (for sea pixels: the nearest territory)
   B  Euclidean distance to that border, in 1/8 px at 4096, clamped at 255 (= 31.875 px); smoothed (Gaussian sigma 1.3)
@@ -10,6 +10,7 @@ on this pixel's own side, G = the label across from e; otherwise G = e's label.
 Standalone: needs only numpy, scipy and Pillow.
 Usage: map_fields.py LABELS.png OUT.png   (region_labels.png -> region_field.png,
                                             area_labels.png -> area_field.png; keep them in step)
+Tests: none of its own; the Lua harness's map tests (tests/map.lua) read region_field.png.
 """
 import sys
 import numpy as np
@@ -35,6 +36,7 @@ def field(lab):
 
 
 def field_png(lab):
+    """The field of a label map as the RGB picture the mod ships (R label, G neighbour, B distance)."""
     d, nb = field(lab)
     b = np.clip(np.round(d * STEPS), 0, 255).astype(np.uint8)
     return Image.fromarray(np.dstack([lab, nb, b]), "RGB")

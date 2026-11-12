@@ -22,7 +22,7 @@ same pull request as the code it describes. The rules for writing the code itsel
 6. [The APConnector (C++)](#the-apconnector-c) *(the connection written; the helpers not yet)*
 7. [The Lua mod](#the-lua-mod) *(not written yet)*
 8. [The LogicMod paks](#the-logicmod-paks) *(not written yet)*
-9. [Tests, tools and releases](#tests-tools-and-releases) *(tests and the build written; tools, CI and releases not yet)*
+9. [Tests, tools and releases](#tests-tools-and-releases) *(tests, the build, tools and releases written; CI not yet)*
 10. [Where to look when something breaks](#where-to-look-when-something-breaks)
 
 ## Overview
@@ -87,7 +87,7 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 
 | File | Made by | From |
 |---|---|---|
-| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py` | the table dumps, `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` (and the `area-` versions) |
+| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py`, given the game version | the table dumps, and that version's `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` and their `area-` versions |
 | `mod/.../Scripts/ap_data.lua` | `tools/gen_lua_data.py` | the APWorld's own tables (`data.py`), so the mod and the APWorld agree on every id |
 | `mod/.../Scripts/region_*.lua`, `area_*.lua`, and `region_labels.png`, `area_labels.png` beside them | `tools/lock_walls.py`, `tools/lock_centres.py` (each run once per size; `LOCK_SIZE=areas` for the 75 areas) | the game's world map, its map rows and `tools/lock_groups.py` |
 | `mod/.../Scripts/area_regions.lua` | `tools/area_regions.py` | `tools/lock_groups.py` |
@@ -96,11 +96,18 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 | `mod/.../Scripts/tech_icons.lua` | `tools/gen_tech_icons.py` | the table dumps |
 | `mod/.../Scripts/tech_gifts.lua` | `tools/gen_tech_gifts.py` | the table dumps |
 | `docs/options/options.json` | `tools/gen_options_page.py` | the APWorld's options, groups and presets |
+| `apworld/palworld/test/frozen_ids.tsv` | `tools/freeze_ids.py` | `data.py` (and the file it replaces: no id may move) |
+| `mod/.../art/ap-menu-panel-*.png` | `tools/menu_panel_art.py` | nothing (drawn from numbers) |
+| `mod/.../icons/*.png` | `tools/make_ap_icons.py` | Archipelago's logo |
+
+Each generator's private input files, by name, and its exact command are in [`tools/README.md`](../tools/README.md).
 
 **After a Palworld update:**
 1. Dump the tables again.
-2. Run `gen_apworld_data.py`, then `gen_lua_data.py`.
-3. Run the tests.
+2. Make the new version's lock model files: `lock_walls.py`, then `lock_model.py`, once for each lock size.
+3. Run `gen_apworld_data.py` with the new version (it writes `GAME_VERSION` and reads that version's files in
+   `data/`), then `gen_lua_data.py`.
+4. Run the tests.
 
 `gen_apworld_data.py` keeps every existing row where it was and adds new rows at the end, so ids never move.
 
@@ -359,7 +366,26 @@ world save, so an item taken just before a crash is lost rather than given twice
 - Every `.apworld` (tests, playtests, releases) is made by `tools/build_apworld.py`. It adds the manifest fields
   Archipelago needs and checks that the world loads with its own version; a plain zip of the folder loads as 0.0.0
   and players' YAMLs are refused.
-- Point `AP_DIR` at your Archipelago 0.6.8 folder (with its venv in `.venv`).
+- Point `AP_DIR` at your Archipelago folder (with its venv in `.venv`), of the version
+  `apworld/palworld/archipelago.json` names as `minimum_ap_version`. Without it the tools look for
+  `archipelago-<that version>` beside this repository's folder (`tools/ap_dir.sh`), which is wrong in a git worktree.
+
+### Tools
+
+[`tools/README.md`](../tools/README.md) lists every tool: what each generator makes and reads, and whether it needs
+the private game files (the table dumps, the map picture, the region volumes), with the steps after a game update;
+the build and the test runners; the two test clients for a live room (`deathlink_send.py`, `send_checks.py`); the
+modules the tools share (`lock_groups.py`, `towers.py`, `table_dumps.py`, `apworld_loader.py`); and the server probe
+that dumps the tables. Each script's header gives its command and says how it is tested.
+
+### Releases
+
+A version tag (`v0.14.0`, the same as the mod's `VERSION` in `main.lua`) makes CI's release job draft a release with
+the mod zip, `palworld.apworld` and their checksums. A person then:
+1. attaches `PalworldArchipelagoArt.pak` (and its `.ucas` and `.utoc`, if the build made them), which CI can't
+   build: it is built by hand in the Palworld Modding Kit on Windows (`logicmod/README.md`, "The wall material");
+2. edits the drafted notes, which carry a reminder of step 1;
+3. publishes it.
 
 ## Where to look when something breaks
 

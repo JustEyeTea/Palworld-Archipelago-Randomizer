@@ -5,7 +5,7 @@
 # Windows build (about 25 minutes) runs only when the C++ part or this file changed since the branch's last good one
 # (the changes job); tags, main and manual runs always build.
 # A version tag (v0.14.0, matching the mod's VERSION) also makes a DRAFT release with the mod zip, palworld.apworld and
-# their checksums; a person reads it and publishes it.
+# their checksums; a person reads it, attaches the art pak built in the Modding Kit, and publishes it.
 name: CI
 
 on:
@@ -58,10 +58,12 @@ jobs:
           esac
           api="repos/$GITHUB_REPOSITORY/actions"
           # The newest commit of a branch whose Windows build passed and that this commit builds on (an ancestor).
+          # It finds that build by this file's name (ci.yml) and the cppmod job's display name, "C++ mod (Windows)":
+          # renaming either means changing it here too.
           last_built() {
             local runs run ok sha
-            runs=$(gh api "$api/workflows/ci.yml/runs?branch=$1&status=completed&per_page=30" --jq '.workflow_runs[].id') \
-              || build "could not list earlier runs of $1"
+            runs=$(gh api "$api/workflows/ci.yml/runs?branch=$1&status=completed&per_page=30" \
+                     --jq '.workflow_runs[].id') || build "could not list earlier runs of $1"
             for run in $runs; do
               ok=$(gh api "$api/runs/$run/jobs" \
                      --jq '[.jobs[] | select(.name == "C++ mod (Windows)" and .conclusion == "success")] | length') \
@@ -75,7 +77,8 @@ jobs:
           # A new branch has no build of its own yet: the pull request's base branch's (next for a feature branch).
           [ -n "$base" ] || [ -z "$BASE_BRANCH" ] || base=$(last_built "$BASE_BRANCH")
           [ -n "$base" ] || build "no earlier Windows build of $BRANCH${BASE_BRANCH:+ or $BASE_BRANCH} found"
-          git cat-file -e "$base^{commit}" 2>/dev/null || build "the last built commit ${base:0:7} is gone (history rewritten?)"
+          git cat-file -e "$base^{commit}" 2>/dev/null \
+            || build "the last built commit ${base:0:7} is gone (history rewritten?)"
           changed=$(git diff --name-only "$base" "$HEAD_SHA" -- cppmod .github/workflows/ci.yml) \
             || build "could not compare ${base:0:7}"
           [ -z "$changed" ] || build "changed since ${base:0:7}: $(echo $changed)"
@@ -88,7 +91,9 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        archipelago: ["0.6.8"]  # the APWorld's minimum_ap_version (the current release)
+        # The APWorld's minimum_ap_version (apworld/palworld/archipelago.json), which the next step checks; the
+        # other copies of the version are listed in tools/README.md.
+        archipelago: ["0.6.8"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -96,21 +101,31 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - name: The APWorld parses on Python 3.11, the oldest Archipelago 0.6.8 runs on
+      - name: The matrix tests the APWorld's minimum Archipelago version
+        run: |
+          minimum=$(python -c 'import json, sys; print(json.load(open(sys.argv[1]))["minimum_ap_version"])' \
+                      palworld-archipelago/apworld/palworld/archipelago.json)
+          matrix=${{ matrix.archipelago }}
+          [ "$minimum" = "$matrix" ] \
+            || { echo "::error::archipelago.json's minimum_ap_version is $minimum; the matrix has $matrix"; exit 1; }
+      - name: The APWorld parses on Python 3.11, the oldest that Archipelago ${{ matrix.archipelago }} runs on
         run: python -m compileall -q palworld-archipelago/apworld/palworld
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install Archipelago ${{ matrix.archipelago }}
         run: |
-          git clone --depth 1 --branch "${{ matrix.archipelago }}" https://github.com/ArchipelagoMW/Archipelago.git archipelago
+          git clone --depth 1 --branch "${{ matrix.archipelago }}" https://github.com/ArchipelagoMW/Archipelago.git \
+            archipelago
           python -m venv archipelago/.venv
-          archipelago/.venv/bin/pip install -q -r archipelago/requirements.txt -r archipelago/WebHostLib/requirements.txt pytest pytest-subtests
+          archipelago/.venv/bin/pip install -q -r archipelago/requirements.txt \
+            -r archipelago/WebHostLib/requirements.txt pytest pytest-subtests
       - name: Mod data matches the APWorld, and the mod's Lua logic
         run: |
           cd palworld-archipelago
           python3 tools/gen_lua_data.py
-          git diff --exit-code mod/PalworldArchipelago/Scripts/ap_data.lua || { echo "::error::ap_data.lua is stale: run tools/gen_lua_data.py"; exit 1; }
+          git diff --exit-code mod/PalworldArchipelago/Scripts/ap_data.lua \
+            || { echo "::error::ap_data.lua is stale: run tools/gen_lua_data.py"; exit 1; }
           sudo apt-get install -y -qq lua5.4 > /dev/null
           tools/lua_harness.sh
       - name: The C++ part's image helper
@@ -148,7 +163,8 @@ jobs:
           cd palworld-archipelago
           tools/test_generate.sh 3
           EXTRA_OPTIONS='tower_count: 8' tools/test_generate.sh 2
-          EXTRA_OPTIONS=$'area_locks: false\n  progressive_spheres: false\n  level_checks: every_10' tools/test_generate.sh 2
+          no_locks=$'area_locks: false\n  progressive_spheres: false\n  level_checks: every_10'
+          EXTRA_OPTIONS=$no_locks tools/test_generate.sh 2
       # The .apworld as players get it (tools/build_apworld.py, as Archipelago's "Build APWorlds" makes it).
       - name: Build palworld.apworld
         env:
@@ -172,7 +188,7 @@ jobs:
   # release 2281fa31. UE4SS's Unreal headers live in a private repository that only Epic-linked GitHub accounts can
   # read; UEPSEUDO_TOKEN is used only to clone it here and is never written to the build output.
   cppmod:
-    name: C++ mod (Windows)
+    name: C++ mod (Windows)              # the changes job finds the last build by this name: change both
     needs: changes
     if: needs.changes.outputs.cpp == 'true'
     runs-on: windows-latest
@@ -217,7 +233,8 @@ jobs:
         shell: bash
         run: |
           echo "rev=$(git -C "$VCPKG_INSTALLATION_ROOT" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "VCPKG_BINARY_SOURCES=clear;files,$(cygpath -w "$GITHUB_WORKSPACE/vcpkg-cache"),readwrite" >> "$GITHUB_ENV"
+          cache=$(cygpath -w "$GITHUB_WORKSPACE/vcpkg-cache")
+          echo "VCPKG_BINARY_SOURCES=clear;files,$cache,readwrite" >> "$GITHUB_ENV"
           mkdir -p "$GITHUB_WORKSPACE/vcpkg-cache"
       - uses: actions/cache@v4
         with:
@@ -240,7 +257,8 @@ jobs:
           which link.exe cl.exe
           cmake -S palworld-archipelago/cppmod -B build -G Ninja -DCMAKE_BUILD_TYPE=Game__Shipping__Win64 \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DAP_DEPS="$GITHUB_WORKSPACE/palworld-archipelago/cppmod/deps" \
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md \
+            -DAP_DEPS="$GITHUB_WORKSPACE/palworld-archipelago/cppmod/deps" \
             2>&1 | tee build.log
           cmake --build build --target APConnector 2>&1 | tee -a build.log
       # Job logs need admin rights to read, but annotations are public: publish the build's errors as one.
@@ -248,7 +266,8 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          errs=$( (grep -E 'error|Error|FAILED|CMake Error' build.log || tail -60 build.log) | grep -v 'error_code\|Werror' | head -60)
+          errs=$( (grep -E 'error|Error|FAILED|CMake Error' build.log || tail -60 build.log) \
+                  | grep -v 'error_code\|Werror' | head -60)
           echo "::error title=C++ build failed::$(printf '%s' "$errs" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
       - name: Package
         shell: bash
@@ -265,6 +284,8 @@ jobs:
           path: package
 
   # A version tag: a draft release with both builds. Its notes are a starting point; publishing is a person's call.
+  # The art pak (PalworldArchipelagoArt.pak) is built by hand in the Modding Kit, so the notes remind the person
+  # publishing to attach it; the setup guide sends players to the release for it.
   release:
     name: Draft release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -290,12 +311,22 @@ jobs:
         run: |
           (cd mod-package && zip -qr "../dist/PalworldArchipelago-$GITHUB_REF_NAME.zip" ue4ss)
           (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          guide="https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/apworld/palworld/docs/setup_en.md"
+          minimum=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["minimum_ap_version"])' \
+                      apworld/palworld/archipelago.json)
           cat > notes.md <<EOF
           Palworld Archipelago $GITHUB_REF_NAME (draft: edit these notes before publishing).
 
-          - \`PalworldArchipelago-$GITHUB_REF_NAME.zip\`: the mod. Its \`ue4ss\` folder goes over \`Pal/Binaries/Win64/ue4ss\`.
-          - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago 0.6.8 or newer).
-          - Setup: [setup guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/apworld/palworld/docs/setup_en.md).
+          - \`PalworldArchipelago-$GITHUB_REF_NAME.zip\`: the mod. Its \`ue4ss\` folder goes over
+            \`Pal/Binaries/Win64/ue4ss\`.
+          - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago $minimum or newer).
+          - \`PalworldArchipelagoArt.pak\` (optional): the walls' own material. It goes in
+            \`Pal/Content/Paks/LogicMods\`.
+          - Setup: [setup guide]($guide).
+
+          Before publishing: attach \`PalworldArchipelagoArt.pak\` (and its \`.ucas\` and \`.utoc\` if the build made
+          them), then delete this paragraph. CI can't build it: it is built by hand in the Palworld Modding Kit on
+          Windows (logicmod/README.md, "The wall material").
 
           The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction.
           Unofficial fan project; not affiliated with Pocketpair or the Archipelago project.
@@ -303,4 +334,6 @@ jobs:
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag --title "Palworld Archipelago $GITHUB_REF_NAME" --notes-file notes.md
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag \
+            --title "Palworld Archipelago $GITHUB_REF_NAME" --notes-file notes.md
