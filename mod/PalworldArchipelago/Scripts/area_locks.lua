@@ -111,6 +111,11 @@ end
 function AREA_LOCKS.update(pawn)
     if WORLD.key() and WORLD.seedWorld() == false then
         pcall(WALLS.mapOff)                        -- (C++ would show the seed's map here)
+        -- Walls still standing here are an earlier seed's (one connected while the player was in this world):
+        -- nothing is locked here, so they come down.
+        if WALLS.count() > 0 then
+            pcall(WALLS.update, false, ap.passes, pawn)
+        end
     end
     if not (WORLD.settled() and WORLD.seedWorld()) then return end
     local on = areaLocks
