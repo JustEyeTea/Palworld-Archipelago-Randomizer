@@ -39,3 +39,18 @@ class TestAreasSky(PalworldTestBase):
         self.assertFalse(self.can_reach_region("The Azure Tapestry"))
         self.collect_by_name("Tech: Nitewing Saddle")
         self.assertTrue(self.can_reach_region("The Azure Tapestry"))
+
+
+class TestAreasBossAboveTheClimb(PalworldTestBase):
+    """A cap of 41 keeps the Snow Tower's area (Pals at 40.5) in the seed, but the areas in play let a player climb only
+    to 48, short of its boss (50): the tower gets no event, which no one could reach. WorldTestBase's own tests check
+    that every location, events too, can be reached."""
+    options = {"lock_size": "areas", "tower_count": 1, "check_level": 41}
+
+    def test_no_event_for_a_boss_above_the_climb(self):
+        from .. import TOWER_LEVELS
+        self.assertIn(self.world.layout.towers["Snow Tower"], self.world.live)
+        self.assertLess(self.world.climb_top(self.world.live), TOWER_LEVELS["Snow Tower"])
+        names = {l.name for l in self.multiworld.get_locations(self.player)}
+        self.assertNotIn("Snow Tower Defeated", names)
+        self.assertIn("Starting Zone Tower Defeated", names)

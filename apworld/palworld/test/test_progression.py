@@ -143,6 +143,48 @@ class TestNoGearLogicWorldTree(PalworldTestBase):
         self.assertFalse(self.get_item_by_name("Tech: Primitive Furnace").advancement)
 
 
+TRIPLE_JUMP_BOOTS = "Accessory_JumpCount_Increase2"     # a level-70 Ancient tech behind the Sky Islands Tower
+
+
+class TestNoGearLogicLeavesTheSeaOut(PalworldTestBase):
+    """Without Gear Logic a Relic Hunt needs no sea, so the parts only the open sea reaches leave the seed, the Sky
+    Islands with them, even under a cap of 80: no pass for them and no check behind their tower. WorldTestBase's own
+    tests check that every location can still be reached."""
+    options = {"goal": "relic_hunt", "check_level": 80}
+
+    def test_sea_only_locks_are_beyond_the_goal(self):
+        from ..data import TECH_BY_ID, shop_location
+        self.assertFalse(self.world.sea_needed)
+        self.assertFalse({"Region Pass: Sky Islands", "Region Pass: World Tree"} & passes(self))
+        beyond = self.world.fill_slot_data()["beyond_goal_areas"].split("|")
+        self.assertIn("Sky Islands", beyond)
+        self.assertIn("World Tree", beyond)
+        names = {l.name for l in self.multiworld.get_locations(self.player)}
+        self.assertNotIn(shop_location(TECH_BY_ID[TRIPLE_JUMP_BOOTS]), names)
+
+
+class TestNoGearLogicPassesKeepsEveryPass(PalworldTestBase):
+    """The same with Regions Beyond the Goal on passes: every pass stays, but the Sky Islands' checks still go."""
+    options = {"goal": "relic_hunt", "check_level": 80, "beyond_goal": "passes"}
+
+    def test_every_pass_and_no_sky_check(self):
+        from ..data import TECH_BY_ID, shop_location
+        self.assertEqual(len(passes(self)), 14)
+        names = {l.name for l in self.multiworld.get_locations(self.player)}
+        self.assertNotIn(shop_location(TECH_BY_ID[TRIPLE_JUMP_BOOTS]), names)
+
+
+class TestPaldeckAutoCapWithoutGearLogic(PalworldTestBase):
+    """Without Gear Logic bred-only Pals aren't checks, so the Paldeck goal's auto cap counts only caught Pals: 150
+    of them are caught by level 37, and the seed generates (WorldTestBase's own tests)."""
+    options = {"goal": "paldeck", "paldeck_count": 150}
+
+    def test_cap_from_caught_pals(self):
+        from .. import PALDECK_MARGIN
+        caught = sorted(self.world.levels.caught_pal_levels.values())
+        self.assertEqual(self.world.cap, caught[150 - 1] + PALDECK_MARGIN)
+
+
 class TestTechPointItems(PalworldTestBase):
     options = {"tech_point_items": True}
 
