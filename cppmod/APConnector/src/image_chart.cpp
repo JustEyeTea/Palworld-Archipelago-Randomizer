@@ -1,6 +1,7 @@
 // The explorer's-chart picture of the map (compose_chart in image_tools.hpp).
 #include "image_tools.hpp"
 #include "image_basics.hpp"
+#include "image_land_sea.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -58,30 +59,13 @@ auto compose_chart(const std::string& colour, const std::string& paper, const st
     Rgba map = load_rgba(colour, S, err);
     if (!err.empty()) return err;
     const size_t N = static_cast<size_t>(S) * S;
-    // The map as compose_map reads it: gamma on each channel (the export is in linear light).
-    Plane R(N), G(N), B(N), Y(N);
-    for (size_t i = 0; i < N; ++i)
-    {
-        const float* p = &map.px[i * 4];
-        R[i] = static_cast<float>(std::pow(p[0], gamma));
-        G[i] = static_cast<float>(std::pow(p[1], gamma));
-        B[i] = static_cast<float>(std::pow(p[2], gamma));
-        Y[i] = 0.2126f * R[i] + 0.7152f * G[i] + 0.0722f * B[i];
-    }
-    // Beyond the world's edge the map is flat dark grey; the sea is teal (deep and shallow); the rest is land.
-    Plane outside(N), sea_m(N), land(N);
-    for (size_t i = 0; i < N; ++i)
-    {
-        outside[i] = (std::fabs(R[i] - G[i]) < 0.02f && std::fabs(G[i] - B[i]) < 0.02f && Y[i] < 0.16f) ? 1.f : 0.f;
-        sea_m[i] = (!outside[i] && B[i] > R[i] + 0.08f && G[i] > R[i] && Y[i] < 0.45f && R[i] < 0.25f) ? 1.f : 0.f;
-    }
-    Plane outS = outside;
-    blur(outS, S, S, std::max(2, S / 250));
-    Plane seaS = sea_m;
-    blur(seaS, S, S, std::max(1, S / 1000));
-    for (size_t i = 0; i < N; ++i) land[i] = (!outside[i] && outS[i] <= 0.02f && seaS[i] < 0.5f) ? 1.f : 0.f;
-    Plane landS = land;
-    blur(landS, S, S, std::max(1, S / 700));
+    // Beyond the world's edge, the sea and land, and the map's brightness (image_land_sea.hpp).
+    Plane Y;
+    const LandAndSea planes = classify_map(map, gamma, &Y);
+    const Plane& outside = planes.outside;
+    const Plane& outS = planes.outside_soft;
+    const Plane& land = planes.land;
+    const Plane& landS = planes.land_soft;
     const Plane coast = contour_line(landS, S, 0.5f, 1.2f);
     Plane outWide = outside;
     blur(outWide, S, S, std::max(3, S / 120));
@@ -135,7 +119,7 @@ auto compose_chart(const std::string& colour, const std::string& paper, const st
             float ink = 0;
             ink = std::max(ink, coast[i]);
             ink = std::max(ink, std::max(frame1[i], 0.6f * frame2[i]));
-            const bool nearEdge = outS[i] > 0.02f;
+            const bool nearEdge = outS[i] > NEAR_EDGE_ABOVE;
             if (!land[i] && !nearEdge)
                 for (float lvl : {0.30f, 0.12f, 0.04f})
                     ink = std::max(ink, std::min(1.f, std::max(0.f, 1.f - std::fabs(far[i] - lvl) / 0.012f)) * 0.45f);
