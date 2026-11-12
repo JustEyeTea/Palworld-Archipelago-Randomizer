@@ -255,3 +255,21 @@ group("a new character in a world that is not the seed's is not a new world", fu
     expect(told >= 1 and toldAgain == told, "a new pawn in the same other world brings no second notice: " .. told
            .. " then " .. toldAgain)
 end)
+
+group("a wall setting in config.txt that is not two numbers keeps its default", function()
+    -- wall_fade=15,25.0.1 (a typo) must not stop the mod at start-up, nor wall_tiling=1.5.0,2 leave the walls red.
+    local CONFIG, AREA_LOCKS, WALLS, ART = require("config"), require("area_locks"), require("walls"), require("art")
+    local cfg = CONFIG.cfg
+    local settingsWere = { fade = cfg.wall_fade, tiling = cfg.wall_tiling }
+    local fadeWas, tilingWas, artDirWas = WALLS.fade, WALLS.tiling, ART.dir
+    cfg.wall_fade, cfg.wall_tiling = "15,25.0.1", "1.5.0,2"
+    local mark = logMark()
+    local ok, err = pcall(AREA_LOCKS.configureWalls, artDirWas)
+    local fadeNow, tilingNow = WALLS.fade, WALLS.tiling
+    cfg.wall_fade, cfg.wall_tiling = settingsWere.fade, settingsWere.tiling
+    WALLS.fade, WALLS.tiling, ART.dir = fadeWas, tilingWas, artDirWas
+    expect(ok and fadeNow == fadeWas and tilingNow == tilingWas,
+           "a malformed wall_fade or wall_tiling keeps the default: " .. tostring(ok and "" or err))
+    expect(loggedSince(mark, "wall_fade=15,25%.0%.1 is not two numbers")
+           and loggedSince(mark, "wall_tiling=1%.5%.0,2 is not two numbers"), "and says so")
+end)

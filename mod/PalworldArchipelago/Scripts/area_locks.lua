@@ -46,19 +46,25 @@ function AREA_LOCKS.configureWalls(dir)
         mapStyle = cfg.map_style == "chart" and "chart" or "territories",
         testFogColour = cfg.test_tools == "1",
     }
-    -- wall skins (wall_skins.lua): wall_skin=paws|area|red, wall_tiling=U,V and wall_scroll=U,V in config.txt
-    local function pair(s)
-        local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
-        return u and { tonumber(u), tonumber(v) } or nil
+    -- wall skins (wall_skins.lua): wall_skin=paws|area|red, wall_tiling=U,V and wall_scroll=U,V in config.txt. A
+    -- setting that is not two numbers is said once and left out, so its default stands.
+    local function pair(key)
+        local text = cfg[key]
+        if not text then return nil end
+        local u, v = text:match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
+        local first, second = tonumber(u), tonumber(v)
+        if first and second then return { first, second } end
+        log("config.txt: " .. key .. "=" .. text .. " is not two numbers (as 15,25); its default is used")
+        return nil
     end
-    settings.tiling, settings.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
+    settings.tiling, settings.scroll = pair("wall_tiling"), pair("wall_scroll")
     -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall
     -- walls)
     local radius = tonumber(cfg.wall_radius or "")
     if radius and radius >= 0 then
         settings.radius = radius * CM_PER_METRE
     end
-    local fade = pair(cfg.wall_fade)
+    local fade = pair("wall_fade")
     local near, far = fade and fade[1], fade and fade[2]
     if fade and far > near then
         settings.fade = { near * CM_PER_METRE, far * CM_PER_METRE }
