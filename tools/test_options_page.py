@@ -26,13 +26,13 @@ import build_apworld  # noqa: E402
 
 ROOT = gen_options_page.ROOT
 AP = gen_options_page.AP
-PAGE = ROOT / 'docs' / 'options'
-PLAYER = 'Tester'
+PAGE = ROOT / "docs" / "options"
+PLAYER = "Tester"
 # A form someone changed by hand, with a name YAML must quote: a custom description, a named range value
 # (99 is "extreme"), a toggle turned on and choices away from their defaults.
 CUSTOM_NAME = 'Zoë "Q" {number}'
-CUSTOM = {'goal': 'paldeck', 'paldeck_count': 30, 'progression_balancing': 99, 'accessibility': 'minimal',
-          'death_link': 'true', 'level_checks': 'every_10', 'area_locks': 'false'}
+CUSTOM = {"goal": "paldeck", "paldeck_count": 30, "progression_balancing": 99, "accessibility": "minimal",
+          "death_link": "true", "level_checks": "every_10", "area_locks": "false"}
 
 # Runs build-yaml.js on each case; it reads the script, options.json and the cases from stdin as JSON.
 JS_RUNNER = r'''
@@ -55,51 +55,51 @@ json.dump(out, sys.stdout)
 
 def page_yamls(data, cases):
     """What the page's own build-yaml.js writes for each case, run in QuickJS: {case id: YAML text}."""
-    job = {'script': (PAGE / 'build-yaml.js').read_text(encoding='utf-8'), 'data': data, 'cases': cases}
-    python = os.environ.get('QUICKJS_PYTHON', sys.executable)
-    result = subprocess.run([python, '-I', '-c', JS_RUNNER], input=json.dumps(job), capture_output=True,
-                            text=True, encoding='utf-8')
+    job = {"script": (PAGE / "build-yaml.js").read_text(encoding="utf-8"), "data": data, "cases": cases}
+    python = os.environ.get("QUICKJS_PYTHON", sys.executable)
+    result = subprocess.run([python, "-I", "-c", JS_RUNNER], input=json.dumps(job), capture_output=True,
+                            text=True, encoding="utf-8")
     if result.returncode:
-        sys.exit(f'could not run build-yaml.js in QuickJS (set QUICKJS_PYTHON to a python with quickjs):\n'
-                 f'{result.stderr}')
+        sys.exit(f"could not run build-yaml.js in QuickJS (set QUICKJS_PYTHON to a python with quickjs):\n"
+                 f"{result.stderr}")
     return json.loads(result.stdout)
 
 
 def template_texts(work):
     """Archipelago's own template files for this world: {'': default, preset name: preset file}."""
     import Options
-    folder = work / 'templates'
+    folder = work / "templates"
     Options.generate_yaml_templates(folder)
-    texts = {'': (folder / 'Palworld.yaml').read_text(encoding='utf-8-sig')}
-    for path in (folder / 'Presets').glob('Palworld - *.yaml'):
-        texts[path.stem[len('Palworld - '):]] = path.read_text(encoding='utf-8-sig')
+    texts = {"": (folder / "Palworld.yaml").read_text(encoding="utf-8-sig")}
+    for path in (folder / "Presets").glob("Palworld - *.yaml"):
+        texts[path.stem[len("Palworld - "):]] = path.read_text(encoding="utf-8-sig")
     return texts
 
 
 def generate(work, text, expected):
     """Generates one seed from one player YAML; returns '' when its playthrough reaches the goal with the expected
     options, or the problem."""
-    players, out = work / 'players', work / 'out'
+    players, out = work / "players", work / "out"
     shutil.rmtree(players, ignore_errors=True)
     shutil.rmtree(out, ignore_errors=True)
     players.mkdir()
     out.mkdir()
-    (players / 'player.yaml').write_text(text, encoding='utf-8')
-    env = dict(os.environ, SKIP_REQUIREMENTS_UPDATE='1')
-    result = subprocess.run([str(AP / '.venv' / 'bin' / 'python'), 'Generate.py', '--player_files_path',
-                             str(players), '--outputpath', str(out), '--seed', '1', '--spoiler', '2'],
+    (players / "player.yaml").write_text(text, encoding="utf-8")
+    env = dict(os.environ, SKIP_REQUIREMENTS_UPDATE="1")
+    result = subprocess.run([str(AP / ".venv" / "bin" / "python"), "Generate.py", "--player_files_path",
+                             str(players), "--outputpath", str(out), "--seed", "1", "--spoiler", "2"],
                             cwd=AP, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=900)
     if result.returncode:
-        return 'generation failed:\n' + '\n'.join((result.stdout + result.stderr).splitlines()[-8:])
-    with zipfile.ZipFile(next(out.glob('*.zip'))) as seed:
-        spoiler = seed.read(next(n for n in seed.namelist() if n.endswith('_Spoiler.txt'))).decode('utf-8')
-    if 'Goal Complete' not in spoiler:
-        return 'no goal in the playthrough'
+        return "generation failed:\n" + "\n".join((result.stdout + result.stderr).splitlines()[-8:])
+    with zipfile.ZipFile(next(out.glob("*.zip"))) as seed:
+        spoiler = seed.read(next(n for n in seed.namelist() if n.endswith("_Spoiler.txt"))).decode("utf-8")
+    if "Goal Complete" not in spoiler:
+        return "no goal in the playthrough"
     # The spoiler lists the options the seed was made with ("Towers to Beat:   2"); they must be the ones asked for.
-    shown = dict(line.split(':', 1) for line in spoiler.split('\n\nLocations:')[0].splitlines() if ':' in line)
+    shown = dict(line.split(":", 1) for line in spoiler.split("\n\nLocations:")[0].splitlines() if ":" in line)
     wrong = [f'{name} is {shown.get(name, "missing").strip()}, not {value}' for name, value in expected.items()
-             if shown.get(name, '').strip() != value]
-    return '; '.join(wrong)
+             if shown.get(name, "").strip() != value]
+    return "; ".join(wrong)
 
 
 def expected_options(world, preset):
@@ -107,38 +107,38 @@ def expected_options(world, preset):
     by Archipelago's option classes rather than the page."""
     expected = {}
     for key, option in world.options_dataclass.type_hints.items():
-        if hasattr(option, 'range_start') or getattr(option, 'options', None):
+        if hasattr(option, "range_start") or getattr(option, "options", None):
             value = option.from_any(preset.get(key, option.default))
-            expected[getattr(option, 'display_name', key)] = str(value.current_option_name)
+            expected[getattr(option, "display_name", key)] = str(value.current_option_name)
     return expected
 
 
 def check_options_json():
     """Step 1: options.json is what gen_options_page.py writes now. Returns (the page's data, failures)."""
     data = gen_options_page.build()
-    expected = json.dumps(data, indent=1, ensure_ascii=False) + '\n'
-    current = gen_options_page.OUT.read_text(encoding='utf-8') if gen_options_page.OUT.exists() else ''
+    expected = json.dumps(data, indent=1, ensure_ascii=False) + "\n"
+    current = gen_options_page.OUT.read_text(encoding="utf-8") if gen_options_page.OUT.exists() else ""
     if current == expected:
-        print('options.json: current')
+        print("options.json: current")
     else:
-        print('options.json: OUT OF DATE (run tools/gen_options_page.py)')
+        print("options.json: OUT OF DATE (run tools/gen_options_page.py)")
     return json.loads(current or expected), int(current != expected)
 
 
 def check_page_matches_templates(data, yamls, work):
     """Step 2: the page's YAML for the defaults and each preset is Archipelago's template, word for word."""
     failures = 0
-    presets = [''] + list(data['presets'])
+    presets = [""] + list(data["presets"])
     templates = template_texts(work)
     if sorted(templates) != sorted(presets):
-        print(f'templates: Archipelago wrote {sorted(templates)}, the page has {sorted(presets)}')
+        print(f"templates: Archipelago wrote {sorted(templates)}, the page has {sorted(presets)}")
         failures += 1
     for preset in presets:
-        label = preset or 'Defaults'
-        if yamls[preset + '|Player{number}'] == templates.get(preset):
-            print(f'{label}: same YAML as Archipelago\'s template')
+        label = preset or "Defaults"
+        if yamls[preset + "|Player{number}"] == templates.get(preset):
+            print(f"{label}: same YAML as Archipelago's template")
         else:
-            print(f'{label}: YAML DIFFERS from Archipelago\'s template')
+            print(f"{label}: YAML DIFFERS from Archipelago's template")
             failures += 1
     return failures
 
@@ -146,9 +146,9 @@ def check_page_matches_templates(data, yamls, work):
 def check_custom_form(yamls):
     """The custom form: YAML reads back the name as typed, and the description says it's custom."""
     import yaml
-    custom = yaml.safe_load(yamls['custom'])
-    if custom['name'] == CUSTOM_NAME and custom['description'] == 'Custom Palworld Options':
-        print('Custom: name and description read back as written')
+    custom = yaml.safe_load(yamls["custom"])
+    if custom["name"] == CUSTOM_NAME and custom["description"] == "Custom Palworld Options":
+        print("Custom: name and description read back as written")
         return 0
     print(f'Custom: READ BACK AS name {custom["name"]!r}, description {custom["description"]!r}')
     return 1
@@ -161,16 +161,16 @@ def check_generations(data, yamls, work, installed):
     failures = 0
     build_apworld.build(installed)
     loaded = build_apworld.world_version(installed)
-    if loaded != data['world_version']:
+    if loaded != data["world_version"]:
         print(f'apworld: LOADS AS VERSION {loaded}, not {data["world_version"]}')
         failures += 1
     world = gen_options_page.load_world()
-    runs = [(preset or 'Defaults', data['presets'].get(preset, {}), yamls[f'{preset}|{PLAYER}'])
-            for preset in [''] + list(data['presets'])]
-    runs.append(('Custom', CUSTOM, yamls['custom']))
+    runs = [(preset or "Defaults", data["presets"].get(preset, {}), yamls[f"{preset}|{PLAYER}"])
+            for preset in [""] + list(data["presets"])]
+    runs.append(("Custom", CUSTOM, yamls["custom"]))
     for label, options, text in runs:
         problem = generate(work, text, expected_options(world, options))
-        print(f'{label}: ' + (f'FAILED: {problem}' if problem else 'seed generated with its options, goal reached'))
+        print(f"{label}: " + (f"FAILED: {problem}" if problem else "seed generated with its options, goal reached"))
         failures += bool(problem)
     return failures
 
@@ -178,17 +178,17 @@ def check_generations(data, yamls, work, installed):
 def page_cases(data):
     """The forms the page's script fills: each preset (and the defaults) under the template's name and a real one,
     and the custom form."""
-    cases = [{'id': f'{preset}|{name}', 'preset': preset, 'name': name, 'values': {}}
-             for preset in [''] + list(data['presets']) for name in ('Player{number}', PLAYER)]
-    cases.append({'id': 'custom', 'preset': '', 'name': CUSTOM_NAME, 'values': CUSTOM})
+    cases = [{"id": f"{preset}|{name}", "preset": preset, "name": name, "values": {}}
+             for preset in [""] + list(data["presets"]) for name in ("Player{number}", PLAYER)]
+    cases.append({"id": "custom", "preset": "", "name": CUSTOM_NAME, "values": CUSTOM})
     return cases
 
 
 def main():
     failures = 0
-    work = pathlib.Path(tempfile.mkdtemp(prefix='palworld-options-'))
-    installed = AP / 'custom_worlds' / 'palworld.apworld'
-    backup = installed.with_suffix('.apworld.options-test')
+    work = pathlib.Path(tempfile.mkdtemp(prefix="palworld-options-"))
+    installed = AP / "custom_worlds" / "palworld.apworld"
+    backup = installed.with_suffix(".apworld.options-test")
     ours_installed = False         # only the APWorld this run installed is deleted afterwards, never one it found
     try:
         data, failures = check_options_json()
@@ -207,9 +207,9 @@ def main():
         if backup.exists():
             backup.rename(installed)
         shutil.rmtree(work, ignore_errors=True)
-    print('all options page checks passed' if not failures else f'{failures} check(s) failed')
+    print("all options page checks passed" if not failures else f"{failures} check(s) failed")
     sys.exit(1 if failures else 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
