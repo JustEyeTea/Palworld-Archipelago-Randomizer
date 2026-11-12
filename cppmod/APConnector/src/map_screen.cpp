@@ -39,7 +39,8 @@ namespace map_screen_unreal
     std::mutex g_lock;                         // guards what Lua sets and the counters' text
     std::string g_body;                        // the picture's object path ("" = the game's own)
     std::string g_fog;                         // "r,g,b,a" ("" = the game's own)
-    std::string g_fogpic;                      // the fog picture's object path (the explorer's chart; "" = none)
+    std::string g_fogpic;                      // the fog picture's object path (the explorer's chart; "" = none);
+                                               // forgotten when Setup's class unloads (forget_fog_picture)
     std::string g_last;                        // what the last Setup did
 
     std::atomic<UFunction*> g_setup{nullptr};
@@ -219,6 +220,16 @@ namespace map_screen_unreal
         seen(context, fn, "event");
     }
 
+    // The last world's screen went: its fog picture shows that world's explored areas and lock stamps, and the texture
+    // stays findable (Lua keeps it alive), so it is forgotten until Lua hands over the new world's.
+    auto forget_fog_picture() -> void
+    {
+        std::lock_guard<std::mutex> guard(g_lock);
+        if (g_fogpic.empty()) return;
+        say("forgot the last world's fog picture " + g_fogpic);
+        g_fogpic.clear();
+    }
+
     // Game thread, every frame: counts frames, and every 60 looks for Setup: the first time to hook the Blueprint VM, then
     // to follow it. The screen's class goes with a world and is loaded anew with the next (Return to title, then a
     // world load), so Setup becomes a new object and a pointer kept from the first world would never match again. The
@@ -228,7 +239,11 @@ namespace map_screen_unreal
         const uint64_t frame = ++g_frame;
         if (frame % 60 != 0) return;
         auto* fn = UObjectGlobals::StaticFindObject<UFunction*>(nullptr, nullptr, SETUP_PATH);
-        if (fn == g_setup.load(std::memory_order_relaxed)) return;
+        UFunction* const before = g_setup.load(std::memory_order_relaxed);
+        if (fn == before) return;
+        // Forgotten when the old Setup goes, not when a new one is found: Lua may hand over the new world's picture
+        // before the new world's screen class loads.
+        if (before) forget_fog_picture();
         if (!fn)                                   // (the class unloaded, as at Return to title)
         {
             g_setup = nullptr;
