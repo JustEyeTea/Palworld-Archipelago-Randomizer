@@ -64,6 +64,22 @@ group("the Inventory page's mailbox button", function()
         expect(whileOpen == false and shared.isResearched(slot) == nil,
                "the game's answer again, for crafting and building: " .. tostring(whileOpen) .. ", "
                .. tostring(shared.isResearched(slot)))
+        -- Another tab of the main menu with no un-hover (a key switches the tab under a resting pointer): the card is
+        -- forgotten too, so a confirm box there (throwing an item away) is not taken for a purchase.
+        local SHOP = require("shop")
+        mainMenu = MainMenu(NamedWidget("WBP_MainMenu_Technology_C_1", "WBP_MainMenu_Technology_C"), 1)
+        game.mainMenuOpen = true
+        shared.info["Setup by Technology Name"](shared.info, FNameOf("RepairBench"))
+        run(2)
+        local onTechTab = SHOP.hovered()
+        mainMenu.CurrentContentWidget = NamedWidget("WBP_MainMenu_Pal_C_1", "WBP_MainMenu_Pal_C")
+        run(1)
+        local onOtherTab = SHOP.hovered()
+        game.mainMenuOpen = false
+        run(1)
+        game.mainMenuOpen = nil
+        expect(onTechTab == "RepairBench" and onOtherTab == nil,
+               "a card remembered on the Technology tab is forgotten on another tab: " .. tostring(onOtherTab))
     end)
     -- The main menu on its Inventory tab.
     local page, barKids, editName = inventoryPage()

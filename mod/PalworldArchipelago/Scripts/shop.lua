@@ -40,10 +40,12 @@ local SHOP_CLASS = {
 --   4. A click: canResearch and isResearched answer for hoveredTech only, and confirmBoxSetup reads hoveredTech to
 --      name what the purchase sends.
 --   5. The pointer leaves the card: cardUnhovered clears hoveredTech (updateWindows also clears it once the main
---      menu is closed, as the un-hover event may not come then).
+--      menu is closed, or shows another tab, as the un-hover event may not come then: SHOP.followHoverTab).
 -- hoveredTech is set whenever the game sets a tooltip up, for any tech, not only for the card under the pointer.
 local hoveredTech = nil       -- the tech whose tooltip was set up last: a confirm box opened then came from its card
 local retarget = nil          -- the tech a tooltip is being set up again for (step 2), until step 3 uses it
+local hoverTab = nil          -- the main menu's tab when hoveredTech was set (the Technology tab), seen at the next
+                              -- update; forgotten with hoveredTech
 
 -- The confirm box's question for buying a slot: what it sends and what it costs.
 local function confirmText(tech)
@@ -80,7 +82,7 @@ local function tooltipSetup(self, techName)
         pcall(function() info:SetRenderOpacity(1.0) end)
         return
     end
-    hoveredTech = tech
+    hoveredTech, hoverTab = tech, nil
     local mine = isShopSlot(tech) and ownTech(tech)
     pcall(function() info:SetRenderOpacity((isShopSlot(tech) or mine) and 0.0 or 1.0) end)
     if not mine then return end
@@ -96,7 +98,7 @@ local function tooltipSetup(self, techName)
 end
 -- Leaving a card forgets it, so a later dialog (Return to Title...) is not mistaken for a purchase.
 local function cardUnhovered()
-    hoveredTech = nil
+    hoveredTech, hoverTab = nil, nil
 end
 -- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
 -- applied on the next frame and again on the next two updates (only while it still differs): about the first
@@ -326,7 +328,19 @@ end
 
 -- Forgets the hovered card: main.lua calls it once the main menu is closed, as the un-hover event may not come then.
 function SHOP.forgetHover()
-    hoveredTech = nil
+    hoveredTech, hoverTab = nil, nil
+end
+
+-- Every update while a card is remembered, with the main menu's tab now: the first tab seen after the hover is the
+-- Technology tab it came from, and a different tab forgets the card, so a confirm box there (throwing an item away)
+-- is never taken for a purchase.
+function SHOP.followHoverTab(tab)
+    if not hoveredTech then return end
+    if hoverTab == nil then
+        hoverTab = tab
+    elseif tab ~= hoverTab then
+        SHOP.forgetHover()
+    end
 end
 
 return SHOP

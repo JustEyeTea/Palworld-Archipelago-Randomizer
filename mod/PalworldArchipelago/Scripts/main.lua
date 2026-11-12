@@ -75,9 +75,12 @@ end
 local function updateWindows(frame)
     PERF.start("menu")
     local okm, errm = pcall(MENU.update, frame)
-    -- The un-hover event may not come when the menu closes under the pointer: a card can't be hovered with no menu.
+    -- The un-hover event may not come when the menu closes under the pointer, or its tab changes: a card can't be
+    -- hovered with no menu, nor on another tab.
     if SHOP.hovered() and MENU.mainMenuUp() == false then
         SHOP.forgetHover()
+    elseif SHOP.hovered() then
+        SHOP.followHoverTab(MENU.mainMenuTab())
     end
     PERF.stop("menu")
     if not okm then

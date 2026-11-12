@@ -73,6 +73,12 @@ function M.mainMenuUp()
     return WORLD.mainMenuUp()
 end
 
+-- The class of the tab the in-game main menu showed at the last look, or nil with none up. main.lua forgets the
+-- hovered shop card when the tab changes (the Technology tab is left).
+function M.mainMenuTab()
+    return WORLD.mainMenuTab()
+end
+
 local escBound = false                  -- state, forgotten: never (Esc is bound once a session)
 -- Takes what main.lua hands over (see api above), makes the hook callbacks, and binds Esc.
 function M.install(functions)
