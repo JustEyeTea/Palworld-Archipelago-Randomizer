@@ -35,6 +35,7 @@
         <label for="player-name">Player name</label>
         <input id="player-name" name="name" type="text" autocomplete="nickname" spellcheck="false" required
                aria-describedby="player-name-help player-name-error">
+        <!-- 16 is build-yaml.js's MAX_NAME_LENGTH; change both. -->
         <p id="player-name-help" class="help">Your name in the multiworld, up to 16 characters.
           {number} is replaced with a counter, for several players with the same name.</p>
         <p id="player-name-error" class="error" aria-live="polite"></p>
