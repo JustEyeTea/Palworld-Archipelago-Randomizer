@@ -1,14 +1,55 @@
-// Linux check of image_tools: a 2x1 PNG (pure red, pure green) comes back grey with the expected luminance.
-//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp src/lua_text.cpp
+// Linux check of the map pictures (image_tools.hpp): greyscale_png, compose_map and its job slot, a slot whose thread
+// cannot start, compose_chart, compose_fog (plain, with a stamp, with borders, dashed, kept to land), sample_png,
+// compose_territories and compose_field (as the overlay, and as the map picture with its duotone fog picture), and
+// bad arguments refused. Each check prints "ok" or "FAIL" with what it saw; the first failure ends the run (exit 1).
+// It writes its pictures to /tmp/*.png and reads them back. Run by CI ("The C++ part's image helper"); by hand, from
+// cppmod/APConnector:
+//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/lua_text.cpp src/image_*.cpp
 //       -o /tmp/image_test && /tmp/image_test
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <exception>
 #include <string>
 #include <vector>
+#include <sys/resource.h>
 #include "image_tools.hpp"
 #include "stb_image.h"
 #include "stb_image_write.h"
+
+// A job slot whose thread cannot start must say so through its status, not stay "busy" for the session. Threads are
+// refused by lowering this process's limit on the user's processes (not for root, which the limit does not bind:
+// then the check is skipped). Returns whether it passed.
+static bool check_job_without_thread()
+{
+    rlimit before{};
+    getrlimit(RLIMIT_NPROC, &before);
+    rlimit none = before;
+    none.rlim_cur = 1;
+    setrlimit(RLIMIT_NPROC, &none);
+    std::string started;
+    try
+    {
+        started = chart_jobs().start([] { return std::string(); });
+    }
+    catch (const std::exception& e)
+    {
+        started = std::string("threw ") + e.what();
+    }
+    setrlimit(RLIMIT_NPROC, &before);
+    std::string first = chart_jobs().status();
+    if (started == "" && (first == "busy" || first == "done"))
+    {
+        while (first == "busy") first = chart_jobs().status();
+        std::printf("skipped job without a thread: the thread started anyway (running as root?)\n");
+        return true;
+    }
+    const std::string after = chart_jobs().status();
+    const bool ok = started == "" && first.rfind("error: ", 0) == 0 && after == "";
+    std::printf("%s job without a thread: start '%s', status '%s', then '%s'\n", ok ? "ok" : "FAIL", started.c_str(),
+                first.c_str(), after.c_str());
+    return ok;
+}
 
 int main()
 {
@@ -42,6 +83,19 @@ int main()
     std::printf("%s compose: %s, inside %d, open %d, edge %d/%d\n", st == "done" && grey && colour && soft ? "ok" : "FAIL",
                 st.c_str(), o ? at(20, 50)[0] : -1, o ? at(180, 50)[0] : -1, o ? at(99, 50)[0] : -1, o ? at(99, 50)[1] : -1);
     if (!(st == "done" && grey && colour && soft)) return 1;
+    if (!check_job_without_thread()) return 1;
+
+    // compose_map refuses a locked list it cannot read whole ("257" is no area, not area 1; "1x" is not a number),
+    // instead of greying the wrong area.
+    bool badLockedOk = true;
+    for (const char* bad : {"257", "-255", "1x"})
+    {
+        const auto berr = compose_map("/tmp/compose_map.png", "/tmp/compose_lab.png", bad, "/tmp/compose_bad.png", 1.0);
+        std::printf("%s compose: locked '%s': %s\n", berr.empty() ? "FAIL" : "ok", bad,
+                    berr.empty() ? "written (an area greyed)" : berr.c_str());
+        badLockedOk = badLockedOk && !berr.empty();
+    }
+    if (!badLockedOk) return 1;
 
     // compose_chart: a 256x256 map: a grey band beyond the world's edge on the left, teal sea, a green island in the
     // middle. Land comes out as warm paper, the sea cooler, the coast inked dark, beyond the edge darker paper.
@@ -182,6 +236,12 @@ int main()
     const bool seaClear = tg && tp(60, 245)[3] == 0;                                // the sea: no fill
     const bool fogBase = tf && tf[(100 * 256 + 200) * 3] == 0x10 && tf[(100 * 256 + 200) * 3 + 2] == 0x30;   // fog colour
     const bool badState = compose_territories("/tmp/terr_labels.png", "1:x:FF0000", "", "", "/tmp/terr_bad.png", "", "", 64) != "";
+    // A number with trailing text is not a number (lua_text's rule): the style is refused, not read as 0.55.
+    const auto badStyle = compose_territories("/tmp/terr_labels.png", "1:l:FF0000", "", "FFE9B0,0.55x,FFF4DC,1,10,3,5",
+                                              "/tmp/terr_bad.png", "", "", 64);
+    std::printf("%s territories: style with '0.55x': %s\n", badStyle.empty() ? "FAIL" : "ok",
+                badStyle.empty() ? "read" : badStyle.c_str());
+    if (badStyle.empty()) return 1;
     const bool terrOk = lockedFill && rimNearEdge && visitedClear && wallCore && seaClear && fogBase && badState;
     std::printf("%s territories: %s, locked %d/a%d, rim a%d, visited a%d, wall %d,%d,%d a%d, sea a%d\n", terrOk ? "ok" : "FAIL",
                 terr.empty() ? "written" : terr.c_str(), tg ? tp(40, 100)[0] : -1, tg ? tp(40, 100)[3] : -1, tg ? tp(40, 223)[3] : -1,

@@ -142,7 +142,15 @@ local function putBannerOnCanvas(banner, list)
         banner.slot:SetAutoSize(false)
         banner.slot:SetSize({ X = MENU_WIDTH, Y = BANNER_HEIGHT })
     end)
-    placeBanner(banner)
+    -- A banner left on the canvas when it can't be placed would have no record to take it away, and every remake of
+    -- the rows would add one more: it is taken off again and goes in the list.
+    local okPlace, whyNot = pcall(placeBanner, banner)
+    if not okPlace then
+        pcall(function() banner.box:RemoveFromParent() end)
+        banner.slot, banner.at = nil, nil
+        return "in the button list (it could not be placed on the canvas: "
+            .. tostring(whyNot):gsub("^.-:%d+: ", "") .. ")"
+    end
     return "on " .. nameOf(canvas) .. " at " .. math.floor(banner.at.X + 0.5) .. "," .. math.floor(banner.at.Y + 0.5)
         .. " (its bottom edge, centred over the buttons)"
 end

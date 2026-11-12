@@ -110,8 +110,8 @@ class GearLogic(Toggle):
     Off: nothing else. Your first Pal Sphere comes early, and gear never holds up progression: better spheres,
     furnaces, tech prerequisites, the Pal Labor Research Lab and breeding are ordinary items. Tech cards that need
     another tech or Lab research first stay normal research, and bred-only Pals aren't checks. A saddle counts only
-    where the seed's map needs one: a flying mount for the Sky Islands, a swimming or flying one for the open sea when
-    a region can't be reached by land.
+    where the seed's map needs one: a flying mount for the Sky Islands, and a swimming or flying one when the goal
+    lies across the open sea (otherwise the parts of the map only the open sea reaches have no checks).
     On: the logic also asks for spheres good enough for each Pal's level and the furnace their recipe needs, every
     tech's prerequisites, the Lab, breeding, and a mount for the open sea."""
     display_name = "Gear Logic"

@@ -1,151 +1,211 @@
 -- Debuff icons for timed traps, so the player sees each running effect and its time left. A row at the top centre of
--- the HUD, under the compass: one ICON x ICON tile per running effect (art/ap-debuff-<name>.png; a tinted tile with the
--- effect's short name until it arrives) with its time left under it (m:ss), in the order the effects started. Hosted
--- on the HUD layout's canvas like the hint pop-up (hint_popup.lua; seen working in game), never taking a click.
+-- the HUD, under the compass: one tile per running effect (art/ap-debuff-<name>.png; a tinted tile with the effect's
+-- short name until it arrives) with its time left under it (m:ss), in the order the effects started. Hosted on the
+-- HUD layout's canvas like the hint pop-up (WIDGETS.hudCanvas; seen working in game), never taking a click.
 -- Untested in game: the icon row and its timers.
 -- Tests: mod/test/tests/locks_hud.lua; group "debuff icons, the hint plate and the goal banner"
 --   (tools/lua_harness.sh, in CI).
-local D = {}
+local DEBUFFS = {}
 local ART = require("art")
-local ICON, GAP, TOP = 44, 10, 112
-local TICK_SECONDS = 0.3                 -- main.lua's update period
+local CLOCK = require("clock")
 local UTIL = require("util")
-local log, once = UTIL.log, UTIL.onceIn("debuffs")
 local WIDGETS = require("widgets")
+local once = UTIL.onceIn("debuffs")
+
+-- The row's layout, in px of the HUD.
+local TILE = 44                  -- a tile's width and height
+local GAP = 10                   -- between two tiles
+local ROW_TOP = 112              -- from the screen's top to the row: under the compass
+local TIMER_HEIGHT = 22          -- the timer's line under a tile
+local TIMER_GAP = 3              -- between a tile and its timer
+local LABEL_HALF_LINE = 7        -- half the short name's line, so the name sits centred on a plain tile
+local LABEL_PT, TIMER_PT = 9, 11 -- text sizes: a plain tile's short name, the timer
+local ROW_Z = 900                -- over the HUD's own widgets, under the hint plate and banner (WIDGETS.OVER_HUD_Z)
+local WAIT = {
+    endedShows = UTIL.updates(0.9),   -- an effect whose time is up stays this long (at 0:00) before the row drops it
+}
 
 local CREAM, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("17324D", 0.9)
 
-local list = {}                          -- { { key, icon, short, tint, untilTick } } in the order they started
-local shown = nil                        -- { box, layout, sig, timers = { key -> TextBlock }, left = { key -> seconds shown } }
+-- State: the running effects, in the order they started: { key, icon, short, tint, untilTick }. Forgotten: when an
+-- effect ends (DEBUFFS.clear, from traps.lua) or its time is up (DEBUFFS.tick); kept through a world change, since
+-- traps.lua ends the effect itself.
+local effects = {}
+-- State: the row on screen: { box, layout, hud = the HUD layout's address (UTIL.addr), sig, timers = { key ->
+-- TextBlock }, left = { key -> seconds shown } }. Forgotten: when taken down, when its HUD is gone (DEBUFFS.tick),
+-- and at a world change (DEBUFFS.forget).
+local shown = nil
 
--- The canvas of the HUD layout the player sees, or nil and why. Not the last world's, which can still be listed.
-local function hudCanvas()
-    local layout
-    for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
-        local ok, vis = pcall(function() return l:IsValid() and l:IsVisible() end)
-        if ok and vis and not UTIL.ownerGone(l) then layout = l; break end
-    end
-    if not layout then return nil, nil, "no HUD layout on screen" end
-    local root = layout.WidgetTree.RootWidget
-    for _ = 1, 3 do
-        if not (root and root:IsValid()) then break end
-        local okc, cls = pcall(function() return root:GetClass():GetFName():ToString() end)
-        if okc and cls == "CanvasPanel" then return root, layout end
-        local okk, k = pcall(function() return root:GetChildAt(0) end)
-        root = okk and k or nil
-    end
-    return nil, nil, "no canvas in the HUD layout"
-end
-
--- A line of text centred in its box, on one line (the timer under an icon).
-local function text(outer, s, size, colour)
-    local block = WIDGETS.text(outer, s, size, colour)
-    pcall(function() block:SetAutoWrapText(false) end)
+-- A line of text centred in its box, on one line (the timer under a tile, a plain tile's short name).
+local function centredLine(owner, words, size, colour)
+    local block = WIDGETS.textLine(owner, words, size, colour)
     pcall(function() block:SetJustification(WIDGETS.JUSTIFY.center) end)
     return block
 end
 
--- m:ss left of an effect ending at `untilTick`, seen from `tick`.
-local function clock(untilTick, tick)
-    local s = math.max(0, math.ceil((untilTick - tick) * TICK_SECONDS))
-    return string.format("%d:%02d", s // 60, s % 60), s
+-- `child` in a box one tile wide.
+local function tileWide(layout, child)
+    local box = WIDGETS.construct(WIDGETS.UMG.sizeBox, layout)
+    box:SetWidthOverride(TILE)
+    box:AddChild(child)
+    return box
 end
-D.clock = clock
+
+-- m:ss left of an effect ending at `untilTick`, seen from `tick`, and those seconds.
+local function clock(untilTick, tick)
+    local seconds = math.max(0, math.ceil(CLOCK.seconds(untilTick - tick)))
+    return string.format("%d:%02d", seconds // 60, seconds % 60), seconds
+end
+DEBUFFS.clock = clock                -- (for the harness: locks_hud.lua)
 
 local function hide()
-    if shown then pcall(function() shown.box:RemoveFromParent() end) end
+    if shown then
+        pcall(function() shown.box:RemoveFromParent() end)
+    end
     shown = nil
 end
 
-local function build(tick)
-    hide()
-    if #list == 0 then return end
-    local canvas, layout, why = hudCanvas()
-    if not canvas then once("debuffnohud" .. why, "debuffs: " .. why .. "; not shown"); return end
-    local width = #list * ICON + (#list - 1) * GAP
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
-    box:SetWidthOverride(width)
-    box:SetHeightOverride(ICON + 22)
-    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
-    box:AddChild(over)
-    local timers, left = {}, {}
-    for i, e in ipairs(list) do
-        local x = (i - 1) * (ICON + GAP)
-        local art = ART.box(layout, e.icon, ICON, ICON)
-        if art then
-            WIDGETS.place(over, art, x, 0)
-        else
-            once("debuffnoart" .. e.icon, "debuffs: no " .. e.icon .. ".png yet; a plain tile instead")
-            WIDGETS.place(over, (WIDGETS.plain(layout, ICON, ICON, e.tint or NAVY)), x, 0)
-            local label = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
-            label:SetWidthOverride(ICON)
-            label:AddChild(text(layout, e.short, 9, CREAM))
-            WIDGETS.place(over, label, x, ICON / 2 - 7)
-        end
-        local t = text(layout, (clock(e.untilTick, tick)), 11, CREAM)
-        local tb = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
-        tb:SetWidthOverride(ICON)
-        tb:AddChild(t)
-        WIDGETS.place(over, tb, x, ICON + 3)
-        timers[e.key], left[e.key] = t, select(2, clock(e.untilTick, tick))
+-- One effect's tile at `x` on the row's overlay: its icon (or a plain tile with its short name) and its timer. The
+-- timer's text block.
+local function addTile(layout, over, effect, x, tick)
+    local art = ART.box(layout, effect.icon, TILE, TILE)
+    if art then
+        WIDGETS.place(over, art, x, 0)
+    else
+        once("debuffnoart" .. effect.icon, "debuffs: no " .. effect.icon .. ".png yet; a plain tile instead")
+        WIDGETS.place(over, (WIDGETS.plain(layout, TILE, TILE, effect.tint or NAVY)), x, 0)
+        local label = tileWide(layout, centredLine(layout, effect.short, LABEL_PT, CREAM))
+        WIDGETS.place(over, label, x, TILE / 2 - LABEL_HALF_LINE)
     end
-    local slot = canvas:AddChildToCanvas(box)
-    pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0 }, Maximum = { X = 0.5, Y = 0 } }) end)
-    pcall(function() slot:SetAlignment({ X = 0.5, Y = 0 }) end)
-    pcall(function() slot:SetPosition({ X = 0, Y = TOP }) end)
-    pcall(function() slot:SetAutoSize(true) end)
-    pcall(function() slot:SetZOrder(900) end)
-    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, layout = layout, timers = timers, left = left }
-    once("debuffshown", "debuffs: shown at the top of the HUD (" .. #list .. " effect(s))")
+    local timer = centredLine(layout, (clock(effect.untilTick, tick)), TIMER_PT, CREAM)
+    WIDGETS.place(over, tileWide(layout, timer), x, TILE + TIMER_GAP)
+    return timer
 end
 
+-- Builds the row for the effects running now on the HUD the player sees (none when there are none, or no HUD).
+local function build(tick)
+    hide()
+    if #effects == 0 then return end
+    local canvas, layout, why = WIDGETS.hudCanvas()
+    if not canvas then
+        once("debuffnohud" .. why, "debuffs: " .. why .. "; not shown")
+        return
+    end
+    local width = #effects * TILE + (#effects - 1) * GAP
+    local box, over = WIDGETS.hudBox(layout, width, TILE + TIMER_HEIGHT)
+    local timers, left = {}, {}
+    for i, effect in ipairs(effects) do
+        timers[effect.key] = addTile(layout, over, effect, (i - 1) * (TILE + GAP), tick)
+        left[effect.key] = select(2, clock(effect.untilTick, tick))
+    end
+    WIDGETS.pinToCanvas(canvas, box, { anchor = { X = 0.5, Y = 0 }, alignment = { X = 0.5, Y = 0 },
+                                       position = { X = 0, Y = ROW_TOP }, z = ROW_Z })
+    shown = { box = box, layout = layout, hud = UTIL.addr(layout), timers = timers, left = left }
+    once("debuffshown", "debuffs: shown at the top of the HUD (" .. #effects .. " effect(s))")
+end
+
+-- The running effects as one text, so a change of set or icon rebuilds the row.
 local function signature()
     local parts = {}
-    for _, e in ipairs(list) do parts[#parts + 1] = e.key .. ":" .. e.icon end
+    for _, effect in ipairs(effects) do
+        parts[#parts + 1] = effect.key .. ":" .. effect.icon
+    end
     return table.concat(parts, "|")
 end
 
 -- An effect starts, or restarts with a new end (a second Slow Trap). icon: the art file's name (no .png); short: the
 -- tile's label until that art arrives; tint: the plain tile's colour (linear) or nil.
-function D.set(key, icon, short, untilTick, tint)
-    for _, e in ipairs(list) do
-        if e.key == key then e.untilTick, e.icon, e.short, e.tint = untilTick, icon, short, tint; return end
+function DEBUFFS.set(key, icon, short, untilTick, tint)
+    for _, effect in ipairs(effects) do
+        if effect.key == key then
+            effect.untilTick, effect.icon, effect.short, effect.tint = untilTick, icon, short, tint
+            return
+        end
     end
-    list[#list + 1] = { key = key, icon = icon, short = short, untilTick = untilTick, tint = tint }
-end
-function D.clear(key)
-    for i, e in ipairs(list) do if e.key == key then table.remove(list, i); return end end
-end
-function D.active()
-    local out = {}
-    for _, e in ipairs(list) do out[#out + 1] = e.key end
-    return out
+    effects[#effects + 1] = { key = key, icon = icon, short = short, untilTick = untilTick, tint = tint }
 end
 
--- Every update: drops effects whose time is up, (re)builds the row when the set changed or its HUD went away with the
--- world, and otherwise only sets a timer's text when its second changes.
-function D.tick(tick)
-    for i = #list, 1, -1 do if tick >= list[i].untilTick + 3 then table.remove(list, i) end end
-    local sig = signature()
-    local ok, valid = true, true
-    -- Still there: the row, and the HUD layout it sits in still on screen (a world change makes a new one).
-    if shown then ok, valid = pcall(function() return shown.box:IsValid() and shown.layout:IsValid() and shown.layout:IsVisible() end) end
-    if not shown or shown.sig ~= sig or not (ok and valid) then
-        if #list == 0 then hide(); return end
-        build(tick)
-        if shown then shown.sig = sig end
-        return
-    end
-    for _, e in ipairs(list) do
-        local t = shown.timers[e.key]
-        local s, n = clock(e.untilTick, tick)
-        if t and shown.left[e.key] ~= n then
-            shown.left[e.key] = n
-            pcall(function() t:SetText(FText(s)) end)
+-- An effect has ended (traps.lua): its tile goes at the next update.
+function DEBUFFS.clear(key)
+    for i, effect in ipairs(effects) do
+        if effect.key == key then
+            table.remove(effects, i)
+            return
         end
     end
 end
 
-function D.reset() list = {}; hide() end
-return D
+-- The keys of the running effects (for the harness: locks_hud.lua).
+function DEBUFFS.active()
+    local out = {}
+    for _, effect in ipairs(effects) do
+        out[#out + 1] = effect.key
+    end
+    return out
+end
+
+-- Drops the effects whose time is up (and has shown at 0:00 for WAIT.endedShows).
+local function dropEnded(tick)
+    for i = #effects, 1, -1 do
+        if tick >= effects[i].untilTick + WAIT.endedShows then
+            table.remove(effects, i)
+        end
+    end
+end
+
+-- Whether the row on screen still stands, on a HUD layout still shown (a world change makes a new one).
+local function rowStands()
+    local ok, stands = pcall(function()
+        return shown.box:IsValid() and shown.layout:IsValid() and shown.layout:IsVisible()
+    end)
+    return ok and stands
+end
+
+-- Sets each timer's text when its second changes.
+local function countDown(tick)
+    for _, effect in ipairs(effects) do
+        local timer = shown.timers[effect.key]
+        local text, seconds = clock(effect.untilTick, tick)
+        if timer and shown.left[effect.key] ~= seconds then
+            shown.left[effect.key] = seconds
+            pcall(function() timer:SetText(FText(text)) end)
+        end
+    end
+end
+
+-- Every update: drops effects whose time is up, (re)builds the row when the set changed or its HUD went away with the
+-- world, and otherwise only sets a timer's text when its second changes. A row whose HUD layout is no longer listed
+-- (Return to title) is forgotten without a call to it (see WIDGETS.hudLive).
+function DEBUFFS.tick(tick)
+    dropEnded(tick)
+    if shown and not WIDGETS.hudLive(shown.hud) then
+        shown = nil
+    end
+    local sig = signature()
+    if not shown or shown.sig ~= sig or not rowStands() then
+        if #effects == 0 then
+            hide()
+            return
+        end
+        build(tick)
+        if shown then
+            shown.sig = sig
+        end
+        return
+    end
+    countDown(tick)
+end
+
+-- The world step saw a new pawn, or none: the world may have gone (the title), or the pawn read nil for a moment in
+-- the same world (a faint). The row is taken down while its HUD is still there, else forgotten without touching it;
+-- DEBUFFS.tick builds it again on the HUD of the world the player is in. The effects themselves are kept: traps.lua
+-- ends them. Untested in game: Return to title while a Slow Trap's icon is up.
+function DEBUFFS.forget()
+    if shown and WIDGETS.hudLive(shown.hud) then
+        hide()
+    else
+        shown = nil
+    end
+end
+
+return DEBUFFS

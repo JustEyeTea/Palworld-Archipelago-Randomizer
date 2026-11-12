@@ -386,4 +386,16 @@ group("area locks", function()
         local shown3, hidden3 = tally()
         expect(hidden3 == 0 and shown3 == expected(open), "wall_radius 0: every piece shown: " .. shown3)
     end
+    do  -- The world turns out not to be the seed's while walls stand (a different seed connected here, which has
+        -- another world, or asks first about this one): the walls come down, as the player is told nothing is locked
+        local standing = liveWalls.count()
+        game.worldDir = "VANILLA"                              -- (the same pawn: not a world change)
+        runCycles(12)                                          -- (whole cycles: the groups after keep their phase)
+        local left = liveWalls.count()
+        game.worldDir = "AP_WORLD"
+        runCycles(12)
+        expect(standing > 0 and left == 0 and liveWalls.count() == standing,
+               "walls standing in a world found not to be the seed's come down: " .. left .. " of " .. standing
+               .. " left; " .. liveWalls.count() .. " up again in the seed's world")
+    end
 end)

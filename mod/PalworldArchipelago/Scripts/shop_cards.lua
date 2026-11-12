@@ -15,6 +15,7 @@ local STATE = require("ap_state")
 local TECHS = require("tech_icons")
 local UTIL = require("util")
 local WALLS = require("walls")
+local WORLD = require("world")
 local ICONS, STRUCTURES = TECHS.icons, TECHS.structures
 local ap = STATE.ap
 local keepAlive, log, once, safe = UTIL.keepAlive, UTIL.log, UTIL.once, UTIL.safe
@@ -102,8 +103,11 @@ function SHOP_CARDS.rewardText(tech)
     return scouted.player .. "'s " .. scouted.item .. " (" .. scouted.game .. ")"
 end
 
--- Whether a tech's card is a shop slot now: one of DATA.shop, once the shop is open (ap.shopOpen).
-function SHOP_CARDS.isShopSlot(tech) return ap.shopOpen and DATA.shop[tech] ~= nil end
+-- Whether a tech's card is a shop slot now: one of DATA.shop, once the shop is open (ap.shopOpen), and not in a world
+-- known not to be the seed's (there the cards and the shop's hooks give the game's own answers).
+function SHOP_CARDS.isShopSlot(tech)
+    return ap.shopOpen and DATA.shop[tech] ~= nil and WORLD.seedWorld() ~= false
+end
 -- Whether a shop slot's check has been sent, or found checked.
 function SHOP_CARDS.bought(tech) return ap.checked[DATA.shop[tech].loc] == true end
 

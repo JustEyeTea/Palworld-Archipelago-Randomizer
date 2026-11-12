@@ -1,24 +1,22 @@
 -- Work for the next few core updates (UTIL.UPDATE_MS each), on the game thread; main.lua runs it at the start of each
 -- update. UE4SS's ExecuteWithDelay and LoopAsync run their callbacks on another thread over the same Lua state, and
--- Lua there corrupts it: a run of tech purchases (each with five delayed confirm-box re-applies and a delayed
--- purchase) crashed the game with the stack seen in every such crash (08E98397). Nothing here runs off-thread.
+-- Lua there corrupts it and crashes the game: nothing here runs off-thread.
 -- Tests: mod/test/tests/core_loop.lua; group "buying a slot" (tools/lua_harness.sh, in CI).
-local S = {}
-local queue = {}
+local SOON = {}
 local UTIL = require("util")
 local log = UTIL.log
 
--- fn runs in `n` updates (1: the next one).
-function S.later(n, fn)
+-- State: the work waiting: { { n = updates left, fn } }. Forgotten: each entry when it has run; never as a whole (the
+-- work is the mod's own, not a world's: work that touches the game looks its objects up when it runs).
+local queue = {}
+
+-- fn runs in `n` updates (1: the next one). A wait in seconds is UTIL.updates(seconds).
+function SOON.later(n, fn)
     queue[#queue + 1] = { n = math.max(1, n), fn = fn }
-end
--- The same, in milliseconds rounded up to whole updates.
-function S.after(ms, fn)
-    S.later(math.ceil(ms / UTIL.UPDATE_MS), fn)
 end
 
 -- Each update (main.lua): runs what is due.
-function S.run()
+function SOON.run()
     if #queue == 0 then return end
     local due, keep = {}, {}
     for _, e in ipairs(queue) do
@@ -38,4 +36,4 @@ function S.run()
     end
 end
 
-return S
+return SOON

@@ -54,6 +54,7 @@ local pages = {}              -- a page's address -> { mailbox, page, main = the
 local pagesFailed = {}        -- a page's address -> true: adding the buttons failed there (each try makes a widget)
 -- State: the in-game main menu. Forgotten: mainMenuNow at every look, mainMenuLook when it is done; the rest never.
 local mainMenuNow = nil       -- whether a live main menu was up at this update's look (nil: not looked yet)
+local mainMenuTabNow = nil    -- the class of the tab the first main menu showed at that look (nil: none up)
 local mainMenuSeen = false    -- a main menu was ever seen (until then the Esc menu is also looked for by its class)
 local fallbackUpdates = 0     -- updates the Esc menu was looked for without a main menu
 local mainMenuLook = nil      -- updates until the look whether the main menu closed for the mailbox (a diagnostic)
@@ -146,8 +147,10 @@ end
 -- template too. Each tab class the main menu shows is logged once, so a missing button has a reason in the log.
 local function inventoryPagesOf(mainMenus)
     local found = {}
+    mainMenuTabNow = nil
     for _, mainMenu in ipairs(mainMenus) do
         local ok, page, tabClass, why = pcall(readTab, mainMenu)
+        mainMenuTabNow = mainMenuTabNow or (ok and tabClass) or nil
         local okTab, tabType = pcall(function() return mainMenu.CurrentTabType end)
         tabType = tostring(okTab and tabType or "?")
         logTabOnce(ok, page, tabClass, why, tabType)
@@ -300,6 +303,9 @@ local function updateEsc(found)
             local key = UTIL.addr(menu)
             local entry = escMenus[key]
             if not entry or not entry.mailbox:IsValid() then
+                if entry then
+                    pcall(CLICKS.release, entry.mailbox)   -- the menu stays, its button is made again
+                end
                 entry = addEscMailbox(menu, key)
             end
             if entry then
@@ -392,14 +398,20 @@ local function addPageButtons(page, bar)
     return button, addCrateButton(page, bar)
 end
 
+-- Lets go of a page record's buttons in clicks.lua, so a game button made later at one of their addresses is not
+-- taken for ours (UTIL.addr reads the address, which a button that is no longer valid still has).
+local function releasePageButtons(entry)
+    pcall(CLICKS.release, entry.mailbox)
+    if entry.crate then
+        pcall(CLICKS.release, entry.crate.button)
+    end
+end
+
 local function forgetGonePages(found)
     local live = foundNow(found, function(entry) return entry.page end)
     for key, entry in pairs(pages) do
         if not live[key] or not entry.page:IsValid() then
-            pcall(CLICKS.release, entry.mailbox)
-            if entry.crate then
-                pcall(CLICKS.release, entry.crate.button)
-            end
+            releasePageButtons(entry)
             pages[key] = nil
         end
     end
@@ -470,6 +482,9 @@ local function updatePages(found)
         local key = UTIL.addr(item.page)
         local entry = pages[key]
         if (not entry or not entry.mailbox:IsValid()) and not pagesFailed[key] then
+            if entry then
+                releasePageButtons(entry)          -- the page stays, its buttons are made again
+            end
             entry = addToPage(item, key)
         end
         if entry then
@@ -534,6 +549,11 @@ end
 -- Whether the in-game main menu was up at the last look; nil before the first look.
 function WORLD.mainMenuUp()
     return mainMenuNow
+end
+
+-- The class of the tab the main menu showed at the last look ("nothing" for none), or nil with no main menu up.
+function WORLD.mainMenuTab()
+    return mainMenuNow and mainMenuTabNow or nil
 end
 
 return WORLD

@@ -21,6 +21,7 @@ M.TITLE = "Archipelago Mailbox"
 --   save()                writes the mod's save file
 --   cfg                   config.txt's values (mailbox_view, mailbox_slots, mailbox_key)
 --   connected()           whether the connection to Archipelago is up
+--   seedWorld()           whether the loaded world is the seed's: true, false, or nil before it is known (world.lua)
 --   guardedHook(name, fn) optional: a hook callback that no update can run inside
 local env
 
@@ -175,7 +176,8 @@ function M.tellStays(id, why)
     log("mailbox: " .. id .. " stays in the mailbox: " .. tostring(why))
 end
 
--- Takes one item's whole entry into the bag; how many went in. What the bag refuses stays in the list.
+-- Takes one item's whole entry into the bag; how many went in. What the bag refuses stays in the list. The caller
+-- writes the save file (once, after all it takes: a write each kind would be one per kind on Take all).
 function M.take(id)
     for index, entry in ipairs(M.queue) do
         if entry.id == id then
@@ -187,7 +189,6 @@ function M.take(id)
             if got == 0 then
                 M.tellStays(id, why)
             end
-            env.save()
             return got
         end
     end
@@ -203,11 +204,17 @@ function M.takeAll()
         took = took + got
         left = left + (count - got)
     end
+    env.save()
     return took, left
 end
 
--- Asks for the mailbox to open; it opens on a later update, once the menu the player clicked in has closed.
+-- Asks for the mailbox to open; it opens on a later update, once the menu the player clicked in has closed. In a
+-- world that is not the seed's it stays shut: what the player took would leave the seed for that world's bag.
 function M.open()
+    if env.seedWorld() == false then
+        env.notify("Your mailbox opens only in the world this seed is played in.")
+        return
+    end
     if not env.connected() and #M.queue == 0 then
         env.notify("Connect to Archipelago to see your mailbox.")
         return
@@ -272,7 +279,13 @@ end
 local function tryChest(pawn, playerState)
     local chest = CHEST.find()
     if not chest then
-        CHEST.startMaking(pawn, playerState)
+        local ok, err = pcall(CHEST.startMaking, pawn, playerState)
+        if not ok then
+            -- Given up, not asked again every update: an open still asked holds every trap back (M.busy).
+            openAsked = false
+            once("startmaking", "mailbox: could not start making the hidden chest: " .. tostring(err))
+            env.notify("The mailbox could not open: its chest could not be made. Try again in a moment.")
+        end
         return
     end
     openAsked = false

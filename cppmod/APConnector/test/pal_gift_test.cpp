@@ -1,4 +1,5 @@
 // Linux check of pal_gift_logic (the Unreal-free half of AP_GivePal): arguments, route choice, report shape, polling.
+// Run by CI ("The C++ part's Pal-gift logic"); by hand, from cppmod/APConnector:
 //   g++ -std=c++17 -Isrc test/pal_gift_test.cpp src/pal_gift_logic.cpp src/lua_text.cpp -o /tmp/pal_gift_test
 //   /tmp/pal_gift_test
 #include <cstdio>
@@ -35,7 +36,8 @@ int main()
     expect(choose_route(Route::Auto, 3, 5) == Route::PartyDebug, "auto with room: the party");
     expect(choose_route(Route::Auto, 5, 5) == Route::Palbox, "auto with a full party: the Palbox");
     expect(choose_route(Route::PartyPlain, 5, 5) == Route::PartyPlain, "a named route is kept, even when full");
-    expect(std::string(route_name(Route::PartyDebug)) == "party_debug" && std::string(route_name(Route::Palbox)) == "palbox",
+    expect(std::string(route_name(Route::PartyDebug)) == "party_debug" &&
+               std::string(route_name(Route::Palbox)) == "palbox",
            "route names match what Lua passes");
 
     const uint8_t g[16] = {0x4D, 0x3C, 0x2B, 0x1A, 0, 0, 0, 0, 1, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -49,14 +51,34 @@ int main()
     const auto text = r.finish("ok party");
     expect(text == "party: 3/5\nresult: ok party", "the report ends with its result line");
     expect(mirrored.size() == 2 && mirrored[1] == "result: ok party", "every line is mirrored as it is added");
+    // test_tools.lua matches these two lines exactly.
+    expect(Report().finish(RESULT_PENDING) == "result: pending" && Report().finish(RESULT_BUSY) == "result: busy",
+           "the result words test_tools.lua reads");
+    expect(fail_result("party full (5/5)") == "fail party full (5/5)", "a fail's result: 'fail <reason>'");
 
+    expect(arrived_by_count(false, 3, 4), "a gift with no id: the party growing counts as its arrival");
+    expect(!arrived_by_count(true, 3, 4),
+           "a gift with an id: the party growing does not count (another Pal moved in?)");
+    expect(!arrived_by_count(false, 3, 3), "a gift with no id: the party the same size, not arrived");
+
+    const auto here = PlayerAtPoll::Here;
     PendingGift p;
     PollVerdict v = PollVerdict::Wait;
-    for (int i = 0; i < MAX_POLLS - 1; ++i) v = next_poll(p, false);
+    for (int i = 0; i < MAX_POLLS - 1; ++i) v = next_poll(p, here, false);
     expect(v == PollVerdict::Wait, "still waiting before the last poll");
-    expect(next_poll(p, false) == PollVerdict::Timeout, "a timeout after MAX_POLLS polls");
+    expect(next_poll(p, here, false) == PollVerdict::Timeout, "a timeout after MAX_POLLS polls");
     PendingGift q2;
-    expect(next_poll(q2, false) == PollVerdict::Wait && next_poll(q2, true) == PollVerdict::Ok, "ok once seen");
+    expect(next_poll(q2, here, false) == PollVerdict::Wait && next_poll(q2, here, true) == PollVerdict::Ok,
+           "ok once seen");
+
+    PendingGift fainted;
+    fainted.polls = MAX_POLLS - 1;
+    expect(next_poll(fainted, PlayerAtPoll::BetweenPawns, false) == PollVerdict::Wait,
+           "no pawn (fainted, respawning) with the same controller: the gift is kept");
+    expect(fainted.polls == MAX_POLLS - 1, "a poll without a pawn is not counted");
+    PendingGift left;
+    expect(next_poll(left, PlayerAtPoll::Gone, false) == PollVerdict::Dropped,
+           "no controller or another one: the gift is dropped");
 
     std::printf("%s\n", failures ? "FAILED" : "all passed");
     return failures ? 1 : 0;

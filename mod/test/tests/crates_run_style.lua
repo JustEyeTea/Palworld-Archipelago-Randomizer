@@ -1,5 +1,5 @@
 -- Palworld Crates and their window, and the run style (Nomad) and Speed Boost.
--- Tests crates.lua, crate_window.lua, items.lua, sync.lua.
+-- Tests crates.lua, crate_window.lua, items.lua, run_style.lua.
 
 group("Palworld Crates", function()
     -- Rolled on arrival, the same every time.
@@ -34,6 +34,19 @@ group("Palworld Crates", function()
         end
     end
     expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
+    -- The level can't be read for a moment (the pawn missing): the last level read stands, for the crate and the shop.
+    local STATE = require("ap_state")
+    runCycles(2)
+    local known = STATE.ap.level
+    game.playerLevel = nil
+    runCycles(2)
+    local keptLevel = STATE.ap.level
+    CR.list = { "sphere" }
+    local openedAt = logMark()
+    require("items").openCrate()
+    game.playerLevel = known
+    expect(known == 4 and keptLevel == known and loggedSince(openedAt, "opened a Sphere Crate at level 4:"),
+           "an unreadable level keeps the last one read, and a crate rolls at it: " .. tostring(keptLevel))
 end)
 
 group("the crate window", function()
@@ -326,7 +339,8 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
            and logged("sync: Speed Boost: ExpRate 1 %-> 3 %(the world's own 1 x3%); reads back 3"),
            "Speed Boost: EXP x3, work speed x3, gathering x2, logged with what reads back")
     expect(warned("Speed Boost changed your World Settings: EXP Rate 3, Work Speed Multiplier 3, Gatherable Items "
-                  .. "Multiplier 2 %(your world's own: 1, 1, 1%)%. Your world keeps these in its save; set them back"),
+                  .. "Multiplier 2 %(your world's values before this seed: 1, 1, 1%)%. Your world keeps these in its save; set "
+                  .. "them back"),
            "the player is warned in game, with the values to set back")
     expect(h.saveText("70015", "Other"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
            "the world's own values are in the save")
@@ -393,6 +407,47 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     runCycles(2)
     expect(newWarning() and logged("held notice%(s%) shown %(the player moved%)"), "and is shown once the player moves")
     pawnAddress, pawnAt = pawnWas, atWas
+    -- World settings that can be written but not read back: the change is still logged field by field, and the
+    -- world's own values still saved.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    util.GetOptionSubsystem = function()
+        local reads = 0
+        local sub = { IsValid = function() return true end }
+        setmetatable(sub, { __index = function(_, key)
+            if key ~= "OptionWorldSettings" then return nil end
+            reads = reads + 1
+            if reads > 1 then error("the world settings can't be read back") end
+            return ws
+        end })
+        return sub
+    end
+    local readBackAt = logMark()
+    h.switchSeed("70017", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
+    runSeconds(70)
+    util.GetOptionSubsystem = function() return optionSub end
+    expect(loggedSince(readBackAt, "sync: Speed Boost: ExpRate 1 %-> 3 .*reads back nil")
+           and not loggedSince(readBackAt, "sync error")
+           and h.saveText("70017", "Other"):find("syncbase=ExpRate:1,", 1, true),
+           "a read-back that fails is logged as nothing read, and the world's own values are saved")
+    -- A faint gives a new character (a new pawn) in the same world: the warning is not shown again.
+    local function warnings()
+        local n = 0
+        for _, t in ipairs(announced) do
+            if t:find("Speed Boost changed your World Settings", 1, true) or t:find("Speed Boost is on", 1, true) then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    local warnedOnce = warnings()
+    for _ = 1, 2 do
+        newPawn()
+        runSeconds(70)
+    end
+    pawnAddress = pawnWas
+    runSeconds(70)
+    expect(warnings() == warnedOnce, "a new character in the same world brings no second Speed Boost warning: "
+           .. warnedOnce .. " then " .. warnings())
     slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
     inWorld(false)
 end)

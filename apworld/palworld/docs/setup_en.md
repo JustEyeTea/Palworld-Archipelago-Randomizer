@@ -12,9 +12,10 @@ with `[PalworldAP]`.
 - The mod package, `PalworldArchipelago-v<version>.zip`, from the project's
   [Releases](https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases) page. It holds
   `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
-- Optional: `PalworldArchipelagoArt.pak` from the same release, the walls' own material (paws in each region's
-  colour, a glow near you, a dissolve when a region opens). Without it the walls use the game's own wall material in
-  your region colours.
+- Optional: `PalworldArchipelagoArt.pak`, the walls' own material (paws in each region's colour, a glow near you, a
+  dissolve when a region opens), among the same release's downloads. It is built by hand in the Palworld Modding Kit
+  and added to each release separately, so an early release may not have it yet. Without it the walls use the game's
+  own wall material in your region colours.
 
 ## Installing
 
@@ -65,7 +66,11 @@ with `[PalworldAP]`.
 ## Playing
 
 - The Technology tree (levels 2 and up) is the shop. Each card shows what buying it sends; buying spends the usual
-  tech points. A tech itself unlocks only when its item arrives. Shop slots can only be bought while connected.
+  tech points. A tech itself unlocks only when its item arrives. If the connection drops while you play, you can
+  keep buying: the check is sent when the connection is back. You can also start without connecting, in a world
+  you have played the seed in before: purchases are kept and sent the next time you connect to that seed (untested
+  in game). In a new world, nothing can be bought until you connect. In a world that is not the seed's, research
+  works as in plain Palworld.
 - Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them. Gear and
   accessories from Palworld Crates go straight into your bag.
 - With Area Locks on, a locked region is walled off with a red grid and shown grey on the map until its Region Pass

@@ -7,6 +7,9 @@ group("loading the mod", function()
     local rf = io.open(MOD .. "/research.txt", "w")          -- the last seed's research list, from an earlier session
     rf:write("Torch,Lamp\n")
     rf:close()
+    -- An earlier session played seed 55555 as Tester in the world EARLIER: its save file, and worlds.txt's line.
+    writeFile(h.saveFile("55555"), "given=-1\nworld=EARLIER\ndeaths=0\nend\n")
+    writeFile(MOD .. "/worlds.txt", "EARLIER\t55555\tTester\n")
     dofile(MOD .. "/Scripts/main.lua")
     -- config.txt without map_icons: the locked areas are the map's own icons. The main run below keeps testing the
     -- stamps drawn into the picture (map_icons=0, also what a failure of the icons falls back to); the icons have their
@@ -41,6 +44,49 @@ group("loading the mod", function()
     early.set = function(self, v) self.v = v end
     hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"](nil, early)
     expect(early.v:ToString() == "Lamp" and not logged("Not connected"), "and can be researched as usual")
+    -- Started offline, never connected this session, in a world worlds.txt does not name (no seed known): a shop slot
+    -- is refused, and nothing unlocks.
+    runCycles(1)
+    local offline = { v = FNameOf("RepairBench") }
+    offline.get = function(self) return self.v end
+    offline.set = function(self, v) self.v = v end
+    hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"](nil, offline)
+    run(1)
+    expect(offline.v:ToString() == "AP_ShopSlot" and h.told("Connect to Archipelago to buy shop slots."),
+           "no seed known yet: a shop slot is not bought, the game unlocks nothing, and the player is told how")
+    -- Started offline in the world worlds.txt names for seed 55555: its save is loaded and a purchase is queued in it,
+    -- to be sent when 55555 connects. The card shows the unscouted label (no scouts this session).
+    local ap = require("ap_state").ap
+    h.loadWorld("EARLIER")
+    runCycles(2)
+    local slot
+    local names = {}
+    for tech in pairs(D.shop) do
+        names[#names + 1] = tech
+    end
+    table.sort(names)
+    for _, tech in ipairs(names) do
+        if not slot and D.shop[tech].cost <= 1 and not D.shop[tech].ancient then
+            slot = tech
+        end
+    end
+    local loc = D.shop[slot].loc
+    shared.earlierLoc = loc                     -- the check bought offline for seed 55555 (sent in goals.lua)
+    local pointsWere = td.TechnologyPoint
+    td.TechnologyPoint = 12
+    offline.v = FNameOf(slot)
+    hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"](nil, offline)
+    run(1)
+    local charged = td.TechnologyPoint == 12 - D.shop[slot].cost
+    td.TechnologyPoint = pointsWere
+    local label = require("shop_cards").rewardText(slot)
+    expect(ap.seed == "55555" and ap.bought[loc] and charged and not checks[loc]
+           and h.saveText("55555"):find("bought=[%d,]*" .. loc) and h.told("check is sent when the connection is back"),
+           "started offline in a world worlds.txt names: the slot is bought for its seed, charged and saved, not sent: "
+           .. tostring(ap.seed))
+    expect(label == "Archipelago item", "its card shows the unscouted label: " .. label)
+    h.loadWorld("AP_WORLD")
+    run(1)
 end)
 
 group("connect and receive", function()
@@ -84,6 +130,10 @@ group("connect and receive", function()
     expect(checks[D.alpha_spawners.yamijima_iceland_pink_d_boss[1]], "alpha checked by spawner id")
     expect(checks[D.fast_travel.FTPoint101], "fast travel mapped from its instance id")
     expect(#announced > 0, "notices shown in game: " .. tostring(announced[1]))
+    -- Seed 55555 was in memory (loaded offline in "loading the mod") when seed 12345 connected: its purchase is not
+    -- sent to 12345, and stays in 55555's save for that seed's next connection.
+    expect(not checks[shared.earlierLoc] and h.saveText("55555"):find("bought=[%d,]*" .. shared.earlierLoc),
+           "another seed connected: the purchase queued offline for the old seed is not sent, and stays in its save")
 end)
 
 group("techs the seed leaves as research (tech_checks no_decor)", function()
@@ -132,5 +182,17 @@ group("other mods' techs", function()
     expect(r and #r.changed == 0 and #r.warn == 0 and #r.removed == 1 and #r.added == 1 and r.unread,
            "rows read back empty: levels not compared, added and removed still reported")
     td.GetTechlonogyBaseData = realRow
+    -- A tech this seed leaves as research, removed by another mod: still in the report, so a later seed in this
+    -- session that has it as a shop slot sends its check (the scan runs once a session).
+    liveTechs = {}
+    for _, id in ipairs(saved) do
+        if id ~= "Torch" then
+            liveTechs[#liveTechs + 1] = id
+        end
+    end
+    r = TS.scan(td, D)
+    local removed = r and table.concat(r.removed, ",") or "no report"
+    expect(D.research.Torch and ("," .. removed .. ","):find(",Torch,", 1, true),
+           "a removed tech the seed leaves as research is reported removed too: " .. removed)
     liveTechs = saved
 end)

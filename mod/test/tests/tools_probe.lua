@@ -126,12 +126,35 @@ if PERF then
         notifies[ESC_PATH](escMenu)
         run(1)
         expect(logged("%[perf%] notify WBP_MenuESC_C first fire %(seeded 0 by FindAllOf%)"), "its first fire is logged")
-        local anotherEscMenu = Widget()
-        function anotherEscMenu:GetFullName() return "WBP_MenuESC_C /Engine/Transient.WBP_MenuESC_C_2" end
-        notifies[ESC_PATH](anotherEscMenu)
+        -- An Esc menu that has gone with its world (Return to title): the set keeps its address only, and the check
+        -- drops it without a call to it (a call on a freed widget, IsValid included, can crash the game).
+        local goneEscMenu = Widget()
+        function goneEscMenu:GetFullName() return "WBP_MenuESC_C /Engine/Transient.WBP_MenuESC_C_2" end
+        notifies[ESC_PATH](goneEscMenu)
+        local calls = {}
+        for _, method in ipairs({ "IsValid", "GetFullName" }) do
+            goneEscMenu[method] = function()
+                calls[#calls + 1] = method
+                error("a widget of the world gone, called")
+            end
+        end
+        local checkAt = logMark()
         run(100 + 5)          -- a check round starts within 100 updates and takes one update per watched class (5)
-        expect(logged("WBP_MenuESC_C=1/0/2") and logged("MISMATCH"),
-               "an object in the set that FindAllOf does not find is a mismatch")
+        expect(#calls == 0 and loggedSince(checkAt, "WBP_MenuESC_C=0/0/2") and loggedSince(checkAt, "%) ok"),
+               "an Esc menu FindAllOf no longer lists is dropped from the set without a call to it: "
+               .. table.concat(calls, ","))
+        -- A live Esc menu that NotifyOnNewObject never reported is a mismatch.
+        local seenEscMenu = escMenu
+        escMenu = Widget({ GetClass = seenEscMenu.GetClass })
+        function escMenu:GetFullName() return "WBP_MenuESC_C /Engine/Transient.WBP_MenuESC_C_3" end
+        game.escOpen = true
+        checkAt = logMark()
+        run(100 + 5)
+        game.escOpen = false
+        escMenu = seenEscMenu
+        run(2)
+        expect(loggedSince(checkAt, "WBP_MenuESC_C=0/1/2") and loggedSince(checkAt, "MISMATCH"),
+               "an object FindAllOf finds that NotifyOnNewObject did not report is a mismatch")
 
         keyBinds["key:SIX"]()
         expect(logged("%[perf%] mark 1") and logged("%[perf%] mark1 win="),

@@ -12,9 +12,11 @@ lua_mod=mod/PalworldArchipelago/Scripts
 # Trap's key (traps.lua). A new one goes here, with where it lives.
 GAME_SIDE_NAMES="AP_Clicked AP_MailboxGivesOnly AP_ShopSlot AP_SlowTrap"
 
-names() { grep -oE '\bAP_[A-Za-z]+\b' | sort -u; }
+# Every AP_ name in its input, once each. Digits and underscores count as part of a name (AP_Compose2, AP_Map_Screen):
+# a pattern of letters only would see no name there, and so report nothing missing.
+names() { grep -oE '\bAP_[A-Za-z0-9_]+' | sort -u; }
 listed=$(sed '/^#include/,$d' "$dllmain" | names)
-registered=$(grep -oE 'register_text<[a-z_]+>\(lua, "AP_[A-Za-z]+"\)' "$dllmain" | names)
+registered=$(grep -oE 'register_text<[A-Za-z0-9_]+>\(lua, "AP_[A-Za-z0-9_]+"\)' "$dllmain" | names)
 used=$(cat "$lua_mod"/*.lua | names | grep -vxF -f <(tr ' ' '\n' <<< "$GAME_SIDE_NAMES"))
 
 failed=0

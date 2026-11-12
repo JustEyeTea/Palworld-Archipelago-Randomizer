@@ -9,8 +9,12 @@ group("the Inventory page's mailbox button", function()
     run(1)
     -- Menus closed: one object scan per update, for the main menu only (open-questions: the FPS drop and FindAllOf).
     local escScans, mainScans = lookups.WBP_MenuESC_C or 0, lookups.WBP_InGameMainMenu_C or 0
+    -- (with the probe on, its notify check walks the Esc menu's class once every 100 updates: the probe's walk, not
+    -- the menu's, and whether it falls in these 10 depends on how many updates the groups before took)
+    local probeWalks = PERF and 1 or 0
     run(10)
-    expect((lookups.WBP_MenuESC_C or 0) == escScans and (lookups.WBP_InGameMainMenu_C or 0) == mainScans + 10,
+    expect((lookups.WBP_MenuESC_C or 0) - escScans <= probeWalks
+           and (lookups.WBP_InGameMainMenu_C or 0) == mainScans + 10,
            "with the menus closed, only the main menu is looked for: " .. (lookups.WBP_MenuESC_C or 0) - escScans
            .. " Esc scans")
     -- Each tab widget the main menu shows is logged once, with the tab, so a missing button has a reason in the log.
@@ -60,6 +64,22 @@ group("the Inventory page's mailbox button", function()
         expect(whileOpen == false and shared.isResearched(slot) == nil,
                "the game's answer again, for crafting and building: " .. tostring(whileOpen) .. ", "
                .. tostring(shared.isResearched(slot)))
+        -- Another tab of the main menu with no un-hover (a key switches the tab under a resting pointer): the card is
+        -- forgotten too, so a confirm box there (throwing an item away) is not taken for a purchase.
+        local SHOP = require("shop")
+        mainMenu = MainMenu(NamedWidget("WBP_MainMenu_Technology_C_1", "WBP_MainMenu_Technology_C"), 1)
+        game.mainMenuOpen = true
+        shared.info["Setup by Technology Name"](shared.info, FNameOf("RepairBench"))
+        run(2)
+        local onTechTab = SHOP.hovered()
+        mainMenu.CurrentContentWidget = NamedWidget("WBP_MainMenu_Pal_C_1", "WBP_MainMenu_Pal_C")
+        run(1)
+        local onOtherTab = SHOP.hovered()
+        game.mainMenuOpen = false
+        run(1)
+        game.mainMenuOpen = nil
+        expect(onTechTab == "RepairBench" and onOtherTab == nil,
+               "a card remembered on the Technology tab is forgotten on another tab: " .. tostring(onOtherTab))
     end)
     -- The main menu on its Inventory tab.
     local page, barKids, editName = inventoryPage()
@@ -223,5 +243,35 @@ group("the Inventory page's mailbox button", function()
     game.escOpen = false
     inWorld(false)
     noController()
-
+    do   -- a page's mailbox button gone while the page is not: both buttons made again, and the old ones let go
+        controllerAgain()
+        inWorld(true)
+        local CR = require("crates")
+        local samePage, sameKids = inventoryPage()
+        mainMenu = MainMenu(inventoryTab(samePage), 8)
+        game.mainMenuOpen = true
+        run(1)
+        local oldMail, oldCrate = sameKids[1] and sameKids[1].child, sameKids[3] and sameKids[3].child
+        if oldMail then
+            oldMail.gone = true
+        end
+        run(1)
+        local remade = #sameKids
+        game.mainMenuOpen = false
+        run(2)
+        local saved = CR.list
+        CR.list = { "sphere" }
+        local stranger = Widget()                                -- a game button made later at the old one's address
+        stranger.addr = oldCrate and oldCrate.addr
+        h.clickCommonButton(stranger)
+        run(2)
+        local left = #CR.list
+        CR.list = saved
+        expect(oldCrate and remade == 6 and left == 1,
+               "a crate button made again on the same page leaves no claim behind: a game button at the old one's "
+               .. "address opens nothing: " .. left .. " crate(s) left")
+        game.mainMenuOpen = false
+        inWorld(false)
+        noController()
+    end
 end)

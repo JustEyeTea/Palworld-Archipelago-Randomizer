@@ -12,6 +12,7 @@ It makes, under /Game/Mods/PalworldArchipelagoUI/ (Content/Mods/PalworldArchipel
 
 Unreal's Python can't lay out a widget or add graph nodes, so those few steps are by hand (logicmod/README.md, part 3).
 Assets that already exist are left as they are, so it is safe to run again.
+Tests: none; it runs only in the Modding Kit on Windows, and the window is checked in game (logicmod/README.md).
 """
 import unreal
 
@@ -23,15 +24,18 @@ assets = unreal.EditorAssetLibrary
 
 
 def log(msg):
+    """One line of the Output Log, under this pak's prefix."""
     unreal.log("[PalworldArchipelagoUI] " + msg)
 
 
 def existing(name):
+    """The asset of that name in the pak's folder, or None."""
     path = f"{ROOT}/{name}"
     return assets.load_asset(path) if assets.does_asset_exist(path) else None
 
 
 def native_class(path, fallback_name):
+    """A C++ class of the game by its path (or by its name in the unreal module); stops if it is neither."""
     cls = unreal.load_class(None, path)
     if cls is None:
         cls = getattr(unreal, fallback_name, None)
@@ -41,6 +45,7 @@ def native_class(path, fallback_name):
 
 
 def blueprint(name, parent):
+    """A Blueprint with that parent class, made unless it is there already."""
     bp = existing(name)
     if bp:
         log(f"{name}: already there")
@@ -53,6 +58,7 @@ def blueprint(name, parent):
 
 
 def widget(name, parent):
+    """A Widget Blueprint with that parent class, made unless it is there already."""
     bp = existing(name)
     if bp:
         log(f"{name}: already there")
@@ -65,6 +71,7 @@ def widget(name, parent):
 
 
 def label():
+    """The Primary Asset Label: chunk CHUNK_ID, always cooked, everything in the folder (made once, then updated)."""
     name = "PalworldArchipelagoUI_Label"
     lab = existing(name)
     if not lab:
@@ -84,14 +91,11 @@ def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
     overlay = native_class("/Script/Pal.PalUserWidgetOverlayUI", "PalUserWidgetOverlayUI")
-    made = [
-        blueprint("ModActor", unreal.Actor),
-        widget("WBP_APButton", unreal.UserWidget),
-        widget("WBP_APMailbox", overlay),
-        label(),
-    ]
+    mod_actor = blueprint("ModActor", unreal.Actor)
+    button = widget("WBP_APButton", unreal.UserWidget)
+    window = widget("WBP_APMailbox", overlay)
+    made = [mod_actor, button, window, label()]
     # Esc (and a controller's B) closes the window: the overlay's cancel action, on in the class defaults.
-    window = made[2]
     try:
         unreal.BlueprintEditorLibrary.compile_blueprint(window)
         defaults = unreal.get_default_object(window.generated_class())

@@ -84,7 +84,9 @@ group("the mailbox", function()
            .. ((lookups.PalPlayerController or 0) - l0.pc) .. ", " .. ((lookups.PalPlayerState or 0) - l0.ps))
     expect((lookups.WBP_ItemChest_C or 0) == l0.chest,
            "the chest widget is not looked for while the HUD's id says it is open")
-    expect((lookups.WBP_TitleMenu_C or 0) - l0.title <= 1,
+    -- (with the probe on, its notify check walks the title menu's class once every 100 updates: the probe's walk,
+    -- and whether it falls in these 10 depends on how many updates the groups before took)
+    expect((lookups.WBP_TitleMenu_C or 0) - l0.title <= 1 + (PERF and 1 or 0),
            "in a world the title menu is looked for every 10th update only: "
            .. ((lookups.WBP_TitleMenu_C or 0) - l0.title))
     slots[1].StackCount = 20                                   -- the player takes 30 Wood
@@ -335,5 +337,140 @@ group("the mailbox", function()
         expect(raised == 300 and afterReset == 54 and not toldFailure and not MB.busy(),
                "the templates are put back with the reset, and nothing more is made or said: " .. tostring(afterReset))
         chests, mapObjects.RequestSpawnMapObjectByPlayer_Server = chestsWere, spawnWas
+    end
+    do   -- a world this seed is not played in: the mailbox and the crates stay shut, so the seed's items stay with it
+        local WORLD, CR = require("world"), require("crates")
+        h.loadWorld("VANILLA")
+        run(80)
+        local mailWas, cratesWas, shownWas = MB.count(), CR.list, #chestWindowsShown
+        MB.add("Wood", 7)
+        local toldAt = #announced
+        MB.open()
+        run(6)
+        local told = table.concat(announced, "|", toldAt + 1):find("mailbox opens only in the world this seed", 1, true)
+        expect(WORLD.seedWorld() == false and #chestWindowsShown == shownWas and not MB.busy() and told,
+               "the mailbox does not open in a world that is not the seed's, and says why: "
+               .. #chestWindowsShown - shownWas .. " chest window(s) opened")
+        CR.list = { "sphere" }
+        local opened = require("items").openCrate()
+        expect(opened == nil and #CR.list == 1, "no crate opens in a world that is not the seed's: "
+               .. tostring(opened))
+        CR.list = cratesWas
+        h.loadWorld("AP_WORLD")
+        run(80)
+        MB.removeCount(MB.queue, "Wood", 7)
+        expect(WORLD.seedWorld() == true and MB.count() == mailWas, "back in the seed's world")
+    end
+    do   -- a LogicMod window that fails while it is filled is closed before the chest opens in its place
+        game.logicMod = true
+        local broken = Widget({ Title = window.Title, Summary = window.Summary, TakeAll = PalButton(),
+                                Close = PalButton() })                -- no List
+        hud.Push = function(self, cls, param)
+            if tostring(cls.path):find("WBP_APMailbox", 1, true) then
+                hudWindows["broken"] = broken
+                return "broken"
+            end
+            return pushPlain(self, cls, param)
+        end
+        wbl.Create = function(_, _, cls)
+            if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end
+            return wblCreate()
+        end
+        local shownWas = #chestWindowsShown
+        MB.add("Wood", 1)
+        MB.open()
+        run(6)
+        local chestOpened = #chestWindowsShown > shownWas
+        if chestOpened then
+            h.closeChestWindow()
+            run(2)
+        end
+        hud.Push, wbl.Create, game.logicMod = pushPlain, wblCreate, false
+        expect(chestOpened and broken.gone and logged("the LogicMod window failed"),
+               "the failed LogicMod window is closed before the chest opens in its place: still up: "
+               .. tostring(not broken.gone))
+    end
+    do   -- an item that arrives while the LogicMod window is open gets its row at once
+        game.logicMod = true
+        window.gone = false
+        hud.Push = function(self, cls, param)
+            if tostring(cls.path):find("WBP_APMailbox", 1, true) then
+                hudWindows["mail"] = window
+                return "mail"
+            end
+            return pushPlain(self, cls, param)
+        end
+        wbl.Create = function(_, _, cls)
+            if tostring(cls.path):find("WBP_APButton", 1, true) then return PalButton() end
+            return wblCreate()
+        end
+        MB.open()
+        run(4)
+        local rowsBefore = #winRows
+        MB.add("Paldium_Probe", 3)                          -- (a kind of its own, so it gets a row)
+        run(1)
+        local last = winRows[#winRows]
+        local newRow = last and last.Label.text
+        hooks[ROW_CLICK]({ get = function() return window.Close end })
+        run(1)
+        hud.Push, wbl.Create, game.logicMod = pushPlain, wblCreate, false
+        MB.removeCount(MB.queue, "Paldium_Probe", 3)
+        expect(#winRows == rowsBefore + 1 and newRow and newRow:find("x3$"),
+               "an item received while the window is open is listed: " .. tostring(newRow))
+    end
+    do   -- a chest view the mod can't follow is left alone: the player's own chest opened then keeps its heading
+        local showPlain = hud.ShowCommonUI
+        hud.ShowCommonUI = function(self, k, p)
+            showPlain(self, k, p)
+            return "untracked"
+        end
+        MB.open()
+        run(11)
+        hud.ShowCommonUI = showPlain
+        local ownHeading = { text = "Wooden Chest", BindTextDatatableHandle = {},
+                             IsValid = function() return true end }
+        function ownHeading:SetText(t) self.text = t.text end
+        function ownHeading:GetText()
+            local t = self.text
+            return { ToString = function() return t end }
+        end
+        local ownMenu = Widget({ IsVisible = function() return true end, Text_TargetContainerName = ownHeading })
+        local ownWindow = Widget({ IsVisible = function() return true end, IsInViewport = function() return true end })
+        local savedFAO = FindAllOf
+        FindAllOf = function(class)
+            if class == "WBP_ItemChest_C" then return { ownWindow } end
+            if class == "WBP_IngameMenu_Chest_C" then return { ownMenu } end
+            return savedFAO(class)
+        end
+        run(2)
+        FindAllOf = savedFAO
+        local lostView = MB.viewOpen()
+        MB.open()                                                -- the next open settles the lost view
+        run(3)
+        h.closeChest()
+        expect(lostView and ownHeading.text == "Wooden Chest",
+               "the player's own chest keeps its heading while the mailbox's view is lost: " .. ownHeading.text)
+    end
+    do   -- the hidden chest can't even start being made: the open is given up, so traps are not held
+        local chestsWere, managerWas = chests, util.GetMapObjectManager
+        chests = {}
+        util.GetMapObjectManager = function() error("no map object manager") end
+        local toldAt = #announced
+        MB.add("Wood", 1)
+        MB.open()
+        run(20)
+        local busy = MB.busy()
+        local told = table.concat(announced, "|", toldAt + 1):find("mailbox could not open", 1, true)
+        chests, util.GetMapObjectManager = chestsWere, managerWas
+        expect(not busy and told, "an open that can't start making the chest is given up, and the player told")
+    end
+    do   -- Take all writes the save file once, not once for every kind taken
+        MB.add("Wood", 2)
+        MB.add("Stone", 2)
+        MB.add("PalSphere", 2)
+        local writesBefore = saveWrites
+        MB.takeAll()
+        expect(saveWrites - writesBefore == 1 and MB.count() == 0,
+               "Take all writes the save once: " .. saveWrites - writesBefore .. " write(s)")
     end
 end)

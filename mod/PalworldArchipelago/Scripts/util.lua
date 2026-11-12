@@ -102,6 +102,14 @@ function UTIL.attempt(what, fn, ...)
     return nil
 end
 
+-- Whether a game object is there and answers IsValid() true. A missing component comes back from UE4SS as an object
+-- that is not valid, not as nil; an IsValid that raises counts as not valid.
+function UTIL.isValid(obj)
+    if obj == nil then return false end
+    local ok, valid = pcall(function() return obj:IsValid() end)
+    return ok and valid == true
+end
+
 -- A game object's address as text, or nil when it can't be read. The address is the object's identity in tables
 -- that track it. The engine reuses addresses, so every such table is emptied when the world changes.
 function UTIL.addr(obj)
@@ -161,6 +169,22 @@ function UTIL.keepAlive(obj) UTIL.keepInPlace(nil, obj) end
 function UTIL.objectPath(obj)
     local full = obj:GetFullName()
     return full:match("^%S+%s+(.+)$") or full
+end
+
+-- Writes `text` to path .. ".tmp", then puts it in place of the file at `path`, so the file is never left half
+-- written. Returns true, or false, the step that failed ("open", "write" or "rename") and why. The write is checked at
+-- the close too: Lua buffers the text, so a full disk fails only there.
+function UTIL.replaceFile(path, text)
+    local tmp = path .. ".tmp"
+    local f, errOpen = io.open(tmp, "w")
+    if not f then return false, "open", errOpen end
+    local okWrite, errWrite = f:write(text)
+    local okClose, errClose = f:close()
+    if not (okWrite and okClose) then return false, "write", errWrite or errClose end
+    os.remove(path)                                   -- (Windows will not rename over a file)
+    local okRename, errRename = os.rename(tmp, path)
+    if not okRename then return false, "rename", errRename end
+    return true
 end
 
 -- Whether a file can be opened for reading.
@@ -255,6 +279,23 @@ end
 -- Whether a hook callback is running now (main.lua's update then skips its turn).
 function UTIL.insideHook()
     return inHook
+end
+
+------------------------------------------------------------------------------------------------------------------------
+-- Key binds. A key bind's callback runs off the game thread, over the same Lua state: Lua run there, or a function
+-- made there on each press, races the game thread and crashes the game. So the callback only hands over a function
+-- made once, here, when the key is bound.
+
+-- Binds `key` (a UE4SS Key, with `modifiers`, a list of ModifierKey) to onKey, run on the game thread. An error is
+-- logged as "<what> error: ...".
+function UTIL.bindKey(key, modifiers, onKey, what)
+    local function onGameThread()
+        local ok, err = pcall(onKey)
+        if not ok then
+            UTIL.log(what .. " error: " .. tostring(err))
+        end
+    end
+    RegisterKeyBind(key, modifiers, function() ExecuteInGameThread(onGameThread) end)
 end
 
 ------------------------------------------------------------------------------------------------------------------------

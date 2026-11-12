@@ -48,6 +48,19 @@ group("another world", function()
            "C++'s map screen switched on again")
     AP_MapScreen = nil
     record.PalCaptureCount.Items.list[2].Value = 0
+    -- In a world this seed is not played in, the game's own research works, and the shop's cards are the game's.
+    h.loadWorld("VANILLA")
+    run(80)
+    local plain = { v = FNameOf("RepairBench") }
+    plain.get = function(self) return self.v end
+    plain.set = function(self, v) self.v = v end
+    hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"](nil, plain)
+    local isSlot = require("shop_cards").isShopSlot("RepairBench")
+    h.loadWorld("AP_WORLD")
+    run(80)
+    expect(plain.v:ToString() == "RepairBench" and not isSlot,
+           "another world: the research request is left to the game, and no card is a shop slot: "
+           .. plain.v:ToString() .. ", " .. tostring(isSlot))
 end)
 
 group("death link", function()

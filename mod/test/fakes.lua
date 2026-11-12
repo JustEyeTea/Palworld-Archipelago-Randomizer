@@ -225,9 +225,11 @@ ps = {
 }
 -- A new world, or a new player character, without an address typed in a test. What the mod tells apart by which
 -- object (a new one is a new world, or a new character, to it):
---   the pawn's address         world.lua's world step (the walls, the hint pop-up, the seed's world, Speed Boost,
---                              held notices), and traps.lua (a Slow Trap sets back only the character it slowed)
---   the controller's address   the mailbox and the perf probe; with no address, no live controller (the title)
+--   the pawn's address         world.lua's world step (the walls, the hint pop-up, the seed's world, Speed Boost's
+--                              world settings, held notices), and traps.lua (a Slow Trap sets back only the character
+--                              it slowed)
+--   the controller's address   the mailbox, Speed Boost's warning and the perf probe; with no address, no live
+--                              controller (the title)
 --   the tech data's address    tech_lock.lua: a new TechnologyData's list is compared again
 --   the pawn being there       menu.lua's "in a world", bag.lua, death_link.lua (K2_GetPawn answers)
 local PAWN_ADDRESS_STEP = 4096                             -- any step: only that a new pawn's address differs

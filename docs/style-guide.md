@@ -78,6 +78,9 @@ or a new file, look here and use the block. Never write a second copy. A block i
   that keeps anything from one world registers the function that forgets it with `WORLD.onChange(forget)`, in
   `main.lua`'s start-up list. New code keeps no world key of its own (`mailbox.lua` and `menu.lua` still notice a
   world change themselves).
+- **A key bind:** `UTIL.bindKey` in `util.lua` (see Lua, below).
+- **A widget on the HUD:** `WIDGETS.hudCanvas()`, `hudBox`, `pinToCanvas` and `textLine` in `widgets.lua`. A file
+  that keeps one keeps its HUD layout's address and asks `WIDGETS.hudLive(address)` before any call to it.
 - **A hook callback:** wrapped by `guardedHook(name, cb)` from `util.lua`, so no core update runs inside it and an
   error is logged once under the hook's name.
 - **A hook on a Blueprint class:** `hookWhenLoaded(path, fn, tag)` in `util.lua`, called every update until it
@@ -126,7 +129,7 @@ that state. These rules keep the mod's code on the game thread. The harness chec
 - **Never use `ExecuteWithDelay`.** For work later, use the queue in `soon.lua` (`later(n, fn)` runs `fn` after `n`
   core updates).
 - **Every key bind only hands off:** `RegisterKeyBind(key, function() ExecuteInGameThread(onKey) end)`, with
-  `onKey` built once, when the file loads.
+  `onKey` built once, when the file loads. `UTIL.bindKey(key, modifiers, onKey, what)` does this, and logs an error.
 - **`LoopAsync` only hands off, and at 300 ms or slower.** The callback is `ExecuteInGameThread(work)` and nothing
   else.
 - **Don't keep game objects across a world change.** Look them up again after loading a world. A handle from the old
@@ -137,7 +140,9 @@ that state. These rules keep the mod's code on the game thread. The harness chec
 ## C++
 
 - **Keep the parts that need no Unreal in their own files** (`ap_bridge.*`, `event_lines.*`, `lua_text.*`,
-  `pal_gift_logic.*`, `image_tools.*`), so they are tested on Linux (`cppmod/APConnector/test/`).
+  `pal_gift_logic.*`, and the map pictures: `image_tools.hpp`, `image_basics.*`, `image_land_sea.*`,
+  `image_jobs.cpp`, `image_grey_map.cpp`, `image_chart.cpp`, `image_fog.cpp`, `image_territories.cpp`), so they are
+  tested on Linux (`cppmod/APConnector/test/`).
 - **Functions the Lua mod calls take and return text,** and are listed with their arguments at the top of
   `dllmain.cpp`. Each is registered through `register_text` there; code that turns text into numbers lives in
   `lua_text.*`.

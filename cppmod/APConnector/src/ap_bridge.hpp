@@ -48,6 +48,8 @@ class ApBridge
     void report_error(const std::string& problem);
 
     // Each sender below that has no connection to send on pushes "status error <what> not sent: no connection".
+    // While apclientpp reconnects by itself, checks and scouts wait in its queue and go once the slot joins again;
+    // chat, bounces and the goal are refused, and reported so (checks.lua sends the goal again on each connection).
 
     // Sends location checks.
     void send_checks(const std::vector<int64_t>& locations);

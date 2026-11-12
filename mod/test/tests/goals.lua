@@ -123,5 +123,34 @@ group("the save file", function()
     runCycles(2)
     expect(woodBefore == 50 and woodWaiting() == woodBefore and logged("using the copy written last"),
            "a save cut off: the .tmp copy is used, nothing given twice: " .. woodWaiting() .. " Wood waiting")
+    -- Quitting and starting again offline, in the world of seed 55555 (a slot bought offline for it in core.lua's
+    -- "loading the mod"): the seed in memory is forgotten as that world loads, so 55555's purchase comes back from its
+    -- save file only. Connecting to 55555 then sends it, as after a dropped connection.
+    local ap, cfg = require("ap_state").ap, require("config").cfg
+    local loc = shared.earlierLoc
+    push("status", "disconnected")
+    run(1)
+    h.loadWorld("EARLIER")
+    runCycles(2)
+    local seedThen = ap.seed
+    local kept = seedThen == "55555" and ap.bought[loc] == true
+    checks[loc] = nil
+    local slotWas = cfg.slot
+    cfg.slot, slotData.seed = "Tester", "55555"
+    push("status", "connected", "Tester")
+    run(1)
+    local sent = checks[loc]
+    push("status", "disconnected")
+    run(1)
+    cfg.slot, slotData.seed = slotWas, "70004"                    -- back to seed 70004, as the next groups expect
+    h.loadWorld("AP_WORLD")
+    runCycles(2)
+    local back = ap.seed == "70004"
+    push("status", "connected", slotWas)
+    runCycles(2)
+    expect(kept, "started again offline in seed 55555's world: its purchase is read back from its save: "
+           .. tostring(seedThen))
+    expect(sent, "and sent when 55555 connects")
+    expect(back, "loading the other seed's world offline brings that seed back from its own save")
     inWorld(false)
 end)

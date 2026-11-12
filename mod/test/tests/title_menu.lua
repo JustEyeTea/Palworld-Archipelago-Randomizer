@@ -476,4 +476,148 @@ group("the title menu's Archipelago menu", function()
                and logged("util: WBP_APMailbox_C: not there, even after loading its package"),
                "the button list, a label, a text box's text and a class each say where they came from")
     end
+    do   -- a server written with its scheme (wss://, as the connector takes it) keeps it in the menu
+        local CONFIG = require("config")
+        local serverWas, slotWas = CONFIG.cfg.server, CONFIG.cfg.slot
+        CONFIG.cfg.server, CONFIG.cfg.slot = "wss://myhost.example:38281", "Other"
+        push("status", "connected", "Other")
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        local goText = btn(R.go) and btn(R.go).Test_Content.text
+        local serverText = typed(R.server)
+        click(btn(R.back))
+        run(1)
+        game.titleOpen = false
+        run(1)
+        CONFIG.rememberServer("wss://myhost.example:38281")
+        local saved = CONFIG.cfg.servers or ""
+        CONFIG.cfg.server, CONFIG.cfg.slot = serverWas, slotWas
+        expect(serverText == "wss://myhost.example" and goText == "Disconnect (connected as Other)",
+               "the menu shows the scheme and knows the connection is that server: " .. tostring(serverText)
+               .. " / " .. tostring(goText))
+        expect(saved:find("myhost.example", 1, true) and not saved:find("wss", 1, true),
+               "and the server is remembered by its host: " .. saved)
+    end
+    do   -- the Server box emptied: the last row says a server is missing, not "Connect to  as Other"
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        typeInto(R.server, "")
+        run(1)
+        local goText = btn(R.go) and btn(R.go).Test_Content.text
+        click(btn(R.back))
+        run(1)
+        game.titleOpen = false
+        run(1)
+        expect(goText == "Connect (type a server first)", "an empty Server box: " .. tostring(goText))
+    end
+    do   -- Esc while the text window asks for a field (the window layout): it is the window's, the menu stays open
+        game.palEditOk, game.umgEditOk = false, false
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        click(menuChildren[4].child)                         -- Port: the text window opens
+        run(1)
+        local escBind = keyBinds["key:ESCAPE"]
+        if escBind then
+            escBind()
+        end
+        tick()
+        run(1)
+        local stillOpen = gameButtonWrap.vis == 1
+        okWith("40002")
+        local back
+        for _, box in ipairs(menuChildren) do
+            local b = inner(box)
+            if b and b.Test_Content and b.Test_Content.text == "Back" then
+                back = b
+            end
+        end
+        if back then
+            click(back)
+        end
+        run(1)
+        game.titleOpen = false
+        run(1)
+        game.palEditOk, game.umgEditOk = nil, nil
+        expect(escBind and stillOpen and back and gameButtonWrap.vis == 0,
+               "Esc while the text window is up leaves the Archipelago menu open (a click there does nothing either)")
+    end
+    do   -- the banner can't be placed on the canvas: it is taken off again and goes in the button list instead
+        local realAdd = titleCanvas.AddChildToCanvas
+        local onCanvas = nil
+        function titleCanvas:AddChildToCanvas(w)
+            local slot = realAdd(self, w)
+            slot.SetAnchors = function() error("this slot takes no anchors") end
+            w.RemoveFromParent = function(widget) widget.removed = true end
+            onCanvas = w
+            return slot
+        end
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        local placedAt = logMark()
+        game.titleOpen = true
+        run(2)
+        titleCanvas.AddChildToCanvas = realAdd
+        local inList = false
+        for _, box in ipairs(menuChildren) do
+            if box == onCanvas then
+                inList = true
+            end
+        end
+        game.titleOpen = false
+        run(1)
+        expect(onCanvas and onCanvas.removed and inList and not loggedSince(placedAt, "title banner error"),
+               "a banner that can't be placed is taken off the canvas and put in the button list, not left there")
+    end
+    do   -- a row's label is written when it changes, not on every update the menu shows
+        for i = #menuChildren, 1, -1 do
+            menuChildren[i] = nil
+        end
+        menuChildren[1], menuChildren[2] = gameButtonWrap, quitWrap
+        gameButtonWrap.vis, quitWrap.vis = 0, 0
+        game.titleOpen = true
+        run(2)
+        click(titleCanvasKids[#titleCanvasKids].child.children[4])
+        run(2)
+        local label = btn(R.go) and btn(R.go).Test_Content
+        local writes = 0
+        if label then
+            local realSetText = label.SetText
+            label.SetText = function(...)
+                writes = writes + 1
+                return realSetText(...)
+            end
+        end
+        run(5)
+        local goText = label and label.text
+        click(btn(R.back))
+        run(1)
+        game.titleOpen = false
+        run(1)
+        expect(label and writes == 0 and goText and goText:find("onnect", 1, true),
+               "an unchanged label is not written again: " .. writes .. " write(s) in 5 updates")
+    end
 end)

@@ -46,25 +46,31 @@ function AREA_LOCKS.configureWalls(dir)
         mapStyle = cfg.map_style == "chart" and "chart" or "territories",
         testFogColour = cfg.test_tools == "1",
     }
-    -- wall skins (wall_skins.lua): wall_skin=paws|area|red, wall_tiling=U,V and wall_scroll=U,V in config.txt
-    local function pair(s)
-        local u, v = (s or ""):match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
-        return u and { tonumber(u), tonumber(v) } or nil
+    -- wall skins (wall_skins.lua): wall_skin=paws|area|red, wall_tiling=U,V and wall_scroll=U,V in config.txt. A
+    -- setting that is not two numbers is said once and left out, so its default stands.
+    local function pair(key)
+        local text = cfg[key]
+        if not text then return nil end
+        local u, v = text:match("^%s*([%d.]+)%s*,%s*([-%d.]+)%s*$")
+        local first, second = tonumber(u), tonumber(v)
+        if first and second then return { first, second } end
+        log("config.txt: " .. key .. "=" .. text .. " is not two numbers (as 15,25); its default is used")
+        return nil
     end
-    settings.tiling, settings.scroll = pair(cfg.wall_tiling), pair(cfg.wall_scroll)
+    settings.tiling, settings.scroll = pair("wall_tiling"), pair("wall_scroll")
     -- wall_radius=<m>: walls stand only this near you (0: everywhere); wall_fade=<near>,<far> in metres (M_APWall
     -- walls)
     local radius = tonumber(cfg.wall_radius or "")
     if radius and radius >= 0 then
         settings.radius = radius * CM_PER_METRE
     end
-    local fade = pair(cfg.wall_fade)
+    local fade = pair("wall_fade")
     local near, far = fade and fade[1], fade and fade[2]
     if fade and far > near then
         settings.fade = { near * CM_PER_METRE, far * CM_PER_METRE }
     end
     WALLS.install(settings)
-    ART.install({ keepAlive = keepAlive, dir = dir })
+    ART.install({ dir = dir })
     WALLS.setSkin(cfg.wall_skin)
 end
 
@@ -91,9 +97,9 @@ local function sendHomeIfLocked(pawn)
     lockedTicks = (okl and where) and lockedTicks + 1 or 0
     if lockedTicks < SENT_HOME_AFTER then return end
     lockedTicks = 0
-    local homeX, homeY, homeZ = WALLS.home[1], WALLS.home[2], WALLS.home[3]
+    local home = WALLS.homeLocation()
     local okt, errt = pcall(function()
-        pawn:K2_TeleportTo({ X = homeX, Y = homeY, Z = homeZ }, { Pitch = 0, Yaw = 0, Roll = 0 })
+        pawn:K2_TeleportTo(home, { Pitch = 0, Yaw = 0, Roll = 0 })
     end)
     log("inside locked " .. tostring(where) .. ": sent home" .. (okt and "" or (" FAILED: " .. tostring(errt))))
     notify(tostring(where) .. ((ap.beyond and ap.beyond[where]) and " is beyond this seed's goal."
@@ -105,6 +111,11 @@ end
 function AREA_LOCKS.update(pawn)
     if WORLD.key() and WORLD.seedWorld() == false then
         pcall(WALLS.mapOff)                        -- (C++ would show the seed's map here)
+        -- Walls still standing here are an earlier seed's (one connected while the player was in this world):
+        -- nothing is locked here, so they come down.
+        if WALLS.count() > 0 then
+            pcall(WALLS.update, false, ap.passes, pawn)
+        end
     end
     if not (WORLD.settled() and WORLD.seedWorld()) then return end
     local on = areaLocks

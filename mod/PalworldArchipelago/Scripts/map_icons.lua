@@ -12,9 +12,10 @@ local HIT_TEST_INVISIBLE = 3  -- ESlateVisibility::HitTestInvisible: hovering wo
 -- The locks still locked are shown as the map's own icons (placeIcons, below) unless config.txt has map_icons=0 or
 -- the icons failed; then the stamps are drawn into the picture and the chart fog.
 local iconsFailed = false
--- The icons on each live main-map screen: its address -> { key = the look they show, list = the icon widgets }.
--- Forgotten: a screen's entry once the screen is no longer listed (forgetIconsOfGoneScreens), every entry once the
--- icons fail. A screen is known by its address, which the engine reuses; a screen gone is never called again.
+-- The icons on each live main-map screen: its key (screenKey) -> { key = the look they show, list = the icon
+-- widgets }. Forgotten: a screen's entry once the screen is no longer listed (forgetIconsOfGoneScreens), every entry
+-- once the icons fail. A screen is known by its address and its owning player's, since the engine reuses addresses:
+-- a new world's screen at the old one's address has a new owner, and a screen gone is never called again.
 local mapIcons = {}
 -- Handed over by install: W (settings: iconsOff; data: beyond, visited), and the locks part's layout and lists.
 local W, layout, slugOf, lockedList, openList = nil, nil, nil, nil, nil
@@ -47,13 +48,19 @@ end
 -- across 1448800.
 local function worldAt(u, v) return { X = 349400 - v * 1448800, Y = u * 1448800 - 724400, Z = 0 } end
 MAP_ICONS.worldAt = worldAt                                       -- (for the harness)
+-- A live screen's key in mapIcons: its address and its owning player's ("?" when that can't be read). A pawn change
+-- in the same world keeps its player controller, so the icons are not added twice then.
+local function screenKey(screen)
+    local okOwner, owner = pcall(function() return screen:GetOwningPlayer() end)
+    return (UTIL.addr(screen) or "") .. "@" .. ((okOwner and UTIL.addr(owner)) or "?")
+end
 -- Forgets the icons, without calling them, of every screen that is not among this update's live screens: they went
 -- with the last world (Return to title). Not on the core's reset: that also runs when the pawn reads nil for a moment
 -- in the same world, where the icons are still on the screen and would be added twice.
 local function forgetIconsOfGoneScreens(screens)
     local live = {}
     for _, b in ipairs(screens) do
-        live[UTIL.addr(b) or ""] = true
+        live[screenKey(b)] = true
     end
     for addr in pairs(mapIcons) do
         if not live[addr] then
@@ -118,7 +125,7 @@ end
 -- Puts this look's icons on one screen, unless they are there already: a locked stamp at each lock still locked, an
 -- open stamp at each lock unlocked but not stood in. Raises an error when an icon cannot be made.
 local function placeIcons(screen, passes, key)
-    local addr = UTIL.addr(screen)
+    local addr = screenKey(screen)
     local icons = mapIcons[addr]
     if icons and iconsStillShown(icons, key) then
         return

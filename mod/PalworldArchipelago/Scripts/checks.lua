@@ -131,13 +131,13 @@ end
 
 -- The records phase's work: sends what the game's records say is done, and the goal once it is reached.
 function CHECKS.pollRecords(ps, tick)
-    local okp, found = pcall(RECORDS.progress, ps, DATA, os.time())
+    local okp, found = pcall(RECORDS.progress, ps, DATA, tick)
     if not okp then
         once("records", "records not readable yet (loading?): " .. tostring(found))
         return
     end
     CHECKS.sendChecks(found.locations)
-    ap.level, ap.beaten = found.level, found.beaten
+    ap.level, ap.beaten = found.level or ap.level, found.beaten   -- (a level not read keeps the last one)
     sendGoalOnceOutOfArena(ps, found, tick)
 end
 

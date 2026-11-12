@@ -144,4 +144,132 @@ group("a setting config.txt no longer has is ignored, and says so", function()
     expect(loggedSince(mark, "config%.txt: mailbox=0 is ignored: the mailbox is always on")
            and countLogged("mailbox=0 is ignored") == 1,
            "a config.txt with mailbox=0: one log line, the mailbox is always on")
+    -- hint_key: main.lua requires every file before start() reads config.txt, so the key is read when it is bound.
+    do
+        local hintFolder = os.tmpname()
+        os.remove(hintFolder)
+        os.execute('mkdir "' .. hintFolder .. '"')
+        writeFile(hintFolder .. "/config.txt", "slot=Tester\nhint_key=J\n")
+        local sessionConfig, sessionHints = package.loaded["config"], package.loaded["wall_hints"]
+        local CONFIG3 = dofile(MOD .. "/Scripts/config.lua")
+        package.loaded["config"] = CONFIG3
+        local HINTS3 = dofile(MOD .. "/Scripts/wall_hints.lua")    -- (required first, as main.lua does)
+        CONFIG3.install({ dir = hintFolder })
+        local boundBefore = keyBinds[Key.J]
+        HINTS3.bindKey()
+        local bound = keyBinds[Key.J] ~= boundBefore
+        package.loaded["config"], package.loaded["wall_hints"] = sessionConfig, sessionHints
+        os.remove(hintFolder .. "/config.txt")
+        os.remove(hintFolder)
+        expect(CONFIG3.hintKey == "J" and bound, "config.txt's hint_key=J is the key bound: " .. CONFIG3.hintKey
+               .. ", bound " .. tostring(bound))
+    end
+end)
+
+group("an item whose effect fails stops nothing else", function()
+    -- One item raises every time it is applied: Death Link and traps still step, and what was applied before it is
+    -- in the save file.
+    local DL, TR, STATE = require("death_link"), require("traps"), require("ap_state")
+    local realStep, realAdd = DL.step, TR.add
+    local steps = 0
+    DL.step = function(...)
+        steps = steps + 1
+        return realStep(...)
+    end
+    TR.add = function() error("a trap that can't be queued") end
+    inWorld(true)
+    pushItem({ name = "Tech Points +2" })
+    trap("Slow Trap")
+    runCycles(3)
+    DL.step, TR.add = realStep, realAdd
+    local saveFile = io.open(require("save").path())
+    local saved = saveFile and tonumber(saveFile:read("a"):match("given=(%-?%d+)"))
+    if saveFile then
+        saveFile:close()
+    end
+    expect(steps >= 3, "Death Link still steps every items phase while one item errors: " .. steps .. " steps")
+    expect(saved == STATE.ap.given, "the save file says how far items were applied: file " .. tostring(saved)
+           .. ", memory " .. STATE.ap.given)
+    runCycles(2)                                              -- (the trap is queued now, and the item's effect done)
+    inWorld(false)
+end)
+
+group("a world change's forget that errors stops none of the others", function()
+    -- One forget function raises at a world change: the ones after it still run, and the error is logged.
+    local WORLD = require("world")
+    local forgetters
+    for i = 1, 10 do
+        local name, value = debug.getupvalue(WORLD.onChange, i)
+        if name == "worldForgetters" then
+            forgetters = value
+        end
+    end
+    local saved = {}
+    for i, forget in ipairs(forgetters or {}) do
+        saved[i] = forget
+    end
+    local lastRan = 0
+    forgetters[1] = function() error("a forget that fails") end
+    local last = saved[#saved]
+    forgetters[#forgetters] = function()
+        lastRan = lastRan + 1
+        return last()
+    end
+    inWorld(true)
+    local pawnWas = pawnAddress
+    local mark = logMark()
+    newPawn()
+    run(2)
+    for i, forget in ipairs(saved) do
+        forgetters[i] = forget
+    end
+    pawnAddress = pawnWas
+    run(2)
+    inWorld(false)
+    expect(lastRan >= 1 and loggedSince(mark, "a forget that fails"),
+           "every forget after one that errors still runs at the world change, and the error is logged: ran "
+           .. lastRan)
+end)
+
+group("a new character in a world that is not the seed's is not a new world", function()
+    -- A pawn change (a faint) in a world this seed is not played in: the notice is not given again.
+    local function notices()
+        local n = 0
+        for _, a in ipairs(announced) do
+            if a:find("not the world this Archipelago seed", 1, true) then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    inWorld(true)
+    h.loadWorld("VANILLA")
+    run(40)
+    local told = notices()
+    newPawn()
+    run(40)
+    local toldAgain = notices()
+    h.loadWorld("AP_WORLD")
+    run(80)
+    inWorld(false)
+    expect(told >= 1 and toldAgain == told, "a new pawn in the same other world brings no second notice: " .. told
+           .. " then " .. toldAgain)
+end)
+
+group("a wall setting in config.txt that is not two numbers keeps its default", function()
+    -- wall_fade=15,25.0.1 (a typo) must not stop the mod at start-up, nor wall_tiling=1.5.0,2 leave the walls red.
+    local CONFIG, AREA_LOCKS, WALLS, ART = require("config"), require("area_locks"), require("walls"), require("art")
+    local cfg = CONFIG.cfg
+    local settingsWere = { fade = cfg.wall_fade, tiling = cfg.wall_tiling }
+    local fadeWas, tilingWas, artDirWas = WALLS.fade, WALLS.tiling, ART.dir
+    cfg.wall_fade, cfg.wall_tiling = "15,25.0.1", "1.5.0,2"
+    local mark = logMark()
+    local ok, err = pcall(AREA_LOCKS.configureWalls, artDirWas)
+    local fadeNow, tilingNow = WALLS.fade, WALLS.tiling
+    cfg.wall_fade, cfg.wall_tiling = settingsWere.fade, settingsWere.tiling
+    WALLS.fade, WALLS.tiling, ART.dir = fadeWas, tilingWas, artDirWas
+    expect(ok and fadeNow == fadeWas and tilingNow == tilingWas,
+           "a malformed wall_fade or wall_tiling keeps the default: " .. tostring(ok and "" or err))
+    expect(loggedSince(mark, "wall_fade=15,25%.0%.1 is not two numbers")
+           and loggedSince(mark, "wall_tiling=1%.5%.0,2 is not two numbers"), "and says so")
 end)

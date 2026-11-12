@@ -22,7 +22,7 @@ same pull request as the code it describes. The rules for writing the code itsel
 6. [The APConnector (C++)](#the-apconnector-c) *(the connection written; the helpers not yet)*
 7. [The Lua mod](#the-lua-mod) *(not written yet)*
 8. [The LogicMod paks](#the-logicmod-paks) *(not written yet)*
-9. [Tests, tools and releases](#tests-tools-and-releases) *(tests and the build written; tools, CI and releases not yet)*
+9. [Tests, tools and releases](#tests-tools-and-releases) *(tests, the build, tools and releases written; CI not yet)*
 10. [Where to look when something breaks](#where-to-look-when-something-breaks)
 
 ## Overview
@@ -87,7 +87,7 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 
 | File | Made by | From |
 |---|---|---|
-| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py` | the table dumps, `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` (and the `area-` versions) |
+| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py`, given the game version | the table dumps, and that version's `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` and their `area-` versions |
 | `mod/.../Scripts/ap_data.lua` | `tools/gen_lua_data.py` | the APWorld's own tables (`data.py`), so the mod and the APWorld agree on every id |
 | `mod/.../Scripts/region_*.lua`, `area_*.lua`, and `region_labels.png`, `area_labels.png` beside them | `tools/lock_walls.py`, `tools/lock_centres.py` (each run once per size; `LOCK_SIZE=areas` for the 75 areas) | the game's world map, its map rows and `tools/lock_groups.py` |
 | `mod/.../Scripts/area_regions.lua` | `tools/area_regions.py` | `tools/lock_groups.py` |
@@ -96,11 +96,18 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 | `mod/.../Scripts/tech_icons.lua` | `tools/gen_tech_icons.py` | the table dumps |
 | `mod/.../Scripts/tech_gifts.lua` | `tools/gen_tech_gifts.py` | the table dumps |
 | `docs/options/options.json` | `tools/gen_options_page.py` | the APWorld's options, groups and presets |
+| `apworld/palworld/test/frozen_ids.tsv` | `tools/freeze_ids.py` | `data.py` (and the file it replaces: no id may move) |
+| `mod/.../art/ap-menu-panel-*.png` | `tools/menu_panel_art.py` | nothing (drawn from numbers) |
+| `mod/.../icons/*.png` | `tools/make_ap_icons.py` | Archipelago's logo |
+
+Each generator's private input files, by name, and its exact command are in [`tools/README.md`](../tools/README.md).
 
 **After a Palworld update:**
 1. Dump the tables again.
-2. Run `gen_apworld_data.py`, then `gen_lua_data.py`.
-3. Run the tests.
+2. Make the new version's lock model files: `lock_walls.py`, then `lock_model.py`, once for each lock size.
+3. Run `gen_apworld_data.py` with the new version (it writes `GAME_VERSION` and reads that version's files in
+   `data/`), then `gen_lua_data.py`.
+4. Run the tests.
 
 `gen_apworld_data.py` keeps every existing row where it was and adds new rows at the end, so ids never move.
 
@@ -227,10 +234,14 @@ The rest of the connector calls Palworld's own functions, or does image work too
   VM catch `WBP_Map_Body_C:Setup` and set the picture and the fog before the screen draws. Every 60 frames it looks
   for Setup again, because the map's class is loaded anew after Return to title. Lua drives it with
   `AP_MapScreen(cmd, value)`.
-- `image_tools.cpp` builds the map pictures from PNGs, on background threads (one `JobSlot` each; Lua polls
-  `busy`, `done` or `error: ...`): the Territories map (`compose_field`, falling back to `compose_territories`) and
-  the chart style (`compose_chart`, `compose_fog`). Lua passes locks, walls and looks as short text formats, each
-  described above its function in `image_tools.hpp`. Tested on Linux (`test/image_test.cpp`).
+- The map pictures are built from PNGs, on background threads (one `JobSlot` each, `image_jobs.cpp`; Lua polls
+  `busy`, `done` or `error: ...`): the Territories map (`compose_field`, falling back to `compose_territories`, in
+  `image_territories.cpp`), the chart style (`compose_chart` in `image_chart.cpp`, `compose_fog` in
+  `image_fog.cpp`), and the grey map and the small PNG tools (`compose_map`, `greyscale_png`, `sample_png` in
+  `image_grey_map.cpp`). They share `image_basics.*` (the locked-area list, blurs, PNGs as floats) and
+  `image_land_sea.*` (land, sea and beyond the world's edge). Lua passes locks, walls and looks as short text
+  formats, each described above its function in `image_tools.hpp`, the one header Lua's side cites. Tested on Linux
+  (`test/image_test.cpp`).
 
 ## The Lua mod
 
@@ -253,7 +264,8 @@ the other modules.
 | `ap_state.lua` | The table `ap`: the connection, the seed and its progress, each field with when it is forgotten. The connection's four states are listed above it, and `STATE.setStatus` is their only writer. Slot data readers (`slotFlag`, `slotNumber`). |
 | `config.lua` | `config.txt`: read at start-up into `CONFIG.cfg`, written back by the title menu's connect (`CONFIG_KEYS`), and the saved servers. |
 | `save.lua` | `save-<seed>-<slot>.txt` beside the mod: what the server cannot send again (its lines are listed above `SAVE.path`). Written whole to a `.tmp` file and then moved into place, so a crash never leaves half a file. |
-| `player.lua` | This update's player, looked up once (`PLAYER.lookUpFrame`: the frame record and its fields), `playerPawn`, `pawnXY`, and `notify`, the chat notice. |
+| `world_seeds.lua` | `worlds.txt` beside the saves: which seed and slot each world folder is played in (its format is above `indexPath`), kept in step by every save written with a `world=` line. A game started offline reads it to know the loaded world's seed (`SAVE.seedOfWorld`). An index file, as Lua cannot list a folder. |
+| `player.lua` | This update's player, looked up once (`PLAYER.lookUpFrame`: the frame record and its fields), `playerPawn`, `pawnXY`, and `notify`, the chat notice (`announce` without the mod's prefix). |
 | `world.lua` | The world step (`WORLD.note`: which world, how long ago it loaded, what each module forgets when it changes) and the seed's world (`checkWorld`, `tieWorld`). |
 | `tech_lock.lua` | The game's list of researched techs holds the techs items unlocked and no other shop tech (`lockAndUnlockTechs`); the techs a seed leaves as normal research (`research.txt`). |
 | `items.lua` | What each kind of item does on arrival (`onItem`) and once per seed (`applyItems`, with a table of kinds above it), crates, bundles and Nomad's gifts (`giveToBag`, `handOver`). |
@@ -264,14 +276,16 @@ the other modules.
 | `wall_hints.lua` | The notice at a locked wall and buying its pass's hint with the hint key; the server's chat (`onMessage`, `parsePassHint`). |
 | `area_locks.lua` | When the walls act (`AREA_LOCKS.update`), the visited locks, sending the player home from a locked one, and the walls' settings from config.txt (`configureWalls`). |
 | `held_notices.lua` | Notices held through a loading screen. |
+| `run_style.lua` | Run Style (Nomad's hand-overs, `RUN_STYLE.gifts`) and Speed Boost: the world settings it multiplies (`RUN_STYLE.apply`), the world's own values (`syncbase=` in the save) and the warning. |
 | `death_link.lua` | Death Link: the faint routes (`ROUTES`), a death received, the player's own death and the amnesty. |
-| `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`S.phase`) that sends the checks of slots another mod removed. |
+| `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`TECHSCAN.phase`) that sends the checks of slots another mod removed. |
 
 How it works:
 
 - **The server is the truth:** every connection re-sends all items received and every location checked, so most of
   `ap` is rebuilt each time. Only one-off effects (points, bundles, crates, traps, the mailbox, Death Link's
-  forgiven count, visited locks) are kept, in the save file.
+  forgiven count, visited locks, slots bought while offline) are kept, in the save file. Beside the saves,
+  `worlds.txt` names each world's seed and slot, so a game started offline loads the right save.
 - **Items** are applied in the order the server numbers them, and `ap.given` remembers how far that got, so a
   reconnect never gives a crate or tech points twice. A tech item doesn't touch the game directly:
   `lockAndUnlockTechs` makes the game's list of unlocked techs match the items received.
@@ -280,14 +294,28 @@ How it works:
   leaves the boss's arena.
 - **The tech shop.** Level 2 and higher techs are slots: each card says what its slot sends. When the player buys
   one, the research request is renamed (`AP_ShopSlot`, a tech that doesn't exist), so the game unlocks nothing;
-  `buy()` takes the points itself and sends the check. Other hooks make a bought card look researched, decide
-  whether a slot can be clicked, and put what the purchase sends into the confirm box.
+  `buy()` takes the points itself, marks the slot bought (`ap.bought`, in the save) and sends the check. Other hooks
+  make a bought card look researched, decide whether a slot can be clicked, and put what the purchase sends into the
+  confirm box. Where it can be bought:
+  - In a world that is not the seed's, nothing is a shop slot (`SHOP_CARDS.isShopSlot`): the request is left to the
+    game, so plain Palworld research works there, and the cards give the game's own answers.
+  - In the seed's world with the connection dropped (the seed known from this session's connection, `ap.shopOpen`),
+    a purchase goes through and its check is sent when the connection is back (`CHECKS.sendBoughtAgain`). Untested
+    in game.
+  - Started offline in a world `worlds.txt` names (`CONNECTION.knowSeedOffline`, once per pawn while not
+    connected): that seed's save is loaded and the shop opens, so a purchase is queued the same way. Cards show the
+    unscouted "Archipelago item" until the seed connects and scouts. Nothing else runs offline: no item is applied,
+    no tech locked, and the game's records are sent on connecting. Connecting to the same seed and slot carries on;
+    another seed resets as usual, and what was queued for the old seed stays in its save for its next connection.
+    The research techs are the last connected seed's (`research.txt`). Untested in game.
+  - Started offline in a world with no known seed (new, or vanilla), nothing is bought, and the game unlocks nothing.
 - **Server events** arrive as text lines from `AP_Poll()`; `onEvent` hands each to its handler, whose parameters
   name the line's fields in the order `ap_bridge.hpp` sends them. "Connected" reads the seed's setup from slot data
   (`onConnected`, `applySeedOptions`).
-- **A seed belongs to one world**, the first one it is played in (`checkWorld`, `world=` in the save). In any other
-  world nothing is locked, sent or given. A first world that already has shop techs researched is tied only after
-  the player presses the hint key (`tieWorld`), since tying it locks those techs again.
+- **A seed belongs to one world**, the first one it is played in (`checkWorld`, `world=` in the save, and its line in
+  `worlds.txt`). In any other world nothing is locked, sent or given, and the mailbox and the crates stay shut. A
+  first world that already has shop techs researched is tied only after the player presses the hint key
+  (`tieWorld`), since tying it locks those techs again.
 - **The update** (`update()` in `main.lua`) runs every 300 ms on the game thread, at most once a frame and never
   inside a hook. Every update it reads the server's events, updates the menus, mailbox, shop cards, walls and map.
   The heavier work is spread over a cycle of 7 updates: `PHASE_STEPS` maps each phase to its function (records and
@@ -311,7 +339,9 @@ uses three files of its own:
 
 `mailbox.lua` keeps the mailbox's list and opens it. Without the LogicMod window (`mailbox_window.lua`) it shows the
 list in the game's own chest window on a hidden chest, through `mailbox_chest.lua`, which uses three files of its own.
-The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other three are handed it.
+The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other three are handed it. The list is the
+truth: a take leaves it (and the mod's save file) at once, while the item in the bag is kept only by the game's next
+world save, so an item taken just before a crash is lost rather than given twice (`mailbox_chest_slots.lua` says so).
 
 | File | What it holds |
 |---|---|
@@ -348,7 +378,26 @@ The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other 
 - Every `.apworld` (tests, playtests, releases) is made by `tools/build_apworld.py`. It adds the manifest fields
   Archipelago needs and checks that the world loads with its own version; a plain zip of the folder loads as 0.0.0
   and players' YAMLs are refused.
-- Point `AP_DIR` at your Archipelago 0.6.8 folder (with its venv in `.venv`).
+- Point `AP_DIR` at your Archipelago folder (with its venv in `.venv`), of the version
+  `apworld/palworld/archipelago.json` names as `minimum_ap_version`. Without it the tools look for
+  `archipelago-<that version>` beside this repository's folder (`tools/ap_dir.sh`), which is wrong in a git worktree.
+
+### Tools
+
+[`tools/README.md`](../tools/README.md) lists every tool: what each generator makes and reads, and whether it needs
+the private game files (the table dumps, the map picture, the region volumes), with the steps after a game update;
+the build and the test runners; the two test clients for a live room (`deathlink_send.py`, `send_checks.py`); the
+modules the tools share (`lock_groups.py`, `towers.py`, `table_dumps.py`, `apworld_loader.py`); and the server probe
+that dumps the tables. Each script's header gives its command and says how it is tested.
+
+### Releases
+
+A version tag (`v0.14.0`, the same as the mod's `VERSION` in `main.lua`) makes CI's release job draft a release with
+the mod zip, `palworld.apworld` and their checksums. A person then:
+1. attaches `PalworldArchipelagoArt.pak` (and its `.ucas` and `.utoc`, if the build made them), which CI can't
+   build: it is built by hand in the Palworld Modding Kit on Windows (`logicmod/README.md`, "The wall material");
+2. edits the drafted notes, which carry a reminder of step 1;
+3. publishes it.
 
 ## Where to look when something breaks
 
@@ -361,7 +410,7 @@ The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other 
 | A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVELS_PAST_PIECE`, `LEVELS_BELOW_PIECE`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
 | A Pal gift ends `result: fail ...`, or the game dies during one | UE4SS.log's `[APConnector] [pal]` lines: the last one names the step, and the step names the function in `pal_gift.cpp` | After a game update: "function not found" or "no such parameter" means a path or parameter name in `pal_gift.cpp` changed; a UE4SS header dump of the new version (UE4SS's Dump CXX Headers) shows the new one |
 | The world map shows the game's own picture or its dark fog | UE4SS.log's `[APConnector] [map]` lines: `hooked`, `Setup #n ... FAILED: <reason>`, `Setup gone` / `found Setup again` (`map_screen.cpp`) | `SETUP_PATH` in `map_screen.cpp` after a game update; `map_cpp=0` in config.txt turns it off; Lua's `AP_MapScreen` calls in `walls.lua` |
-| The map picture looks wrong (colours, rims, walls, borders) | `image_tools.cpp`: `compose_field` for the Territories map, `compose_chart` and `compose_fog` for `map_style=chart` | What Lua sends it (`lockSpec`, `wallSpec` in `map_picture.lua`); reproduce it on Linux with `test/image_test.cpp` |
+| The map picture looks wrong (colours, rims, walls, borders) | `compose_field` in `image_territories.cpp` for the Territories map; `compose_chart` in `image_chart.cpp` and `compose_fog` in `image_fog.cpp` for `map_style=chart`; land and sea told apart in `image_land_sea.cpp` | What Lua sends it (`lockSpec`, `wallSpec` in `map_picture.lua`); reproduce it on Linux with `test/image_test.cpp` |
 | An item never arrives, or arrives twice | The log's `Received ...` and `save ...: items applied up to index N` lines; `applyItems` and `giveFiller` in `items.lua` | `ap.given` in the save file (`given=`): deleting the save makes every one-off item come again |
 | A tech is locked that should be unlocked, or the other way round | The log's `locked <tech>` / `unlocked <tech>` lines; `lockAndUnlockTechs` in `tech_lock.lua` | Is this the seed's world? A `world: ... is not this seed's world` line means nothing is locked or sent here (`checkWorld` in `world.lua`) |
 | Buying a shop slot does nothing, or the card shows the wrong thing | The log's `BOUGHT` or `buy ...: not enough points` lines; `buy()` and `researchRequested` in `shop.lua` | `relabel` in `shop_cards.lua` for what a card shows; `slotUnlockable` in `shop.lua` for whether it can be clicked |

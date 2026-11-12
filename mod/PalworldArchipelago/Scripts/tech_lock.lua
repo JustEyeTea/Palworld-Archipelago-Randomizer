@@ -6,6 +6,10 @@
 --   "the tech list is compared only when it may have changed" (tools/lua_harness.sh, in CI).
 local TECH_LOCK = {}
 local DATA = require("ap_data")
+-- The player's tech data's field of Ancient points (the game calls them boss tech points), and the function that tells
+-- the tech menu it changed: shop.lua charges them for an Ancient slot, items.lua adds one for an Ancient Tech Point.
+TECH_LOCK.ANCIENT_POINTS = "bossTechnologyPoint"
+TECH_LOCK.ANCIENT_ONREP = "OnRep_BossTechnologyPoint"
 local PERF = require("perf")
 local STATE = require("ap_state")
 local UTIL = require("util")

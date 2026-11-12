@@ -57,6 +57,35 @@ group("buying a slot", function()
     req.v = FNameOf("Workbench")
     research(nil, req)
     expect(req.v:ToString() == "Workbench", "level-1 research left alone")
+    -- After a world change, until the records phase has looked whether this world is the seed's, nothing is bought.
+    local WORLD, STATE = require("world"), require("ap_state")
+    local slot
+    for tech, s in pairs(D.shop) do
+        if not slot and not STATE.ap.bought[s.loc] and s.cost <= 1 then
+            slot = tech
+        end
+    end
+    local pointsWere = td.TechnologyPoint
+    td.TechnologyPoint = 12
+    inWorld(true)
+    local pawnWas = pawnAddress
+    for _ = 1, 3 do
+        newPawn()
+        run(1)
+        if WORLD.seedWorld() == nil then break end
+    end
+    local unknown = WORLD.seedWorld() == nil
+    req.v = FNameOf(slot)
+    research(nil, req)
+    run(1)
+    local boughtUnknown = STATE.ap.bought[D.shop[slot].loc]
+    pawnAddress = pawnWas
+    runCycles(2)
+    td.TechnologyPoint = pointsWere
+    inWorld(false)
+    expect(unknown and not boughtUnknown and h.told("Still checking"),
+           "a purchase before this world is known to be the seed's is refused, and the player told: "
+           .. tostring(boughtUnknown))
 end)
 
 group("an update UE4SS runs inside a Blueprint hook skips its turn", function()
@@ -91,6 +120,34 @@ group("a bought slot's check is sent again on every connection, and kept in the 
     local text = h.saveText()
     expect(text:find("bought=[%d,]*" .. loc),
            "the save file keeps the bought slot: " .. (text:match("bought=[^\n]*") or "none"))
+    -- The connection drops in the seed's world (the seed known): a purchase still goes through, is saved, and its
+    -- check is sent once the connection is back.
+    local STATE = require("ap_state")
+    local slot
+    for tech, s in pairs(D.shop) do
+        local free = not STATE.ap.checked[s.loc] and not STATE.ap.bought[s.loc]
+        if not slot and free and s.cost <= 1 and not s.ancient then
+            slot = tech
+        end
+    end
+    local offLoc = D.shop[slot].loc
+    local pointsWere = td.TechnologyPoint
+    td.TechnologyPoint = 12
+    push("status", "disconnected")
+    run(1)
+    shared.req.v = FNameOf(slot)
+    shared.research(nil, shared.req)
+    run(1)
+    local charged = td.TechnologyPoint == 12 - D.shop[slot].cost
+    local savedOffline = h.saveText():find("bought=[%d,]*" .. offLoc) ~= nil
+    local sentOffline = checks[offLoc]
+    push("status", "connected", "Tester")
+    run(2)
+    td.TechnologyPoint = pointsWere
+    expect(charged and STATE.ap.bought[offLoc] and STATE.ap.checked[offLoc] and savedOffline and not sentOffline
+           and h.told("check is sent when the connection is back"),
+           "offline in the seed's world: the slot is bought, charged and saved, and the player told when it is sent")
+    expect(checks[offLoc], "and its check is sent once the connection is back")
 end)
 
 group("still loading into the world", function()
@@ -135,6 +192,37 @@ group("a save file that can't be written is logged, and the player told once", f
     expect(logged("could not write .*save%-12345%-Tester%.txt%.tmp: Permission denied") and timesTold == 1,
            "the failure is logged with the reason, and the player is told once: " .. timesTold)
     table.remove(MB.queue)
+    -- A write that fails only when the file is closed (a full disk: Lua buffers the text) leaves the last good save.
+    local SAVE = require("save")
+    local path = SAVE.path()
+    local function sizeOf(file)
+        local f = openWas(file)
+        local size = f and #f:read("a") or 0
+        if f then
+            f:close()
+        end
+        return size
+    end
+    SAVE.write(true)
+    local before = sizeOf(path)
+    io.open = function(file, mode)
+        if (mode or ""):find("w", 1, true) and file:find("save%-[^\\/]*%.txt%.tmp$") then
+            local real = openWas(file, mode)                   -- (made empty, as a full disk leaves it)
+            return { write = function(self) return self end,
+                     close = function()
+                         real:close()
+                         return nil, "No space left on device", 28
+                     end }
+        end
+        return openWas(file, mode)
+    end
+    local mark = logMark()
+    SAVE.write(true)
+    io.open = openWas
+    expect(before > 0 and sizeOf(path) == before and loggedSince(mark, "No space left on device"),
+           "a save whose close fails keeps the last good file, and says why: before " .. before .. " bytes, after "
+           .. sizeOf(path))
+    SAVE.write(true)
 end)
 
 group("the save file is written only when it changes", function()

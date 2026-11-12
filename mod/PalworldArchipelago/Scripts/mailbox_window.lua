@@ -13,6 +13,7 @@ local log = UTIL.log
 --   list                  the mailbox module: its queue, count(), take(id), takeAll() and TITLE
 --   once(key, msg)        the mailbox's log-once for this world
 --   notify(text)          shows a line to the player
+--   save()                writes the mod's save file (after a row's take)
 --   guardedHook(name, fn) optional: a hook callback that no update can run inside
 local env, LIST, once
 
@@ -38,7 +39,8 @@ local WINDOW_GAME = {
 -- State. Forgotten: when the HUD no longer has the window, on a new world, on a new seed (WINDOW.forget()).
 -- Its buttons are claimed in clicks.lua as the owner WINDOW_OWNER, each with what it does: { kind = "take", id = item
 -- id }, { kind = "takeAll" } or { kind = "close" } (WINDOW_ACTIONS); released whenever the window is filled again.
-local window = nil            -- the window: { id = its HUD id, hud = the HUD service }
+local window = nil            -- the window: { id = its HUD id, hud = the HUD service, listed = what listedNow() said
+                              --   when it was last filled }
 -- State. Forgotten: never.
 local iconsFailed = false     -- an icon could not be shown: the game's item data has none, so none are tried again
 
@@ -106,10 +108,17 @@ local function setTexts(widget)
     setLabel(widget.Close, "Close")
 end
 
+-- What the list holds, as one text that changes whenever a kind or a count does (to see when to fill it again).
+local function listedNow()
+    local kinds, items = LIST.count()
+    return kinds .. "/" .. items
+end
+
 -- Fills the window from the list again: rows, texts and the buttons' actions.
 local function refreshWindow()
     local widget = window and window.hud:GetWidget(window.id)
     if not widget or not widget:IsValid() then return end
+    window.listed = listedNow()
     checkParts(widget)
     widget.List:ClearChildren()
     CLICKS.releaseAll(WINDOW_OWNER)
@@ -130,7 +139,10 @@ end
 
 -- What each kind of button does. All but Close fill the window again afterwards.
 local WINDOW_ACTIONS = {
-    take = function(action) LIST.take(action.id) end,
+    take = function(action)
+        LIST.take(action.id)
+        env.save()
+    end,
     takeAll = takeAllAndTell,
     close = function() pcall(function() window.hud:Close(window.id) end) end,
 }
@@ -172,7 +184,13 @@ function WINDOW.open(pawn)
     end)
     local id = hud:Push(UTIL.findClass(WINDOW_GAME.window), parameter)
     window = { id = id, hud = hud }
-    refreshWindow()
+    local filled, err = pcall(refreshWindow)
+    if not filled then
+        -- Closed before the chest opens in its place: left up, it would sit empty with buttons nobody answers.
+        pcall(function() hud:Close(id) end)
+        WINDOW.forget()
+        error(err, 0)
+    end
     log("mailbox: window open (" .. #LIST.queue .. " kind(s))")
 end
 
@@ -181,7 +199,8 @@ function WINDOW.isOpen()
     return window ~= nil
 end
 
--- Forgets the window once the HUD no longer has it (the player closed it).
+-- Forgets the window once the HUD no longer has it (the player closed it), and fills it again when items arrived (or
+-- went) since it was filled.
 function WINDOW.follow()
     if not window then return end
     local open = false
@@ -191,6 +210,10 @@ function WINDOW.follow()
     end)
     if not open then
         WINDOW.forget()
+        return
+    end
+    if window.listed ~= listedNow() then
+        refreshWindow()
     end
 end
 

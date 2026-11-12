@@ -13,10 +13,11 @@ local PLAYER = require("player")
 local RECORDS = require("records")
 local SAVE = require("save")
 local STATE = require("ap_state")
-local SYNC = require("sync")
+local RUN_STYLE = require("run_style")
 local TECH_LOCK = require("tech_lock")
 local TRAPS = require("traps")
 local UTIL = require("util")
+local WORLD = require("world")
 local ap, slotNumber = STATE.ap, STATE.slotNumber
 local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
@@ -56,9 +57,19 @@ local function receiveCrate(index)
     notify("Palworld Crate: it's a " .. CRATES.NAMES[kind] .. "! Open it from the Inventory page when you like.")
 end
 
+-- Each filler bundle's items: { { id = item id (a DT_ItemDataTable row), n = count } }, by the item's name.
+local BUNDLES = {
+    ["Wood Bundle"] = { { id = "Wood", n = 50 } },
+    ["Stone Bundle"] = { { id = "Stone", n = 50 } },
+    ["Paldium Bundle"] = { { id = "Pal_crystal_S", n = 20 } },
+    ["Ingot Bundle"] = { { id = "CopperIngot", n = 10 } },
+    ["Sphere Bundle"] = { { id = "PalSphere", n = 5 } },
+    ["Food Bundle"] = { { id = "Baked_Berries", n = 10 } },
+}
+
 -- A bundle's items, into the mailbox.
 local function giveBundle(_, it)
-    for _, bundle in ipairs(RECORDS.BUNDLES[it.name]) do
+    for _, bundle in ipairs(BUNDLES[it.name]) do
         MAIL.add(bundle.id, bundle.n)
     end
 end
@@ -73,12 +84,12 @@ end
 -- One ancient tech point (the "Ancient Tech Points +1" item).
 local function addAncientPoint(ps)
     local td = ps:GetTechnologyData()
-    td[RECORDS.ANCIENT_POINTS] = td[RECORDS.ANCIENT_POINTS] + 1
-    safe(function() td[RECORDS.ANCIENT_ONREP](td) end)
+    td[TECH_LOCK.ANCIENT_POINTS] = td[TECH_LOCK.ANCIENT_POINTS] + 1
+    safe(function() td[TECH_LOCK.ANCIENT_ONREP](td) end)
 end
 
 -- Each filler item's once-per-seed effect, by the item's name as apworld/palworld/data.py gives it (the generated
--- ap_data.lua carries it); a bundle's effect is giveBundle, for every name in RECORDS.BUNDLES. Each takes
+-- ap_data.lua carries it); a bundle's effect is giveBundle, for every name in BUNDLES. Each takes
 -- (ps, it, index).
 local FILLER_EFFECTS = {
     ["Palworld Crate"] = function(_, _, index)
@@ -93,7 +104,7 @@ local FILLER_EFFECTS = {
 local function giveFiller(ps, id, index)
     local it = DATA.items[id]
     if not it then return end
-    local effect = FILLER_EFFECTS[it.name] or (RECORDS.BUNDLES[it.name] and giveBundle)
+    local effect = FILLER_EFFECTS[it.name] or (BUNDLES[it.name] and giveBundle)
     if not effect then
         once("filler " .. it.name, "item " .. it.name .. ": no effect known to this version of the mod, nothing given")
         return
@@ -126,8 +137,13 @@ local function givePending()
 end
 
 -- Opening a crate (the Inventory page's Open button: the next one; the crate window's: one of `kind`), its contents
--- rolled from the player's level now. Returns the kind and the contents.
+-- rolled from the player's level now. Returns the kind and the contents. In a world that is not the seed's nothing
+-- opens: the crate's contents would leave the seed for that world's bag.
 function ITEMS.openCrate(kind)
+    if WORLD.seedWorld() == false then
+        notify("Your crates open only in the world this seed is played in.")
+        return
+    end
     local ps = playerState()
     if not (ps and ps:IsValid()) then
         notify("Open crates in your world.")
@@ -148,11 +164,11 @@ function ITEMS.openCrate(kind)
     return kind, out
 end
 
--- Run Style "Nomad": a received tech also hands over what it makes (sync.lua). Gear goes to the bag, like a
+-- Run Style "Nomad": a received tech also hands over what it makes (run_style.lua). Gear goes to the bag, like a
 -- crate's (what the bag refuses waits with the crates' and is tried again); a stack goes to the mailbox. The recipe
 -- unlocks as in every style, so a hand-over that fails still leaves the tech.
 local function giveTechGift(it)
-    local gifts = SYNC.gifts(AP_SlotData, it.tech)
+    local gifts = RUN_STYLE.gifts(AP_SlotData, it.tech)
     if not gifts then return end
     local parts = {}
     for _, gift in ipairs(gifts) do
@@ -171,10 +187,8 @@ end
 --   relic        -                                                the "Palpagos Relic n/m found!" notice
 --   filler       -                                                its effect (giveFiller): a crate, points, a bundle
 -- Every kind but a trap also says "Received ..." in chat when it is new (its index is past ap.given).
--- Applies each received item's once-per-seed effect, in index order from ap.given + 1, after retrying the gear the bag
--- refused (from crates and Nomad gifts).
-function ITEMS.applyItems(ps)
-    givePending()
+-- Applies each received item's once-per-seed effect, in index order from ap.given + 1 (moved past each as it is done).
+local function applyNewItems(ps)
     local i = ap.given + 1
     while ap.items[i] do
         local id = ap.items[i]
@@ -195,7 +209,18 @@ function ITEMS.applyItems(ps)
         ap.given = i
         i = i + 1
     end
+end
+
+-- Applies the items received since the last time, after retrying the gear the bag refused (from crates and Nomad
+-- gifts), and saves how far it got. An item whose effect raises stops the pass there: what was applied before it is
+-- saved all the same (else it would be given again after a restart), and the error goes on to the caller.
+function ITEMS.applyItems(ps)
+    givePending()
+    local ok, err = pcall(applyNewItems, ps)
     writeSave()
+    if not ok then
+        error(err, 0)
+    end
 end
 
 -- item <index> <item id> <location id> <player slot> <flags> <item name> <player name>

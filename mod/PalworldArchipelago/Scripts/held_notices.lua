@@ -1,5 +1,5 @@
 -- Held notices: chat notices that would come while the loading screen is still up are held, then shown once the
--- player can see them. sync.lua (Speed Boost) holds its notices here; main.lua's items phase shows them.
+-- player can see them. run_style.lua (Speed Boost) holds its notices here; main.lua's items phase shows them.
 -- Tests: mod/test/tests/crates_run_style.lua; group
 --   "run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning"
 --   (tools/lua_harness.sh, in CI).

@@ -2,8 +2,8 @@
 -- the server's events read each update, what a new seed forgets, the seed's options, and when the connection is
 -- ready. Wired by main.lua, which calls CONNECTION.readEvents and CONNECTION.markReady every update.
 -- Tests: mod/test/tests/core.lua, mod/test/tests/core_loop.lua, mod/test/tests/title_menu.lua; groups
---   "connect and receive", "reconnect does not repeat one-off items", "the title menu's Archipelago menu"
---   (tools/lua_harness.sh, in CI).
+--   "loading the mod" (started offline), "connect and receive", "reconnect does not repeat one-off items",
+--   "the title menu's Archipelago menu" (tools/lua_harness.sh, in CI).
 local CONNECTION = {}
 local AREA_LOCKS = require("area_locks")
 local CHECKS = require("checks")
@@ -18,7 +18,7 @@ local PERF = require("perf")
 local PLAYER = require("player")
 local SAVE = require("save")
 local STATE = require("ap_state")
-local SYNC = require("sync")
+local RUN_STYLE = require("run_style")
 local TECH_LOCK = require("tech_lock")
 local TECHSCAN = require("techscan")
 local TRAPS = require("traps")
@@ -62,7 +62,7 @@ local function resetSeed(seed, slot)
     STATE.forgetSeed()
     WALLS.setVisited(ap.visited)              -- (the new table: the map reads it)
     CRATES.reset()
-    SYNC.reset()
+    RUN_STYLE.reset()
     MAIL.reset()
     TRAPS.reset()
     TECH_LOCK.techsChanged()
@@ -112,11 +112,11 @@ end
 
 -- The options that are only logged: the run style, Speed Boost and traps.
 local function logRunOptions()
-    local style = SYNC.style(AP_SlotData)
+    local style = RUN_STYLE.style(AP_SlotData)
     if style ~= 0 then
-        log("run style: " .. SYNC.NAMES[style] .. " (techs also hand over what they make)")
+        log("run style: " .. RUN_STYLE.NAMES[style] .. " (techs also hand over what they make)")
     end
-    if SYNC.boost(AP_SlotData) then
+    if RUN_STYLE.boost(AP_SlotData) then
         log("speed boost: on (this seed changes the world's EXP, work speed and gathering)")
     end
     local chance = slotNumber("options.trap_chance", 0)
@@ -238,6 +238,33 @@ function CONNECTION.readEvents()
         end
     end
     PERF.stop("poll")
+end
+
+-- Not connected, the seed in memory follows the loaded world: when worlds.txt knows its seed (SAVE.seedOfWorld) and
+-- that is not the one in memory, that seed's save is loaded and the shop opens, so a purchase is queued in its save
+-- and sent on connecting, as with a dropped connection. Nothing else runs offline: no item is applied and no tech
+-- locked (both need the server's items), and the game's records are sent on connecting. Connecting to another seed
+-- later resets this one as usual; what was queued for it stays in its save until it connects again. The research
+-- techs stay the last connected seed's (research.txt). Untested in game.
+-- Looked at once per pawn (a world load brings a new one), so a world with no known seed costs one look.
+local offlinePawn = nil       -- state: the pawn the loaded world's seed was last looked up for. Forgotten never
+function CONNECTION.knowSeedOffline()
+    local pawn = PLAYER.playerPawn()
+    local key = pawn and pawn:IsValid() and UTIL.addr(pawn)
+    if not key or key == offlinePawn then return end
+    offlinePawn = key
+    local world = WORLD.folder()
+    if not world then return end
+    local seed, slot = SAVE.seedOfWorld(world)
+    if not seed or (seed == ap.seed and slot == ap.slotName) then return end
+    if ap.seed then
+        resetSeed(seed, slot)
+    end
+    ap.seed, ap.slotName = seed, slot
+    loadSave()
+    ap.shopOpen = true
+    log("not connected: world " .. world .. " is played with seed " .. seed .. " as " .. slot .. " (worlds.txt);"
+        .. " its save is loaded, and shop slots bought now are sent on connecting")
 end
 
 -- Ready once the first batch of items is in, a moment after connecting: only then is anything locked.

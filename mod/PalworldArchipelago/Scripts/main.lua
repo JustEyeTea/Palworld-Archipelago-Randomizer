@@ -3,7 +3,7 @@
 -- (cppmod/APConnector/src/dllmain.cpp). Each topic lives in a file of its own; docs/architecture.md lists them.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 -- Tests: every file in mod/test/tests/: the harness loads main.lua and runs them all (tools/lua_harness.sh, in CI).
-local VERSION = "0.14.1-dev.9"
+local VERSION = "0.14.1-dev.10"
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
@@ -26,13 +26,12 @@ local MENU = require("menu")
 local PERF = require("perf")
 local PLAYER = require("player")
 local POPUP = require("hint_popup")
-local RECORDS = require("records")
 local SAVE = require("save")
 local SHOP = require("shop")
 local SHOP_CARDS = require("shop_cards")
 local SOON = require("soon")
 local STATE = require("ap_state")
-local SYNC = require("sync")
+local RUN_STYLE = require("run_style")
 local TECH_LOCK = require("tech_lock")
 local TECHSCAN = require("techscan")
 local TEST_TOOLS = require("test_tools")
@@ -76,9 +75,12 @@ end
 local function updateWindows(frame)
     PERF.start("menu")
     local okm, errm = pcall(MENU.update, frame)
-    -- The un-hover event may not come when the menu closes under the pointer: a card can't be hovered with no menu.
+    -- The un-hover event may not come when the menu closes under the pointer, or its tab changes: a card can't be
+    -- hovered with no menu, nor on another tab.
     if SHOP.hovered() and MENU.mainMenuUp() == false then
         SHOP.forgetHover()
+    elseif SHOP.hovered() then
+        SHOP.followHoverTab(MENU.mainMenuTab())
     end
     PERF.stop("menu")
     if not okm then
@@ -106,7 +108,8 @@ local function phaseRecords()
     if not okk then
         onceErr("trapsk", errk, "traps error: " .. tostring(errk))
     end
-    if ps and ap.ready then
+    -- (also offline once the seed is known, ap.shopOpen: a purchase then needs to know the world)
+    if ps and (ap.ready or ap.shopOpen) then
         WORLD.checkWorld(ps)
     end
     if ps and ap.ready and WORLD.seedWorld() then
@@ -123,7 +126,7 @@ end
 -- The run style's sync (Speed Boost's world settings) and the notices held through the loading screen, once the
 -- world has settled.
 local function syncRunStyle(ps)
-    local oks, news = pcall(SYNC.apply, ps, AP_SlotData, WORLD.key(), HELD.holdNotice)
+    local oks, news = pcall(RUN_STYLE.apply, ps, AP_SlotData, PLAYER.frame().controllerKey, HELD.holdNotice)
     if not oks then
         onceErr("sync", news, "sync error: " .. tostring(news))
     elseif news then
@@ -153,15 +156,22 @@ local function phaseItems()
     local ps = playerState()
     if not ps then return end
     PERF.start("e7")
+    -- Each step is caught, as the ones below are: an error in one (an item whose effect raises every time) must not
+    -- stop Death Link, traps and the sync on every cycle.
     PERF.start("techs")
-    local changed = lockAndUnlockTechs(ps)
+    local okl, changed = pcall(lockAndUnlockTechs, ps)
     PERF.stop("techs")
-    if changed then
+    if not okl then
+        onceErr("techlock", changed, "tech lock error: " .. tostring(changed))
+    elseif changed then
         refreshTree()
     end
     local td = safe(function() return ps:GetTechnologyData() end)
     if td and td:IsValid() then    -- (items wait while the tech data is still loading)
-        applyItems(ps)
+        local oka, erra = pcall(applyItems, ps)
+        if not oka then
+            onceErr("items", erra, "items error: " .. tostring(erra))
+        end
     end
     if WORLD.settled() then
         syncRunStyle(ps)
@@ -210,9 +220,14 @@ local function update(frame)
     SHOP_CARDS.refreshCards()
     PERF.stop("cards")
     TECHSCAN.sendRemovedSlots()
+    if ap.status ~= "connected" then
+        CONNECTION.knowSeedOffline()       -- (started offline: the loaded world's seed, from worlds.txt)
+    end
     local pawn = nil
+    if ap.ready or ap.shopOpen then
+        pawn = WORLD.note()                -- (offline too once the seed is known: a world change resets the answer)
+    end
     if ap.ready then
-        pawn = WORLD.note()
         AREA_LOCKS.update(pawn)
     end
     runPhase(pawn)
@@ -243,8 +258,8 @@ local function coreTickBody()
         if not ok then
             onceErr("update", err, "update error: " .. tostring(err))
         end
-        if PERF.legacy then
-            pcall(PERF.replayOldCost, frame)
+        if PERF.replayingCost then
+            pcall(PERF.replayUnsharedLookups, frame)
         end
         PERF.world(frame)
     end
@@ -338,7 +353,7 @@ end
 -- A trap's announcement: logged and shown in chat without the [Archipelago] prefix (the trap speaks for itself).
 local function announceTrap(text)
     log(text)
-    RECORDS.notify(text, playerState())
+    PLAYER.announce(text)
 end
 
 -- The menus, the mailbox, the crate window and the traps get what main.lua hands them.
@@ -359,20 +374,22 @@ local function installWindows()
         guardedHook = guardedHook,
     })
     MAIL.install({ notify = notify, save = writeSave, cfg = cfg, guardedHook = guardedHook,
-                   connected = function() return ap.status == "connected" end })
+                   connected = function() return ap.status == "connected" end, seedWorld = WORLD.seedWorld })
     CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, openCrate = openCrateOfKind,
                    guardedHook = guardedHook })
     TRAPS.install({ notify = notify, save = writeSave, announce = announceTrap,
                     sender = function(index) return ap.from[index] end,
-                    home = function() return WALLS.home end, start = function() return WALLS.start end })
+                    home = function() return WALLS.homeLocation() end, start = function() return WALLS.start end })
 end
 
 -- What a world change forgets, in this order: whether this world is the seed's (looked at again in the records phase
--- before any wall goes up; a yes is for the world it was asked in), the pop-up or goal banner (it went with the old
--- world's HUD), the walls, and the skip of the tech list's comparison (another world's list is compared in full).
+-- before any wall goes up; a question asked, and its yes, are kept with the world folder they are for), the pop-up or
+-- goal banner and the debuff icons (they went with the old world's HUD), the walls, and the skip of the tech list's
+-- comparison (another world's list is compared in full).
 local function forgetOnWorldChange()
-    WORLD.onChange(WORLD.resetSeedWorld)
+    WORLD.onChange(WORLD.forgetWorldCheck)
     WORLD.onChange(POPUP.forget)
+    WORLD.onChange(DEBUFFS.forget)
     WORLD.onChange(WALLS.reset)
     WORLD.onChange(TECH_LOCK.forgetSeen)
 end

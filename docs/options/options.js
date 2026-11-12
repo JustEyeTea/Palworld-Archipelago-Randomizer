@@ -23,27 +23,44 @@
   }
 
   // Docstrings are wrapped at the code's line width; the YAML keeps that, but on the page a wrapped line is joined
-  // back up. A line counts as wrapped when it is long and doesn't end a sentence, so the Goal option's one-line
-  // entries stay on their own lines. Blank lines make paragraphs, **text** is bold and ``text`` is code, as the
-  // docstrings' reStructuredText writes them (the YAML keeps the marks as they are).
+  // back up. A line counts as wrapped when it is at least WRAPPED_LINE_MIN characters long (options.py wraps its
+  // docstrings at 120 columns less the class's indent, so a wrapped line is longer) and doesn't end a sentence, so
+  // the Goal option's one-line entries stay on their own lines. Blank lines make paragraphs, **text** is bold and
+  // ``text`` is code, as the docstrings' reStructuredText writes them (the YAML keeps the marks as they are).
+  var WRAPPED_LINE_MIN = 90;
+
+  // A paragraph's lines with each wrapped line joined to the next.
+  function joinWrappedLines(paragraph) {
+    var lines = paragraph.split('\n');
+    var joined = [lines[0]];
+    for (var i = 1; i < lines.length; i++) {
+      var previous = joined[joined.length - 1];
+      var wrapped = previous.length >= WRAPPED_LINE_MIN && !/[.:;!?]$/.test(previous);
+      if (wrapped) joined[joined.length - 1] = previous + ' ' + lines[i];
+      else joined.push(lines[i]);
+    }
+    return joined;
+  }
+
+  // One line of help, its **bold** and ``code`` parts as <strong> and <code>.
+  function appendMarkedText(node, line) {
+    line.split(/\*\*(.+?)\*\*/).forEach(function (part, odd) {
+      if (odd % 2) {
+        node.appendChild(element('strong', {}, part));
+        return;
+      }
+      part.split(/``(.+?)``/).forEach(function (piece, code) {
+        node.appendChild(code % 2 ? element('code', {}, piece) : document.createTextNode(piece));
+      });
+    });
+  }
+
   function fillHelp(node, text) {
     text.split(/\n\s*\n/).forEach(function (paragraph, index) {
-      var lines = paragraph.split('\n');
-      var joined = [lines[0]];
-      for (var i = 1; i < lines.length; i++) {
-        var previous = joined[joined.length - 1];
-        if (previous.length >= 90 && !/[.:;!?]$/.test(previous)) joined[joined.length - 1] = previous + ' ' + lines[i];
-        else joined.push(lines[i]);
-      }
       if (index) node.appendChild(document.createElement('br'));
-      joined.forEach(function (line, n) {
+      joinWrappedLines(paragraph).forEach(function (line, n) {
         if (n || index) node.appendChild(document.createElement('br'));
-        line.split(/\*\*(.+?)\*\*/).forEach(function (part, odd) {
-          if (odd % 2) { node.appendChild(element('strong', {}, part)); return; }
-          part.split(/``(.+?)``/).forEach(function (piece, code) {
-            node.appendChild(code % 2 ? element('code', {}, piece) : document.createTextNode(piece));
-          });
-        });
+        appendMarkedText(node, line);
       });
     });
     return node;

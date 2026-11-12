@@ -105,7 +105,9 @@ YAML), on top of whatever you set yourself.
 
 **It changes your world's own settings, and your world keeps them in its save, also after the game.** When you
 connect, the mod tells you in game what it changed and your world's own values. It keeps those values in its own save,
-so loading the world again never multiplies twice. Set them back in World Settings to play the world on without it.
+so loading the world again never multiplies twice. Set them back in World Settings to play the world on without it,
+and before starting another seed in the same world: a new seed takes the values the world holds as its own, so a world
+still sped up by the last seed is sped up again.
 
 ## Traps
 

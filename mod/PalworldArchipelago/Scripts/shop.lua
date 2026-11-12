@@ -8,9 +8,10 @@ local CHECKS = require("checks")
 local DATA = require("ap_data")
 local PERF = require("perf")
 local PLAYER = require("player")
-local RECORDS = require("records")
+local SAVE = require("save")
 local SHOP_CARDS = require("shop_cards")
 local STATE = require("ap_state")
+local TECH_LOCK = require("tech_lock")
 local UTIL = require("util")
 local WORLD = require("world")
 local ap = STATE.ap
@@ -40,10 +41,12 @@ local SHOP_CLASS = {
 --   4. A click: canResearch and isResearched answer for hoveredTech only, and confirmBoxSetup reads hoveredTech to
 --      name what the purchase sends.
 --   5. The pointer leaves the card: cardUnhovered clears hoveredTech (updateWindows also clears it once the main
---      menu is closed, as the un-hover event may not come then).
+--      menu is closed, or shows another tab, as the un-hover event may not come then: SHOP.followHoverTab).
 -- hoveredTech is set whenever the game sets a tooltip up, for any tech, not only for the card under the pointer.
 local hoveredTech = nil       -- the tech whose tooltip was set up last: a confirm box opened then came from its card
 local retarget = nil          -- the tech a tooltip is being set up again for (step 2), until step 3 uses it
+local hoverTab = nil          -- the main menu's tab when hoveredTech was set (the Technology tab), seen at the next
+                              -- update; forgotten with hoveredTech
 
 -- The confirm box's question for buying a slot: what it sends and what it costs.
 local function confirmText(tech)
@@ -80,7 +83,7 @@ local function tooltipSetup(self, techName)
         pcall(function() info:SetRenderOpacity(1.0) end)
         return
     end
-    hoveredTech = tech
+    hoveredTech, hoverTab = tech, nil
     local mine = isShopSlot(tech) and ownTech(tech)
     pcall(function() info:SetRenderOpacity((isShopSlot(tech) or mine) and 0.0 or 1.0) end)
     if not mine then return end
@@ -96,7 +99,7 @@ local function tooltipSetup(self, techName)
 end
 -- Leaving a card forgets it, so a later dialog (Return to Title...) is not mistaken for a purchase.
 local function cardUnhovered()
-    hoveredTech = nil
+    hoveredTech, hoverTab = nil, nil
 end
 -- The confirm box names what the purchase sends. The game fills its text in slightly after SetupUI, so the text is
 -- applied on the next frame and again on the next two updates (only while it still differs): about the first
@@ -120,42 +123,68 @@ local function confirmBoxSetup(self, dialogType, message)
     later(2, apply)
 end
 
--- Buying: the request is rewritten so the game unlocks nothing; the mod charges the points and sends the check.
+-- Whether a purchase can be made now, else the player is told why. A slot is bought in the seed's world only, and
+-- only once this session knows the seed (ap.shopOpen: set when a connection was ready, or offline when worlds.txt
+-- names the loaded world's seed): connected, or offline, when the check waits for the connection to come back.
+-- Started offline in a world with no seed known, nothing is bought (the game unlocks nothing either).
+local function mayBuyHere()
+    if not ap.shopOpen then
+        notify(ap.status == "connected" and "Archipelago is still connecting: nothing bought."
+            or "Connect to Archipelago to buy shop slots.")
+        return false
+    end
+    if WORLD.seedWorld() == false then
+        notify(WORLD.NOT_SEED_WORLD .. ": nothing bought.")
+        return false
+    end
+    -- Not looked at yet (the first moments after a world loads, or the pawn changed): a check sent can't be taken
+    -- back, so a purchase waits for the answer.
+    if WORLD.seedWorld() == nil then
+        notify("Still checking whether this is the seed's world: nothing bought. Try again in a moment.")
+        return false
+    end
+    return true
+end
+
+-- Buying: the request is rewritten so the game unlocks nothing; the mod charges the points, marks the slot bought
+-- and saves it, and sends the check, or, with the connection down, has it sent when the connection is back
+-- (CHECKS.sendBoughtAgain on connecting). Untested in game: buying with the connection down, or started offline.
 local function buy(tech)
     local s = DATA.shop[tech]
     local ps = playerState()
     if not ps then return end
-    if ap.status ~= "connected" or not ap.ready then
-        notify("Not connected to Archipelago: nothing bought.")
-        return
-    end
-    if WORLD.seedWorld() == false then
-        notify(WORLD.NOT_SEED_WORLD .. ": nothing bought.")
-        return
-    end
+    if not mayBuyHere() then return end
     if bought(tech) then return end
     local td = ps:GetTechnologyData()
-    local field = s.ancient and RECORDS.ANCIENT_POINTS or "TechnologyPoint"
+    local field = s.ancient and TECH_LOCK.ANCIENT_POINTS or "TechnologyPoint"
     local before = td[field]
     if before < s.cost then
         log("buy " .. tech .. ": not enough points (" .. before .. " < " .. s.cost .. ")")
         return
     end
     td[field] = before - s.cost
-    safe(function() td[s.ancient and RECORDS.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
+    safe(function() td[s.ancient and TECH_LOCK.ANCIENT_ONREP or "OnRep_TechnologyPoint"](td) end)
     log(string.format("BOUGHT %s for %d %s: %d -> %d, sends %s", tech, s.cost, field, before, td[field],
         rewardText(tech)))
     ap.bought[s.loc] = true
-    sendChecks({ s.loc })
+    local online = ap.status == "connected" and ap.ready
+    if online then
+        sendChecks({ s.loc })
+    end
     ap.checked[s.loc] = true
+    SAVE.write()
+    if not online then
+        notify("Bought " .. rewardText(tech) .. " while not connected: its check is sent when the connection is back.")
+    end
     refreshTree()
 end
 
 -- A research request for a shop slot: the game is asked for a slot no tech has, and the purchase runs on the next
--- update, outside this hook.
+-- update, outside this hook. In a world known not to be the seed's the request is left to the game.
 local function researchRequested(self, name)
     local tech = name:get():ToString()
     if not DATA.shop[tech] then return end
+    if WORLD.seedWorld() == false then return end   -- another world: plain Palworld research, the game's own
     name:set(FName("AP_ShopSlot"))
     -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
     -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.
@@ -179,7 +208,7 @@ local function slotUnlockable(td, tech)
     if bought(tech) then return false end
     if not ap.techs[tech] then return nil end
     if ap.level < s.level then return false end
-    if (td[s.ancient and RECORDS.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
+    if (td[s.ancient and TECH_LOCK.ANCIENT_POINTS or "TechnologyPoint"] or 0) < s.cost then return false end
     local p = s.prereq
     -- A prerequisite the seed leaves as normal research is met once the player has researched it in the game.
     local prerequisiteMet = p and (ap.techs[p] or DATA.starters[p] or (DATA.research[p] and TECH_LOCK.researchedNow(p)))
@@ -326,7 +355,19 @@ end
 
 -- Forgets the hovered card: main.lua calls it once the main menu is closed, as the un-hover event may not come then.
 function SHOP.forgetHover()
-    hoveredTech = nil
+    hoveredTech, hoverTab = nil, nil
+end
+
+-- Every update while a card is remembered, with the main menu's tab now: the first tab seen after the hover is the
+-- Technology tab it came from, and a different tab forgets the card, so a confirm box there (throwing an item away)
+-- is never taken for a purchase.
+function SHOP.followHoverTab(tab)
+    if not hoveredTech then return end
+    if hoverTab == nil then
+        hoverTab = tab
+    elseif tab ~= hoverTab then
+        SHOP.forgetHover()
+    end
 end
 
 return SHOP
