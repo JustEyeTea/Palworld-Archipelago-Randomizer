@@ -7,10 +7,11 @@
 #include <string>
 
 // Makes a Pal of `species` (DT_PalMonsterParameter row name) at `level` ("1".."65") by `route` (auto, party_debug,
-// party_plain, handle, palbox; see pal_gift_logic.hpp) with `options` ("rare,nopassive"). Returns a report, one step per
-// line; the last line is always "result: ok party|ok palbox|pending|busy|fail <reason>". Never throws. Game thread only.
-auto give_pal(const std::string& species, const std::string& level, const std::string& route, const std::string& options)
-        -> std::string;
+// party_plain, handle, palbox; see pal_gift_logic.hpp) with `options` ("rare,nopassive"). Returns a report, one step
+// per line; the last line is always "result: ok party|ok palbox|pending|busy|fail <reason>" (the words:
+// pal_gift_logic.hpp, RESULT_*). Never throws. Game thread only.
+auto give_pal(const std::string& species, const std::string& level, const std::string& route,
+              const std::string& options) -> std::string;
 
 // While a gift is pending: looks for it and returns a report ending like give_pal's. "" when nothing is pending.
 auto give_pal_poll() -> std::string;

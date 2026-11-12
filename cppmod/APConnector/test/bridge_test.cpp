@@ -1,6 +1,7 @@
 // Drives ApBridge against a live Archipelago server the way the Lua mod does: connect, read slot data, scout and
-// check a location, chat, and send a bounce. Prints every event line, and exits 1 unless the lines main.lua depends
-// on arrived in the format ap_bridge.hpp defines. Built and run by hand with tools/bridge_test.sh (CI does not run it).
+// check a location, chat, and send a bounce; and with no server to send to (before connecting, and while
+// reconnecting). Prints every event line, and exits 1 unless the lines main.lua depends on arrived in the format
+// ap_bridge.hpp defines. Built and run by hand with tools/bridge_test.sh (CI does not run it).
 //   bridge_test <server> <slot name> <location id> [password]
 #include "../src/ap_bridge.hpp"
 
@@ -20,6 +21,10 @@ namespace
     constexpr int BOUNCE_WAIT_MS = 2000;
     constexpr int DISCONNECT_WAIT_MS = 200;
     constexpr int TAKE_EVENTS_EVERY_MS = 50;
+    // A local port with nothing listening (tools/bridge_test.sh's server is on 38301): a bridge pointed there has a
+    // client that keeps trying to reconnect, as after the server dropped.
+    constexpr auto NO_SERVER = "ws://127.0.0.1:38999";
+    constexpr int RECONNECT_WAIT_MS = 1500;         // long enough for the first try to fail
     constexpr std::size_t SCOUT_FIELDS = 8;         // "scout" and its seven fields (ap_bridge.hpp)
     constexpr int CHECKS_FAILED = 1;
     constexpr int BAD_USAGE = 2;
@@ -108,6 +113,25 @@ namespace
                "a check with no connection is reported");
     }
 
+    // While apclientpp is trying to reconnect, chat, bounces and the goal have nowhere to go either: the bridge must
+    // report them as it does with no connection at all.
+    void check_while_reconnecting()
+    {
+        ApBridge bridge("Palworld", "bridge-test-0002");
+        bridge.connect(NO_SERVER, "Nobody", "");
+        drain(bridge, RECONNECT_WAIT_MS);
+        bridge.say("!hint Region Pass: Desiccated Dunes");
+        bridge.bounce("{\"time\":1}", "DeathLink");
+        bridge.goal();
+        drain(bridge, TAKE_EVENTS_EVERY_MS);
+        expect(exact_line_seen("status\terror\tchat not sent: no connection"),
+               "a chat line while reconnecting is reported");
+        expect(exact_line_seen("status\terror\tbounce not sent: no connection"),
+               "a bounce while reconnecting is reported");
+        expect(exact_line_seen("status\terror\tgoal not sent: no connection"),
+               "the goal while reconnecting is reported");
+    }
+
     // Waits until the slot joins or is refused; whether it joined.
     auto wait_for_slot(ApBridge& bridge) -> bool
     {
@@ -163,6 +187,7 @@ int main(int argc, char** argv)
     const std::string slot_name = argv[2];
     ApBridge bridge("Palworld", "bridge-test-0001");
     check_without_connection(bridge);
+    check_while_reconnecting();
     bridge.connect(argv[1], slot_name, argc > 4 ? argv[4] : "");
     const bool joined = wait_for_slot(bridge);
     expect(joined, "the slot joined");

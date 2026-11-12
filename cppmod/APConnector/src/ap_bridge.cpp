@@ -245,23 +245,21 @@ void ApBridge::send_scouts(const std::vector<int64_t>& locations)
 void ApBridge::say(const std::string& text)
 {
     std::lock_guard lock(m_mutex);
-    if (!m_client)
+    // apclientpp refuses a chat line (returns false) until the server has greeted it, as while it reconnects.
+    if (!m_client || !m_client->Say(text))
     {
         push(status_line("error", "chat not sent: no connection"));
-        return;
     }
-    m_client->Say(text);
 }
 
 void ApBridge::goal()
 {
     std::lock_guard lock(m_mutex);
-    if (!m_client)
+    // Refused (false) until the slot has joined, as while apclientpp reconnects.
+    if (!m_client || !m_client->StatusUpdate(APClient::ClientStatus::GOAL))
     {
         push(status_line("error", "goal not sent: no connection"));
-        return;
     }
-    m_client->StatusUpdate(APClient::ClientStatus::GOAL);
 }
 
 void ApBridge::set_tags(const std::string& tags_csv)
@@ -290,7 +288,11 @@ void ApBridge::bounce(const std::string& json_data, const std::string& tags_csv)
         push(status_line("error", "bounce not sent: its data is not JSON"));
         return;
     }
-    m_client->Bounce(data, /* games */ {}, /* slots */ {}, tag_list(tags_csv));
+    // Refused (false) until the server has greeted apclientpp, as while it reconnects.
+    if (!m_client->Bounce(data, /* games */ {}, /* slots */ {}, tag_list(tags_csv)))
+    {
+        push(status_line("error", "bounce not sent: no connection"));
+    }
 }
 
 auto ApBridge::slot_data(const std::string& path) -> std::string

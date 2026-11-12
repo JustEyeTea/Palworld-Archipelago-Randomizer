@@ -1,3 +1,4 @@
+// The Unreal-free half of giving a Pal, declared in pal_gift_logic.hpp.
 #include "pal_gift_logic.hpp"
 #include "lua_text.hpp"
 
@@ -18,45 +19,85 @@ namespace pal_gift
         return "?";
     }
 
-    auto parse_request(const std::string& species, const std::string& level, const std::string& route,
-                       const std::string& options, Request& out) -> std::string
+    namespace
     {
-        // A row name: letters, digits and underscores. Anything else can't be a Pal and isn't worth an FName lookup.
-        if (species.empty() || species.size() > 64) return "unknown species '" + species + "' (no such name)";
-        for (char c : species)
-        {
-            const bool word = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
-            if (!word) return "unknown species '" + species + "' (no such name)";
-        }
-        out.species = species;
+        // Longer than any row name in DT_PalMonsterParameter, and than any level Lua could mean.
+        constexpr size_t MAX_SPECIES_CHARS = 64;
+        constexpr size_t MAX_LEVEL_DIGITS = 3;
 
-        out.level = MIN_LEVEL;
-        if (!level.empty())
+        // Whether `species` can be a row name: letters, digits and underscores. Anything else can't be a Pal and
+        // isn't worth an FName lookup.
+        auto species_like(const std::string& species) -> bool
         {
-            if (level.size() > 3) return "bad level '" + level + "'";
+            if (species.empty() || species.size() > MAX_SPECIES_CHARS) return false;
+            for (char c : species)
+            {
+                const bool letter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+                const bool word = letter || (c >= '0' && c <= '9') || c == '_';
+                if (!word) return false;
+            }
+            return true;
+        }
+
+        // `level` ("1".."65", digits only; "" means MIN_LEVEL) into out; false when it is not a level.
+        auto read_level(const std::string& level, int& out) -> bool
+        {
+            out = MIN_LEVEL;
+            if (level.empty()) return true;
+            if (level.size() > MAX_LEVEL_DIGITS) return false;
             int n = 0;
             for (char c : level)
             {
-                if (c < '0' || c > '9') return "bad level '" + level + "'";
+                if (c < '0' || c > '9') return false;
                 n = n * 10 + (c - '0');
             }
-            if (n < MIN_LEVEL || n > MAX_LEVEL) return "bad level '" + level + "'";
-            out.level = n;
+            if (n < MIN_LEVEL || n > MAX_LEVEL) return false;
+            out = n;
+            return true;
         }
 
-        if (route.empty() || route == "auto") out.route = Route::Auto;
-        else if (route == "party_debug") out.route = Route::PartyDebug;
-        else if (route == "party_plain") out.route = Route::PartyPlain;
-        else if (route == "handle") out.route = Route::Handle;
-        else if (route == "palbox") out.route = Route::Palbox;
-        else return "bad route '" + route + "'";
+        // The route Lua named (route_name's names; "" means auto) into out; false for an unknown name.
+        auto read_route(const std::string& route, Route& out) -> bool
+        {
+            constexpr Route ROUTES[] = {Route::Auto, Route::PartyDebug, Route::PartyPlain, Route::Handle,
+                                        Route::Palbox};
+            if (route.empty())
+            {
+                out = Route::Auto;
+                return true;
+            }
+            for (const Route known : ROUTES)
+            {
+                if (route != route_name(known)) continue;
+                out = known;
+                return true;
+            }
+            return false;
+        }
+    } // namespace
 
+    auto parse_request(const std::string& species, const std::string& level, const std::string& route,
+                       const std::string& options, Request& out) -> std::string
+    {
+        if (!species_like(species)) return "unknown species '" + species + "' (no such name)";
+        out.species = species;
+        if (!read_level(level, out.level)) return "bad level '" + level + "'";
+        if (!read_route(route, out.route)) return "bad route '" + route + "'";
         out.rare = out.nopassive = false;
         for (const auto& opt : lua_text::split_csv(options))
         {
-            if (opt == "rare") out.rare = true;
-            else if (opt == "nopassive") out.nopassive = true;
-            else return "bad option '" + opt + "'";
+            if (opt == "rare")
+            {
+                out.rare = true;
+            }
+            else if (opt == "nopassive")
+            {
+                out.nopassive = true;
+            }
+            else
+            {
+                return "bad option '" + opt + "'";
+            }
         }
         return "";
     }
@@ -82,17 +123,25 @@ namespace pal_gift
 
     auto guid_is_zero(const uint8_t* guid) -> bool
     {
-        for (int i = 0; i < 16; ++i)
+        for (int i = 0; i < GUID_BYTES; ++i)
         {
             if (guid[i]) return false;
         }
         return true;
     }
 
+    auto fail_result(const std::string& reason) -> std::string
+    {
+        return "fail " + reason;
+    }
+
     auto Report::line(const std::string& text) -> void
     {
         m_lines.push_back(text);
-        if (m_sink) m_sink(text);
+        if (m_sink)
+        {
+            m_sink(text);
+        }
     }
 
     auto Report::finish(const std::string& result) -> std::string
@@ -101,14 +150,28 @@ namespace pal_gift
         std::string out;
         for (size_t i = 0; i < m_lines.size(); ++i)
         {
-            if (i) out += '\n';
+            if (i)
+            {
+                out += '\n';
+            }
             out += m_lines[i];
         }
         return out;
     }
 
-    auto next_poll(PendingGift& gift, bool seen) -> PollVerdict
+    auto arrived_by_count(bool has_id, int count_before, int count_now) -> bool
     {
+        return !has_id && count_now > count_before;
+    }
+
+    auto next_poll(PendingGift& gift, PlayerAtPoll player, bool seen) -> PollVerdict
+    {
+        switch (player)
+        {
+        case PlayerAtPoll::Gone: return PollVerdict::Dropped;
+        case PlayerAtPoll::BetweenPawns: return PollVerdict::Wait;
+        case PlayerAtPoll::Here: break;
+        }
         ++gift.polls;
         if (seen) return PollVerdict::Ok;
         return gift.polls >= MAX_POLLS ? PollVerdict::Timeout : PollVerdict::Wait;

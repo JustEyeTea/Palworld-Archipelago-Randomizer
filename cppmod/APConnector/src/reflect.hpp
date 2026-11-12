@@ -1,7 +1,8 @@
 // Calling the game's functions and reading its objects through UE4SS's reflection, shared by the Pal gifts
 // (pal_gift.cpp) and the map screen (map_screen.cpp). Seen working in game without crashing; pal_gift.cpp's notes say
-// why every call gets its own heap parameter block. Game thread
-// only; access violations are not caught (UE4SS ships with SEH off), so everything is checked before a call.
+// why every call gets its own heap parameter block. Game thread only; access violations are not caught (UE4SS ships
+// with SEH off), so everything is checked before a call.
+// Tests: none (it needs Unreal; only CI's Windows build compiles the files that include it).
 #pragma once
 
 #include <algorithm>
@@ -28,7 +29,8 @@ namespace ap_reflect
     using namespace RC;
     using namespace RC::Unreal;
 
-    // A step that can't go on. Caught at the top and reported as "result: fail <reason>".
+    // A step that can't go on. Each caller catches it and reports the reason: pal_gift.cpp as the report's
+    // "result: fail <reason>", map_screen.cpp as "; FAILED: <reason>" in its Setup line.
     struct Fail
     {
         std::string reason;
@@ -41,6 +43,7 @@ namespace ap_reflect
         return GetGameThreadId() == std::this_thread::get_id();
     }
 
+    // A size in hex ("0x3a8"), for report lines about parameter blocks.
     inline auto hex_size(size_t n) -> std::string
     {
         char buf[24]{};
@@ -48,11 +51,13 @@ namespace ap_reflect
         return buf;
     }
 
+    // An object's name, or "null".
     inline auto name_of(UObject* obj) -> std::string
     {
         return obj ? to_string(obj->GetName()) : std::string("null");
     }
 
+    // An object's class's name, or "?".
     inline auto class_of(UObject* obj) -> std::string
     {
         return obj && obj->GetClassPrivate() ? to_string(obj->GetClassPrivate()->GetName()) : std::string("?");
@@ -89,8 +94,9 @@ namespace ap_reflect
     }
 
     // One reflected call. The parameter block is heap memory of the function's own size, constructed with
-    // InitializeStruct and destroyed with DestroyStruct, so parameters holding strings and arrays (the Pal save data) are
-    // built and freed properly; UE4SS's Lua path only zero-fills a stack array and never frees what the game put in it.
+    // InitializeStruct and destroyed with DestroyStruct, so parameters holding strings and arrays (the Pal save data)
+    // are built and freed properly; UE4SS's Lua path only zero-fills a stack array and never frees what the game put
+    // in it.
     // Same shape as XMulticastDelegateProperty's Broadcast (UE4SS/src/LuaType/LuaXDelegateProperty.cpp).
     class ReflectedCall
     {
@@ -103,7 +109,11 @@ namespace ap_reflect
         {
             if (!m_self) throw Fail{"no object to call " + name() + " on"};
             // std::vector's block is 16-byte aligned on MSVC x64; nothing in these functions needs more.
-            if (m_fn->GetMinAlignment() > 16) throw Fail{name() + ": alignment " + std::to_string(m_fn->GetMinAlignment())};
+            constexpr int VECTOR_BLOCK_ALIGNMENT = 16;
+            if (m_fn->GetMinAlignment() > VECTOR_BLOCK_ALIGNMENT)
+            {
+                throw Fail{name() + ": alignment " + std::to_string(m_fn->GetMinAlignment())};
+            }
             m_fn->InitializeStruct(m_buf.data());
         }
         ~ReflectedCall()
@@ -113,10 +123,12 @@ namespace ap_reflect
         ReflectedCall(const ReflectedCall&) = delete;
         auto operator=(const ReflectedCall&) -> ReflectedCall& = delete;
 
+        // The function's name, for Fail reasons.
         auto name() const -> std::string
         {
             return to_string(m_fn->GetName());
         }
+        // The parameter block's size in bytes.
         auto size() const -> size_t
         {
             return m_size;
@@ -139,6 +151,7 @@ namespace ap_reflect
             throw Fail{name() + "." + to_string(param_name) + ": no such parameter"};
         }
 
+        // Where a parameter (from param()) lies in the block.
         auto ptr(FProperty* p) -> uint8_t*
         {
             return m_buf.data() + p->GetOffset_Internal();
@@ -150,8 +163,8 @@ namespace ap_reflect
         {
             if (static_cast<size_t>(p->GetSize()) != sizeof(T))
             {
-                throw Fail{name() + "." + to_string(p->GetName()) + ": size " + std::to_string(p->GetSize()) + ", expected " +
-                           std::to_string(sizeof(T))};
+                throw Fail{name() + "." + to_string(p->GetName()) + ": size " + std::to_string(p->GetSize()) +
+                           ", expected " + std::to_string(sizeof(T))};
             }
             return reinterpret_cast<T*>(ptr(p));
         }
@@ -171,6 +184,7 @@ namespace ap_reflect
             return (*(ptr(p) + bp->GetByteOffset()) & bp->GetFieldMask()) != 0;
         }
 
+        // Calls the function on the object with the block as its parameters (ProcessEvent).
         auto run() -> void
         {
             m_self->ProcessEvent(m_fn, m_buf.data());
@@ -201,20 +215,16 @@ namespace ap_reflect
         throw Fail{to_string(owner->GetName()) + "." + to_string(member_name) + ": no such member"};
     }
 
-    // Copies a struct value from one block to another with the destination property's CopyCompleteValue, which deep-copies
-    // its strings and arrays, so both blocks can be destroyed on their own (LuaUObject.cpp's push_structproperty copies
-    // the same way). A memcpy would leave two owners of the same FStrings and TArrays.
+    // Copies a struct value from one block to another with the destination property's CopyCompleteValue, which
+    // deep-copies its strings and arrays, so both blocks can be destroyed on their own (LuaUObject.cpp's
+    // push_structproperty copies the same way). A memcpy would leave two owners of the same FStrings and TArrays.
     inline auto copy_struct(FProperty* dst_prop, void* dst, FProperty* src_prop, const void* src) -> void
     {
         auto* d = CastField<FStructProperty>(dst_prop);
         auto* s = CastField<FStructProperty>(src_prop);
-        if (!d || !s) throw Fail{"copy " + to_string(src_prop->GetName()) + " -> " + to_string(dst_prop->GetName()) + ": not structs"};
-        UScriptStruct* dst_type = d->GetStruct();
-        UScriptStruct* src_type = s->GetStruct();
-        if (dst_type != src_type)
-        {
-            throw Fail{"copy " + to_string(src_prop->GetName()) + " -> " + to_string(dst_prop->GetName()) + ": different structs"};
-        }
+        const std::string copy = "copy " + to_string(src_prop->GetName()) + " -> " + to_string(dst_prop->GetName());
+        if (!d || !s) throw Fail{copy + ": not structs"};
+        if (d->GetStruct() != s->GetStruct()) throw Fail{copy + ": different structs"};
         d->CopyCompleteValue(dst, src);
     }
 
@@ -230,14 +240,19 @@ namespace ap_reflect
     }
 
     // obj:fn(arg) for functions that take at most one object and return an object.
-    inline auto call_object(UObject* self, const CharType* fn, const CharType* arg_name = nullptr, UObject* arg = nullptr) -> UObject*
+    inline auto call_object(UObject* self, const CharType* fn, const CharType* arg_name = nullptr,
+                            UObject* arg = nullptr) -> UObject*
     {
         ReflectedCall c(self, resolve(self, fn));
-        if (arg_name) *c.at<UObject*>(c.param(arg_name)) = arg;
+        if (arg_name)
+        {
+            *c.at<UObject*>(c.param(arg_name)) = arg;
+        }
         c.run();
         return *c.at<UObject*>(c.param(STR("ReturnValue")));
     }
 
+    // obj:fn() for functions that take nothing and return an int32.
     inline auto call_int(UObject* self, const CharType* fn) -> int32_t
     {
         ReflectedCall c(self, resolve(self, fn));
