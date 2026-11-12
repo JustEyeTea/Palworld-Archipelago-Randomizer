@@ -1,5 +1,5 @@
-"""Pins what the options do in __init__.py: refused options (plan_cap, check_counts), what reaches slot data
-(fill_slot_data), and that the options' player text matches the code's numbers."""
+"""Pins what the options do: refused options (plan_cap in __init__.py, check_counts in checks.py), what reaches slot
+data (fill_slot_data), and that the options' player text matches the code's numbers."""
 import unittest
 
 from Options import OptionError
@@ -113,7 +113,7 @@ class TestRunStyleDefault(PalworldTestBase):
 
 
 
-# The tower bosses in the game's order, as the player text names them (TOWER_LEVELS in __init__.py has their levels).
+# The tower bosses in the game's order, as the player text names them (TOWER_LEVELS in levels.py has their levels).
 TOWER_BOSSES = ("Zoe", "Lily", "Axel", "Marcus", "Victor", "Saya", "Bjorn", "Auri")
 
 

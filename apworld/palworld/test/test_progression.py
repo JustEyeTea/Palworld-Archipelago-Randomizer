@@ -1,6 +1,7 @@
-"""Pins each goal's plan in __init__.py: the cap (plan_cap), the passes and the map (locks_in_scope, Regions Beyond
-the Goal), Gear Logic (progression_techs, normal_research), the points budget (unaffordable_slots), the filler
-(filler_names) and the tech-slot names (data.shop_location)."""
+"""Pins each goal's plan: the cap (plan_cap in __init__.py), the passes and the map (locks_in_scope in map_plan.py,
+Regions Beyond the Goal), Gear Logic (progression_techs, normal_research in checks.py), the points budget
+(unaffordable_slots in checks.py), the filler (filler_names in __init__.py) and the tech-slot names
+(data.shop_location)."""
 from . import PalworldTestBase
 from ..levels import ANCIENT_POINTS_PER_TOWER, TECH_POINTS_PER_LEVEL, TOWER_LEVELS, TOWER_MARGIN
 

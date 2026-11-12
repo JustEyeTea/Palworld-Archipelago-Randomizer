@@ -264,7 +264,7 @@ ITEM_NAME_TO_ID: Dict[str, int] = {i.name: i.id for i in ITEMS}
 
 
 # The kinds of check. Code that treats them differently names every kind and raises ValueError for any other:
-# __init__.py's loc_level, wanted and check_rule, and _area_location_piece below.
+# checks.py's loc_level and wanted, __init__.py's check_rule, and _area_location_piece below.
 CHECK_KINDS = ("shop", "capture", "alpha", "fast_travel", "level", "tower")
 
 

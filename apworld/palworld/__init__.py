@@ -84,7 +84,8 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
     topology_present = True
 
     # The seed's plan: what generate_early works out, in the order its steps set it. Each step reads only what the
-    # steps before it set, so moving a line between steps can change the seed.
+    # steps before it set, so moving a line between steps can change the seed. plan_map is in map_plan.py (MapPlan),
+    # plan_checks and check_counts in checks.py (CheckPlan), the level climb in levels.py (LevelModel).
     #   generate_early  layout          the cut of the map (Lock Size): pieces, borders, passes, sources
     #                   levels          the levels that cut gives (Levels): towers, techs, each Pal
     #                   gear            Gear Logic is on
@@ -103,9 +104,8 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
     #   plan_checks     research_techs  the techs that stay normal research (no check, no item)
     #                   unaffordable    the shop slots that hold only filler and traps
 
-    # --- the seed's plan: generate_early's steps, and which checks exist ---------------------------------------------
-    # tests: test_progression.py (each goal's cap and passes, TestNoGearLogic, TestPointsBudget), test_options.py
-    # (refused options), test_logic.py (TestSharedAlpha, TestLevelChecksEvery5: wanted)
+    # --- the seed's plan: generate_early, and its steps that work out the relics, the cap and the goal ---------------
+    # tests: test_progression.py (each goal's cap and passes), test_options.py (refused options: plan_cap)
     def generate_early(self) -> None:
         """The seed's plan, before anything is built: which cut of the map, the level cap, which locks are in the seed,
         and whether the options leave enough checks. Bad options stop here with an OptionError."""
@@ -205,7 +205,7 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
 
     def has_tech(self, state: CollectionState, tech_id: str, level_so_far: Optional[int] = None) -> bool:
         """Whether the player has a tech. level_so_far: the player's level inside the climb (see the note above
-        climb); None elsewhere."""
+        climb, in levels.py); None elsewhere."""
         tech = TECH_BY_ID[tech_id]
         if tech.level <= STARTER_LEVEL:
             return True

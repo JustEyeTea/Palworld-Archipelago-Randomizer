@@ -59,7 +59,7 @@ data the other parts use (see [Generated files](#generated-files)).
 | **Area Locks** | The feature as a whole: the map is walled off in parts, and each part opens when its pass arrives. |
 | **Region** | One of the 15 large locked parts (Lock Size: regions, the default), opened by a **Region Pass**. Each is a group of areas. |
 | **Area** | One of the game's 75 named places (the game's `DT_WorldMapAreaData`), locked one by one with Lock Size: areas and opened by an **Area Pass**. |
-| **Lock** | Whichever locked part the seed uses: a region or an area, by Lock Size. Code that serves both sizes alike says lock: `__init__.py`'s logic (`every_lock`, `locks_in_scope`, the rules and the routes), `locks.lua` and the map's Lua, and the tools that build either size (`tools/lock_*.py`). Code that means one kind only says region or area. |
+| **Lock** | Whichever locked part the seed uses: a region or an area, by Lock Size. Code that serves both sizes alike says lock: the APWorld's logic (`every_lock`, `locks_in_scope` and the routes in `map_plan.py`, the rules in `__init__.py`), `locks.lua` and the map's Lua, and the tools that build either size (`tools/lock_*.py`). Code that means one kind only says region or area. |
 | **Piece** | The logic's smallest part of the map: an Archipelago `Region` in `__init__.py`. Each piece belongs to one lock. |
 | **Archipelago Region** | Archipelago's own class for a node in the logic's map (`BaseClasses.Region`). This code makes one per piece. |
 | **The core** | In the Lua mod's comments: `main.lua` and its update loop, with the files split from it (listed under [The Lua mod](#the-lua-mod)), which hand the other modules their state and call them. |
@@ -69,7 +69,7 @@ data the other parts use (see [Generated files](#generated-files)).
 
 | Folder | What is in it |
 |---|---|
-| `apworld/palworld/` | The APWorld: `__init__.py` (the world and its logic), `options.py`, `data.py` (items and locations), `game_data.py` (generated), `docs/` (the game page and setup guide), `test/` |
+| `apworld/palworld/` | The APWorld: `__init__.py` (the world and its rules), `levels.py` (the tuning numbers and the level climb), `map_plan.py` (the locks and pieces in the seed), `checks.py` (which checks and items the seed has), `options.py`, `data.py` (items and locations), `game_data.py` (generated), `docs/` (the game page and setup guide), `test/` |
 | `cppmod/APConnector/` | The C++ mod: `src/`, `test/` (Linux tests of the parts that need no Unreal), `third_party/` |
 | `mod/PalworldArchipelago/` | The Lua mod as installed in the game. Its `Scripts/` folder holds the code and the generated tables. |
 | `mod/test/` | The Lua test harness: the mod run against stand-ins for UE4SS, the game and the APConnector. `harness.lua` (the kit and the order the test files run in), `fakes.lua`, `fakes_map.lua` and `fakes_menus.lua` (the stand-ins), `helpers.lua`, and `tests/` (the test groups, a file per topic) |
@@ -179,9 +179,13 @@ never renumbered. A new option needs its class, a field in `PalworldOptions` (th
 `option_groups`, and `tools/gen_options_page.py` run again; so does any change to a docstring, a default or the
 APWorld's version. `options_presets` holds the ready-made sets.
 
-### `__init__.py`: the logic
+### `__init__.py`, `levels.py`, `map_plan.py`, `checks.py`: the logic
 
-`PalworldWorld` is the world Archipelago builds for each Palworld player. Archipelago calls its methods in this order:
+`PalworldWorld` is the world Archipelago builds for each Palworld player. Its methods live in four files: the steps
+Archipelago calls, the goals and the rules in `__init__.py`, and the rest in three base classes of it: `LevelModel` in
+`levels.py` (the tuning numbers, each cut's levels and the level climb), `MapPlan` in `map_plan.py` (`plan_map`: the
+locks and pieces in the seed, and the route searches) and `CheckPlan` in `checks.py` (`plan_checks`, `check_counts`,
+and which checks and items the seed has: `wanted`, `pool_names`). Archipelago calls its methods in this order:
 
 1. `generate_early`: the seed's plan (the level cap, which locks are in the seed, whether mounts are
    needed). Bad options stop here with an `OptionError` that says what to change.
@@ -192,10 +196,10 @@ APWorld's version. `options_presets` holds the ready-made sets.
 4. `set_rules`: each check's rule and the goal.
 5. `fill_slot_data`: what the mod receives.
 
-The heart of the logic is `max_level`: everyone reaches `FREE_LEVEL`, and each open lock whose Pals can be
-caught lifts the player to `LEVELS_PAST_PIECE` past its Pals' level. `level_ok`, `can_catch_at` (sphere tier = level ÷
-`SPHERE_STEP`, rounded up), `can_fight_at`, `can_get_pal`, `can_enter` and `shop_ok` build on it. The tuning numbers
-are the constants at the top of the file.
+The heart of the logic is `max_level` (in `levels.py`): everyone reaches `FREE_LEVEL`, and each open lock whose Pals
+can be caught lifts the player to `LEVELS_PAST_PIECE` past its Pals' level. `level_ok`, `can_catch_at` (sphere tier =
+level ÷ `SPHERE_STEP`, rounded up), `can_fight_at`, `can_get_pal`, `can_enter` and `shop_ok` build on it. The tuning
+numbers are the constants at the top of `levels.py`.
 
 ## The APConnector (C++)
 
@@ -410,7 +414,7 @@ Always first: open `UE4SS.log` and search for `[PalworldAP]` (the Lua mod) or `[
 | A game update adds Pals, techs or items | Don't edit `game_data.py`. Dump the tables and run `tools/gen_apworld_data.py`, then `tools/gen_lua_data.py`. | `test/test_ids.py` proves no old id moved. |
 | Can't connect, or the connection drops | The UE4SS log's `[PalworldAP] status:` lines (connecting, socket, connected; or refused, with the reason) | `ap_bridge.cpp`, `wire_handlers`; for a secure (`wss://`) server, that `cacert.pem` is beside the mod |
 | An item or location has the wrong name or id | `data.py`: `_items()`, `_locations()`, and the name helpers (`shop_location`, `tech_item`, `region_pass`, `area_pass`) | `ap_data.lua` is generated from `data.py`; run `tools/gen_lua_data.py` after changing it. |
-| A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVELS_PAST_PIECE`, `LEVELS_BELOW_PIECE`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
+| A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`can_get_pal`, `shop_ok` ... there; `level_ok` in `levels.py`); a generation error comes from `generate_early` and its steps (`plan_map` in `map_plan.py`, `check_counts` in `checks.py`) | The tuning constants at the top of `levels.py` (`FREE_LEVEL`, `LEVELS_PAST_PIECE`, `LEVELS_BELOW_PIECE`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
 | A Pal gift ends `result: fail ...`, or the game dies during one | UE4SS.log's `[APConnector] [pal]` lines: the last one names the step, and the step names the function in `pal_gift.cpp` | After a game update: "function not found" or "no such parameter" means a path or parameter name in `pal_gift.cpp` changed; a UE4SS header dump of the new version (UE4SS's Dump CXX Headers) shows the new one |
 | The world map shows the game's own picture or its dark fog | UE4SS.log's `[APConnector] [map]` lines: `hooked`, `Setup #n ... FAILED: <reason>`, `Setup gone` / `found Setup again` (`map_screen.cpp`) | `SETUP_PATH` in `map_screen.cpp` after a game update; `map_cpp=0` in config.txt turns it off; Lua's `AP_MapScreen` calls in `walls.lua` |
 | The map picture looks wrong (colours, rims, walls, borders) | `compose_field` in `image_territories.cpp` for the Territories map; `compose_chart` in `image_chart.cpp` and `compose_fog` in `image_fog.cpp` for `map_style=chart`; land and sea told apart in `image_land_sea.cpp` | What Lua sends it (`lockSpec`, `wallSpec` in `map_picture.lua`); reproduce it on Linux with `test/image_test.cpp` |
