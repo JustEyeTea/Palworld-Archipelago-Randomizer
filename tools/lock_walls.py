@@ -16,7 +16,8 @@ Also writes, beside the walls file, region_map.lua: the locks at 29 m, for the m
 and a point in the starting lock to send a player found in a locked one; region_shapes.lua: each lock's outline,
 smoothed and cut into triangles, for the mod to grey locked ones on the world map; and ../region_labels.png, the same
 shapes as a picture. With LOCK_SIZE=areas they are area_map.lua, area_shapes.lua and area_labels.png.
-Tests: none of its own; the Lua harness's map groups (mod/test/tests/) read the files it writes.
+Tests: none of its own; the Lua harness loads its files with the mod, and tests/map.lua and tests/walls.lua check
+the map and the walls made from them.
 """
 import collections
 import json

@@ -2,6 +2,8 @@
 the 15 it lies in, so an area can wear its region's wall colour, pass ticket and map stamp. An area belongs to the
 region holding its first map row (tools/lock_groups.py); the areas were cut from the regions' rows.
     python3 tools/area_regions.py
+Tests: none of its own; the Lua harness loads its file with the mod, and tests/locks_hud.lua checks an area wears its
+region's look.
 """
 import os
 import sys
