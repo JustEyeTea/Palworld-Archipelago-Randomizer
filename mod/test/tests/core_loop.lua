@@ -57,6 +57,35 @@ group("buying a slot", function()
     req.v = FNameOf("Workbench")
     research(nil, req)
     expect(req.v:ToString() == "Workbench", "level-1 research left alone")
+    -- After a world change, until the records phase has looked whether this world is the seed's, nothing is bought.
+    local WORLD, STATE = require("world"), require("ap_state")
+    local slot
+    for tech, s in pairs(D.shop) do
+        if not slot and not STATE.ap.bought[s.loc] and s.cost <= 1 then
+            slot = tech
+        end
+    end
+    local pointsWere = td.TechnologyPoint
+    td.TechnologyPoint = 12
+    inWorld(true)
+    local pawnWas = pawnAddress
+    for _ = 1, 3 do
+        newPawn()
+        run(1)
+        if WORLD.seedWorld() == nil then break end
+    end
+    local unknown = WORLD.seedWorld() == nil
+    req.v = FNameOf(slot)
+    research(nil, req)
+    run(1)
+    local boughtUnknown = STATE.ap.bought[D.shop[slot].loc]
+    pawnAddress = pawnWas
+    runCycles(2)
+    td.TechnologyPoint = pointsWere
+    inWorld(false)
+    expect(unknown and not boughtUnknown and h.told("Still checking"),
+           "a purchase before this world is known to be the seed's is refused, and the player told: "
+           .. tostring(boughtUnknown))
 end)
 
 group("an update UE4SS runs inside a Blueprint hook skips its turn", function()

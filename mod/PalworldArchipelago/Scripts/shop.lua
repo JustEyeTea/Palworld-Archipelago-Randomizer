@@ -135,6 +135,12 @@ local function buy(tech)
         notify(WORLD.NOT_SEED_WORLD .. ": nothing bought.")
         return
     end
+    -- Not looked at yet (the first moments after a world loads, or the pawn changed): a check sent can't be taken
+    -- back, so a purchase waits for the answer.
+    if WORLD.seedWorld() == nil then
+        notify("Still checking whether this is the seed's world: nothing bought. Try again in a moment.")
+        return
+    end
     if bought(tech) then return end
     local td = ps:GetTechnologyData()
     local field = s.ancient and TECH_LOCK.ANCIENT_POINTS or "TechnologyPoint"
