@@ -206,7 +206,7 @@
      "key": "area_locks",
      "name": "Area Locks",
      "type": "DefaultOnToggle",
-     "help": "The map beyond the starting zone is locked, and each locked part opens when its pass item arrives (Lock Size\nsets how big the parts are). Until then a locked part is walled off (a red grid at its border) and shown grey on\nthe map; the open sea is always free.",
+     "help": "The map beyond the starting zone is locked, and each locked part opens when its pass item arrives (Lock Size\nsets how big the parts are). Until then a locked part is walled off (a wall in its region's colour at its border)\nand shown grey on the map; the open sea is always free.",
      "choices": [
       {
        "name": "false",
