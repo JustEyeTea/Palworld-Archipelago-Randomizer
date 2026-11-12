@@ -68,6 +68,26 @@ void box_blur(std::vector<uint8_t>& img, int w, int h, int r)
 }
 } // namespace
 
+namespace
+{
+// An area label picture holds one byte per pixel: area indexes 0..255 (0 is no area).
+constexpr int AREA_LABELS = 256;
+
+// The locked areas from Lua's "3,7,12" (area label indexes), into `locked`. Returns "" or the reason: a part that
+// is not a whole number, or not 0..255, fails the job rather than greying another area.
+auto read_locked_areas(const std::string& csv, bool (&locked)[AREA_LABELS]) -> std::string
+{
+    const lua_text::IdList list = lua_text::parse_ids(csv);
+    if (!list.skipped.empty()) return "locked '" + csv + "': '" + list.skipped.front() + "' is not a number";
+    for (const int64_t area : list.numbers)
+    {
+        if (area < 0 || area >= AREA_LABELS) return "locked '" + csv + "': no area " + std::to_string(area);
+        locked[area] = true;
+    }
+    return "";
+}
+} // namespace
+
 auto compose_map(const std::string& colour, const std::string& labels, const std::string& locked, const std::string& out,
                  double gamma) -> std::string
 {
@@ -77,11 +97,9 @@ auto compose_map(const std::string& colour, const std::string& labels, const std
     std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(labels.c_str(), &lw, &lh, &ln, 1), stbi_image_free);
     if (!lab) return "could not read " + labels + ": " + stbi_failure_reason();
     if (lw != w || lh != h) return "the labels picture is not the size of the map";
-    bool lockedArea[256] = {};
-    for (const auto& item : lua_text::split_csv(locked))
-    {
-        lockedArea[std::stoi(item) & 255] = true;
-    }
+    bool lockedArea[AREA_LABELS] = {};
+    const std::string badLocked = read_locked_areas(locked, lockedArea);
+    if (!badLocked.empty()) return badLocked;
     const size_t count = static_cast<size_t>(w) * h;
     std::vector<uint8_t> hard(count), soft(count), shade(count);
     for (size_t i = 0; i < count; ++i) hard[i] = lockedArea[lab.get()[i]] ? 255 : 0;
@@ -467,13 +485,9 @@ static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::s
     int lw = 0, lh = 0, ln = 0;
     std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(f[0].c_str(), &lw, &lh, &ln, 1), stbi_image_free);
     if (!lab) return "could not read " + f[0] + ": " + stbi_failure_reason();
-    bool locked[256] = {};
-    {
-        for (const auto& p : lua_text::split_csv(f[1]))
-        {
-            try { const int k = std::stoi(p); if (k >= 0 && k < 256) locked[k] = true; } catch (...) {}
-        }
-    }
+    bool locked[AREA_LABELS] = {};
+    const std::string badLocked = read_locked_areas(f[1], locked);
+    if (!badLocked.empty()) return "regions: " + badLocked;
     float ink[4] = {0.231f, 0.165f, 0.102f, 0.8f};
     float width = 2.f, dash = 0.f, gap = 0.f, hop = 0.25f;
     try

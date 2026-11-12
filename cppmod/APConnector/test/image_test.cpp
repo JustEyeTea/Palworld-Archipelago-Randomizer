@@ -43,6 +43,18 @@ int main()
                 st.c_str(), o ? at(20, 50)[0] : -1, o ? at(180, 50)[0] : -1, o ? at(99, 50)[0] : -1, o ? at(99, 50)[1] : -1);
     if (!(st == "done" && grey && colour && soft)) return 1;
 
+    // compose_map refuses a locked list it cannot read whole ("257" is no area, not area 1; "1x" is not a number),
+    // instead of greying the wrong area.
+    bool badLockedOk = true;
+    for (const char* bad : {"257", "-255", "1x"})
+    {
+        const auto berr = compose_map("/tmp/compose_map.png", "/tmp/compose_lab.png", bad, "/tmp/compose_bad.png", 1.0);
+        std::printf("%s compose: locked '%s': %s\n", berr.empty() ? "FAIL" : "ok", bad,
+                    berr.empty() ? "written (an area greyed)" : berr.c_str());
+        badLockedOk = badLockedOk && !berr.empty();
+    }
+    if (!badLockedOk) return 1;
+
     // compose_chart: a 256x256 map: a grey band beyond the world's edge on the left, teal sea, a green island in the
     // middle. Land comes out as warm paper, the sea cooler, the coast inked dark, beyond the edge darker paper.
     std::vector<unsigned char> cm(256 * 256 * 4);

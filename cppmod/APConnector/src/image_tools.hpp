@@ -12,8 +12,9 @@ auto greyscale_png(const std::string& in, const std::string& out, double gamma) 
 
 // Composes the world map with locked areas in greyscale: colour where an area is open, greyscale where it is locked,
 // with a soft (blurred) boundary and a gentle inner shadow along a locked area's edge. labels: a greyscale PNG the
-// size of the colour map, each pixel the index of its area; locked: "3,7,12". gamma as in greyscale_png, applied to
-// the colour map. Returns "" on success, else what went wrong.
+// size of the colour map, each pixel the index of its area; locked: "3,7,12" (each 0..255; a part that is not, or not
+// a whole number, is an error). gamma as in greyscale_png, applied to the colour map. Returns "" on success, else what
+// went wrong.
 auto compose_map(const std::string& colour, const std::string& labels, const std::string& locked, const std::string& out,
                  double gamma) -> std::string;
 
@@ -39,7 +40,7 @@ auto sample_png(const std::string& path, double u, double v) -> std::string;
 // regions, so the regions on the unexplored map have clear boundaries: borders between neighbouring areas and a hatch
 // over locked ones, drawn on the chart before the explored parts are cut out.
 // "labels|locked|hatch|r,g,b,a|width|dash|gap|hatchop[|colour|gamma]": labels the area label PNG (as compose_map),
-// locked "3,7,12", hatch a tile PNG ("" for a plain diagonal hatch in the ink), ink 0-255, width/dash/gap in px at this
+// locked "3,7,12" (as compose_map's), hatch a tile PNG ("" for a plain diagonal hatch in the ink), ink 0-255, width/dash/gap in px at this
 // size (dash 0: a solid line; dashes are measured along the border, so they stay even round curves; the line's edge is
 // softened), hatchop 0..1; colour and gamma: the map as compose_chart reads it, to keep both to land, since an area's
 // labels take in its waters (without them, everywhere). "" for none.
