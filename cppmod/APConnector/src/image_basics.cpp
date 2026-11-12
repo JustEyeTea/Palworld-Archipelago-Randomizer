@@ -115,38 +115,75 @@ void blur(Plane& a, int w, int h, int r)
     }
 }
 
+namespace
+{
+// A picture being resampled: RGBA bytes, w x h.
+struct Source
+{
+    const unsigned char* px;
+    int w;
+    int h;
+    auto at(int x, int y, int c) const -> float
+    {
+        return px[(static_cast<size_t>(y) * w + x) * 4 + c];
+    }
+};
+
+// Channel c (0..1) averaged over the source pixels that fall in pixel (x, y) of an s x s picture: for shrinking.
+auto area_average(const Source& src, int s, int x, int y, int c) -> float
+{
+    const int x0 = x * src.w / s, x1 = std::max(x0 + 1, (x + 1) * src.w / s);
+    const int y0 = y * src.h / s, y1 = std::max(y0 + 1, (y + 1) * src.h / s);
+    float sum = 0;
+    for (int sy = y0; sy < y1; ++sy)
+    {
+        for (int sx = x0; sx < x1; ++sx) sum += src.at(sx, sy, c);
+    }
+    return sum / (static_cast<float>((x1 - x0) * (y1 - y0)) * 255.f);
+}
+
+// Channel c (0..1) at pixel (x, y) of an s x s picture, mixed from the four source pixels around it: for growing.
+auto bilinear(const Source& src, int s, int x, int y, int c) -> float
+{
+    const float fx = std::max(0.f, (x + 0.5f) * src.w / s - 0.5f), fy = std::max(0.f, (y + 0.5f) * src.h / s - 0.5f);
+    const int ix = std::min(static_cast<int>(fx), src.w - 1), iy = std::min(static_cast<int>(fy), src.h - 1);
+    const int jx = std::min(ix + 1, src.w - 1), jy = std::min(iy + 1, src.h - 1);
+    const float tx = fx - ix, ty = fy - iy;
+    auto v = [&](int sx, int sy) { return src.at(sx, sy, c) / 255.f; };
+    return (v(ix, iy) * (1 - tx) + v(jx, iy) * tx) * (1 - ty) + (v(ix, jy) * (1 - tx) + v(jx, jy) * tx) * ty;
+}
+
+// Channels first .. first + count - 1 of the source at s x s, as floats 0..1, `count` per pixel: an area average
+// when shrinking, bilinear when growing.
+auto resample(const Source& src, int s, int first, int count) -> std::vector<float>
+{
+    std::vector<float> out(static_cast<size_t>(s) * s * count, 0.f);
+    const bool shrinking = src.w >= s && src.h >= s;
+    for (int y = 0; y < s; ++y)
+    {
+        for (int x = 0; x < s; ++x)
+        {
+            float* d = &out[(static_cast<size_t>(y) * s + x) * count];
+            for (int c = 0; c < count; ++c)
+            {
+                d[c] = shrinking ? area_average(src, s, x, y, first + c) : bilinear(src, s, x, y, first + c);
+            }
+        }
+    }
+    return out;
+}
+} // namespace
+
 auto load_channel(const std::string& path, int s, int ch, std::string& err) -> Plane
 {
     int w = 0, h = 0;
     const StbPixels src = read_png(path, 4, w, h);
-    Plane out;
-    if (!src) { err = read_failure(path); return out; }
-    out.assign(static_cast<size_t>(s) * s, 0.f);
-    const unsigned char* p = src.get();
-    auto v = [&](int xx, int yy) { return p[(static_cast<size_t>(yy) * w + xx) * 4 + ch] / 255.f; };
-    for (int y = 0; y < s; ++y)
-        for (int x = 0; x < s; ++x)
-        {
-            float& d = out[static_cast<size_t>(y) * s + x];
-            if (w >= s && h >= s)
-            {
-                const int x0 = x * w / s, x1 = std::max(x0 + 1, (x + 1) * w / s);
-                const int y0 = y * h / s, y1 = std::max(y0 + 1, (y + 1) * h / s);
-                float acc = 0;
-                for (int yy = y0; yy < y1; ++yy)
-                    for (int xx = x0; xx < x1; ++xx) acc += v(xx, yy);
-                d = acc / static_cast<float>((x1 - x0) * (y1 - y0));
-            }
-            else
-            {
-                const float fx = std::max(0.f, (x + 0.5f) * w / s - 0.5f), fy = std::max(0.f, (y + 0.5f) * h / s - 0.5f);
-                const int ix = std::min(static_cast<int>(fx), w - 1), iy = std::min(static_cast<int>(fy), h - 1);
-                const int jx = std::min(ix + 1, w - 1), jy = std::min(iy + 1, h - 1);
-                const float tx = fx - ix, ty = fy - iy;
-                d = (v(ix, iy) * (1 - tx) + v(jx, iy) * tx) * (1 - ty) + (v(ix, jy) * (1 - tx) + v(jx, jy) * tx) * ty;
-            }
-        }
-    return out;
+    if (!src)
+    {
+        err = read_failure(path);
+        return {};
+    }
+    return resample(Source{src.get(), w, h}, s, ch, 1);
 }
 
 auto load_rgba(const std::string& path, int s, std::string& err) -> Rgba
@@ -154,38 +191,13 @@ auto load_rgba(const std::string& path, int s, std::string& err) -> Rgba
     int w = 0, h = 0;
     const StbPixels src = read_png(path, 4, w, h);
     Rgba out;
-    if (!src) { err = read_failure(path); return out; }
+    if (!src)
+    {
+        err = read_failure(path);
+        return out;
+    }
     out.s = s;
-    out.px.assign(static_cast<size_t>(s) * s * 4, 0.f);
-    const unsigned char* p = src.get();
-    for (int y = 0; y < s; ++y)
-        for (int x = 0; x < s; ++x)
-        {
-            float* d = &out.px[(static_cast<size_t>(y) * s + x) * 4];
-            if (w >= s && h >= s)
-            {
-                const int x0 = x * w / s, x1 = std::max(x0 + 1, (x + 1) * w / s);
-                const int y0 = y * h / s, y1 = std::max(y0 + 1, (y + 1) * h / s);
-                float acc[4] = {};
-                for (int yy = y0; yy < y1; ++yy)
-                    for (int xx = x0; xx < x1; ++xx)
-                        for (int c = 0; c < 4; ++c) acc[c] += p[(static_cast<size_t>(yy) * w + xx) * 4 + c];
-                const float n2 = static_cast<float>((x1 - x0) * (y1 - y0)) * 255.f;
-                for (int c = 0; c < 4; ++c) d[c] = acc[c] / n2;
-            }
-            else
-            {
-                const float fx = std::max(0.f, (x + 0.5f) * w / s - 0.5f), fy = std::max(0.f, (y + 0.5f) * h / s - 0.5f);
-                const int ix = std::min(static_cast<int>(fx), w - 1), iy = std::min(static_cast<int>(fy), h - 1);
-                const int jx = std::min(ix + 1, w - 1), jy = std::min(iy + 1, h - 1);
-                const float tx = fx - ix, ty = fy - iy;
-                for (int c = 0; c < 4; ++c)
-                {
-                    auto v = [&](int xx, int yy) { return p[(static_cast<size_t>(yy) * w + xx) * 4 + c] / 255.f; };
-                    d[c] = (v(ix, iy) * (1 - tx) + v(jx, iy) * tx) * (1 - ty) + (v(ix, jy) * (1 - tx) + v(jx, jy) * tx) * ty;
-                }
-            }
-        }
+    out.px = resample(Source{src.get(), w, h}, s, 0, 4);
     return out;
 }
 } // namespace image_basics
