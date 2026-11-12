@@ -1,3 +1,4 @@
+// The Unreal-free half of giving a Pal, declared in pal_gift_logic.hpp.
 #include "pal_gift_logic.hpp"
 #include "lua_text.hpp"
 
@@ -82,11 +83,16 @@ namespace pal_gift
 
     auto guid_is_zero(const uint8_t* guid) -> bool
     {
-        for (int i = 0; i < 16; ++i)
+        for (int i = 0; i < GUID_BYTES; ++i)
         {
             if (guid[i]) return false;
         }
         return true;
+    }
+
+    auto fail_result(const std::string& reason) -> std::string
+    {
+        return "fail " + reason;
     }
 
     auto Report::line(const std::string& text) -> void

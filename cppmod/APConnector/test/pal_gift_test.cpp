@@ -1,4 +1,5 @@
 // Linux check of pal_gift_logic (the Unreal-free half of AP_GivePal): arguments, route choice, report shape, polling.
+// Run by CI ("The C++ part's Pal-gift logic"); by hand, from cppmod/APConnector:
 //   g++ -std=c++17 -Isrc test/pal_gift_test.cpp src/pal_gift_logic.cpp src/lua_text.cpp -o /tmp/pal_gift_test
 //   /tmp/pal_gift_test
 #include <cstdio>
@@ -49,6 +50,10 @@ int main()
     const auto text = r.finish("ok party");
     expect(text == "party: 3/5\nresult: ok party", "the report ends with its result line");
     expect(mirrored.size() == 2 && mirrored[1] == "result: ok party", "every line is mirrored as it is added");
+    // test_tools.lua matches these two lines exactly.
+    expect(Report().finish(RESULT_PENDING) == "result: pending" && Report().finish(RESULT_BUSY) == "result: busy",
+           "the result words test_tools.lua reads");
+    expect(fail_result("party full (5/5)") == "fail party full (5/5)", "a fail's result: 'fail <reason>'");
 
     expect(arrived_by_count(false, 3, 4), "a gift with no id: the party growing counts as its arrival");
     expect(!arrived_by_count(true, 3, 4),
