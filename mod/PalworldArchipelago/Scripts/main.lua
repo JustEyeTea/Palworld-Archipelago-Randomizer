@@ -108,7 +108,7 @@ local function phaseRecords()
     if not okk then
         onceErr("trapsk", errk, "traps error: " .. tostring(errk))
     end
-    -- (also offline after this session's connection, ap.shopOpen: a purchase then needs to know the world)
+    -- (also offline once the seed is known, ap.shopOpen: a purchase then needs to know the world)
     if ps and (ap.ready or ap.shopOpen) then
         WORLD.checkWorld(ps)
     end
@@ -220,6 +220,9 @@ local function update(frame)
     SHOP_CARDS.refreshCards()
     PERF.stop("cards")
     TECHSCAN.sendRemovedSlots()
+    if ap.status ~= "connected" then
+        CONNECTION.knowSeedOffline()       -- (started offline: the loaded world's seed, from worlds.txt)
+    end
     local pawn = nil
     if ap.ready or ap.shopOpen then
         pawn = WORLD.note()                -- (offline too once the seed is known: a world change resets the answer)

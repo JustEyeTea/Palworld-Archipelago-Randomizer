@@ -124,9 +124,9 @@ local function confirmBoxSetup(self, dialogType, message)
 end
 
 -- Whether a purchase can be made now, else the player is told why. A slot is bought in the seed's world only, and
--- only once this session has known the seed (ap.shopOpen, set when a connection was ready): connected, or offline
--- after the connection dropped, when the check waits for the connection to come back. Started offline with no seed
--- known, nothing is bought (the game unlocks nothing either).
+-- only once this session knows the seed (ap.shopOpen: set when a connection was ready, or offline when worlds.txt
+-- names the loaded world's seed): connected, or offline, when the check waits for the connection to come back.
+-- Started offline in a world with no seed known, nothing is bought (the game unlocks nothing either).
 local function mayBuyHere()
     if not ap.shopOpen then
         notify(ap.status == "connected" and "Archipelago is still connecting: nothing bought."
@@ -148,7 +148,7 @@ end
 
 -- Buying: the request is rewritten so the game unlocks nothing; the mod charges the points, marks the slot bought
 -- and saves it, and sends the check, or, with the connection down, has it sent when the connection is back
--- (CHECKS.sendBoughtAgain on connecting). Untested in game: buying with the connection down.
+-- (CHECKS.sendBoughtAgain on connecting). Untested in game: buying with the connection down, or started offline.
 local function buy(tech)
     local s = DATA.shop[tech]
     local ps = playerState()

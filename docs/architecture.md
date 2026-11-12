@@ -260,6 +260,7 @@ the other modules.
 | `ap_state.lua` | The table `ap`: the connection, the seed and its progress, each field with when it is forgotten. The connection's four states are listed above it, and `STATE.setStatus` is their only writer. Slot data readers (`slotFlag`, `slotNumber`). |
 | `config.lua` | `config.txt`: read at start-up into `CONFIG.cfg`, written back by the title menu's connect (`CONFIG_KEYS`), and the saved servers. |
 | `save.lua` | `save-<seed>-<slot>.txt` beside the mod: what the server cannot send again (its lines are listed above `SAVE.path`). Written whole to a `.tmp` file and then moved into place, so a crash never leaves half a file. |
+| `world_seeds.lua` | `worlds.txt` beside the saves: which seed and slot each world folder is played in (its format is above `indexPath`), kept in step by every save written with a `world=` line. A game started offline reads it to know the loaded world's seed (`SAVE.seedOfWorld`). An index file, as Lua cannot list a folder. |
 | `player.lua` | This update's player, looked up once (`PLAYER.lookUpFrame`: the frame record and its fields), `playerPawn`, `pawnXY`, and `notify`, the chat notice (`announce` without the mod's prefix). |
 | `world.lua` | The world step (`WORLD.note`: which world, how long ago it loaded, what each module forgets when it changes) and the seed's world (`checkWorld`, `tieWorld`). |
 | `tech_lock.lua` | The game's list of researched techs holds the techs items unlocked and no other shop tech (`lockAndUnlockTechs`); the techs a seed leaves as normal research (`research.txt`). |
@@ -279,7 +280,8 @@ How it works:
 
 - **The server is the truth:** every connection re-sends all items received and every location checked, so most of
   `ap` is rebuilt each time. Only one-off effects (points, bundles, crates, traps, the mailbox, Death Link's
-  forgiven count, visited locks) are kept, in the save file.
+  forgiven count, visited locks, slots bought while offline) are kept, in the save file. Beside the saves,
+  `worlds.txt` names each world's seed and slot, so a game started offline loads the right save.
 - **Items** are applied in the order the server numbers them, and `ap.given` remembers how far that got, so a
   reconnect never gives a crate or tech points twice. A tech item doesn't touch the game directly:
   `lockAndUnlockTechs` makes the game's list of unlocked techs match the items received.
@@ -296,14 +298,20 @@ How it works:
   - In the seed's world with the connection dropped (the seed known from this session's connection, `ap.shopOpen`),
     a purchase goes through and its check is sent when the connection is back (`CHECKS.sendBoughtAgain`). Untested
     in game.
-  - Started offline, with no seed known this session, nothing is bought, and the game unlocks nothing.
+  - Started offline in a world `worlds.txt` names (`CONNECTION.knowSeedOffline`, once per pawn while not
+    connected): that seed's save is loaded and the shop opens, so a purchase is queued the same way. Cards show the
+    unscouted "Archipelago item" until the seed connects and scouts. Nothing else runs offline: no item is applied,
+    no tech locked, and the game's records are sent on connecting. Connecting to the same seed and slot carries on;
+    another seed resets as usual, and what was queued for the old seed stays in its save for its next connection.
+    The research techs are the last connected seed's (`research.txt`). Untested in game.
+  - Started offline in a world with no known seed (new, or vanilla), nothing is bought, and the game unlocks nothing.
 - **Server events** arrive as text lines from `AP_Poll()`; `onEvent` hands each to its handler, whose parameters
   name the line's fields in the order `ap_bridge.hpp` sends them. "Connected" reads the seed's setup from slot data
   (`onConnected`, `applySeedOptions`).
-- **A seed belongs to one world**, the first one it is played in (`checkWorld`, `world=` in the save). In any other
-  world nothing is locked, sent or given, and the mailbox and the crates stay shut. A first world that already has
-  shop techs researched is tied only after the player presses the hint key (`tieWorld`), since tying it locks those
-  techs again.
+- **A seed belongs to one world**, the first one it is played in (`checkWorld`, `world=` in the save, and its line in
+  `worlds.txt`). In any other world nothing is locked, sent or given, and the mailbox and the crates stay shut. A
+  first world that already has shop techs researched is tied only after the player presses the hint key
+  (`tieWorld`), since tying it locks those techs again.
 - **The update** (`update()` in `main.lua`) runs every 300 ms on the game thread, at most once a frame and never
   inside a hook. Every update it reads the server's events, updates the menus, mailbox, shop cards, walls and map.
   The heavier work is spread over a cycle of 7 updates: `PHASE_STEPS` maps each phase to its function (records and

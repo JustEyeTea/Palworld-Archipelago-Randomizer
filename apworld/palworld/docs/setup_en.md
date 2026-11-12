@@ -67,8 +67,10 @@ with `[PalworldAP]`.
 
 - The Technology tree (levels 2 and up) is the shop. Each card shows what buying it sends; buying spends the usual
   tech points. A tech itself unlocks only when its item arrives. If the connection drops while you play, you can
-  keep buying: the check is sent when the connection is back. Started without connecting, nothing can be bought. In
-  a world that is not the seed's, research works as in plain Palworld.
+  keep buying: the check is sent when the connection is back. You can also start without connecting, in a world
+  you have played the seed in before: purchases are kept and sent the next time you connect to that seed (untested
+  in game). In a new world, nothing can be bought until you connect. In a world that is not the seed's, research
+  works as in plain Palworld.
 - Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them. Gear and
   accessories from Palworld Crates go straight into your bag.
 - With Area Locks on, a locked region is walled off with a red grid and shown grey on the map until its Region Pass

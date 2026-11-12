@@ -22,11 +22,13 @@ local ap = {
     status = "disconnected",  -- the connection's state, in the list above: forgotten never
     ready = false,        -- connected, and WAIT.firstItems has passed since (a fixed wait stands in for the first batch
                           -- of items): safe to lock techs. Forgotten on disconnecting and on a new seed
-    shopOpen = false,     -- this session has been ready once: tech cards are shop slots from now on, also while
-                          -- disconnected (cards keep their labels through reconnects). Forgotten on a new seed
+    shopOpen = false,     -- the seed is known this session: it has been ready once, or the world loaded offline is
+                          -- the seed's (worlds.txt). Tech cards are shop slots from now on, also while disconnected
+                          -- (cards keep their labels through reconnects). Forgotten on a new seed
     connectedTick = nil,  -- the update the last connection was accepted on (markReady's wait): forgotten never
     me = nil,             -- our slot number: set each connection
-    seed = nil,           -- the seed whose progress is in memory: replaced when another seed connects
+    seed = nil,           -- the seed whose progress is in memory: replaced when another seed connects, or offline
+                          -- when another seed's world loads (CONNECTION.knowSeedOffline)
     checked = {},         -- location id -> true: forgotten on a new seed
     bought = {},          -- location id -> true: checks the mod sent itself (purchases, removed slots), not read
                           -- from the game's records; sent again on every connection and kept in the save file.

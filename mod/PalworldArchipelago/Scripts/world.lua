@@ -80,7 +80,7 @@ WORLD.NOT_SEED_WORLD = "This is not the world this Archipelago seed is played in
 -- Which world save is loaded: the game instance's selected world folder (PalGameInstance, a pure UFunction returning
 -- an FString), or nil when it can't be read. Untested in game: what the call answers from Lua; its first answer is
 -- logged.
-local function worldId()
+function WORLD.folder()
     local gi = FindFirstOf("PalGameInstance")
     if not gi or not gi:IsValid() then return nil end
     local ok, v = pcall(function() return gi:GetSelectedWorldSaveDirectoryName() end)
@@ -93,7 +93,7 @@ end
 -- A seed belongs to one world: the first one the mod sees it played in (kept in the save file as world=). config.txt
 -- connects at every start, whatever world is loaded next; in any other world nothing is locked, sent, given or
 -- linked, or a vanilla world would have its techs relocked and its records sent as checks. If the world can't be told,
--- the seed is not tied to one (logged above).
+-- the seed is not tied to one (logged in WORLD.folder).
 -- A world that already has shop techs researched is tied only after the player says yes (the hint key): tying it
 -- locks those techs again, and the points spent on them do not come back.
 -- State: the seed's world. Forgotten: seedWorld on a world change (forgetWorldCheck) and on a new seed; worldAsk and
@@ -157,13 +157,13 @@ end
 -- Whether the loaded world is the seed's: true in the seed's world, and also when the world cannot be told (a seed
 -- with no world yet is then not tied to one); false while asking about a world with progress.
 local function isSeedWorld(ps)
-    local id = worldId()
+    local id = WORLD.folder()
     if not id and ap.world then
         once("worldunread", "world: the loaded world's folder can't be read, so it is not taken as this seed's ("
             .. ap.world .. ")")
         return false
     end
-    if not id then return true end                 -- a seed with no world yet: not tied to one (logged in worldId)
+    if not id then return true end                 -- a seed with no world yet: not tied to one (logged in WORLD.folder)
     if not ap.world then return tieWorld(ps, id) end
     if id == ap.world then
         toldNotSeed = nil                          -- (another world loaded after this one is told again)
