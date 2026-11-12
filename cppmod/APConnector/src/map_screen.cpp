@@ -312,7 +312,7 @@ namespace map_screen_unreal
         seen(context, fn, "event");
     }
 
-    // The last world's screen went: its fog picture shows that world's explored areas and lock stamps, and the texture
+    // The last world's screen went: its fog picture shows that world's explored parts and lock stamps, and the texture
     // stays findable (Lua keeps it alive), so it is forgotten until Lua hands over the new world's.
     auto forget_fog_picture() -> void
     {

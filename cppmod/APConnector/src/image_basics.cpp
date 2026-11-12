@@ -14,14 +14,15 @@
 
 namespace image_basics
 {
-auto read_locked_areas(const std::string& csv, bool (&locked)[AREA_LABELS]) -> std::string
+auto read_locked_indexes(const std::string& csv, bool (&locked)[LOCK_LABELS]) -> std::string
 {
+    // The error texts keep their words ("no area"): see image_tools.hpp's opening comment.
     const lua_text::IdList list = lua_text::parse_ids(csv);
     if (!list.skipped.empty()) return "locked '" + csv + "': '" + list.skipped.front() + "' is not a number";
-    for (const int64_t area : list.numbers)
+    for (const int64_t index : list.numbers)
     {
-        if (area < 0 || area >= AREA_LABELS) return "locked '" + csv + "': no area " + std::to_string(area);
-        locked[area] = true;
+        if (index < 0 || index >= LOCK_LABELS) return "locked '" + csv + "': no area " + std::to_string(index);
+        locked[index] = true;
     }
     return "";
 }
@@ -143,7 +144,7 @@ struct Source
 };
 
 // Channel c (0..1) averaged over the source pixels that fall in pixel (x, y) of an s x s picture: for shrinking.
-auto area_average(const Source& src, int s, int x, int y, int c) -> float
+auto box_average(const Source& src, int s, int x, int y, int c) -> float
 {
     const int x0 = x * src.w / s, x1 = std::max(x0 + 1, (x + 1) * src.w / s);
     const int y0 = y * src.h / s, y1 = std::max(y0 + 1, (y + 1) * src.h / s);
@@ -169,7 +170,7 @@ auto bilinear(const Source& src, int s, int x, int y, int c) -> float
     return (v(ix, iy) * (1 - tx) + v(jx, iy) * tx) * (1 - ty) + (v(ix, jy) * (1 - tx) + v(jx, jy) * tx) * ty;
 }
 
-// Channels first .. first + count - 1 of the source at s x s, as floats 0..1, `count` per pixel: an area average
+// Channels first .. first + count - 1 of the source at s x s, as floats 0..1, `count` per pixel: a box average
 // when shrinking, bilinear when growing.
 auto resample(const Source& src, int s, int first, int count) -> std::vector<float>
 {
@@ -182,7 +183,7 @@ auto resample(const Source& src, int s, int first, int count) -> std::vector<flo
             float* d = &out[(static_cast<size_t>(y) * s + x) * count];
             for (int c = 0; c < count; ++c)
             {
-                d[c] = shrinking ? area_average(src, s, x, y, first + c) : bilinear(src, s, x, y, first + c);
+                d[c] = shrinking ? box_average(src, s, x, y, first + c) : bilinear(src, s, x, y, first + c);
             }
         }
     }

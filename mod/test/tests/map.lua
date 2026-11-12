@@ -165,9 +165,9 @@ group("the world map", function()
             return ""
         end
         AP_ChartStatus = function() return "done" end
-        AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps, regions)
+        AP_ComposeFog = function(chartFile, mask, def, spec, out, size, stamps, borders)
             jobs[#jobs + 1] = { kind = "fog", chart = chartFile, mask = mask, spec = spec, out = out, stamps = stamps,
-                                regions = regions }
+                                borders = borders }
             local f = io.open(out, "w")
             f:write("fog")
             f:close()
@@ -204,24 +204,24 @@ group("the world map", function()
         end
         expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png") and logged("explored reads a%-"),
                "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
-        -- The fog's regions argument, by name: image_tools.hpp, compose_fog.
-        local REGION_FIELDS = { "labels", "locked", "hatch", "ink", "width", "dash", "gap", "hatchOpacity", "colour",
+        -- The fog's borders argument, by name: image_tools.hpp, compose_fog.
+        local BORDER_FIELDS = { "labels", "locked", "hatch", "ink", "width", "dash", "gap", "hatchOpacity", "colour",
                                 "gamma" }
-        local parts, regions = {}, {}
-        for part in ((fog and fog.regions or "") .. "|"):gmatch("([^|]*)|") do
+        local parts, borders = {}, {}
+        for part in ((fog and fog.borders or "") .. "|"):gmatch("([^|]*)|") do
             parts[#parts + 1] = part
         end
-        for i, name in ipairs(REGION_FIELDS) do
-            regions[name] = parts[i] or ""
+        for i, name in ipairs(BORDER_FIELDS) do
+            borders[name] = parts[i] or ""
         end
-        expect(#parts == #REGION_FIELDS and regions.labels:find("region_labels%.png$")
-               and select(2, regions.locked:gsub(",", "")) >= 9,
+        expect(#parts == #BORDER_FIELDS and borders.labels:find("region_labels%.png$")
+               and select(2, borders.locked:gsub(",", "")) >= 9,
                "the fog is made with the regions' borders, from the region labels, the locked regions listed: "
-               .. tostring(fog and fog.regions))
-        expect(regions.ink == "59,42,26,210" and tonumber(regions.width) == 3 and tonumber(regions.dash) == 14
-               and tonumber(regions.gap) == 8,
+               .. tostring(fog and fog.borders))
+        expect(borders.ink == "59,42,26,210" and tonumber(borders.width) == 3 and tonumber(borders.dash) == 14
+               and tonumber(borders.gap) == 8,
                "the borders in the ink 59,42,26 at 210, 3 px wide, dashes 14 and gaps 8")
-        expect(tonumber(regions.hatchOpacity) == 0.28 and regions.gamma == "0.4545",
+        expect(tonumber(borders.hatchOpacity) == 0.28 and borders.gamma == "0.4545",
                "the locked regions' hatch at 0.28, kept to land by the colour map read at gamma 0.4545")
         local stamps = select(2, (fog and fog.stamps or ""):gsub("ap%-map%-stamp", ""))
         expect(stamps >= 10 and (fog.stamps or ""):find("|88", 1, true), "the locked regions' stamps go on the fog: "
@@ -265,7 +265,7 @@ group("the world map", function()
         local fewer = select(2, (last and last.stamps or ""):gsub("ap%-map%-stamp", ""))
         expect(last ~= fog and fewer == stamps - 1,
                "a pass remakes the fog from the same mask with one stamp fewer: " .. fewer)
-        local function lockedIn(j) return select(2, ((j.regions or ""):match("^[^|]*|([^|]*)")
+        local function lockedIn(j) return select(2, ((j.borders or ""):match("^[^|]*|([^|]*)")
                                                      or ""):gsub(",", "")) + 1 end
         expect(lockedIn(last) == lockedIn(fog) - 1, "and its hatch over one locked region fewer")
         local nChart = 0

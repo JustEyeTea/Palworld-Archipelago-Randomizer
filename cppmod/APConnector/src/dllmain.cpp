@@ -18,14 +18,14 @@
 // register_picture_jobs (image_tools.hpp): each Compose function starts in the background and returns "" (started)
 // or "busy". Every error, even a bad argument, comes from its status function, which returns "busy", then once
 // "done" or "error: ...", then "". size "" means 2048 (AP_ComposeField: 4096); gamma "" means 1 (no change).
-//   AP_ComposeMap(colour, labels, "3,7", out, gamma)   the world map with the locked areas grey; AP_ComposeStatus()
+//   AP_ComposeMap(colour, labels, "3,7", out, gamma)   the world map with the locked locks grey; AP_ComposeStatus()
 //                                        (the map job's status only)
 //   AP_ComposeChart(colour, paper, sea, compass, out, size, gamma)   the explorer's-chart picture; AP_ChartStatus()
-//   AP_ComposeFog(chart, mask, default, spec, out, size, stamps, regions)   the chart where unexplored, with the locked
-//                                        areas' stamps; AP_FogStatus()
-//   AP_ComposeTerritories(labels, areas, walls, style, out, fogart, fog, size)   the Territories overlay and its fog
-//                                        picture from the area label map; AP_TerritoriesStatus()
-//   AP_ComposeField(field, areas, walls, style, out, fogart, fog, size, colour, gamma)   the same from a distance field
+//   AP_ComposeFog(chart, mask, default, spec, out, size, stamps, borders)   the chart where unexplored, with the locked
+//                                        locks' stamps; AP_FogStatus()
+//   AP_ComposeTerritories(labels, locks, walls, style, out, fogart, fog, size)   the Territories overlay and its fog
+//                                        picture from the lock label map; AP_TerritoriesStatus()
+//   AP_ComposeField(field, locks, walls, style, out, fogart, fog, size, colour, gamma)   the same from a distance field
 //                                        (smooth borders), in the Territories job slot; AP_TerritoriesStatus()
 // register_png_tools (image_tools.hpp), which run at once:
 //   AP_SamplePNG(path, u, v) -> string   a PNG's colour at (u, v) in 0..1: "r,g,b,a", or "error: ..."
@@ -91,8 +91,8 @@ namespace
     constexpr unsigned long long HEX_DIGIT_MASK = 15;
 
     // When Lua sends "" for a picture's size or gamma. Sizes are in pixels a side.
-    constexpr int DEFAULT_PICTURE_SIZE = 2048;   // the chart, the fog and Territories: the area label map's size
-    constexpr int DEFAULT_FIELD_SIZE = 4096;     // ComposeField: the distance field's (area_field*.png) own size
+    constexpr int DEFAULT_PICTURE_SIZE = 2048;   // the chart, the fog and Territories: the lock label map's size
+    constexpr int DEFAULT_FIELD_SIZE = 4096;     // ComposeField: the distance field's (*_field.png) own size
     constexpr double GAMMA_UNCHANGED = 1.0;      // value^1: neither brightened nor darkened
     constexpr double SAMPLE_AT_EDGE = 0.0;       // AP_SamplePNG's u or v when it is not a number
 
@@ -373,15 +373,15 @@ namespace
         const auto out = next_text_arg(call);
         const int size = int_or(next_text_arg(call), DEFAULT_PICTURE_SIZE);
         const auto stamps = next_text_arg(call);
-        const auto regions = next_text_arg(call);
+        const auto borders = next_text_arg(call);
         return fog_jobs().start(
-            [=] { return compose_fog(chart, mask, default_mask, spec, out, size, stamps, regions); });
+            [=] { return compose_fog(chart, mask, default_mask, spec, out, size, stamps, borders); });
     }
 
     auto ap_compose_territories(const LuaMadeSimple::Lua& call) -> std::string
     {
         const auto labels = next_text_arg(call);
-        const auto areas = next_text_arg(call);
+        const auto locks = next_text_arg(call);
         const auto walls = next_text_arg(call);
         const auto style = next_text_arg(call);
         const auto out = next_text_arg(call);
@@ -389,14 +389,14 @@ namespace
         const auto fog = next_text_arg(call);
         const int size = int_or(next_text_arg(call), DEFAULT_PICTURE_SIZE);
         return territory_jobs().start(
-            [=] { return compose_territories(labels, areas, walls, style, out, fogart, fog, size); });
+            [=] { return compose_territories(labels, locks, walls, style, out, fogart, fog, size); });
     }
 
     // Runs in the Territories job slot: the two make the same pictures, so only one may run.
     auto ap_compose_field(const LuaMadeSimple::Lua& call) -> std::string
     {
         const auto field = next_text_arg(call);
-        const auto areas = next_text_arg(call);
+        const auto locks = next_text_arg(call);
         const auto walls = next_text_arg(call);
         const auto style = next_text_arg(call);
         const auto out = next_text_arg(call);
@@ -406,7 +406,7 @@ namespace
         const auto colour = next_text_arg(call);
         const double gamma = double_or(next_text_arg(call), GAMMA_UNCHANGED);
         return territory_jobs().start(
-            [=] { return compose_field(field, areas, walls, style, out, fogart, fog, size, colour, gamma); });
+            [=] { return compose_field(field, locks, walls, style, out, fogart, fog, size, colour, gamma); });
     }
 
     auto ap_compose_status(const LuaMadeSimple::Lua&) -> std::string

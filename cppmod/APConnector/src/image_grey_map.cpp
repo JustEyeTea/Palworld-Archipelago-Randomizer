@@ -1,4 +1,4 @@
-// The world map pictures in grey: greyscale_png, compose_map (locked areas grey on the colour map) and sample_png,
+// The world map pictures in grey: greyscale_png, compose_map (locked locks grey on the colour map) and sample_png,
 // which reads one spot of a PNG (image_tools.hpp says what each takes and returns).
 #include "image_tools.hpp"
 #include "image_basics.hpp"
@@ -12,24 +12,24 @@ using namespace image_basics;
 
 namespace
 {
-// compose_map's soft boundary between colour and grey, and its inner shadow along a locked area's edge: blur radii
+// compose_map's soft boundary between colour and grey, and its inner shadow along a locked lock's edge: blur radii
 // as the map's width divided by the first number (pixels at a 4096 map in brackets), never below the second.
 constexpr int BOUNDARY_SOFTEN_DIVISOR = 2048, BOUNDARY_SOFTEN_MIN_PX = 1;   // (2) a couple of pixels
 constexpr int SHADOW_DIVISOR = 400, SHADOW_MIN_PX = 2;                      // (10, three passes)
-// The shadow darkens the grey to SHADOW_DARKEST at a locked area's edge; SHADOW_STRENGTH is how quickly the shadow's
+// The shadow darkens the grey to SHADOW_DARKEST at a locked lock's edge; SHADOW_STRENGTH is how quickly the shadow's
 // blur reaches that.
 constexpr double SHADOW_DARKEST = 0.45;
 constexpr double SHADOW_STRENGTH = 1.1;
 
-// A locked area's mask (255 inside), softened two ways: `soft` for the boundary, `shade` for the inner shadow.
+// The locked locks' mask (255 inside), softened two ways: `soft` for the boundary, `shade` for the inner shadow.
 struct LockedMask
 {
     std::vector<uint8_t> soft;
     std::vector<uint8_t> shade;
 };
 
-// The locked areas of a label picture (w x h, one area index per pixel) as a softened mask.
-auto locked_mask(const unsigned char* labels, int w, int h, const bool (&locked)[AREA_LABELS]) -> LockedMask
+// The locked locks of a label picture (w x h, one lock index per pixel) as a softened mask.
+auto locked_mask(const unsigned char* labels, int w, int h, const bool (&locked)[LOCK_LABELS]) -> LockedMask
 {
     const size_t count = static_cast<size_t>(w) * h;
     LockedMask mask;
@@ -50,7 +50,7 @@ auto locked_mask(const unsigned char* labels, int w, int h, const bool (&locked)
 }
 
 // One map pixel (RGBA bytes, in place): the gamma applied, then mixed toward grey by `locked` (0 open .. 1 inside a
-// locked area), the grey darkened by the inner shadow (`shade` 0..1, 1 deep inside).
+// locked lock), the grey darkened by the inner shadow (`shade` 0..1, 1 deep inside).
 void paint_map_pixel(unsigned char* p, const GammaTable& lut, double locked, double shade)
 {
     if (locked <= 0)
@@ -95,10 +95,10 @@ auto compose_map(const std::string& colour, const std::string& labels, const std
     const StbPixels lab = read_png(labels, 1, lw, lh);
     if (!lab) return read_failure(labels);
     if (lw != w || lh != h) return "the labels picture is not the size of the map";
-    bool lockedArea[AREA_LABELS] = {};
-    const std::string badLocked = read_locked_areas(locked, lockedArea);
+    bool lockedByIndex[LOCK_LABELS] = {};
+    const std::string badLocked = read_locked_indexes(locked, lockedByIndex);
     if (!badLocked.empty()) return badLocked;
-    const LockedMask mask = locked_mask(lab.get(), w, h, lockedArea);
+    const LockedMask mask = locked_mask(lab.get(), w, h, lockedByIndex);
     const GammaTable lut = gamma_table(gamma);
     for (size_t i = 0, count = static_cast<size_t>(w) * h; i < count; ++i)
     {

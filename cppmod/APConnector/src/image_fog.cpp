@@ -1,5 +1,5 @@
-// The fog picture: the chart where the player hasn't explored and see-through where they have, with the areas'
-// borders, a hatch over locked areas and the locks' stamps (compose_fog in image_tools.hpp, which defines the
+// The fog picture: the chart where the player hasn't explored and see-through where they have, with the borders
+// between locks, a hatch over locked locks and the locks' stamps (compose_fog in image_tools.hpp, which defines the
 // arguments' text).
 #include "image_tools.hpp"
 #include "image_basics.hpp"
@@ -18,11 +18,11 @@ namespace
 // The largest fog picture: a guard against a size Lua got wrong (it asks for 2048 or the Territories' 4096).
 constexpr int MAX_FOG_PX = 8192;
 
-// The borders' look, compose_fog's `regions` argument read by field (image_tools.hpp lists them in this order).
+// The borders' look, compose_fog's `borders` argument read by field (image_tools.hpp lists them in this order).
 struct BorderSpec
 {
-    std::string labels_file;                  // the area label PNG
-    bool locked[AREA_LABELS] = {};            // the areas hatched
+    std::string labels_file;                  // the lock label PNG
+    bool locked[LOCK_LABELS] = {};            // the locks hatched
     std::string hatch_file;                   // the hatch's tile PNG ("" for a plain diagonal hatch in the ink)
     float ink[4] = {CHART_INK[0], CHART_INK[1], CHART_INK[2], 0.8f};   // 0..1; Lua may give r,g,b without alpha
     float width_px = 0, dash_px = 0, gap_px = 0;
@@ -43,38 +43,39 @@ constexpr float COVER_GAIN = 1.5f;
 // dist_along's marks for a pixel: not on a border, or on one but not reached yet by the walk.
 constexpr int NOT_BORDER = -1, NOT_WALKED = -2;
 
-// The `regions` text split at '|', a trailing '|' keeping its empty last field.
-auto border_fields(const std::string& regions) -> std::vector<std::string>
+// The `borders` text split at '|', a trailing '|' keeping its empty last field.
+auto border_fields(const std::string& borders) -> std::vector<std::string>
 {
     std::vector<std::string> fields;
-    std::stringstream parts(regions);
+    std::stringstream parts(borders);
     for (std::string field; std::getline(parts, field, '|');)
     {
         fields.push_back(field);
     }
-    if (!regions.empty() && regions.back() == '|')
+    if (!borders.empty() && borders.back() == '|')
     {
         fields.push_back("");
     }
     return fields;
 }
 
-// Reads `regions` into spec; "" or what was wrong with it.
-auto read_border_spec(const std::string& regions, BorderSpec& spec) -> std::string
+// Reads `borders` into spec; "" or what was wrong with it. The error texts keep their words ("regions"): see
+// image_tools.hpp's opening comment.
+auto read_border_spec(const std::string& borders, BorderSpec& spec) -> std::string
 {
-    const std::vector<std::string> f = border_fields(regions);
+    const std::vector<std::string> f = border_fields(borders);
     if (f.size() != BORDER_FIELDS && f.size() != BORDER_FIELDS_WITH_LAND)
     {
-        return "regions '" + regions + "': want 8 or 10 fields";
+        return "regions '" + borders + "': want 8 or 10 fields";
     }
     spec.labels_file = f[0];
-    const std::string badLocked = read_locked_areas(f[1], spec.locked);
+    const std::string badLocked = read_locked_indexes(f[1], spec.locked);
     if (!badLocked.empty()) return "regions: " + badLocked;
     spec.hatch_file = f[2];
     std::vector<float> ink;
     if (!lua_text::parse_floats(f[3], ',', ink) || ink.size() > 4)
     {
-        return "regions '" + regions + "': ink '" + f[3] + "' (want r,g,b or r,g,b,a, 0-255)";
+        return "regions '" + borders + "': ink '" + f[3] + "' (want r,g,b or r,g,b,a, 0-255)";
     }
     for (size_t c = 0; c < ink.size(); ++c)
     {
@@ -84,7 +85,7 @@ auto read_border_spec(const std::string& regions, BorderSpec& spec) -> std::stri
     if (!(read_float(f[4], spec.width_px) && read_float(f[5], spec.dash_px) && read_float(f[6], spec.gap_px) &&
           read_float(f[7], spec.hatch_opacity)))
     {
-        return "regions '" + regions + "': a number would not read";
+        return "regions '" + borders + "': a number would not read";
     }
     if (f.size() == BORDER_FIELDS_WITH_LAND)
     {
@@ -113,7 +114,7 @@ void ink_pixel(Rgba& art, size_t i, const float* c, float a)
     }
 }
 
-// The hatch over the locked areas' land: the hatch tile repeated, or plain diagonal lines in the ink.
+// The hatch over the locked locks' land: the hatch tile repeated, or plain diagonal lines in the ink.
 void draw_hatch(Rgba& art, const std::vector<unsigned char>& labels, const Plane& land, const BorderSpec& spec,
                 const StbPixels& tile, int tw, int th)
 {
@@ -140,8 +141,8 @@ void draw_hatch(Rgba& art, const std::vector<unsigned char>& labels, const Plane
     }
 }
 
-// The border pixels: an area pixel on land whose right or lower neighbour is another area, also on land. Label 0
-// (no area) has no border: its edge is the coast, which the chart already inks.
+// The border pixels: a lock pixel on land whose right or lower neighbour is another lock, also on land. Label 0
+// (no lock) has no border: its edge is the coast, which the chart already inks.
 auto border_pixels(const std::vector<unsigned char>& labels, const Plane& land, int size) -> std::vector<size_t>
 {
     std::vector<size_t> border;
@@ -242,12 +243,12 @@ void ink_borders(Rgba& art, const std::vector<size_t>& border, const std::vector
     }
 }
 
-// The regions on the chart (compose_fog's `regions`): a hatch over locked areas, then the borders between areas.
-auto draw_regions(Rgba& art, const std::string& regions) -> std::string
+// compose_fog's `borders` on the chart: a hatch over locked locks, then the borders between locks.
+auto draw_borders_and_hatch(Rgba& art, const std::string& borders) -> std::string
 {
-    if (regions.empty()) return "";
+    if (borders.empty()) return "";
     BorderSpec spec;
-    const std::string bad = read_border_spec(regions, spec);
+    const std::string bad = read_border_spec(borders, spec);
     if (!bad.empty()) return bad;
     int lw = 0, lh = 0, tw = 0, th = 0;
     const StbPixels lab = read_png(spec.labels_file, 1, lw, lh);
@@ -399,7 +400,7 @@ auto draw_stamps(std::vector<unsigned char>& img, int size, const std::string& s
 
 auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
                  const std::string& spec, const std::string& out, int size, const std::string& stamps,
-                 const std::string& regions) -> std::string
+                 const std::string& borders) -> std::string
 {
     if (size < MIN_PICTURE_PX || size > MAX_FOG_PX) return "fog size " + std::to_string(size);
     int channel = 0;
@@ -410,7 +411,7 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
     // 4096: floats would take 256 MB more), else as floats.
     Rgba art;
     StbPixels raw = no_pixels();
-    if (regions.empty())
+    if (borders.empty())
     {
         int w = 0, h = 0;
         raw = read_png(chart, 4, w, h);
@@ -424,7 +425,7 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
     {
         art = load_rgba(chart, size, err);
         if (!err.empty()) return err;
-        err = draw_regions(art, regions);
+        err = draw_borders_and_hatch(art, borders);
         if (!err.empty()) return err;
     }
     const Plane explored = explored_mask(mask, default_mask, size, channel, high, err);
