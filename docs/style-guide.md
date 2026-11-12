@@ -140,7 +140,9 @@ that state. These rules keep the mod's code on the game thread. The harness chec
 ## C++
 
 - **Keep the parts that need no Unreal in their own files** (`ap_bridge.*`, `event_lines.*`, `lua_text.*`,
-  `pal_gift_logic.*`, `image_tools.*`), so they are tested on Linux (`cppmod/APConnector/test/`).
+  `pal_gift_logic.*`, and the map pictures: `image_tools.hpp`, `image_basics.*`, `image_land_sea.*`,
+  `image_jobs.cpp`, `image_grey_map.cpp`, `image_chart.cpp`, `image_fog.cpp`, `image_territories.cpp`), so they are
+  tested on Linux (`cppmod/APConnector/test/`).
 - **Functions the Lua mod calls take and return text,** and are listed with their arguments at the top of
   `dllmain.cpp`. Each is registered through `register_text` there; code that turns text into numbers lives in
   `lua_text.*`.

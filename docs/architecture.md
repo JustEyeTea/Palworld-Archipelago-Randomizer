@@ -234,10 +234,14 @@ The rest of the connector calls Palworld's own functions, or does image work too
   VM catch `WBP_Map_Body_C:Setup` and set the picture and the fog before the screen draws. Every 60 frames it looks
   for Setup again, because the map's class is loaded anew after Return to title. Lua drives it with
   `AP_MapScreen(cmd, value)`.
-- `image_tools.cpp` builds the map pictures from PNGs, on background threads (one `JobSlot` each; Lua polls
-  `busy`, `done` or `error: ...`): the Territories map (`compose_field`, falling back to `compose_territories`) and
-  the chart style (`compose_chart`, `compose_fog`). Lua passes locks, walls and looks as short text formats, each
-  described above its function in `image_tools.hpp`. Tested on Linux (`test/image_test.cpp`).
+- The map pictures are built from PNGs, on background threads (one `JobSlot` each, `image_jobs.cpp`; Lua polls
+  `busy`, `done` or `error: ...`): the Territories map (`compose_field`, falling back to `compose_territories`, in
+  `image_territories.cpp`), the chart style (`compose_chart` in `image_chart.cpp`, `compose_fog` in
+  `image_fog.cpp`), and the grey map and the small PNG tools (`compose_map`, `greyscale_png`, `sample_png` in
+  `image_grey_map.cpp`). They share `image_basics.*` (the locked-area list, blurs, PNGs as floats) and
+  `image_land_sea.*` (land, sea and beyond the world's edge). Lua passes locks, walls and looks as short text
+  formats, each described above its function in `image_tools.hpp`, the one header Lua's side cites. Tested on Linux
+  (`test/image_test.cpp`).
 
 ## The Lua mod
 
@@ -406,7 +410,7 @@ the mod zip, `palworld.apworld` and their checksums. A person then:
 | A check is in logic too early or too late, or a seed won't generate | `__init__.py`: the check's rule in `set_rules`, then the helper it uses (`level_ok`, `can_get_pal`, `shop_ok` ...); a generation error comes from `generate_early` | The tuning constants at the top (`FREE_LEVEL`, `LEVELS_PAST_PIECE`, `LEVELS_BELOW_PIECE`, `SPHERE_STEP`); the spoiler log's playthrough shows when each item was reachable |
 | A Pal gift ends `result: fail ...`, or the game dies during one | UE4SS.log's `[APConnector] [pal]` lines: the last one names the step, and the step names the function in `pal_gift.cpp` | After a game update: "function not found" or "no such parameter" means a path or parameter name in `pal_gift.cpp` changed; a UE4SS header dump of the new version (UE4SS's Dump CXX Headers) shows the new one |
 | The world map shows the game's own picture or its dark fog | UE4SS.log's `[APConnector] [map]` lines: `hooked`, `Setup #n ... FAILED: <reason>`, `Setup gone` / `found Setup again` (`map_screen.cpp`) | `SETUP_PATH` in `map_screen.cpp` after a game update; `map_cpp=0` in config.txt turns it off; Lua's `AP_MapScreen` calls in `walls.lua` |
-| The map picture looks wrong (colours, rims, walls, borders) | `image_tools.cpp`: `compose_field` for the Territories map, `compose_chart` and `compose_fog` for `map_style=chart` | What Lua sends it (`lockSpec`, `wallSpec` in `map_picture.lua`); reproduce it on Linux with `test/image_test.cpp` |
+| The map picture looks wrong (colours, rims, walls, borders) | `compose_field` in `image_territories.cpp` for the Territories map; `compose_chart` in `image_chart.cpp` and `compose_fog` in `image_fog.cpp` for `map_style=chart`; land and sea told apart in `image_land_sea.cpp` | What Lua sends it (`lockSpec`, `wallSpec` in `map_picture.lua`); reproduce it on Linux with `test/image_test.cpp` |
 | An item never arrives, or arrives twice | The log's `Received ...` and `save ...: items applied up to index N` lines; `applyItems` and `giveFiller` in `items.lua` | `ap.given` in the save file (`given=`): deleting the save makes every one-off item come again |
 | A tech is locked that should be unlocked, or the other way round | The log's `locked <tech>` / `unlocked <tech>` lines; `lockAndUnlockTechs` in `tech_lock.lua` | Is this the seed's world? A `world: ... is not this seed's world` line means nothing is locked or sent here (`checkWorld` in `world.lua`) |
 | Buying a shop slot does nothing, or the card shows the wrong thing | The log's `BOUGHT` or `buy ...: not enough points` lines; `buy()` and `researchRequested` in `shop.lua` | `relabel` in `shop_cards.lua` for what a card shows; `slotUnlockable` in `shop.lua` for whether it can be clicked |

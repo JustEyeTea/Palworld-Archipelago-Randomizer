@@ -42,7 +42,7 @@ Round 5 (2026-11-06, the user's pick A):
   ap-debuff-frame.png         128x128, the same frame empty, for future timed traps (keep a glyph inside x 20-108,
                               y 20-104).
 Round 6 (2026-11-06, the user's pick A, "engraved"): the explorer's-chart fog of war (the map's unexplored parts drawn
-as a chart; image_tools.cpp compose_chart / compose_fog, not drawn in play yet).
+as a chart; compose_chart in image_chart.cpp and compose_fog in image_fog.cpp, not drawn in play yet).
   ap-chart-paper.png          1024x1024 opaque, seamless parchment (tiled two across the chart).
   ap-chart-sea.png            512x512, seamless engraved wave lines for open water.
   ap-chart-compass.png        512x512, a 16-point compass rose with a paw for north (beyond the frame's top-left).
