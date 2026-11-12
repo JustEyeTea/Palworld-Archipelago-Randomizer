@@ -108,7 +108,8 @@ local function phaseRecords()
     if not okk then
         onceErr("trapsk", errk, "traps error: " .. tostring(errk))
     end
-    if ps and ap.ready then
+    -- (also offline after this session's connection, ap.shopOpen: a purchase then needs to know the world)
+    if ps and (ap.ready or ap.shopOpen) then
         WORLD.checkWorld(ps)
     end
     if ps and ap.ready and WORLD.seedWorld() then
@@ -220,8 +221,10 @@ local function update(frame)
     PERF.stop("cards")
     TECHSCAN.sendRemovedSlots()
     local pawn = nil
+    if ap.ready or ap.shopOpen then
+        pawn = WORLD.note()                -- (offline too once the seed is known: a world change resets the answer)
+    end
     if ap.ready then
-        pawn = WORLD.note()
         AREA_LOCKS.update(pawn)
     end
     runPhase(pawn)

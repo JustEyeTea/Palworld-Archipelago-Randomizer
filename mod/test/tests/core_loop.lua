@@ -120,6 +120,34 @@ group("a bought slot's check is sent again on every connection, and kept in the 
     local text = h.saveText()
     expect(text:find("bought=[%d,]*" .. loc),
            "the save file keeps the bought slot: " .. (text:match("bought=[^\n]*") or "none"))
+    -- The connection drops in the seed's world (the seed known): a purchase still goes through, is saved, and its
+    -- check is sent once the connection is back.
+    local STATE = require("ap_state")
+    local slot
+    for tech, s in pairs(D.shop) do
+        local free = not STATE.ap.checked[s.loc] and not STATE.ap.bought[s.loc]
+        if not slot and free and s.cost <= 1 and not s.ancient then
+            slot = tech
+        end
+    end
+    local offLoc = D.shop[slot].loc
+    local pointsWere = td.TechnologyPoint
+    td.TechnologyPoint = 12
+    push("status", "disconnected")
+    run(1)
+    shared.req.v = FNameOf(slot)
+    shared.research(nil, shared.req)
+    run(1)
+    local charged = td.TechnologyPoint == 12 - D.shop[slot].cost
+    local savedOffline = h.saveText():find("bought=[%d,]*" .. offLoc) ~= nil
+    local sentOffline = checks[offLoc]
+    push("status", "connected", "Tester")
+    run(2)
+    td.TechnologyPoint = pointsWere
+    expect(charged and STATE.ap.bought[offLoc] and STATE.ap.checked[offLoc] and savedOffline and not sentOffline
+           and h.told("check is sent when the connection is back"),
+           "offline in the seed's world: the slot is bought, charged and saved, and the player told when it is sent")
+    expect(checks[offLoc], "and its check is sent once the connection is back")
 end)
 
 group("still loading into the world", function()

@@ -8,6 +8,7 @@ local CHECKS = require("checks")
 local DATA = require("ap_data")
 local PERF = require("perf")
 local PLAYER = require("player")
+local SAVE = require("save")
 local SHOP_CARDS = require("shop_cards")
 local STATE = require("ap_state")
 local TECH_LOCK = require("tech_lock")
@@ -122,25 +123,37 @@ local function confirmBoxSetup(self, dialogType, message)
     later(2, apply)
 end
 
--- Buying: the request is rewritten so the game unlocks nothing; the mod charges the points and sends the check.
-local function buy(tech)
-    local s = DATA.shop[tech]
-    local ps = playerState()
-    if not ps then return end
-    if ap.status ~= "connected" or not ap.ready then
-        notify("Not connected to Archipelago: nothing bought.")
-        return
+-- Whether a purchase can be made now, else the player is told why. A slot is bought in the seed's world only, and
+-- only once this session has known the seed (ap.shopOpen, set when a connection was ready): connected, or offline
+-- after the connection dropped, when the check waits for the connection to come back. Started offline with no seed
+-- known, nothing is bought (the game unlocks nothing either).
+local function mayBuyHere()
+    if not ap.shopOpen then
+        notify(ap.status == "connected" and "Archipelago is still connecting: nothing bought."
+            or "Connect to Archipelago to buy shop slots.")
+        return false
     end
     if WORLD.seedWorld() == false then
         notify(WORLD.NOT_SEED_WORLD .. ": nothing bought.")
-        return
+        return false
     end
     -- Not looked at yet (the first moments after a world loads, or the pawn changed): a check sent can't be taken
     -- back, so a purchase waits for the answer.
     if WORLD.seedWorld() == nil then
         notify("Still checking whether this is the seed's world: nothing bought. Try again in a moment.")
-        return
+        return false
     end
+    return true
+end
+
+-- Buying: the request is rewritten so the game unlocks nothing; the mod charges the points, marks the slot bought
+-- and saves it, and sends the check, or, with the connection down, has it sent when the connection is back
+-- (CHECKS.sendBoughtAgain on connecting). Untested in game: buying with the connection down.
+local function buy(tech)
+    local s = DATA.shop[tech]
+    local ps = playerState()
+    if not ps then return end
+    if not mayBuyHere() then return end
     if bought(tech) then return end
     local td = ps:GetTechnologyData()
     local field = s.ancient and TECH_LOCK.ANCIENT_POINTS or "TechnologyPoint"
@@ -154,16 +167,24 @@ local function buy(tech)
     log(string.format("BOUGHT %s for %d %s: %d -> %d, sends %s", tech, s.cost, field, before, td[field],
         rewardText(tech)))
     ap.bought[s.loc] = true
-    sendChecks({ s.loc })
+    local online = ap.status == "connected" and ap.ready
+    if online then
+        sendChecks({ s.loc })
+    end
     ap.checked[s.loc] = true
+    SAVE.write()
+    if not online then
+        notify("Bought " .. rewardText(tech) .. " while not connected: its check is sent when the connection is back.")
+    end
     refreshTree()
 end
 
 -- A research request for a shop slot: the game is asked for a slot no tech has, and the purchase runs on the next
--- update, outside this hook.
+-- update, outside this hook. In a world known not to be the seed's the request is left to the game.
 local function researchRequested(self, name)
     local tech = name:get():ToString()
     if not DATA.shop[tech] then return end
+    if WORLD.seedWorld() == false then return end   -- another world: plain Palworld research, the game's own
     name:set(FName("AP_ShopSlot"))
     -- Ctrl+9 (perf test tools): the confirm box shows the game's own text then, not what the purchase sends, so
     -- a confirm is not a purchase. A check sent cannot be taken back in the multiworld.

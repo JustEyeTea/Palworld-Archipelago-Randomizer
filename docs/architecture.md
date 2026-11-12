@@ -281,8 +281,15 @@ How it works:
   leaves the boss's arena.
 - **The tech shop.** Level 2 and higher techs are slots: each card says what its slot sends. When the player buys
   one, the research request is renamed (`AP_ShopSlot`, a tech that doesn't exist), so the game unlocks nothing;
-  `buy()` takes the points itself and sends the check. Other hooks make a bought card look researched, decide
-  whether a slot can be clicked, and put what the purchase sends into the confirm box.
+  `buy()` takes the points itself, marks the slot bought (`ap.bought`, in the save) and sends the check. Other hooks
+  make a bought card look researched, decide whether a slot can be clicked, and put what the purchase sends into the
+  confirm box. Where it can be bought:
+  - In a world that is not the seed's, nothing is a shop slot (`SHOP_CARDS.isShopSlot`): the request is left to the
+    game, so plain Palworld research works there, and the cards give the game's own answers.
+  - In the seed's world with the connection dropped (the seed known from this session's connection, `ap.shopOpen`),
+    a purchase goes through and its check is sent when the connection is back (`CHECKS.sendBoughtAgain`). Untested
+    in game.
+  - Started offline, with no seed known this session, nothing is bought, and the game unlocks nothing.
 - **Server events** arrive as text lines from `AP_Poll()`; `onEvent` hands each to its handler, whose parameters
   name the line's fields in the order `ap_bridge.hpp` sends them. "Connected" reads the seed's setup from slot data
   (`onConnected`, `applySeedOptions`).

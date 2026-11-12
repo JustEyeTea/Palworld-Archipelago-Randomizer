@@ -41,6 +41,14 @@ group("loading the mod", function()
     early.set = function(self, v) self.v = v end
     hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"](nil, early)
     expect(early.v:ToString() == "Lamp" and not logged("Not connected"), "and can be researched as usual")
+    -- Started offline, never connected this session (no seed known): a shop slot is refused, and nothing unlocks.
+    local offline = { v = FNameOf("RepairBench") }
+    offline.get = function(self) return self.v end
+    offline.set = function(self, v) self.v = v end
+    hooks["/Script/Pal.PalNetworkPlayerComponent:RequestUnlockTechnology_ToServer"](nil, offline)
+    run(1)
+    expect(offline.v:ToString() == "AP_ShopSlot" and h.told("Connect to Archipelago to buy shop slots."),
+           "no seed known yet: a shop slot is not bought, the game unlocks nothing, and the player is told how")
 end)
 
 group("connect and receive", function()
