@@ -24,9 +24,9 @@ static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::s
         if (!regions.empty() && regions.back() == '|') f.push_back("");
     }
     if (f.size() != 8 && f.size() != 10) return "regions '" + regions + "': want 8 or 10 fields";
-    int lw = 0, lh = 0, ln = 0;
-    std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(f[0].c_str(), &lw, &lh, &ln, 1), stbi_image_free);
-    if (!lab) return "could not read " + f[0] + ": " + stbi_failure_reason();
+    int lw = 0, lh = 0;
+    const StbPixels lab = read_png(f[0], 1, lw, lh);
+    if (!lab) return read_failure(f[0]);
     bool locked[AREA_LABELS] = {};
     const std::string badLocked = read_locked_areas(f[1], locked);
     if (!badLocked.empty()) return "regions: " + badLocked;
@@ -40,12 +40,12 @@ static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::s
         width = std::stof(f[4]); dash = std::stof(f[5]); gap = std::stof(f[6]); hop = std::stof(f[7]);
     }
     catch (...) { return "regions '" + regions + "': a number would not read"; }
-    int tw = 0, th = 0, tn = 0;
-    std::unique_ptr<unsigned char, void (*)(void*)> tile(nullptr, stbi_image_free);
+    int tw = 0, th = 0;
+    StbPixels tile = no_pixels();
     if (!f[2].empty())
     {
-        tile.reset(stbi_load(f[2].c_str(), &tw, &th, &tn, 4));
-        if (!tile) return "could not read " + f[2] + ": " + stbi_failure_reason();
+        tile = read_png(f[2], 4, tw, th);
+        if (!tile) return read_failure(f[2]);
     }
     const size_t N = static_cast<size_t>(S) * S;
     Plane land;                                       // empty: everywhere counts as land
@@ -58,13 +58,7 @@ static auto draw_regions(Rgba& art, int S, const std::string& regions) -> std::s
         if (!err.empty()) return err;
     }
     auto onLand = [&](size_t i) { return land.empty() ? 1.f : land[i]; };
-    std::vector<unsigned char> L(N);
-    for (int y = 0; y < S; ++y)
-        for (int x = 0; x < S; ++x)
-        {
-            const int lx = std::min(lw - 1, (2 * x + 1) * lw / (2 * S)), ly = std::min(lh - 1, (2 * y + 1) * lh / (2 * S));
-            L[static_cast<size_t>(y) * S + x] = lab.get()[static_cast<size_t>(ly) * lw + lx];
-        }
+    const std::vector<unsigned char> L = labels_at_size(lab.get(), lw, lh, S);
     auto blend = [&](size_t i, const float* c, float a) {
         float* d = &art.px[i * 4];
         for (int k = 0; k < 3; ++k) d[k] = d[k] * (1 - a) + c[k] * a;
@@ -159,12 +153,12 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
     // The picture: as 8 bits when it is already this size and nothing is drawn on it (the Territories' fog art at 4096:
     // floats would take 256 MB more), else as floats.
     Rgba art;
-    std::unique_ptr<unsigned char, void (*)(void*)> raw(nullptr, stbi_image_free);
+    StbPixels raw = no_pixels();
     if (regions.empty())
     {
-        int w = 0, h = 0, n = 0;
-        raw.reset(stbi_load(chart.c_str(), &w, &h, &n, 4));
-        if (!raw) return "could not read " + chart + ": " + stbi_failure_reason();
+        int w = 0, h = 0;
+        raw = read_png(chart, 4, w, h);
+        if (!raw) return read_failure(chart);
         if (w != S || h != S) raw.reset();
     }
     if (!raw)

@@ -24,6 +24,15 @@ static auto hex_rgb(const std::string& h, float* c) -> bool
     return true;
 }
 
+// How strong an area's rim is at d px (of a 4096 map) inside its edge: full for RIM_FULL_PX, then fading by a
+// factor of e every RIM_FADE_PX.
+constexpr float RIM_FULL_PX = 2.f;
+constexpr float RIM_FADE_PX = 7.f;
+static auto rim_strength(float d) -> float
+{
+    return std::exp(-std::max(d - RIM_FULL_PX, 0.f) / RIM_FADE_PX);
+}
+
 // Draws a line's coverage into cov: hard (1 within hw of the segment) or anti-aliased (fading over the last pixel).
 static void draw_segment(Plane& cov, int S, float x1, float y1, float x2, float y2, float hw, bool aa)
 {
@@ -129,9 +138,9 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
     const int S = size;
     if (S < 64 || S > 4096) return "territories size " + std::to_string(S);
     const float k = S / 4096.f;                                   // the style's px are of a 4096 map
-    int lw = 0, lh = 0, ln = 0;
-    std::unique_ptr<unsigned char, void (*)(void*)> lab(stbi_load(labels.c_str(), &lw, &lh, &ln, 1), stbi_image_free);
-    if (!lab) return "could not read " + labels + ": " + stbi_failure_reason();
+    int lw = 0, lh = 0;
+    const StbPixels lab = read_png(labels, 1, lw, lh);
+    if (!lab) return read_failure(labels);
     TerrLook t;
     const std::string bad = parse_look(areas, style, fog, t);
     if (!bad.empty()) return bad;
@@ -140,13 +149,7 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
     const float *glowC = t.glowC, *coreC = t.coreC, *fogC = t.fogC;
     const float glowA = t.glowA, coreA = t.coreA, glowW = t.glowW, glowSigma = t.glowSigma, coreW = t.coreW;
     const size_t N = static_cast<size_t>(S) * S;
-    std::vector<unsigned char> L(N);
-    for (int y = 0; y < S; ++y)
-        for (int x = 0; x < S; ++x)
-        {
-            const int lx = std::min(lw - 1, (2 * x + 1) * lw / (2 * S)), ly = std::min(lh - 1, (2 * y + 1) * lh / (2 * S));
-            L[static_cast<size_t>(y) * S + x] = lab.get()[static_cast<size_t>(ly) * lw + lx];
-        }
+    const std::vector<unsigned char> L = labels_at_size(lab.get(), lw, lh, S);
     // Distance to the area's edge (chamfer 3-4, two passes): 0 on edge pixels (an area pixel with another label, sea
     // included, among its 8 neighbours).
     const int INF = 1 << 28;
@@ -192,13 +195,7 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
         }
     // Fill and rim (straight alpha).
     std::vector<float> img(N * 4, 0.f);
-    auto over = [&](size_t i, const float* c, float a) {
-        if (a <= 0.f) return;
-        float* p = &img[i * 4];
-        const float ao = a + p[3] * (1 - a);
-        for (int q = 0; q < 3; ++q) p[q] = ao > 0 ? (c[q] * a + p[q] * p[3] * (1 - a)) / ao : 0.f;
-        p[3] = ao;
-    };
+    auto over = [&](size_t i, const float* c, float a) { blend_over(&img[i * 4], img[i * 4 + 3], c, a); };
     for (size_t i = 0; i < N; ++i)
     {
         const unsigned char a = L[i];
@@ -206,8 +203,7 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
         float fill = 0, rimA = 0;
         state_alpha(state[a], fill, rimA);
         const float d = D[i] / 3.f / k;                           // in px of a 4096 map
-        const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
-        over(i, colour[a], std::min(1.f, std::max(0.f, fill + rim * rimA)));
+        over(i, colour[a], std::min(1.f, std::max(0.f, fill + rim_strength(d) * rimA)));
     }
     // The walls: a soft glow, then an anti-aliased core.
     std::vector<std::array<float, 4>> segs;
@@ -256,24 +252,27 @@ auto compose_field(const std::string& field, const std::string& areas, const std
     TerrLook t;
     const std::string bad = parse_look(areas, style, fog, t);
     if (!bad.empty()) return bad;
-    int fw = 0, fh = 0, fn = 0;
-    std::unique_ptr<unsigned char, void (*)(void*)> fld(stbi_load(field.c_str(), &fw, &fh, &fn, 3), stbi_image_free);
-    if (!fld) return "could not read " + field + ": " + stbi_failure_reason();
+    int fw = 0, fh = 0;
+    StbPixels fld = read_png(field, 3, fw, fh);
+    if (!fld) return read_failure(field);
     if (fw != fh) return "field " + field + " is not square";
-    int cw = 0, ch = 0, cn = 0;
-    std::unique_ptr<unsigned char, void (*)(void*)> col(nullptr, stbi_image_free);
+    int cw = 0, ch = 0;
+    StbPixels col = no_pixels();
     if (!colour.empty())
     {
-        col.reset(stbi_load(colour.c_str(), &cw, &ch, &cn, 4));
-        if (!col) return "could not read " + colour + ": " + stbi_failure_reason();
+        col = read_png(colour, 4, cw, ch);
+        if (!col) return read_failure(colour);
     }
-    unsigned char lut[256];
-    for (int i = 0; i < 256; ++i) lut[i] = static_cast<unsigned char>(std::lround(255.0 * std::pow(i / 255.0, gamma)));
+    const GammaTable lut = gamma_table(gamma);
     std::vector<std::array<float, 4>> segs;
     const std::string badWalls = parse_walls(walls, static_cast<float>(S), segs);
     if (!badWalls.empty()) return badWalls;
     const float k = S / 4096.f;                                   // the look's px are of a 4096 map
     const float toMap = 4096.f / fw;                              // field px -> px of a 4096 map
+    // The player's map's pixel (RGBA bytes) nearest to (x, y) of this picture.
+    auto colour_at = [&](int x, int y) {
+        return col.get() + (static_cast<size_t>(nearest_pixel(y, S, ch)) * cw + nearest_pixel(x, S, cw)) * 4;
+    };
     const size_t N = static_cast<size_t>(S) * S;
     // How far each pixel is from the nearest standing wall piece (px of a 4096 map), near the pieces only: walls are drawn
     // along the field's borders only where a piece stands (some borders have none, and must show none). A piece away from
@@ -316,7 +315,7 @@ auto compose_field(const std::string& field, const std::string& areas, const std
         for (int x = 0; x < S; ++x)
         {
             const size_t i = static_cast<size_t>(y) * S + x;
-            const int fx = std::min(fw - 1, (2 * x + 1) * fw / (2 * S)), fy = std::min(fh - 1, (2 * y + 1) * fh / (2 * S));
+            const int fx = nearest_pixel(x, S, fw), fy = nearest_pixel(y, S, fh);
             const unsigned char* q = fld.get() + (static_cast<size_t>(fy) * fw + fx) * 3;
             const int R = q[0], G = q[1];
             const float d = q[2] / 8.f * toMap;                   // to the nearest border, px of a 4096 map
@@ -339,12 +338,7 @@ auto compose_field(const std::string& field, const std::string& areas, const std
             // its end; free pieces where they stand). map: the map picture's look (no fill on closed areas: they are
             // greyscale; the walls in the area's colour), else the fog's.
             auto paint = [&](float* c, float& a, bool map) {
-                auto over = [&](const float* cl, float al) {
-                    if (al <= 0.f) return;
-                    const float ao = al + a * (1 - al);
-                    for (int k2 = 0; k2 < 3; ++k2) c[k2] = ao > 0 ? (cl[k2] * al + c[k2] * a * (1 - al)) / ao : 0.f;
-                    a = ao;
-                };
+                auto over = [&](const float* cl, float al) { blend_over(c, a, cl, al); };
                 if (st)
                 {
                     float fill = 0, rimA = 0;
@@ -355,8 +349,7 @@ auto compose_field(const std::string& field, const std::string& areas, const std
                         rimA = st == 'v' ? 0.35f : st == 's' ? 0.65f : 0.80f;
                     }
                     const float cover = R ? 1.f : std::min(1.f, std::max(0.f, 1.f - d));
-                    const float rim = std::exp(-std::max(d - 2.f, 0.f) / 7.f);
-                    over(t.colour[lab], std::min(1.f, std::max(0.f, fill + rim * rimA)) * cover);
+                    over(t.colour[lab], std::min(1.f, std::max(0.f, fill + rim_strength(d) * rimA)) * cover);
                 }
                 const float* gc = map ? mapGlow : t.glowC;
                 const float* cc = map ? mapCore : t.coreC;
@@ -377,8 +370,7 @@ auto compose_field(const std::string& field, const std::string& areas, const std
             if (col)
             {
                 // The map picture: the player's own map (gamma to light), greyscale where the area is closed, the look over it.
-                const int cx = std::min(cw - 1, (2 * x + 1) * cw / (2 * S)), cy = std::min(ch - 1, (2 * y + 1) * ch / (2 * S));
-                const unsigned char* m = col.get() + (static_cast<size_t>(cy) * cw + cx) * 4;
+                const unsigned char* m = colour_at(x, y);
                 float c[3] = {lut[m[0]] / 255.f, lut[m[1]] / 255.f, lut[m[2]] / 255.f}, a = 1.f;
                 if (closed)
                 {
@@ -396,8 +388,7 @@ auto compose_field(const std::string& field, const std::string& areas, const std
             float c[3] = {0, 0, 0}, a = 0;
             if (col && !f.empty())
             {
-                const int cx = std::min(cw - 1, (2 * x + 1) * cw / (2 * S)), cy = std::min(ch - 1, (2 * y + 1) * ch / (2 * S));
-                const unsigned char* m = col.get() + (static_cast<size_t>(cy) * cw + cx) * 4;
+                const unsigned char* m = colour_at(x, y);
                 const float lum = 0.30f * lut[m[0]] / 255.f + 0.55f * lut[m[1]] / 255.f + 0.15f * lut[m[2]] / 255.f;
                 const char own = R ? t.state[R] : 0;
                 if (!own)
