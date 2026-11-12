@@ -9,7 +9,7 @@ The picture is private (a check of the pieces by eye); the two .json files are w
 """
 import os
 import csv, re, sys, collections, pathlib
-from lock_groups import LOCKS, START
+from lock_groups import LOCK_SIZE, LOCKS, START
 from PIL import Image, ImageDraw, ImageFont
 
 if len(sys.argv) != 5:
@@ -43,7 +43,13 @@ for r in rd('DT_PalSpawnerPlacement.tsv'):
 # a lock: the largest carries the lock's name, the others "<lock> (2)" and on. Pals beyond the main map are on the World
 # Tree's own map.
 import numpy as np
-G = np.load(os.environ.get('LOCK_GRID') or T.parent / 'areas' / 'grid.npz')
+if not os.environ.get('LOCK_GRID'):
+    sys.exit('LOCK_GRID: set it to the grid tools/lock_walls.py wrote for this lock size')
+G = np.load(os.environ['LOCK_GRID'])
+# A grid of the other lock size would give the model the other size's pieces.
+if [str(n) for n in G['names']][1:] != list(LOCKS):
+    sys.exit(f"{os.environ['LOCK_GRID']} is not a grid of the {LOCK_SIZE} (LOCK_SIZE={LOCK_SIZE}): run "
+             'tools/lock_walls.py with the same LOCK_SIZE, or point LOCK_GRID at its grid')
 GX0, GX1, GY0, GY1 = (float(v) for v in G['bounds'])
 GRID = G['pieces']
 GN = GRID.shape[0]
