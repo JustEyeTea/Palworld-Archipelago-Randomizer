@@ -279,10 +279,10 @@ class PalworldWorld(World):
                             f"regions in this seed let a player level only to {self.cap}; checks stop there")
 
     def leave_out_sea_only_pieces(self, land: FrozenSet[str]) -> None:
-        """Takes the pieces only the open sea reaches out of play. Where the seed has locks beyond the goal (Area Locks,
-        and Regions Beyond the Goal locked or open), a lock left with no piece in play (the Sky Islands and the World
-        Tree, say) becomes one of them: its pass would open nothing the logic knows, so it leaves the pool, and the mod
-        seals or opens its walls like any other lock beyond the goal. With passes, every pass stays, as promised."""
+        """Takes the pieces only the open sea reaches out of play. With Area Locks and Regions Beyond the Goal locked or
+        open, a lock left with no piece in play (the Sky Islands and the World Tree, say) also goes beyond the goal: its
+        pass would open nothing the logic knows, so it leaves the pool, and the mod seals or opens its walls like any
+        other lock beyond the goal. With passes, every pass stays, as that option promises."""
         o = self.options
         self.live = frozenset(p for p in self.live if p in land)
         if o.area_locks and o.beyond_goal != o.beyond_goal.option_passes:
@@ -751,8 +751,8 @@ class PalworldWorld(World):
     def towers_in_reach(self) -> List[str]:
         """The towers whose boss the logic can have beaten, in the game's order: the tower's piece is in play, and the
         pieces in play let a player climb to the boss's level (climb_top). Archipelago asks that every location,
-        events too, can be reached, so a boss above that climb gets no event; the techs behind it need nothing, as
-        they are above the cap (Levels.tech puts them at the boss's level) and stay normal research."""
+        events too, can be reached, so a boss above that climb gets no event. No check waits on that event: the techs
+        behind the tower are above the cap (Levels.tech puts them at the boss's level), so they stay normal research."""
         top = self.climb_top(self.live)
         return [tower.name for tower in TOWERS
                 if self.layout.towers[tower.name] in self.live and self.levels.tower[tower.name] <= top]
