@@ -4,7 +4,10 @@ cmake_minimum_required(VERSION 3.22)
 set(TARGET APConnector)
 project(${TARGET})
 
-add_library(${TARGET} SHARED src/dllmain.cpp src/ap_bridge.cpp src/event_lines.cpp src/image_tools.cpp src/lua_text.cpp
+# The map pictures' files (src/image_*.cpp) are also listed in .github/workflows/ci.yml's image_test build; change both.
+add_library(${TARGET} SHARED src/dllmain.cpp src/ap_bridge.cpp src/event_lines.cpp src/lua_text.cpp
+    src/image_basics.cpp src/image_jobs.cpp src/image_grey_map.cpp src/image_chart.cpp src/image_land_sea.cpp
+    src/image_fog.cpp src/image_territories.cpp
     src/pal_gift.cpp src/pal_gift_logic.cpp src/map_screen.cpp)
 # The same defines and include paths are in tools/bridge_test.sh (its Linux build of the bridge); change both.
 target_include_directories(${TARGET} PRIVATE
