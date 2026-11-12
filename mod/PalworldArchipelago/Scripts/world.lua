@@ -37,14 +37,19 @@ function WORLD.onChange(forget)
     worldForgetters[#worldForgetters + 1] = forget
 end
 
--- Notes which world this update is in, and when it changed, calls every forget function. Returns the pawn.
+-- Notes which world this update is in, and when it changed, calls every forget function. Returns the pawn. Each is
+-- caught: one that errors must not stop the ones after it, which are never tried again for this change.
 function WORLD.note()
     local pawn = PLAYER.playerPawn()
     local world = pawn and pawn:IsValid() and UTIL.addr(pawn)
     if world ~= worldKey then
         worldKey, worldAge = world, 0
-        for _, forget in ipairs(worldForgetters) do
-            forget()
+        for index, forget in ipairs(worldForgetters) do
+            local ok, err = pcall(forget)
+            if not ok then
+                UTIL.onceErr("world forget " .. index, err, "world: forget function " .. index
+                    .. " (in main.lua's forgetOnWorldChange order) failed: " .. tostring(err))
+            end
         end
     end
     worldAge = worldAge + 1

@@ -193,3 +193,40 @@ group("an item whose effect fails stops nothing else", function()
     runCycles(2)                                              -- (the trap is queued now, and the item's effect done)
     inWorld(false)
 end)
+
+group("a world change's forget that errors stops none of the others", function()
+    -- One forget function raises at a world change: the ones after it still run, and the error is logged.
+    local WORLD = require("world")
+    local forgetters
+    for i = 1, 10 do
+        local name, value = debug.getupvalue(WORLD.onChange, i)
+        if name == "worldForgetters" then
+            forgetters = value
+        end
+    end
+    local saved = {}
+    for i, forget in ipairs(forgetters or {}) do
+        saved[i] = forget
+    end
+    local lastRan = 0
+    forgetters[1] = function() error("a forget that fails") end
+    local last = saved[#saved]
+    forgetters[#forgetters] = function()
+        lastRan = lastRan + 1
+        return last()
+    end
+    inWorld(true)
+    local pawnWas = pawnAddress
+    local mark = logMark()
+    newPawn()
+    run(2)
+    for i, forget in ipairs(saved) do
+        forgetters[i] = forget
+    end
+    pawnAddress = pawnWas
+    run(2)
+    inWorld(false)
+    expect(lastRan >= 1 and loggedSince(mark, "a forget that fails"),
+           "every forget after one that errors still runs at the world change, and the error is logged: ran "
+           .. lastRan)
+end)
