@@ -1,8 +1,12 @@
 """Loading this repo's APWorld, or Archipelago's own modules, into a tool without Archipelago's world loader, which
-would import every installed world. The one copy of the stand-in packages the tools use.
-Tests: none of its own; every tool that imports it (gen_lua_data, freeze_ids, build_apworld, gen_options_page) runs it.
+would import every installed world: the one copy of the stand-in packages the tools use, and of where they find
+Archipelago.
+Tests: none of its own; every tool that imports it (gen_lua_data, freeze_ids, build_apworld, gen_options_page,
+send_checks) runs it.
 """
 import importlib
+import json
+import os
 import pathlib
 import sys
 import types
@@ -10,6 +14,18 @@ import types
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WORLD = ROOT / "apworld" / "palworld"
 STAND_IN = "pwdata"              # the stand-in package data.py and game_data.py are loaded under
+
+
+def minimum_ap_version():
+    """The Archipelago version the APWorld targets: archipelago.json's minimum_ap_version, the one place it is kept
+    (tools/README.md lists the copies that can't read it)."""
+    return json.loads((WORLD / "archipelago.json").read_text(encoding="utf-8"))["minimum_ap_version"]
+
+
+def ap_dir():
+    """The Archipelago folder: AP_DIR, or archipelago-<minimum_ap_version> beside this repository's folder (wrong in
+    a git worktree; tools/ap_dir.sh is the shell scripts' copy of this default)."""
+    return pathlib.Path(os.environ.get("AP_DIR", ROOT.parent / f"archipelago-{minimum_ap_version()}")).resolve()
 
 
 def load_world_tables():

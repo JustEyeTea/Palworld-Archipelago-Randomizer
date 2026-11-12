@@ -350,7 +350,9 @@ The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other 
 - Every `.apworld` (tests, playtests, releases) is made by `tools/build_apworld.py`. It adds the manifest fields
   Archipelago needs and checks that the world loads with its own version; a plain zip of the folder loads as 0.0.0
   and players' YAMLs are refused.
-- Point `AP_DIR` at your Archipelago 0.6.8 folder (with its venv in `.venv`).
+- Point `AP_DIR` at your Archipelago folder (with its venv in `.venv`), of the version `apworld/palworld/archipelago.json`
+  names as `minimum_ap_version`. Without it the tools look for `archipelago-<that version>` beside this repository's
+  folder (`tools/ap_dir.sh`), which is wrong in a git worktree.
 
 ### Releases
 

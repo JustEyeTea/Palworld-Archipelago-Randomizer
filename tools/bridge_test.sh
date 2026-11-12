@@ -2,10 +2,15 @@
 # Builds the Archipelago bridge (cppmod/APConnector/src/ap_bridge.cpp) for Linux and runs it against a local server
 # hosting a fresh Palworld seed: connect, slot data, scout, check, chat. Needs g++, libssl-dev and zlib1g-dev.
 #   DEPS=<dir with apclientpp, wswrap, ap-soeclient> tools/bridge_test.sh
+# AP_DIR: your Archipelago folder, as for tools/ap_tests.sh. HINT_COST: the room's hint cost (10).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 deps=${DEPS:?set DEPS to a folder holding apclientpp, wswrap and ap-soeclient clones}
-ap=${AP_DIR:-$(cd .. && pwd)/archipelago-0.6.8}
+ap=${AP_DIR:-$(tools/ap_dir.sh)}
+BASE=$((0x50A10000))                                       # data.BASE: every Palworld id is BASE + an offset
+CHECKED_LOCATION=$((BASE + 1005))                          # Tech Level 2 Slot 1 (frozen_ids.tsv: locations 1005)
+PORT=38301                                                 # the local server's, away from Archipelago's 38281
+SERVER_START_WAIT=8                                        # seconds for MultiServer.py to load the seed and listen
 work=$(mktemp -d)
 installed="$ap/custom_worlds/palworld.apworld"
 # The test installs this repo's world; whatever was installed before is put back afterwards.
@@ -39,7 +44,8 @@ mkdir -p "$ap/custom_worlds"
 AP_DIR="$ap" "$ap/.venv/bin/python" tools/build_apworld.py "$ap/custom_worlds/palworld.apworld" > /dev/null
 (cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 .venv/bin/python Generate.py --player_files_path "$work/players" \
    --outputpath "$work/out" --seed 7 < /dev/null > "$work/gen.log" 2>&1)
-(cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 exec .venv/bin/python MultiServer.py --host 127.0.0.1 --port 38301 --hint_cost "${HINT_COST:-10}" "$work"/out/*.zip \
-   < /dev/null > "$work/server.log" 2>&1) & server=$!
-sleep 8
-"$work/bridge_test" ws://127.0.0.1:38301 Tester $((0x50A10000 + 1000 + 5))
+(cd "$ap" && SKIP_REQUIREMENTS_UPDATE=1 exec .venv/bin/python MultiServer.py --host 127.0.0.1 --port "$PORT" \
+   --hint_cost "${HINT_COST:-10}" "$work"/out/*.zip < /dev/null > "$work/server.log" 2>&1) &
+server=$!
+sleep "$SERVER_START_WAIT"
+"$work/bridge_test" "ws://127.0.0.1:$PORT" Tester "$CHECKED_LOCATION"

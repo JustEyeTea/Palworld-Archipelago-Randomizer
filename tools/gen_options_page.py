@@ -1,8 +1,9 @@
 """Writes docs/options/options.json, the data behind the options page (docs/options/index.html), from the APWorld's
 options as Archipelago itself sees them: the world's options dataclass, option groups and presets, after
 Archipelago's WebWorld has added its own groups. Run it with the Archipelago venv's python:
-    AP_DIR=../archipelago-0.6.8 ../archipelago-0.6.8/.venv/bin/python tools/gen_options_page.py
+    AP_DIR=<your Archipelago folder> <its venv's python> tools/gen_options_page.py
     ... tools/gen_options_page.py --check     (exit 1 if options.json is out of date, writing nothing)
+Tests: tools/test_options_page.py checks options.json is current and that the page's YAMLs match Archipelago's.
 """
 import importlib
 import json
@@ -12,11 +13,11 @@ import sys
 import typing
 from inspect import cleandoc
 
-from apworld_loader import stand_in_worlds
+from apworld_loader import ap_dir, stand_in_worlds
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'docs' / 'options' / 'options.json'
-AP = pathlib.Path(os.environ.get('AP_DIR', ROOT.parent / 'archipelago-0.6.8')).resolve()
+AP = ap_dir()
 
 
 _world = None
@@ -68,6 +69,7 @@ def refused_values(key, option):
 
 
 def describe(key, option):
+    """One option as the page reads it: its key, name, type and help, and its range or choices and default."""
     entry = {
         'key': key,
         'name': getattr(option, 'display_name', key),
@@ -112,6 +114,8 @@ def yaml_dump(scalar):
 
 
 def build():
+    """options.json's contents: the world's options in their groups, its presets, and the template's header and
+    descriptions (tools/test_options_page.py calls this too)."""
     world = load_world()
     import Options
     from Utils import __version__

@@ -1,11 +1,13 @@
 """Builds palworld.apworld from apworld/palworld the way Archipelago's own "Build APWorlds" does: the folder's files
 (without __pycache__ and the like) plus an archipelago.json that has Archipelago's container fields
 (compatible_version, version) added to the repo's manifest. Run it with the Archipelago venv's python:
-    AP_DIR=../archipelago-0.6.8 ../archipelago-0.6.8/.venv/bin/python tools/build_apworld.py <out.apworld>
+    AP_DIR=<your Archipelago folder> <its venv's python> tools/build_apworld.py <out.apworld>
 Every .apworld made from this repo (test scripts, playtests, releases) should come from here. A plain zip of the
 folder lacks those fields, so Archipelago 0.6.8 can't read its manifest: it loads the world as version 0.0.0 and
 refuses any player YAML whose `requires` names the world's version, as its own templates and the options page's do
 (and 0.7.0 won't load it at all).
+Tests: tools/test_generate.sh and tools/test_options_page.py generate seeds with what it builds, and it checks each
+build loads with its own version.
 """
 import importlib
 import json
@@ -14,11 +16,11 @@ import pathlib
 import sys
 import zipfile
 
-from apworld_loader import stand_in_worlds
+from apworld_loader import ap_dir, stand_in_worlds
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FOLDER = ROOT / 'apworld' / 'palworld'
-AP = pathlib.Path(os.environ.get('AP_DIR', ROOT.parent / 'archipelago-0.6.8')).resolve()
+AP = ap_dir()
 # What Archipelago's data/GLOBAL.apignore leaves out of a built world, as far as this folder can hold any of it.
 SKIPPED = {'__pycache__', '__MACOSX', '.DS_Store', '.git', '.gitignore', '.apignore'}
 
