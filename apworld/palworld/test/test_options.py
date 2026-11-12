@@ -172,3 +172,13 @@ class TestPlayerTextMatchesTheCode(unittest.TestCase):
                          f"({TECH_POINTS_PER_LEVEL} points a level"):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, text)
+
+    def test_gear_logic_says_when_the_sea_counts(self):
+        """The option's text and the game page give plan_map's rule: without Gear Logic a sea saddle counts only when
+        the goal lies across the open sea, and otherwise the parts of the map only the sea reaches have no checks."""
+        import pathlib
+        from ..options import GearLogic
+        page = pathlib.Path(__file__).resolve().parent.parent / "docs" / "en_Palworld.md"
+        for text in (one_line(GearLogic.__doc__), one_line(page.read_text(encoding="utf-8"))):
+            self.assertIn("a swimming or flying one when the goal lies across the open sea", text)
+            self.assertIn("parts of the map only the open sea reaches have no checks", text)
