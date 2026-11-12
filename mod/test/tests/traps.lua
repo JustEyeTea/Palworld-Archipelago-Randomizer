@@ -59,7 +59,7 @@ group("traps", function()
     game.inStage = false
     expect(h.updatesUntil("trap #" .. teleport .. " Teleport Trap: from %-340000, 236000, %-1500 %(region unreadable",
                           100)
-           and teleported and teleported.X == liveWalls.home[1] and teleported.Y == liveWalls.home[2],
+           and teleported and teleported.X == liveWalls.home.x and teleported.Y == liveWalls.home.y,
            "out of the dungeon, it sends the player home")
     expect(h.told("Teleport Trap: whisked back to " .. shared.WD.start .. "."), "your own trap names no sender")
     -- Waiting while fainted. (Death Link sends this faint: amnesty is 0 here.)

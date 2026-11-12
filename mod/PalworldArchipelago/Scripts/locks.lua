@@ -27,8 +27,7 @@ local function useLayoutData(name)
     local walls = require(prefix .. "walls")
     layout.prefix, layout.walls, layout.locks, layout.start = prefix, walls.walls, walls.locks, walls.start
     layout.map, layout.shapes = require(prefix .. "map"), nil
-    local b = layout.map.bounds
-    layout.bounds = { xMin = b[1], xMax = b[2], yMin = b[3], yMax = b[4] }
+    layout.bounds = layout.map.bounds
     layout.centres = require(prefix .. "centres")    -- rows by name, as tools/lock_centres.py writes them (see above)
     decoded = {}
 end

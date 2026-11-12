@@ -115,7 +115,7 @@ group("area locks", function()
         expect(teleported == nil, "a player in a stage is not sent home by where the stage sits on the map")
     end
     runCycles(3)
-    expect(teleported and teleported.X == liveWalls.home[1], "a player inside a locked region is sent home")
+    expect(teleported and teleported.X == liveWalls.home.x, "a player inside a locked region is sent home")
     local sent = false
     for _, t in ipairs(announced) do
         if t:find("Bamboo Groves is locked") then

@@ -757,10 +757,10 @@ def write_lock_map(walls_path, refs, labels, land):
              "locks of",
              f"-- {PREFIX}_walls.lua, from 0).",
              "return {",
-             f"    bounds = {{ {X0}, {X1}, {Y0}, {Y1} }},   "
-             "-- world X min, max (south, north), Y min, max (west, east)",
+             "    -- the map's extent in world units: X runs south to north, Y west to east",
+             f"    bounds = {{ xMin = {X0}, xMax = {X1}, yMin = {Y0}, yMax = {Y1} }},",
              f"    size = {N // 2},",
-             f"    home = {{ {round(home.x)}, {round(home.y)}, {round(home.z) + HOME_DROP_HEIGHT} }},   "
+             f"    home = {{ x = {round(home.x)}, y = {round(home.y)}, z = {round(home.z) + HOME_DROP_HEIGHT} }},   "
              f"-- {home.point_id}: where a player found in a closed lock goes",
              "    rows = {"]
     lines += [f'        "{row}",' for row in rows]

@@ -2,9 +2,10 @@
 -- rows run north to south, columns west to east; each row is "lock,count;..." (lock: index into the locks of
 -- area_walls.lua, from 0).
 return {
-    bounds = { -1099400, 349400, -724400, 724400 },   -- world X min, max (south, north), Y min, max (west, east)
+    -- the map's extent in world units: X runs south to north, Y west to east
+    bounds = { xMin = -1099400, xMax = 349400, yMin = -724400, yMax = 724400 },
     size = 500,
-    home = { -317777, 212103, -463 },   -- FTPoint45: where a player found in a closed lock goes
+    home = { x = -317777, y = 212103, z = -463 },   -- FTPoint45: where a player found in a closed lock goes
     rows = {
         "0,500",
         "0,500",

@@ -58,7 +58,7 @@ W.setBeyond, W.slugOf = LOCKS.setBeyond, LOCKS.slugOf
 W.start, W.home = layout.start, layout.map.home
 -- Where a player found in a closed lock (or hit by a Teleport Trap) is sent: the layout's home as a location in cm.
 function W.homeLocation()
-    return { X = W.home[1], Y = W.home[2], Z = W.home[3] }
+    return { X = W.home.x, Y = W.home.y, Z = W.home.z }
 end
 local P = require("perf")
 local UTIL = require("util")
