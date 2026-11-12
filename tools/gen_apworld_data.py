@@ -136,21 +136,46 @@ for tribe, text in sorted(texts('DT_PalFirstActivatedInfoText.tsv').items()):
     if kind and entry and any(t[0] == f'SkillUnlock_{tribe}' for t in techs):
         mounts[f'SkillUnlock_{tribe}'] = (kind, entry)
 
-alphas, alpha_keys, counts = [], [], {}
+
+
+def alpha_names(plain_names, spawner_keys, old_alphas, old_keys):
+    """Each alpha's location name, in the model's order. An alpha the last game_data.py named (the same spawner and
+    character under the same plain name) keeps that name, so its id stays. A new one takes the plain name
+    "Alpha: <Pal> (<region>)" if no alpha has it, else the next free number after it (" 2", " 3"...). Numbering by
+    the order of the dump instead would let a new alpha placed earlier in it take an old one's name and id."""
+    numbered = re.compile(r' \d+$')
+    unclaimed = {}                                     # (plain name, spawner key) -> the old names left to give
+    for (name, *_) in old_alphas:
+        unclaimed.setdefault((numbered.sub('', name), tuple(old_keys[name])), []).append(name)
+    names = [None] * len(plain_names)
+    for i, pair in enumerate(zip(plain_names, spawner_keys)):
+        if unclaimed.get(pair):
+            names[i] = unclaimed[pair].pop(0)
+    taken = set(names) | {name for (name, *_) in old_alphas}
+    for i, plain in enumerate(plain_names):
+        if names[i] is None:
+            number = 1
+            names[i] = plain
+            while names[i] in taken:
+                number += 1
+                names[i] = f'{plain} {number}'
+            taken.add(names[i])
+    return names
+
+
+plain_names, spawner_keys, alpha_rows = [], [], []
 spawners = {r['row']: r for r in rd('DT_BossSpawnerLoactionData.tsv')}
 for a in MODEL_JSON['alphas']:
-    alpha_keys.append((spawners[str(a['row'])]['SpawnerID'], spawners[str(a['row'])]['CharacterID']))
+    spawner_keys.append((spawners[str(a['row'])]['SpawnerID'], spawners[str(a['row'])]['CharacterID']))
     cid = re.sub(r'^BOSS_', '', a['character'], flags=re.I)
     e = next((k for k, r in [(f"{int(r['ZukanIndex']):03d}{r['ZukanIndexSuffix']}", r) for r in mon
                               if r['row'].lower() == cid.lower()]), None)
     pal = entry_name.get(e, cid)
-    key = (pal, REGION_OF(a['piece'])); counts[key] = counts.get(key, 0) + 1
-    alphas.append((f"Alpha: {pal} ({REGION_OF(a['piece'])})" + (f" {counts[key]}" if counts[key] > 1 else ''),
-                   e, a['level'], a['piece']))
-# number duplicates from 1 when a name repeats
-names = [n for n, *_ in alphas]
-alphas = [((n + ' 1') if names.count(n) > 1 and not n[-1].isdigit() else n, *rest) for n, *rest in alphas]
-alpha_keys = dict(zip((a[0] for a in alphas), alpha_keys))
+    plain_names.append(f"Alpha: {pal} ({REGION_OF(a['piece'])})")
+    alpha_rows.append((e, a['level'], a['piece']))
+names = alpha_names(plain_names, spawner_keys, OLD.get('ALPHAS', []), OLD.get('ALPHA_KEYS', {}))
+alphas = [(name, *row) for name, row in zip(names, alpha_rows)]
+alpha_keys = dict(zip(names, spawner_keys))
 alphas_in_json_order = list(alphas)                    # the same order as MODEL_JSON['alphas'] (AREA_MODE needs it)
 alphas = keep_order(alphas, OLD.get('ALPHAS'), lambda a: a[0])
 
