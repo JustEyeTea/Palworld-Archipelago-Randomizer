@@ -1,6 +1,7 @@
 // The text readers declared in lua_text.hpp. None of them throws: they run inside functions Lua called.
 #include "lua_text.hpp"
 
+#include <cmath>
 #include <sstream>
 
 namespace lua_text
@@ -75,7 +76,8 @@ namespace lua_text
         {
             std::size_t used = 0;
             const double number = std::stod(text, &used);
-            return used == text.size() ? number : fallback;
+            // stod also reads "nan" and "inf" whole; neither is a number a picture's position or gamma can use.
+            return used == text.size() && std::isfinite(number) ? number : fallback;
         }
         catch (...)
         {

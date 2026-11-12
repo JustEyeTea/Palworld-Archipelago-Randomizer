@@ -64,6 +64,9 @@ static void check_double_or()
     expect(double_or("", 1.0) == 1.0, "double_or: \"\" gives the fallback");
     expect(double_or(" 2", 1.0) == 2.0, "double_or: a leading space is allowed");
     expect(double_or("1e999", 1.0) == 1.0, "double_or: a number too big to hold gives the fallback");
+    expect(double_or("nan", 1.0) == 1.0, "double_or: \"nan\" (Lua's 0/0) gives the fallback");
+    expect(double_or("inf", 1.0) == 1.0, "double_or: \"inf\" (Lua's 1/0) gives the fallback");
+    expect(double_or("-inf", 1.0) == 1.0, "double_or: \"-inf\" gives the fallback");
 }
 
 int main()

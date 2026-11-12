@@ -25,7 +25,8 @@ namespace lua_text
     };
     auto parse_ids(std::string_view csv) -> IdList;
 
-    // A number Lua sent as text, or `fallback` when the text isn't one.
+    // A number Lua sent as text, or `fallback` when the text isn't one. For double_or, "nan" and "inf" (what Lua's
+    // tostring gives for 0/0 and 1/0) are not numbers either.
     auto int_or(const std::string& text, int fallback) -> int;
     auto double_or(const std::string& text, double fallback) -> double;
 } // namespace lua_text
