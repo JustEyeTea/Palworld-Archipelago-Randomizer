@@ -115,6 +115,7 @@ def main():
     work = pathlib.Path(tempfile.mkdtemp(prefix='palworld-options-'))
     installed = AP / 'custom_worlds' / 'palworld.apworld'
     backup = installed.with_suffix('.apworld.options-test')
+    ours_installed = False         # only the APWorld this run installed is deleted afterwards, never one it found
     try:
         # 1. options.json is current.
         data = gen_options_page.build()
@@ -160,6 +161,7 @@ def main():
         if installed.exists():
             installed.rename(backup)
         installed.parent.mkdir(exist_ok=True)
+        ours_installed = True
         # Packed by the same tool as every other .apworld from this repo, and loaded as Archipelago will: a world
         # that loads as another version (0.0.0 when the manifest can't be read) would refuse these YAMLs.
         build_apworld.build(installed)
@@ -174,7 +176,8 @@ def main():
             print(f'{label}: ' + (f'FAILED: {problem}' if problem else 'seed generated with its options, goal reached'))
             failures += bool(problem)
     finally:
-        installed.unlink(missing_ok=True)
+        if ours_installed:
+            installed.unlink(missing_ok=True)
         if backup.exists():
             backup.rename(installed)
         shutil.rmtree(work, ignore_errors=True)
