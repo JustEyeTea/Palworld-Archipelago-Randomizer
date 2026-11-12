@@ -43,9 +43,9 @@ local function isOpen(lock, passes)
     return lock == SEA or lock == layout.start or passes[lock] == true
 end
 
--- Whether a wall row stands: while either lock it separates is locked.
-local function standing(row, passes)
-    return not (isOpen(layout.locks[row[5] + 1], passes) and isOpen(layout.locks[row[6] + 1], passes))
+-- Whether a wall piece (a row of *_walls.lua) stands: while either lock it separates is locked.
+local function standing(wall, passes)
+    return not (isOpen(layout.locks[wall.lockA + 1], passes) and isOpen(layout.locks[wall.lockB + 1], passes))
 end
 
 -- Which lock a spot is in (nil off the main map: the World Tree's own map). The map's rows are decoded when first used.

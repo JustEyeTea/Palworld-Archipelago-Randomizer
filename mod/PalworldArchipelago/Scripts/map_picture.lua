@@ -345,11 +345,11 @@ end
 local function wallSpec(passes)
     local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local out = {}
-    for _, w in ipairs(layout.walls) do
-        if standing(w, passes) then
-            local u, v = (w[2] - y0) / (y1 - y0), (x1 - w[1]) / (x1 - x0)
-            local half = w[3] / 2 / (x1 - x0)
-            local yaw = math.rad(w[4])
+    for _, wall in ipairs(layout.walls) do
+        if standing(wall, passes) then
+            local u, v = (wall.y - y0) / (y1 - y0), (x1 - wall.x) / (x1 - x0)
+            local half = wall.length / 2 / (x1 - x0)
+            local yaw = math.rad(wall.yaw)
             local du, dv = math.sin(yaw) * half, -math.cos(yaw) * half
             out[#out + 1] = string.format("%.5f,%.5f,%.5f,%.5f", u - du, v - dv, u + du, v + dv)
         end

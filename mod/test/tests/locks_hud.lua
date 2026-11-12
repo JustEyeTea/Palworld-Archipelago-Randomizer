@@ -93,10 +93,10 @@ group("region-coloured walls and the hint pop-up", function()
         if class == "WBP_PalHUDLayout_C" then return { layout } end
         return savedFAO(class)
     end
-    -- The wall actor standing for a row (h.wallRow), if one stands.
-    local function actorOf(row)
+    -- The wall actor standing for a wall piece (a row of the walls file), if one stands.
+    local function actorOf(wall)
         for a in pairs(wallsUp) do
-            if a.t.Translation.X == row.x and a.t.Translation.Y == row.y then return a end
+            if a.t.Translation.X == wall.x and a.t.Translation.Y == wall.y then return a end
         end
     end
     local function popupAfter(n)
@@ -111,10 +111,10 @@ group("region-coloured walls and the hint pop-up", function()
     -- A region beside the start still locked (the open-beyond test above opened the hint test's region), and a spot on
     -- the start's side of one of its walls.
     -- (another wall than the hint test's: that one was opened)
-    local popupAt, popupRegion, popupWall = h.spotBesideStart(function(other, row)
-        return liveWalls.REGION_COLOURS[other] and actorOf(row)
+    local popupAt, popupRegion, popupWall = h.spotBesideStart(function(other, wall)
+        return liveWalls.REGION_COLOURS[other] and actorOf(wall)
     end)
-    local piece = popupWall and actorOf(h.wallRow(popupWall))
+    local piece = popupWall and actorOf(popupWall)
     local want = popupRegion and liveWalls.linearOf(liveWalls.REGION_COLOURS[popupRegion])
     expect(piece and piece.Cube.mat.textures.MainTexture01.path == "ap-wall-pattern-pawholes"
            and h.sameColour(piece.Cube.mat.vectors.Color, want)
@@ -156,12 +156,11 @@ group("region-coloured walls and the hint pop-up", function()
     expect(h.sameColour(piece.Cube.mat.vectors.Color, want), "and back to its region's colour when it is not")
     -- A pass that opens one side of a piece still up turns it to the other side's colour.
     local a1, a2, between
-    for _, w in ipairs(WD.walls) do
-        local row = h.wallRow(w)
-        local x, y = row.lockA, row.lockB
-        if liveWalls.REGION_COLOURS[x] and liveWalls.REGION_COLOURS[y] and not shared.open[x] and not shared.open[y]
-           and x ~= openedBeyond and y ~= openedBeyond and actorOf(row) then
-            a1, a2, between = x, y, actorOf(row)
+    for _, wall in ipairs(WD.walls) do
+        local nameA, nameB = h.lockNamesOf(wall)
+        if liveWalls.REGION_COLOURS[nameA] and liveWalls.REGION_COLOURS[nameB] and not shared.open[nameA]
+           and not shared.open[nameB] and nameA ~= openedBeyond and nameB ~= openedBeyond and actorOf(wall) then
+            a1, a2, between = nameA, nameB, actorOf(wall)
             break
         end
     end

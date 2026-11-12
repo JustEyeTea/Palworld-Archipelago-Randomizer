@@ -529,9 +529,9 @@ group("the world map: the Territories look", function()
            "a region beyond the goal sealed, slate; the sea not listed")
     local standing = 0
     local function open(region) return region == "Open sea" or region == AW.start or passes[region] end
-    for _, w in ipairs(AW.walls) do
-        local row = h.wallRow(w, AW)
-        if not (open(row.lockA) and open(row.lockB)) then
+    for _, wall in ipairs(AW.walls) do
+        local nameA, nameB = h.lockNamesOf(wall, AW)
+        if not (open(nameA) and open(nameB)) then
             standing = standing + 1
         end
     end
