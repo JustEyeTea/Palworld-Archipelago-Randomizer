@@ -12,8 +12,9 @@ import json
 import os
 import pathlib
 import sys
-import types
 import zipfile
+
+from apworld_loader import stand_in_worlds
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FOLDER = ROOT / 'apworld' / 'palworld'
@@ -28,9 +29,7 @@ def container_class():
     if str(AP) not in sys.path:
         sys.path.insert(0, str(AP))
     if 'worlds' not in sys.modules:
-        worlds = types.ModuleType('worlds')
-        worlds.__path__ = [str(AP / 'worlds')]
-        sys.modules['worlds'] = worlds
+        stand_in_worlds([AP / 'worlds'])
     return importlib.import_module('worlds.Files').APWorldContainer
 
 

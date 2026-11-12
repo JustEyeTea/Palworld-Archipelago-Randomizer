@@ -9,9 +9,10 @@ import json
 import os
 import pathlib
 import sys
-import types
 import typing
 from inspect import cleandoc
+
+from apworld_loader import stand_in_worlds
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'docs' / 'options' / 'options.json'
@@ -31,9 +32,7 @@ def load_world():
         return _world
     os.chdir(AP)  # Archipelago finds its data files from the working directory and its own folder
     sys.path.insert(0, str(AP))
-    worlds = types.ModuleType('worlds')
-    worlds.__path__ = [str(ROOT / 'apworld'), str(AP / 'worlds')]
-    sys.modules['worlds'] = worlds
+    worlds = stand_in_worlds([ROOT / 'apworld', AP / 'worlds'])
     auto_world = importlib.import_module('worlds.AutoWorld')
     worlds.AutoWorldRegister = auto_world.AutoWorldRegister  # what Options.generate_yaml_templates looks up
     package = importlib.import_module('worlds.palworld')

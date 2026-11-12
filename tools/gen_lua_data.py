@@ -1,112 +1,131 @@
 """Writes mod/PalworldArchipelago/Scripts/ap_data.lua from the APWorld's own tables (apworld/palworld/data.py), so the
 mod and the APWorld always agree on item and location IDs.
     python3 tools/gen_lua_data.py
+Tests: CI's "Mod data matches the APWorld" step runs it and fails if ap_data.lua changes; the Lua harness reads it.
 """
-import importlib
 import pathlib
-import sys
-import types
+
+from apworld_loader import load_world_tables
+from towers import GOAL_TOWER_BY_NAME
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / 'mod' / 'PalworldArchipelago' / 'Scripts' / 'ap_data.lua'
-
-# Load data.py as part of a stand-in package: the real package's __init__ needs Archipelago itself.
-pkg = types.ModuleType('pwdata')
-pkg.__path__ = [str(ROOT / 'apworld' / 'palworld')]
-sys.modules['pwdata'] = pkg
-data = importlib.import_module('pwdata.data')
-game = importlib.import_module('pwdata.game_data')
+OUT = ROOT / "mod" / "PalworldArchipelago" / "Scripts" / "ap_data.lua"
 
 
-def lua(v):
-    if isinstance(v, bool):
-        return 'true' if v else 'false'
-    if isinstance(v, (int, float)):
-        return repr(v)
-    if v is None:
-        return 'nil'
-    if isinstance(v, str):
-        return '"' + v.replace('\\', '\\\\').replace('"', '\\"') + '"'
-    if isinstance(v, dict):
-        return '{ ' + ', '.join(f'{key(k)} = {lua(x)}' for k, x in v.items()) + ' }'
-    if isinstance(v, (list, tuple)):
-        return '{ ' + ', '.join(lua(x) for x in v) + ' }'
-    raise TypeError(v)
+def lua(value):
+    """A Python value as a Lua literal: booleans, numbers, nil, strings, tables (dicts with keys, lists in order)."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    if value is None:
+        return "nil"
+    if isinstance(value, str):
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{lua_key(k)} = {lua(v)}" for k, v in value.items()) + " }"
+    if isinstance(value, (list, tuple)):
+        return "{ " + ", ".join(lua(v) for v in value) + " }"
+    raise TypeError(value)
 
 
-def key(k):
-    if isinstance(k, str) and k.isidentifier():
-        return k
-    return f'[{lua(k)}]'
+def lua_key(key):
+    """A table key as Lua writes it: a bare name where it can be, else [<literal>]."""
+    if isinstance(key, str) and key.isidentifier():
+        return key
+    return f"[{lua(key)}]"
 
 
-def table(name, rows):
-    return f'M.{name} = {{\n' + ''.join(f'    {key(k)} = {lua(v)},\n' for k, v in rows.items()) + '}\n'
+def lua_table(name, rows):
+    """`M.<name> = { ... }`, one row per line."""
+    return f"M.{name} = {{\n" + "".join(f"    {lua_key(k)} = {lua(v)},\n" for k, v in rows.items()) + "}\n"
 
 
-# EPalBossType of each goal tower: the key the game records its defeat under.
-TOWER_BOSS = {'Starting Zone Tower': 'GrassBoss', 'Volcano Tower': 'ElectricBoss', 'Forest Tower': 'ForestBoss',
-              'Snow Tower': 'SnowBoss', 'Desert Tower': 'DesertBoss', 'Sakurajima Tower': 'SakurajimaBoss',
-              'Feybreak Tower': 'VikingBoss', 'Sky Islands Tower': 'SorajimaBoss'}
-# An alpha recorded under another's keys is never a check (data.SHARED_ALPHAS): its keys send only that one.
-alphas = [l for l in data.LOCATIONS if l.kind == 'alpha' and l.name not in data.SHARED_ALPHAS]
-
-
-
-
-def group(pairs):
+def grouped(pairs):
+    """(key, value) pairs as {key: [values...]}, in their order."""
     out = {}
-    for k, v in pairs:
-        out.setdefault(k, []).append(v)
+    for key, value in pairs:
+        out.setdefault(key, []).append(value)
     return out
 
 
-shop = {}
-for l in data.LOCATIONS:
-    if l.kind == 'shop':
-        t = data.TECH_BY_ID[l.key]
-        shop[l.key] = {'loc': l.id, 'name': t[1], 'level': t[2], 'cost': t[3], 'ancient': t[4]}
-        # The game's own gates on researching it (the slot keeps them): prerequisite tech, tower boss, lab research.
-        # A tower name TOWER_BOSS lacks stops the script (a KeyError naming it), rather than dropping the gate.
-        for k, v in (('prereq', t[5]), ('tower', TOWER_BOSS[t[6]] if t[6] else None), ('research', t[7])):
-            if v:
-                shop[l.key][k] = v
-items = {}
-for it in data.ITEMS:
-    if it.kind == 'tech':
-        tech_id = next(t[0] for t in data.SHOP_TECHS if data.tech_item(t[0]) == it.name)
-        items[it.id] = {'kind': 'tech', 'tech': tech_id, 'name': it.name}
-    elif it.kind == 'pass':
-        items[it.id] = {'kind': 'pass', 'lock': it.name.split(': ', 1)[1], 'name': it.name}   # the lock it opens
-    else:
-        items[it.id] = {'kind': it.kind, 'name': it.name}
+def tower_boss_type(tower_name):
+    """The boss type (EPalBossType, the TowerBossDefeatFlag key) of a goal tower; a name towers.py lacks stops the
+    script with a KeyError naming it, rather than dropping the gate."""
+    return GOAL_TOWER_BY_NAME[tower_name].boss_type
 
-parts = [
-    '-- Generated by tools/gen_lua_data.py from apworld/palworld/data.py; do not edit by hand.\n',
-    'local M = {}\n',
-    f'M.game_version = {lua(game.GAME_VERSION)}\n',
-    f'M.base = {data.BASE}\n',
-    '-- Level-1 techs stay vanilla: never shop slots, never items.\n',
-    f'M.starters = {lua({t[0]: True for t in game.TECHS if t[2] <= data.STARTER_LEVEL})}\n',
-    '-- Progressive Sphere unlocks these in order.\n',
-    f'M.spheres = {lua([t[0] for t in data.SPHERE_TECHS])}\n',
-    '-- tech id -> its shop slot (location id), vanilla level and cost, and its gates (prereq, tower, research)\n',
-    table('shop', shop),
-    '-- item id -> what receiving it does\n',
-    table('items', items),
-    '-- player level -> location id\n',
-    table('levels', {l.key: l.id for l in data.LOCATIONS if l.kind == 'level'}),
-    '-- fast-travel point id (FastTravelPointID; the mod maps its record keys to these at runtime) -> location id\n',
-    table('fast_travel', {l.key: l.id for l in data.LOCATIONS if l.kind == 'fast_travel'}),
-    '-- tribe (PalCaptureCount key, lower case) -> location id\n',
-    table('captures', {game.TRIBES[l.key].lower(): l.id for l in data.LOCATIONS if l.kind == 'capture'}),
-    '-- alpha spawner id (lower case; the likely NormalBossDefeatFlag key) -> location ids\n',
-    table('alpha_spawners', group((game.ALPHA_KEYS[l.name][0].lower(), l.id) for l in alphas)),
-    '-- alpha character id (lower case; the other possible key) -> location ids\n',
-    table('alpha_characters', group((game.ALPHA_KEYS[l.name][1].lower(), l.id) for l in alphas)),
-    '-- tower boss type (TowerBossDefeatFlag key) -> location id\n',
-    table('towers', {TOWER_BOSS[l.key]: l.id for l in data.LOCATIONS if l.kind == 'tower'}),
-    'return M\n',
-]
-OUT.write_text(''.join(parts))
-print(f'wrote {OUT.relative_to(ROOT)}: {len(shop)} shop slots, {len(items)} items')
+
+def shop_slots(data):
+    """Tech id -> its shop slot (location id), vanilla name, level and cost, and the game's own gates on researching
+    it, which the slot keeps: prerequisite tech, tower boss, lab research."""
+    shop = {}
+    for location in data.LOCATIONS:
+        if location.kind != "shop":
+            continue
+        tech = data.TECH_BY_ID[location.key]
+        slot = {"loc": location.id, "name": tech.name, "level": tech.level, "cost": tech.cost, "ancient": tech.ancient}
+        gates = (("prereq", tech.prereq), ("tower", tower_boss_type(tech.tower) if tech.tower else None),
+                 ("research", tech.research))
+        slot.update((gate, value) for gate, value in gates if value)
+        shop[location.key] = slot
+    return shop
+
+
+def item_effects(data):
+    """Item id -> what receiving it does: a tech, a pass (the lock it opens), or its kind."""
+    tech_of_item = {data.tech_item(tech.id): tech.id for tech in reversed(data.SHOP_TECHS)}
+    items = {}
+    for item in data.ITEMS:
+        if item.kind == "tech":
+            items[item.id] = {"kind": "tech", "tech": tech_of_item[item.name], "name": item.name}
+        elif item.kind == "pass":
+            items[item.id] = {"kind": "pass", "lock": item.name.split(": ", 1)[1], "name": item.name}
+        else:
+            items[item.id] = {"kind": item.kind, "name": item.name}
+    return items
+
+
+def ap_data_text(data, game, shop, items):
+    """The text of ap_data.lua."""
+    by_kind = grouped((location.kind, location) for location in data.LOCATIONS)
+    # An alpha recorded under another's keys is never a check (data.SHARED_ALPHAS): its keys send only that one.
+    alphas = [alpha for alpha in by_kind["alpha"] if alpha.name not in data.SHARED_ALPHAS]
+    return "".join([
+        "-- Generated by tools/gen_lua_data.py from apworld/palworld/data.py; do not edit by hand.\n",
+        "local M = {}\n",
+        f"M.game_version = {lua(game.GAME_VERSION)}\n",
+        f"M.base = {data.BASE}\n",
+        "-- Level-1 techs stay vanilla: never shop slots, never items.\n",
+        f"M.starters = {lua({tech.id: True for tech in data.TECHS if tech.level <= data.STARTER_LEVEL})}\n",
+        "-- Progressive Sphere unlocks these in order.\n",
+        f"M.spheres = {lua([tech.id for tech in data.SPHERE_TECHS])}\n",
+        "-- tech id -> its shop slot (location id), vanilla level and cost, and its gates (prereq, tower, research)\n",
+        lua_table("shop", shop),
+        "-- item id -> what receiving it does\n",
+        lua_table("items", items),
+        "-- player level -> location id\n",
+        lua_table("levels", {level.key: level.id for level in by_kind["level"]}),
+        "-- fast-travel point id (FastTravelPointID; the mod maps its record keys to these at runtime) -> "
+        "location id\n",
+        lua_table("fast_travel", {point.key: point.id for point in by_kind["fast_travel"]}),
+        "-- tribe (PalCaptureCount key, lower case) -> location id\n",
+        lua_table("captures", {game.TRIBES[capture.key].lower(): capture.id for capture in by_kind["capture"]}),
+        "-- alpha spawner id (lower case; the likely NormalBossDefeatFlag key) -> location ids\n",
+        lua_table("alpha_spawners", grouped((game.ALPHA_KEYS[a.name][0].lower(), a.id) for a in alphas)),
+        "-- alpha character id (lower case; the other possible key) -> location ids\n",
+        lua_table("alpha_characters", grouped((game.ALPHA_KEYS[a.name][1].lower(), a.id) for a in alphas)),
+        "-- tower boss type (TowerBossDefeatFlag key) -> location id\n",
+        lua_table("towers", {tower_boss_type(tower.key): tower.id for tower in by_kind["tower"]}),
+        "return M\n",
+    ])
+
+
+def main():
+    data, game = load_world_tables()
+    shop, items = shop_slots(data), item_effects(data)
+    OUT.write_text(ap_data_text(data, game, shop, items))
+    print(f"wrote {OUT.relative_to(ROOT)}: {len(shop)} shop slots, {len(items)} items")
+
+
+if __name__ == "__main__":
+    main()
