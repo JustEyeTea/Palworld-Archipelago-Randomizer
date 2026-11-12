@@ -782,4 +782,39 @@ group("walls and the map, on fresh copies of walls.lua", function()
         game.logicMod = hadPak
         h.wallsGo(mine())
     end
+    do  -- A pawn change in the same world (a faint; the walls stay): the area skin's materials are made again, but no
+        -- more objects are kept alive for them, and each pattern file is loaded once
+        local W, mine = h.freshWalls()
+        local core = require("walls")
+        W.keepAlive, W.keepInPlace = core.keepAlive, core.keepInPlace
+        local imports, realImport = 0, renderLib.ImportFileAsTexture2D
+        renderLib.ImportFileAsTexture2D = function(...)
+            imports = imports + 1
+            return realImport(...)
+        end
+        local function keptCount()
+            local n = 0
+            for _ in pairs(kept) do
+                n = n + 1
+            end
+            return n
+        end
+        W.setSkin("area")
+        for _ = 1, SETTLE_UPDATES do
+            W.update(true, {}, offMap)
+        end
+        local keptFirst, importsFirst = keptCount(), imports
+        for _ = 1, 5 do
+            W.reset()
+            for _ = 1, SETTLE_UPDATES do
+                W.update(true, {}, offMap)
+            end
+        end
+        local keptAfter, importsAfter = keptCount(), imports
+        renderLib.ImportFileAsTexture2D = realImport
+        h.wallsGo(mine())
+        expect(importsFirst > 0 and keptAfter == keptFirst and importsAfter == importsFirst,
+               "five pawn changes keep nothing new alive: kept " .. keptFirst .. " then " .. keptAfter
+               .. "; pattern files loaded " .. importsFirst .. " then " .. importsAfter)
+    end
 end)

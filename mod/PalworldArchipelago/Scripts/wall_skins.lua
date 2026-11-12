@@ -8,9 +8,9 @@ local UTIL = require("util")
 local log = UTIL.log
 local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance          -- (materials belong to the game instance, as walls.lua's map pictures do)
--- Handed over by install: W (settings: dir, keepAlive, fade, tiling, scroll; data: beyond, layout), the locks part's
--- layout, isOpen, REGION_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(), statics(),
--- passes(), pawn()) and DISSOLVE_S.
+-- Handed over by install: W (settings: dir, keepAlive, keepInPlace, fade, tiling, scroll; data: beyond, layout), the
+-- locks part's layout, isOpen, REGION_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(),
+-- statics(), passes(), pawn()) and DISSOLVE_S.
 local W, pieces, layout, isOpen, REGION_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
 local PALETTE, SEALED, TEAL = nil, nil, nil   -- locks.lua's palette, and its sealed grey and teal in linear light
 
@@ -61,8 +61,17 @@ local apWall = nil             -- M_APWall once loaded
 local apWallProbed = false     -- the wall material probe line was logged
 local pawLayer = nil           -- the cream-paw layer texture
 local dissolveMaterials, dissolveStarts = {}, {}   -- a look and second -> its dissolving material, and when it began
+-- State: what the skins keep alive, and the pattern textures. Forgotten: never. Both are owned by the game instance,
+-- which lasts the session: a material made again (after a pawn change, or each second while pieces dissolve) takes
+-- the kept place of the one before, so the kept objects do not grow; a pattern file is loaded once.
+local keptPlaces = {}          -- what is kept ("material area:...", "dissolve paws:...", "pattern a") -> its place
+local patternTextures = {}     -- pattern file -> { texture, linear = whether it could be made linear }
 local glowAt = nil             -- where the player was last told to the M_APWall materials (glowTick)
 local recolourAt, passSig = nil, nil   -- the next piece to recolour, and the trigger it was started for
+-- Keeps obj alive in the place kept for `key` (W.keepInPlace), in place of what was kept there before.
+local function keepAs(key, obj)
+    keptPlaces[key] = W.keepInPlace(keptPlaces[key], obj)
+end
 local function patternOr(name)
     if UTIL.exists(W.dir .. "\\walls\\ap-wall-pattern-" .. name .. ".png") then return name end
     return "a"
@@ -131,7 +140,7 @@ local function apWallMaterial()
     end
     if m then
         apWall = m
-        W.keepAlive(m)
+        keepAs("M_APWall", m)
         return m
     end
 end
@@ -146,13 +155,14 @@ local function pawLayerTexture(gameInstance, rendering)
         from = "walls\\ap-wall-paws-layer.png, no mips"
     end
     if not (t and t:IsValid()) then return nil end
-    W.keepAlive(t)
+    keepAs("paw layer", t)
     pawLayer = t
     log("wall skin paws: the paw layer from " .. from)
     return t
 end
--- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour (made, not kept in skin.mids).
-local function makePaws(name, gameInstance, rendering, materials)
+-- paws:<hex> or paws:sealed: M_APWall with the paw layer over that colour (made, not kept in skin.mids), kept alive
+-- in the place for `keepKey`.
+local function makePaws(name, gameInstance, rendering, materials, keepKey)
     local base = apWallMaterial()
     if not base then
         log("wall skin paws: needs the PalworldArchipelagoArt pak (M_APWall not found)")
@@ -178,7 +188,7 @@ local function makePaws(name, gameInstance, rendering, materials)
         log("wall skin " .. name .. ": could not make the material")
         return nil
     end
-    W.keepAlive(material)
+    keepAs(keepKey, material)
     material:SetTextureParameterValue(FName("Pattern"), tex)
     material:SetVectorParameterValue(FName("Back"), back)
     material:SetScalarParameterValue(FName("BackAlpha"), PAW_BACK)
@@ -196,7 +206,7 @@ local function makePaws(name, gameInstance, rendering, materials)
     return material
 end
 local function pawsMaterial(name, gameInstance, rendering, materials)
-    local material = makePaws(name, gameInstance, rendering, materials)
+    local material = makePaws(name, gameInstance, rendering, materials, "material " .. name)
     if not material then return nil end
     skin.mids[name], skin.failed[name] = material, nil
     log("wall skin " .. name .. ": material made on M_APWall")
@@ -217,7 +227,7 @@ function WALL_SKINS.dissolving(name, pawn)
     local materials = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
     local ready = gameInstance and rendering and rendering:IsValid() and materials and materials:IsValid()
     if not ready then return nil end
-    local material = makePaws(name, gameInstance, rendering, materials)
+    local material = makePaws(name, gameInstance, rendering, materials, "dissolve " .. name)
     if not material then return nil end
     material:SetScalarParameterValue(FName("DissolveStart"), now)
     material:SetScalarParameterValue(FName("DissolveTime"), DISSOLVE_S)
@@ -265,9 +275,9 @@ function WALL_SKINS.glowTick()
         end
     end
 end
--- A new world (or the player's pawn changed): every material, texture and handle kept from before is let go, never
--- called again (the world before's materials, dead, called 30 times a second, crashed the game); made again when
--- needed.
+-- A new world (or the player's pawn changed): every material and handle kept from before is let go, never called
+-- again (the world before's materials, dead, called 30 times a second, crashed the game); made again when needed,
+-- each in the kept place of the one before (keepAs). The pattern textures stay: the game instance owns them.
 function WALL_SKINS.dropCaches()
     skin.mids, skin.failed = {}, {}                             -- (skin.base: the game's own red, an asset, kept)
     skin.now = "red"                                           -- so skinTick dresses the new world's pieces again
@@ -302,28 +312,38 @@ local function patternFor(name)
     end
     error("wall skin: no pattern for " .. tostring(name))
 end
--- An area material: a dynamic copy of the walls' own material with the pattern and tint set; nil (logged)
--- when the pattern or the material cannot be made.
-local function makePatternMaterial(name, gameInstance, rendering, materials)
-    local tint, file = patternFor(name)
-    local tiling = W.tiling
+-- A pattern file's texture, loaded once a session (owned by the game instance, kept alive), and whether it could be
+-- made linear (the game's pattern is); nil (logged for `name`) when it cannot be loaded.
+local function patternTexture(name, file, gameInstance, rendering)
+    local loaded = patternTextures[file]
+    if loaded and UTIL.isValid(loaded.texture) then return loaded.texture, loaded.linear end
     local path = W.dir .. "\\walls\\ap-wall-pattern-" .. file .. ".png"
     local tex = rendering:ImportFileAsTexture2D(gameInstance, path)
     if not (tex and tex:IsValid()) then
         log("wall skin " .. name .. ": could not load " .. path)
         return nil
     end
-    local srgb = pcall(function()            -- the game's pattern is linear
+    local linear = pcall(function()
         tex.SRGB = false
         tex:UpdateResource()
     end)
-    W.keepAlive(tex)
+    keepAs("pattern " .. file, tex)
+    patternTextures[file] = { texture = tex, linear = linear }
+    return tex, linear
+end
+-- An area material: a dynamic copy of the walls' own material with the pattern and tint set; nil (logged)
+-- when the pattern or the material cannot be made.
+local function makePatternMaterial(name, gameInstance, rendering, materials)
+    local tint, file = patternFor(name)
+    local tiling = W.tiling
+    local tex, srgb = patternTexture(name, file, gameInstance, rendering)
+    if not tex then return nil end
     local material = materials:CreateDynamicMaterialInstance(gameInstance, skin.base, FName("None"), MID_FLAGS)
     if not (material and material:IsValid()) then
         log("wall skin " .. name .. ": could not make the material")
         return nil
     end
-    W.keepAlive(material)
+    keepAs("material " .. name, material)
     material:SetTextureParameterValue(FName("MainTexture01"), tex)
     local night = { R = tint.R * NIGHT, G = tint.G * NIGHT, B = tint.B * NIGHT, A = 1 }
     for param, colour in pairs({ Color = tint, DayColor = tint, NightColor = night }) do
