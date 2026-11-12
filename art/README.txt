@@ -19,16 +19,19 @@ png/   Exact-size exports. 8-bit, sRGB (ICC-tagged), RGBA unless noted.
   ap-area-pass.png            256 x 256  transparent  Area pass (unlocks a map region): boarding-pass ticket with an island.
   ap-progression-card-bg.png  256 x 256  opaque       EXPERIMENTAL progression card background: island-colour edge
                                                       fading to a dark centre.
-  social-preview.png          1280 x 640 opaque RGB   GitHub social preview (2026-11-04: logo, tagline and a fan of
-                                                      the per-area pass tickets). Content inside the central 1200 x 600.
+  social-preview.png          1280 x 640 opaque RGB   GitHub social preview: logo, "Randomizer" ticket and a fan of
+                                                      region pass tickets. Content inside the central 1200 x 600.
+  readme-banner.png           1600 x 400 opaque RGB   README banner (shown at 800 wide), same design as the preview.
+  discord-banner.png          1200 x 400 opaque RGB   Banner for the Archipelago Discord thread or a release post.
   ap-thunderstore-icon.png    256 x 256  RGBA         Mod store icon (Thunderstore's icon.png): the mark on a navy tile.
   ap-mod-page-main.png        1920 x 1080 opaque RGB  Mod page main image (Nexus-style): logo, tagline, pass tickets.
-  banner-light.png            1280 x 320 transparent  README banner for light themes.
-  banner-dark.png             1280 x 320 transparent  README banner for dark themes.
+  banner-light.png            1280 x 320 transparent  Plain-logo banner for light themes (not used by the README).
+  banner-dark.png             1280 x 320 transparent  Plain-logo banner for dark themes (not used by the README).
 
-The three files above dated 2026-11-04 (and the mod's own art in mod/PalworldArchipelago/art/ and walls/) were made
-in the Art & Assets workspace, whose build scripts aren't in this repository yet; svg/social-preview.svg is the
-earlier plain-logo preview. Both large images carry "Fan project. Not affiliated with Pocketpair or the Archipelago
+social-preview.png, readme-banner.png, discord-banner.png, ap-thunderstore-icon.png and ap-mod-page-main.png (and the
+mod's own art in mod/PalworldArchipelago/art/ and walls/) were made in the Art & Assets workspace, whose build scripts
+aren't in this repository yet, so source/build.sh does not remake them; svg/social-preview.svg is the earlier
+plain-logo preview. Every large image carries "Fan project. Not affiliated with Pocketpair or the Archipelago
 project."
 
 svg/   Vector masters for everything above (except the card background, which is generated
@@ -76,14 +79,13 @@ USING THE REPO GRAPHICS
 Social preview: in the GitHub repository go to Settings > General > Social preview and
 upload png/social-preview.png.
 
-README banner that switches with the viewer's theme:
+README banner: the README's first line shows png/readme-banner.png at 800 wide. It is opaque, so it looks the same
+in light and dark themes. The older plain-logo banners switch with the viewer's theme:
 
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="art/png/banner-dark.png">
     <img alt="Palworld Archipelago" src="art/png/banner-light.png" width="100%">
   </picture>
-
-(adjust the paths to wherever the files live in the repo)
 
 
 LICENCE
