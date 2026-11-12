@@ -355,6 +355,14 @@ group("debuff icons, the hint plate and the goal banner", function()
     run(1)
     expect(worldRow and worldRow.removed, "a world change takes the debuff row down while its HUD is still there")
     DBF.clear("world")
+    -- An untimed tile (a trap that acts at once, or one waiting) has its icon and nothing under it.
+    DBF.setUntimed("untimed", "ap-debuff-fool", "FOOL", CLOCK.now() + 100)
+    run(2)
+    local untimedRow = liveKids[#liveKids]
+    local pieces = untimedRow and untimedRow ~= worldRow and untimedRow.child and #untimedRow.child.children
+    expect(pieces == 1, "an untimed tile has its icon and no timer under it: " .. tostring(pieces) .. " piece(s)")
+    DBF.clear("untimed")
+    run(2)
     local WAIT = CLOCK.WAIT
     runPast(WAIT.settle + WAIT.heldNotice)                   -- (later groups expect a world long settled)
     FindAllOf = savedFAO

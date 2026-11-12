@@ -28,6 +28,7 @@ local WAIT = {
     slow = UTIL.updates(60),           -- how long a Slow Trap lasts
     foolPunchline = UTIL.updates(8),   -- a Fool Trap says "just kidding" this long after its notice
     heldLog = UTIL.updates(30),        -- the log says the mailbox is holding traps back after this long
+    tileShown = UTIL.updates(6),       -- a trap that acts at once shows its tile on the debuff row this long
 }
 local SLOW_FACTOR = 0.5     -- a Slow Trap's walk-speed multiplier
 local SLOW_KEY = "AP_SlowTrap"   -- the multiplier's name: a second Slow Trap sets the same one, so it never stacks
@@ -85,7 +86,10 @@ end
 ------------------------------------------------------------------------------------------------------------------------
 -- The traps. A missing component comes back from UE4SS as an invalid object, not nil: isValid() checks both.
 -- wait(c) says why a trap can't fire yet (and how many updates it may wait), or nil; run(c, e) does it and
--- returns what it found (for the log) and the chat notice. run raising an error makes the trap fizzle.
+-- returns what it found (for the log) and the chat notice. run raising an error makes the trap fizzle. A trap that
+-- acts at once names its debuff-row tile (tile, art/<tile>.png, shown WAIT.tileShown after it fires), the tile shown
+-- while it waits (waitingTile, if it can wait long), and the tiles' label until their art arrives (short). The Slow
+-- Trap sets its own timed tile in run.
 local TRAP_KINDS = {}
 
 -- Slows one movement component, kept in the Slow Trap's record so it is set back; what it read, for the log.
@@ -135,6 +139,7 @@ TRAP_KINDS["Slow Trap"] = {
 }
 
 TRAP_KINDS["Hunger Trap"] = {
+    tile = "ap-debuff-hunger", short = "HUNGER",
     wait = function(c)
         local why = needPawn(c)
         if why then return why end
@@ -181,6 +186,7 @@ local function region(pawn)
 end
 
 TRAP_KINDS["Teleport Trap"] = {
+    tile = "ap-debuff-teleport", waitingTile = "ap-debuff-teleport-waiting", short = "HOME",
     -- Dungeons are stages, where world coordinates mean nothing: it waits for the player to come out.
     wait = function(c)
         local why = needPawn(c)
@@ -204,6 +210,7 @@ TRAP_KINDS["Teleport Trap"] = {
 }
 
 TRAP_KINDS["Fool Trap"] = {
+    tile = "ap-debuff-fool", short = "FOOL",
     run = function(c, e)
         local fake = "Oh no! Your " .. FOOL_PALS[math.random(#FOOL_PALS)] .. " broke free and ran off!"
         env.announce(fake)                                   -- as a plain game line, without the mod's prefix
@@ -377,6 +384,29 @@ local function tryTrap(e, c)
     if notice then
         env.notify(notice)
     end
+    local kind = TRAP_KINDS[e.name]
+    if kind.tile then
+        DEBUFFS.setUntimed(e.name, kind.tile, kind.short, c.tick + WAIT.tileShown)
+    end
+end
+
+-- Shows a waiting tile on the debuff row for each kind of trap that has one while a trap of that kind waits, and
+-- takes it down once none does (it fired, fizzled, or a new seed emptied the queue). Its key is "<name> waiting", so
+-- it never replaces the tile of a trap of that kind that has just fired.
+local function showWaitingTiles()
+    local waiting = {}
+    for _, e in ipairs(TRAPS.queue) do
+        if e.why then
+            waiting[e.name] = true
+        end
+    end
+    for name, kind in pairs(TRAP_KINDS) do
+        if kind.waitingTile and waiting[name] then
+            DEBUFFS.setUntimed(name .. " waiting", kind.waitingTile, kind.short, nil)
+        elseif kind.waitingTile then
+            DEBUFFS.clear(name .. " waiting")
+        end
+    end
 end
 
 -- The items phase, once connected, after TRAPS.tick. c: { tick, ps, pawn, settled (the world has loaded), dead,
@@ -385,10 +415,12 @@ end
 function TRAPS.update(c)
     reportDropped()
     noteMailboxHold(c)
-    if #TRAPS.queue == 0 or not c.settled or c.dead or c.busy then return end
-    for _, e in ipairs({ table.unpack(TRAPS.queue) }) do
-        tryTrap(e, c)
+    if #TRAPS.queue > 0 and c.settled and not c.dead and not c.busy then
+        for _, e in ipairs({ table.unpack(TRAPS.queue) }) do
+            tryTrap(e, c)
+        end
     end
+    showWaitingTiles()
 end
 
 -- Takes what main.lua hands over (see env above).
