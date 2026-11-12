@@ -3,7 +3,7 @@
 -- (cppmod/APConnector/src/dllmain.cpp). Each topic lives in a file of its own; docs/architecture.md lists them.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 -- Tests: every file in mod/test/tests/: the harness loads main.lua and runs them all (tools/lua_harness.sh, in CI).
-local VERSION = "0.14.1-dev.10"
+local VERSION = "0.14.1-dev.11"
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
