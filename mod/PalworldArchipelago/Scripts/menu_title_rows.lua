@@ -55,8 +55,10 @@ local function withAlpha(colour, alpha)
 end
 local ROW_BG = withAlpha(PANEL_COLOUR, 0.82)
 local PICK_PANEL_BG = withAlpha(PANEL_COLOUR, 0.92)      -- the saved servers' panel: the same colour, darker
-local PANEL_PIECE_PX = 64                                -- the feathered pieces' size
-local PANEL_SIDE, PANEL_END = 28 / PANEL_PIECE_PX, 16 / PANEL_PIECE_PX   -- their feathered margins, as fractions
+-- The feathered pieces' size and their feathered margins (as fractions of it): the same numbers as SIZE, SIDE and END
+-- in tools/menu_panel_art.py, which draws the pieces. Change both, or the panel's edges look cut.
+local PANEL_PIECE_PX = 64
+local PANEL_SIDE, PANEL_END = 28 / PANEL_PIECE_PX, 16 / PANEL_PIECE_PX
 local SOFT_PAD, PLAIN_PAD, ROW_PAD_Y = 22, 10, 1.5      -- a backed row's padding: sides (soft or plain), top/bottom
 -- The typed rows' text boxes keep their own look; only their colours are written, into the box's own WidgetStyle, as
 -- plain numbers field by field (FSlateColor's SpecifiedColor R/G/B/A and its rule): nothing assigned from another

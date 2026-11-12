@@ -10,9 +10,10 @@
 --   Ctrl+F11             status probe: LowGravity, then Wetness, then Poison (one per press; Poison only above half
 --                        HP), each checked right after and WAIT.statusCheck later, and removed after WAIT.statusRemoval
 -- The probes are candidates for the next traps: none of them is a trap item yet.
--- Giving a Pal through the C++ connector's AP_GivePal (APConnector, pal_gift.cpp; UNTESTED IN GAME). One key per route
--- (Ctrl+Shift+F5 .. F9; not the number keys, which are the game's own: Ctrl+4 opens the emote menu), each with its own
--- Pal, so the party or the Palbox shows which route made which Pal even without the log:
+-- Giving a Pal through the C++ connector's AP_GivePal (APConnector, pal_gift.cpp; its header says which routes have
+-- worked in game and which are untested in game). One key per route (Ctrl+Shift+F5 .. F9; not the number keys, which
+-- are the game's own: Ctrl+4 opens the emote menu), each with its own Pal, so the party or the Palbox shows which
+-- route made which Pal even without the log:
 --   Ctrl+Shift+F5  party_debug  SheepBall Lv 11   CreateIndividual + the party's debug callback (group, EXP, party)
 --   Ctrl+Shift+F6  party_plain  ChickenPal Lv 12  CreateIndividual + the plain callback (party only)
 --   Ctrl+Shift+F7  handle       PinkCat Lv 13     CreateIndividual with no callback, then AddOtomoHandleToFreeSlot
