@@ -39,6 +39,26 @@ The project has four parts:
 Under them is a layer of **generated files**: scripts in `tools/` read Palworld's own tables and map and write the
 data the other parts use (see [Generated files](#generated-files)).
 
+How the parts meet: the APWorld runs once, when the multiworld is generated; the APConnector and the Lua mod run in
+the player's game for the whole session; the tools run only when the game's data changes.
+
+```mermaid
+flowchart TB
+  subgraph gen["Generating a multiworld"]
+    YAML["Players' YAMLs"] --> APW["APWorld<br/>apworld/palworld/"]
+    APW --> SEED[("The seed<br/>and its room")]
+  end
+  SEED --> SERVER["Archipelago server"]
+  subgraph pc["In the player's game, under UE4SS"]
+    CONN["APConnector<br/>C++ DLL"] <-->|"AP_* functions"| LUA["Lua mod<br/>Scripts/"]
+    LUA <--> GAME["Palworld"]
+    PAKS["LogicMod paks<br/>(the walls' material)"] --> GAME
+  end
+  SERVER <-->|"items and checks"| CONN
+  TOOLS["tools/<br/>generators"] -->|"game_data.py"| APW
+  TOOLS -->|"ap_data.lua, the lock tables"| LUA
+```
+
 ### What happens in a game
 
 1. **Generate.** The player's YAML goes through the APWorld, and Archipelago produces a multiworld and its room.
@@ -51,6 +71,29 @@ data the other parts use (see [Generated files](#generated-files)).
    - The player's records (`records.lua`) become location checks.
 5. **Save.** The mod keeps a small save of its own for each seed, beside the game's. It holds how many items have
    arrived, the mailbox, the crates and whether the goal banner has shown.
+
+The same steps as messages between the parts (the update's own steps are under [The Lua mod](#the-lua-mod)):
+
+```mermaid
+sequenceDiagram
+  actor P as Player
+  participant L as Lua mod (game thread)
+  participant C as APConnector (its own thread)
+  participant S as Archipelago server
+  P->>L: title menu: server, slot, password
+  L->>C: AP_Connect
+  C->>S: connect and join the slot
+  S-->>C: slot data, every item so far, every location checked
+  loop every 300 ms
+    L->>C: AP_Poll()
+    C-->>L: event lines: item, checked, message ...
+    Note over L: items unlock techs, open locks,<br/>fill the mailbox or set off traps
+    Note over L: the game's records become checks
+    L->>C: AP_Check(location)
+    C->>S: the check
+  end
+  L->>C: AP_Goal, once the player leaves the boss's arena
+```
 
 ## Words
 
@@ -99,6 +142,31 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 | `apworld/palworld/test/frozen_ids.tsv` | `tools/freeze_ids.py` | `data.py` (and the file it replaces: no id may move) |
 | `mod/.../art/ap-menu-panel-*.png` | `tools/menu_panel_art.py` | nothing (drawn from numbers) |
 | `mod/.../icons/*.png` | `tools/make_ap_icons.py` | Archipelago's logo |
+
+The same table as a picture: what feeds what. Boxes with round ends are the generators in `tools/`; the private
+inputs on the left come from your own copy of the game and are never in this repository.
+
+```mermaid
+flowchart LR
+  subgraph private["From your own game (private)"]
+    DUMPS["table dumps<br/>(the probe's dumptable)"]
+    MAP["the world map<br/>and its region volumes"]
+  end
+  LG(["lock_groups.py"]) --> LW
+  MAP --> LW(["lock_walls.py<br/>lock_centres.py"])
+  LW --> LOCKLUA["the region_ and area_ Lua tables<br/>and their label pictures"]
+  LOCKLUA --> MF(["map_fields.py"]) --> FIELDS["region_field.png<br/>area_field.png"]
+  LG --> AR(["area_regions.py"]) --> ARL["Scripts/area_regions.lua"]
+  LW -->|"private grid"| LM(["lock_model.py"])
+  DUMPS --> LM --> DATA["data/: region- and area-<br/>model and pal-sources JSON"]
+  DUMPS --> GA(["gen_apworld_data.py"])
+  DATA --> GA --> GD["apworld/palworld/game_data.py"]
+  GD --> DPY["data.py<br/>(items and locations)"]
+  DPY --> GL(["gen_lua_data.py"]) --> APD["Scripts/ap_data.lua"]
+  DPY --> FZ(["freeze_ids.py"]) --> FROZEN["test/frozen_ids.tsv"]
+  DUMPS --> GT(["gen_tech_icons.py<br/>gen_tech_gifts.py"]) --> TECH["Scripts/tech_icons.lua<br/>Scripts/tech_gifts.lua"]
+  OPT["options.py"] --> GO(["gen_options_page.py"]) --> OJ["docs/options/options.json"]
+```
 
 Each generator's private input files, by name, and its exact command are in [`tools/README.md`](../tools/README.md).
 
@@ -201,6 +269,20 @@ are the constants at the top of the file.
 
 Lua in UE4SS can't open network connections, so `cppmod/APConnector` does it.
 
+```mermaid
+flowchart LR
+  S["Archipelago server"] <-->|"WebSocket"| B
+  subgraph bridge["The bridge's own thread (ap_bridge.cpp)"]
+    B["apclientpp,<br/>polled every 20 ms"]
+  end
+  B -->|"text lines: item, scout, checked,<br/>message, bounce, status"| Q[("the event list")]
+  Q -->|"AP_Poll(), every 300 ms"| L["Lua mod<br/>(the game thread)"]
+  L -->|"AP_Check, AP_Goal ..."| B
+```
+
+Nothing on the bridge's thread touches the game or Lua: the event list is the only thing the two threads share.
+
+
 - `ap_bridge.cpp` runs apclientpp (the standard C++ Archipelago client) on its own thread, polled every 20 ms, and
   turns everything the server sends into text lines in an event list: `item`, `scout`, `checked`, `message`,
   `bounce`, `status` (the format is in `ap_bridge.hpp`). It needs no Unreal, so it is tested on Linux
@@ -280,6 +362,22 @@ the other modules.
 | `death_link.lua` | Death Link: the faint routes (`ROUTES`), a death received, the player's own death and the amnesty. |
 | `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`TECHSCAN.phase`) that sends the checks of slots another mod removed. |
 
+The connection's four states (`ap.status`; `STATE.setStatus` in `ap_state.lua` is their only writer):
+
+```mermaid
+stateDiagram-v2
+  [*] --> disconnected
+  disconnected --> connecting: the menu's Connect,<br/>or the connector is trying
+  connecting --> connected: the server accepted the slot
+  connecting --> refused: the server said no
+  connected --> disconnected: the connection dropped,<br/>or the player chose Disconnect
+  connecting --> disconnected
+  refused --> disconnected
+```
+
+Only while `connected` are checks sent and items received; the player can play in every state.
+
+
 How it works:
 
 - **The server is the truth:** every connection re-sends all items received and every location checked, so most of
@@ -323,6 +421,51 @@ How it works:
 - **Death Link** faints the player by the first of three routes that works (lethal poison, the Death Penalty's bag
   then a self-kill, a plain self-kill), and sends a death after the slot's amnesty is used up.
 
+**The update**, as `update()` in `main.lua` runs it: the steps every time, then the one phase whose turn it is
+(`PHASE` in `clock.lua`; phases 4 and 6 have none).
+
+```mermaid
+flowchart TD
+  T["every 300 ms, on the game thread"] --> E["the server's events<br/>(CONNECTION.readEvents)"]
+  E --> W["menus, mailbox, crate window"]
+  W --> R["ready yet? shop cards up to date"]
+  R --> WS["the world step<br/>(once the seed is known)"]
+  WS --> AL["the walls near the player<br/>(once ready)"]
+  AL --> PH{"update count<br/>mod 7"}
+  PH -->|0| P0["records: trap timers, the seed's world,<br/>checks and the goal"]
+  PH -->|1| P1["other mods' techs"]
+  PH -->|2| P2["techs and items, held notices,<br/>Death Link, traps"]
+  PH -->|3| P3["visited locks; sent home<br/>from a lock still locked"]
+  PH -->|5| P5["the notice and hint offer<br/>at a locked wall"]
+```
+
+**An item's kind** decides what it does (`DATA.items[id].kind`; the table above `ITEMS.applyItems` in `items.lua`).
+The arrival step runs on every connection; the one-off step runs once per seed, for items past `ap.given`:
+
+```mermaid
+flowchart LR
+  I["an item arrives"] --> K{"its kind"}
+  K -->|tech| T["unlocks its tech<br/>one-off, Nomad only: hands over what it makes"]
+  K -->|progressive| PG["unlocks every sphere tier received"]
+  K -->|pass| PA["opens its lock: its walls come down"]
+  K -->|trap| TR["one-off: queued for traps.lua to fire"]
+  K -->|relic| RE["one-off: the Palpagos Relic n/m notice"]
+  K -->|filler| FI["one-off: a crate, points or a bundle"]
+```
+
+**Buying a shop slot**, by where the player is:
+
+```mermaid
+flowchart TD
+  B["the player buys a Level 2+ tech card"] --> Q{"which world,<br/>and is the seed connected?"}
+  Q -->|"not the seed's world"| V["plain research: the game's own"]
+  Q -->|"the seed's world, connected"| C["buy(): points taken, slot bought,<br/>check sent at once"]
+  Q -->|"the seed's world, connection dropped"| D["bought; the check goes<br/>when the connection is back"]
+  Q -->|"started offline, worlds.txt<br/>names this world"| O["that seed's save loads; bought,<br/>the check queued for connecting"]
+  Q -->|"started offline, world unknown"| X["nothing is bought,<br/>the game unlocks nothing"]
+```
+
+
 ### The title menu's Archipelago menu
 
 `menu.lua` wires the mod's menu buttons and calls the title screen's Archipelago menu through `menu_title.lua`, which
@@ -334,6 +477,21 @@ uses three files of its own:
 | `menu_title_banner.lua` | The banner above the title buttons: its art, the connection in its status pill (`BANNER.showConnection`), its tint and pop under the pointer (`BANNER.refreshLook`), and its place over the button list (`BANNER.listTop`). |
 | `menu_title_rows.lua` | The rows built: the typed layout (`ROWS.buildTyped`), else the window layout (`ROWS.buildWindow`), each row's dark backing (`backed`), the typed rows' text boxes, the saved servers' panel, and every button claimed for its click (`ROWS.addRow`). |
 | `menu_title_connect.lua` | What the rows say and do: the draft the menu will connect with (`draftNow`), each kind of row's label, click and when it shows (`ROW_KINDS`), the typed boxes read back (`readEdits`), Connect or Disconnect, and folding the menu once connected (`CONNECT.followConnection`). |
+
+Which file uses which (an arrow is a `require`; every one of them also uses `menu_names.lua`):
+
+```mermaid
+flowchart LR
+  MENU["menu.lua"] --> TITLE["menu_title.lua"]
+  MENU --> MW["menu_world.lua"]
+  TITLE --> ROWS["menu_title_rows.lua"]
+  TITLE --> CONNECT["menu_title_connect.lua"]
+  TITLE --> BANNER["menu_title_banner.lua"]
+  ROWS --> CONNECT
+  ROWS --> BANNER
+  CONNECT --> BANNER
+```
+
 
 ### The mailbox's hidden chest
 
@@ -349,6 +507,17 @@ world save, so an item taken just before a crash is lost rather than given twice
 | `mailbox_chest_slots.lua` | The chest's slots: emptied of copies and filled from the list as the window opens (`SLOTS.emptyThenFillChest`), emptied back into the list as it closes (`SLOTS.absorb`), and the slot helpers the sweep also uses (`SLOTS.put`, `SLOTS.clear`). |
 | `mailbox_chest_sweep.lua` | Every update while the window is open (`SWEEP.run`): what the player took comes off the list, deposits go back to the bag, and items received go into the slots that empty; and the rule that refuses deposits (`SWEEP.lockPermission`). |
 | `mailbox_chest_heading.lua` | The window's heading set to the mailbox's name, and the mailbox emblem beside it (`HEADING.dress`). |
+
+The chest window's life, from the mailbox's side:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Closed
+  Closed --> Open: the player opens the mailbox<br/>(SLOTS.emptyThenFillChest fills the slots from the list)
+  Open --> Open: every update (SWEEP.run)<br/>takes leave the list, deposits go back to the bag,<br/>new items fill the empty slots
+  Open --> Closed: the player closes it<br/>(SLOTS.absorb puts the slots back on the list)
+```
+
 
 ## The LogicMod paks
 
@@ -382,6 +551,18 @@ world save, so an item taken just before a crash is lost rather than given twice
   `apworld/palworld/archipelago.json` names as `minimum_ap_version`. Without it the tools look for
   `archipelago-<that version>` beside this repository's folder (`tools/ap_dir.sh`), which is wrong in a git worktree.
 
+How `tools/lua_harness.sh` runs the Lua mod's tests:
+
+```mermaid
+flowchart LR
+  SH["tools/lua_harness.sh"] --> CP["copies the mod to a fresh folder,<br/>writes its config.txt"]
+  CP --> R1["run 1: as a player runs the mod"]
+  CP --> R2["run 2: the performance probe<br/>and its test hotkeys on"]
+  R1 --> H["harness.lua loads the mod's Lua unchanged,<br/>against fakes.lua, fakes_map.lua, fakes_menus.lua"]
+  R2 --> H
+  H --> T["the files in tests/, in harness.lua's order;<br/>each group starts from the state the last one left"]
+```
+
 ### Tools
 
 [`tools/README.md`](../tools/README.md) lists every tool: what each generator makes and reads, and whether it needs
@@ -398,6 +579,16 @@ the mod zip, `palworld.apworld` and their checksums. A person then:
    build: it is built by hand in the Palworld Modding Kit on Windows (`logicmod/README.md`, "The wall material");
 2. edits the drafted notes, which carry a reminder of step 1;
 3. publishes it.
+
+```mermaid
+flowchart LR
+  F["a branch"] -->|"pull request, CI"| N["next"]
+  N -->|"playtest, then<br/>a pull request"| M["main"]
+  M -->|"version tag"| R["CI drafts the release:<br/>mod zip, palworld.apworld,<br/>checksums"]
+  R --> A["a person attaches<br/>PalworldArchipelagoArt.pak"]
+  A --> P["edits the notes,<br/>publishes"]
+```
+
 
 ## Where to look when something breaks
 

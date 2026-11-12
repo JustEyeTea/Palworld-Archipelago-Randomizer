@@ -148,6 +148,14 @@ A second, separate pak with one material, `M_APWall`, for multicoloured area wal
 colour per wall piece. This one shows a full-colour picture. It is independent of the mailbox window: it needs only
 Part 1's setup, not Parts 2 and 3.
 
+```mermaid
+flowchart LR
+  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png)"] -->|"the editor runs it"| AS["M_APWall, T_APWallPaws, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
+  AS -->|"package: Use Pak File, Generate Chunks,<br/>shaders kept in the pak"| PK["pakchunk2-Windows.pak"]
+  PK -->|"renamed"| ART["PalworldArchipelagoArt.pak<br/>in Pal/Content/Paks/LogicMods"]
+  ART -->|"attached by hand"| REL["each release"]
+```
+
 1. Run `logicmod\make_wall_material.py` the same way as Part 2 (Tools > Execute Python Script..., or the
    `UnrealEditor-Cmd.exe ... -run=pythonscript` line with this script). It builds the whole material and its chunk
    label (chunk 2); nothing is by hand. The Output Log lines start with `[PalworldArchipelagoArt]`.
