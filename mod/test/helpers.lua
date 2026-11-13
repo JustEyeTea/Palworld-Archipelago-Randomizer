@@ -85,6 +85,21 @@ function h.unlockedTechs()
     return have
 end
 
+-- The first shop slot's tech, in name order, for which fits(slot) is true, or nil. In name order because pairs'
+-- order changes from run to run (Lua 5.4 seeds its string hashes at random), and a slot a group buys must be the same
+-- one every run: a later group can need it unbought.
+function h.firstShopSlot(fits)
+    local techs = {}
+    for tech in pairs(D.shop) do
+        techs[#techs + 1] = tech
+    end
+    table.sort(techs)
+    for _, tech in ipairs(techs) do
+        if fits(D.shop[tech]) then return tech end
+    end
+    return nil
+end
+
 -- A value as UE4SS hands a hook its parameters: an object whose get() returns it.
 function h.param(v)
     return { get = function() return v end }

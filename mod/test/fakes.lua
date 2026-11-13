@@ -424,7 +424,7 @@ function assetRegistryHelpers.GetAsset(_, data)
     loaded[pkg] = true
     return Texture(pkg .. "." .. name)
 end
-lookups = {}                                               -- class -> FindAllOf calls, "first:" .. class -> FindFirstOf
+lookups = {}                -- class -> the mod's FindAllOf calls, "first:" .. class -> FindFirstOf (countModLookups)
 -- The game's map screens: its template first (it has no map image), then the live ones.
 local function mapScreens()
     if not game.mapOpen then return {} end
@@ -459,7 +459,6 @@ local function liveWalls()
 end
 local CHEST_PACKAGE = "/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"
 FindAllOf = function(class)
-    lookups[class] = (lookups[class] or 0) + 1
     if class == "BP_PalBlockingVolume_C" then return liveWalls() end   -- live walls only, as FindAllOf lists
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     -- (the template the title screen's asset keeps comes first, as FindAllOf can give it)
@@ -478,12 +477,26 @@ FindAllOf = function(class)
     return nil
 end
 FindFirstOf = function(class)
-    lookups["first:" .. class] = (lookups["first:" .. class] or 0) + 1
     if class == "PalGameInstance" then return gameInstance end
     if class == "PalMasterDataTables" then return { technologyDataSet = { recipeUnlockDataTable = techTable } } end
     if class == "PalPlayerController" then return playerController end
     if class == "WBP_Map_Body_C" then return game.mapOpen and mapBody or nil end
     return nil
+end
+-- Counts the mod's lookups in `lookups` from now on; core.lua calls it once the mod is loaded. Put on top then, the
+-- counters sit above the probe's wrappers (perf_log=1), and the probe's own walks go to the lookups it kept at
+-- install, below them, as its 30s line leaves them out too. Counted, the notify check's walk (one class every 100
+-- updates) would fall inside a test's few updates or not by how many updates all the groups before it took.
+function countModLookups()
+    local findAll, findFirst = FindAllOf, FindFirstOf
+    FindAllOf = function(class, ...)
+        lookups[class] = (lookups[class] or 0) + 1
+        return findAll(class, ...)
+    end
+    FindFirstOf = function(class, ...)
+        lookups["first:" .. class] = (lookups["first:" .. class] or 0) + 1
+        return findFirst(class, ...)
+    end
 end
 -- A class or object the mod finds by its path: the game's libraries, the mod's own pak's assets, UMG's classes.
 StaticFindObject = function(path)

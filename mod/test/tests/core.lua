@@ -28,6 +28,7 @@ group("loading the mod", function()
         end
         expect(not bound and not logged("%[perf%]"), "and no test keys are bound, no probe lines")
     end
+    countModLookups()                                        -- (above the probe's wrappers: see fakes.lua)
     expect(loop ~= nil, "update loop registered")
     expect(require("ap_state").ap.status == "connecting" and logged("connecting to localhost:38281 as Tester"),
            "the start-up connect from config.txt says it is connecting, as the title menu's does")
@@ -59,17 +60,7 @@ group("loading the mod", function()
     local ap = require("ap_state").ap
     h.loadWorld("EARLIER")
     runCycles(2)
-    local slot
-    local names = {}
-    for tech in pairs(D.shop) do
-        names[#names + 1] = tech
-    end
-    table.sort(names)
-    for _, tech in ipairs(names) do
-        if not slot and D.shop[tech].cost <= 1 and not D.shop[tech].ancient then
-            slot = tech
-        end
-    end
+    local slot = h.firstShopSlot(function(s) return s.cost <= 1 and not s.ancient end)
     local loc = D.shop[slot].loc
     shared.earlierLoc = loc                     -- the check bought offline for seed 55555 (sent in goals.lua)
     local pointsWere = td.TechnologyPoint
