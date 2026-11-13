@@ -5,7 +5,13 @@ and every tech is an item that arrives from Archipelago. The map is locked: its 
 (or, with Lock Size: areas, the game's 75 named areas open with Area Passes). Captures, alphas, fast-travel points,
 levels and towers are further checks.
 
+![The 15 regions, each in its pass ticket's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/region-map.png)
+
+![With Lock Size: areas, the 75 areas, each in its region's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/area-map.png)
+
 ## Goals
+
+![The four goals: Towers (the default), Relic Hunt, Paldeck and World Tree](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/goals.png)
 
 - **Towers** (default): beat a number of tower bosses. Any towers count, but the logic plans for the first ones in the
   game's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).
@@ -14,6 +20,8 @@ levels and towers are further checks.
 - **World Tree**: beat the boss at the top of the World Tree, the end of the game. Untested in game so far.
 
 ## How many checks
+
+![What sends a check: shop slots, captures, alphas, towers, fast-travel points and levels](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/checks.png)
 
 Checks stop at a level that fits the goal (the Check Level Cap, automatic by default): 8 levels past the last tower
 boss you need (18 for one tower, 28 for two), 5 levels past the level by which you can register enough Pals, 30 for a Relic Hunt, or no limit for the

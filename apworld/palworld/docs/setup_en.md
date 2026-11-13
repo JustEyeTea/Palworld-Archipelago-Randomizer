@@ -65,6 +65,8 @@ with `[PalworldAP]`.
 
 ## Playing
 
+![What the mod's pictures mean: item icons on shop cards, crates, traps, and pass tickets on the map and at walls](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/legend.png)
+
 - The Technology tree (levels 2 and up) is the shop. Each card shows what buying it sends; buying spends the usual
   tech points. A tech itself unlocks only when its item arrives. If the connection drops while you play, you can
   keep buying: the check is sent when the connection is back. You can also start without connecting, in a world
