@@ -234,9 +234,13 @@ def texture_light(mat, textures):
     masked = node(mat, unreal.MaterialExpressionMultiply, -950, -300)
     link(tex, "RGB", masked, "A")
     link(mask, "R", masked, "B")
+    # A vector parameter's only unnamed output is all four channels (it has no "RGB" output, unlike a texture
+    # sample), and float3 x float4 does not compile; so its colour is masked down to three.
+    tint_rgb = node(mat, unreal.MaterialExpressionComponentMask, -1050, 50, r=True, g=True, b=True, a=False)
+    link(tint, "", tint_rgb, "")
     tinted = node(mat, unreal.MaterialExpressionMultiply, -800, -200)
     link(masked, "", tinted, "A")
-    link(tint, "RGB", tinted, "B")
+    link(tint_rgb, "", tinted, "B")
     light = node(mat, unreal.MaterialExpressionMultiply, -650, -100)
     link(tinted, "", light, "A")
     link(bright, "", light, "B")
