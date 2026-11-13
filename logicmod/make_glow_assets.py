@@ -30,17 +30,22 @@ Parameters the Lua mod sets on its dynamic instances (glow_pieces.lua's SCALARS 
   Tint (colour)         multiplies the light (white)
   Brightness            emissive strength (1)
   EdgePower             soft edges: the light x |N.V| to this power (0: none)
-  Spin                  turns a second about the piece's own Z axis, by the game's clock (0)
+  Spin                  turns a second the picture runs round the piece along U, by the game's clock (0): the
+                        halo's colours run round its ring
   StartTime             game seconds (the Time node's clock, as Lua's GetTimeSeconds) the fade and the growth count
                         from (0); before it the piece shows nothing
   Life                  seconds the fade lasts, from StartTime + FadeDelay (0: never fades)
   FadeDelay             seconds after StartTime before the fade starts (0)
   FadePower             the fade's curve: the light x (1 - share of Life gone) to this power (1)
-  GrowXY, GrowZ         the piece's size across and up at StartTime, as a share of its full size (1, 1: no growth)
+  GrowXY, GrowZ         the picture's size across (about the middle of the image) and up (from its bottom row, the
+                        piece's base) at StartTime, as a share of its full size (1, 1: no growth)
   GrowTime              seconds to grow to full size, eased out (1 - (1 - t)^3); 0 means full size at once
   NearFadeStart, NearFadeEnd  cm from the camera to the piece's origin where it starts to show and where it is
                         fully there (-1, 0: always fully there); the pillar hides up close with 1000, 2500
-Growth and spin move the vertices (World Position Offset), so they stay smooth between the Lua mod's 300 ms updates.
+Growth and spin are drawn in the picture (its texture coordinates), by the game's clock, so they stay smooth between
+the Lua mod's 300 ms updates. The mesh keeps its full size: the shock disc is as wide as the ring grows, and the
+column as tall as it rises. They are not done by moving the vertices: UE 5.1's Python cannot reach World Position
+Offset (MP_WorldPositionOffset is hidden from it). Past the grown picture, the textures' clamped edges are black.
 The material is replaced as a whole if it already exists, so it is safe to run again after changing this script.
 Tests: none; it runs only in the Modding Kit on Windows, and the pak is checked in game (logicmod/README.md).
 """
@@ -60,8 +65,10 @@ MASK_TEXTURES = ("T_APGlowBeam", "T_APGlowShock", "T_APGlowColumn", "T_APGlowTwi
 WRAPPED_ALONG_U = ("T_APGlowRing",)             # runs once round its ring: U wraps; every other edge is clamped
 WHITE, WHITE_MASK = "T_APGlowWhite", "T_APGlowWhiteMask"
 WHITE_SIZE_PX = 4                               # the white textures' side: any small size does
-RING_BOUNDS_MARGIN_CM = 20                      # the ring sways as it spins: its bounds grow by this much, so it is
-                                                # never culled while part of it is on screen
+RING_BOUNDS_MARGIN_CM = 20                      # the ring's bounds grow by this much, so its soft glow is never
+                                                # culled while part of it is on screen
+IMAGE_MIDDLE = 0.5                              # the middle of an image in texture coordinates (the shock grows
+                                                # about it)
 TINY = 0.0001                                   # keeps a divisor or a power's base off zero
 STEP_SHARPNESS = 1000.0                         # how sharply a piece appears at StartTime: within 1 ms
 
@@ -222,12 +229,14 @@ def new_material():
     return mat
 
 
-def texture_light(mat, textures):
-    """Tex's colour x Mask's red x Tint x Brightness: the light before any fade."""
+def texture_light(mat, textures, uv):
+    """Tex's colour x Mask's red, both read at uv, x Tint x Brightness: the light before any fade."""
     tex = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -1200, -400, parameter_name="Tex",
                sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR, texture=textures.get(WHITE))
+    link(uv, "", tex, "UVs")
     mask = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -1200, -150, parameter_name="Mask",
                 sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR, texture=textures.get(WHITE_MASK))
+    link(uv, "", mask, "UVs")
     tint = node(mat, unreal.MaterialExpressionVectorParameter, -1200, 50, parameter_name="Tint",
                 default_value=unreal.LinearColor(1, 1, 1, 1))
     bright = scalar(mat, "Brightness", 1.0, -1200, 200)
@@ -357,89 +366,87 @@ def emissive_output(mat, light, faded, edge, near):
     mel.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
 
-def grown(mat, time, start, local):
-    """The vertex's local position grown: x lerp((GrowXY, GrowXY, GrowZ), 1, k), k = 1 - (1 - share of GrowTime)^3."""
-    grow_xy = scalar(mat, "GrowXY", 1.0, -1200, 1700)
-    grow_z = scalar(mat, "GrowZ", 1.0, -1200, 1800)
-    grow_time = scalar(mat, "GrowTime", 0.0, -1200, 1900)
-    age = seconds_since(mat, time, start, -1050, 1900)
-    done = share_done(mat, age, grow_time, -900, 1900)
-    left = node(mat, unreal.MaterialExpressionOneMinus, -550, 1900)
+def eased_growth(mat, time, start):
+    """How far the growth has gone, eased out: k = 1 - (1 - share of GrowTime)^3, 0 to 1."""
+    grow_time = scalar(mat, "GrowTime", 0.0, -1700, 1900)
+    age = seconds_since(mat, time, start, -1550, 1900)
+    done = share_done(mat, age, grow_time, -1400, 1900)
+    left = node(mat, unreal.MaterialExpressionOneMinus, -1250, 1900)
     link(done, "", left, "")
-    left2 = node(mat, unreal.MaterialExpressionMultiply, -400, 1900)
+    left2 = node(mat, unreal.MaterialExpressionMultiply, -1100, 1900)
     link(left, "", left2, "A")
     link(left, "", left2, "B")
-    left3 = node(mat, unreal.MaterialExpressionMultiply, -250, 1900)
+    left3 = node(mat, unreal.MaterialExpressionMultiply, -950, 1900)
     link(left2, "", left3, "A")
     link(left, "", left3, "B")
-    eased = node(mat, unreal.MaterialExpressionOneMinus, -100, 1900)
+    eased = node(mat, unreal.MaterialExpressionOneMinus, -800, 1900)
     link(left3, "", eased, "")
-    xy = node(mat, unreal.MaterialExpressionAppendVector, -1050, 1700)
-    link(grow_xy, "", xy, "A")
-    link(grow_xy, "", xy, "B")
-    xyz = node(mat, unreal.MaterialExpressionAppendVector, -900, 1750)
-    link(xy, "", xyz, "A")
-    link(grow_z, "", xyz, "B")
-    one = node(mat, unreal.MaterialExpressionConstant3Vector, -900, 1850, constant=unreal.LinearColor(1, 1, 1, 0))
-    factor = node(mat, unreal.MaterialExpressionLinearInterpolate, 50, 1800)
-    link(xyz, "", factor, "A")
-    link(one, "", factor, "B")
-    link(eased, "", factor, "Alpha")
-    out = node(mat, unreal.MaterialExpressionMultiply, 200, 1700)
-    link(local, "", out, "A")
-    link(factor, "", out, "B")
-    return out
+    return eased
 
 
-def spun(mat, time, position):
-    """A local position turned about the local Z axis by Time x Spin turns."""
-    spin = scalar(mat, "Spin", 0.0, -1200, 2100)
-    turns = node(mat, unreal.MaterialExpressionMultiply, -1050, 2100)
+def size_now(mat, name, eased, y):
+    """The size share named `name` (GrowXY or GrowZ) at this moment: lerp(share at StartTime, 1, k), kept off 0."""
+    share = scalar(mat, name, 1.0, -950, y)
+    size = node(mat, unreal.MaterialExpressionLinearInterpolate, -650, y, const_b=1.0)
+    link(share, "", size, "A")
+    link(eased, "", size, "Alpha")
+    safe = node(mat, unreal.MaterialExpressionMax, -500, y, const_b=TINY)
+    link(size, "", safe, "A")
+    return safe
+
+
+def grown_across(mat, uv, size):
+    """The picture grown about its middle: (uv - middle) / size + middle. A small size shows the image small."""
+    centred = node(mat, unreal.MaterialExpressionSubtract, -350, 1600, const_b=IMAGE_MIDDLE)
+    link(uv, "", centred, "A")
+    scaled = node(mat, unreal.MaterialExpressionDivide, -200, 1600)
+    link(centred, "", scaled, "A")
+    link(size, "", scaled, "B")
+    back = node(mat, unreal.MaterialExpressionAdd, -50, 1600, const_b=IMAGE_MIDDLE)
+    link(scaled, "", back, "A")
+    return back
+
+
+def risen_up(mat, v, size):
+    """V for a picture risen from its bottom row (V = 1, the piece's base) to `size` of its height:
+    1 - (1 - v) / size. Above the risen part V goes below 0, on the image's clamped, black top edge."""
+    height = node(mat, unreal.MaterialExpressionOneMinus, -350, 1800)
+    link(v, "", height, "")
+    stretched = node(mat, unreal.MaterialExpressionDivide, -200, 1800)
+    link(height, "", stretched, "A")
+    link(size, "", stretched, "B")
+    risen = node(mat, unreal.MaterialExpressionOneMinus, -50, 1800)
+    link(stretched, "", risen, "")
+    return risen
+
+
+def turned_round(mat, time, u):
+    """U run round the piece by Time x Spin turns (the halo's colours going round its ring)."""
+    spin = scalar(mat, "Spin", 0.0, -350, 2100)
+    turns = node(mat, unreal.MaterialExpressionMultiply, -200, 2100)
     link(time, "", turns, "A")
     link(spin, "", turns, "B")
-    cos = node(mat, unreal.MaterialExpressionCosine, -900, 2050, period=1.0)   # period 1: the input is in turns
-    link(turns, "", cos, "")
-    sin = node(mat, unreal.MaterialExpressionSine, -900, 2150, period=1.0)
-    link(turns, "", sin, "")
-    x = node(mat, unreal.MaterialExpressionComponentMask, 250, 2000, r=True, g=False, b=False, a=False)
-    link(position, "", x, "")
-    y = node(mat, unreal.MaterialExpressionComponentMask, 250, 2100, r=False, g=True, b=False, a=False)
-    link(position, "", y, "")
-    z = node(mat, unreal.MaterialExpressionComponentMask, 250, 2200, r=False, g=False, b=True, a=False)
-    link(position, "", z, "")
-    terms = {}
-    for name, a, b in (("xc", x, cos), ("ys", y, sin), ("xs", x, sin), ("yc", y, cos)):
-        terms[name] = node(mat, unreal.MaterialExpressionMultiply, 400, 2000 + 60 * len(terms))
-        link(a, "", terms[name], "A")
-        link(b, "", terms[name], "B")
-    new_x = node(mat, unreal.MaterialExpressionSubtract, 550, 2000)          # x cos - y sin
-    link(terms["xc"], "", new_x, "A")
-    link(terms["ys"], "", new_x, "B")
-    new_y = node(mat, unreal.MaterialExpressionAdd, 550, 2100)               # x sin + y cos
-    link(terms["xs"], "", new_y, "A")
-    link(terms["yc"], "", new_y, "B")
-    xy = node(mat, unreal.MaterialExpressionAppendVector, 700, 2050)
-    link(new_x, "", xy, "A")
-    link(new_y, "", xy, "B")
-    xyz = node(mat, unreal.MaterialExpressionAppendVector, 850, 2100)
-    link(xy, "", xyz, "A")
-    link(z, "", xyz, "B")
-    return xyz
+    moved = node(mat, unreal.MaterialExpressionAdd, -50, 2000)
+    link(u, "", moved, "A")
+    link(turns, "", moved, "B")
+    return moved
 
 
-def offset_output(mat, time, start):
-    """World Position Offset: the vertex grown and spun in the piece's own space, less where it was, turned into the
-    world's axes and scale (so the whole moves smoothly with no Lua call)."""
-    local = node(mat, unreal.MaterialExpressionPreSkinnedPosition, -1200, 1600)
-    moved = spun(mat, time, grown(mat, time, start, local))
-    offset = node(mat, unreal.MaterialExpressionSubtract, 1000, 1800)
-    link(moved, "", offset, "A")
-    link(local, "", offset, "B")
-    to_world = node(mat, unreal.MaterialExpressionTransform, 1150, 1800,
-                    transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_LOCAL,
-                    transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)
-    link(offset, "", to_world, "")
-    mel.connect_material_property(to_world, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+def moving_uv(mat, time, start):
+    """The texture coordinates at this moment: grown across (GrowXY), risen (GrowZ), then turned round (Spin)."""
+    uv = node(mat, unreal.MaterialExpressionTextureCoordinate, -500, 1600)
+    eased = eased_growth(mat, time, start)
+    across = grown_across(mat, uv, size_now(mat, "GrowXY", eased, 1700))
+    u = node(mat, unreal.MaterialExpressionComponentMask, 100, 1600, r=True, g=False, b=False, a=False)
+    link(across, "", u, "")
+    v = node(mat, unreal.MaterialExpressionComponentMask, 100, 1700, r=False, g=True, b=False, a=False)
+    link(across, "", v, "")
+    v_risen = risen_up(mat, v, size_now(mat, "GrowZ", eased, 1800))
+    u_turned = turned_round(mat, time, u)
+    moved = node(mat, unreal.MaterialExpressionAppendVector, 250, 1700)
+    link(u_turned, "", moved, "A")
+    link(v_risen, "", moved, "B")
+    return moved
 
 
 def material(textures):
@@ -447,10 +454,9 @@ def material(textures):
     mat = new_material()
     time = node(mat, unreal.MaterialExpressionTime, -1350, 500)
     start = scalar(mat, "StartTime", 0.0, -1350, 400)
-    light = texture_light(mat, textures)
+    light = texture_light(mat, textures, moving_uv(mat, time, start))
     faded = fade(mat, time, start)
     emissive_output(mat, light, faded, soft_edge(mat), near_fade(mat))
-    offset_output(mat, time, start)
     mel.layout_material_expressions(mat)
     mel.recompile_material(mat)
     log(f"{MATERIAL}: made (unlit, additive, two-sided; {mel.get_num_material_expressions(mat)} nodes)")

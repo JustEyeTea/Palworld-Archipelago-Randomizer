@@ -32,7 +32,7 @@ local REFERENCE_WIDTH_CM, REFERENCE_HEIGHT_CM = 100, 200   -- the object the pie
                                                            -- object's width / 100, Z by its height / 200
 local SMALLEST_SIZE, LARGEST_SIZE = 0.5, 4.0   -- a glow's scale is kept between these, in case an object's bounds
                                                -- take in something far bigger or smaller than the object seen
-local RING_TURNS_PER_S = 45 / 360       -- the halo turns 45 degrees a second (its baked-in tilt makes it sway)
+local RING_TURNS_PER_S = 45 / 360       -- the halo's colours run round its ring at 45 degrees a second
 local RING_GLOW, RING_EDGE_POWER = 2.6, 0.6
 local LIGHT_CENTRE_CM = 110             -- the soft light sits at the ring's centre, this high at the reference size
 local LIGHT_GLOW = 1.2
