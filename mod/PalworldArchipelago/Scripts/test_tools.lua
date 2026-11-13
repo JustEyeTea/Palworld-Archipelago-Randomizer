@@ -20,6 +20,8 @@
 --                                                   (the riskiest)
 --   Ctrl+Shift+F8  palbox       Kitsunebi Lv 14   the Global Palbox import into an empty Palbox slot
 --   Ctrl+Shift+F9  auto         Anubis Lv 50      party_debug while the party has room, else palbox
+--   Ctrl+Shift+F10 fast-travel unlock probe: the nearest locked fast-travel point, unlocked as if the player had used
+--                  its statue (OnTriggerInteract with UnlockFastTravel); whether it says it is unlocked a moment later
 -- Each logs the connector's report line by line and the party count before and after. A gift the game hasn't finished
 -- ("result: pending") is polled with AP_GivePalPoll on every core update until "result: ok ..." or "result: fail ...".
 -- While one is pending the connector answers "result: busy"; if this side wasn't polling it (a Lua mod restart), it
@@ -49,6 +51,8 @@ local EXP_RADIUS_CM = 500.0             -- GiveExpToAroundPlayerCharacter gives 
 local NIGHT_HOUR = 22                   -- Ctrl+F10's hour: night
 local POISON_MIN_HP = 0.5               -- Poison is tried only above this share of full HP
 local MOST_CHILDREN_LOGGED = 25         -- the HUD probe logs at most this many of the HUD root's children
+local UNLOCK_FAST_TRAVEL = 26           -- EPalInteractiveObjectIndicatorType.UnlockFastTravel (LuaTypes/Pal_enums.lua)
+local CM_PER_M = 100
 
 -- State: Ctrl+F2's multiplier now (an index into SPEEDS). Forgotten: never; the multiplier itself goes with the world
 -- (it lives on the movement component).
@@ -448,6 +452,47 @@ local PROBE_KEYS = {
 }
 local CTRL = nil                       -- { ModifierKey.CONTROL }, once UE4SS's key names are known (install)
 
+-- Ctrl+Shift+F10: can the mod unlock a fast-travel point for the player? The Level Progression map would unlock one
+-- (Astral Mountains 7) when a pass arrives, so its walled-in piece can be reached. The game has no plain unlock call:
+-- this tries the statue's own interaction handler, as if the player had used it from wherever they stand. If it
+-- works, the records scan (records.lua) also sends that point's check, as for a point reached on foot.
+local function nearestLockedFastTravel(p)
+    local px, py = PLAYER.pawnXY(p)
+    local best, bestCm, locked = nil, math.huge, 0
+    for _, actor in ipairs(FindAllOf("PalLevelObjectUnlockableFastTravelPoint") or {}) do
+        local ok, open, at = pcall(function() return actor:IsUnlocked(), actor:K2_GetActorLocation() end)
+        if ok and not open and at and px then
+            locked = locked + 1
+            local cm = math.sqrt((at.X - px) ^ 2 + (at.Y - py) ^ 2)
+            if cm < bestCm then best, bestCm = actor, cm end
+        end
+    end
+    return best, best and bestCm / CM_PER_M, locked
+end
+local function fastTravelUnlockProbe()
+    local p = livePawn()
+    if not p then
+        log("fast-travel unlock probe: no player character")
+        return
+    end
+    local actor, metres, locked = nearestLockedFastTravel(p)
+    if not actor then
+        log("fast-travel unlock probe: no locked fast-travel point found (" .. locked .. " locked)")
+        return
+    end
+    local id = actor.FastTravelPointID:ToString()
+    log(string.format("fast-travel unlock probe: %s, %.0f m away (%d locked points)", id, metres, locked))
+    try("fast-travel unlock probe: OnTriggerInteract(player, UnlockFastTravel) on " .. id, function()
+        actor:OnTriggerInteract(p, UNLOCK_FAST_TRAVEL)
+        return "called"
+    end)
+    laterOnSamePawn(WAIT.afterProbe, p, "fast-travel unlock probe", function()
+        local open = UTIL.isValid(actor) and actor:IsUnlocked()
+        log("fast-travel unlock probe: " .. id .. " unlocked now: " .. tostring(open)
+            .. (open and " (its check comes from the records scan)" or ""))
+    end)
+end
+
 -- Ctrl+F5 to F11: the traps and the probes.
 local function bindTrapAndProbeKeys()
     local TRAPS = require("traps")
@@ -519,6 +564,18 @@ local function bindGiftKeys()
     log("test tools on: give Pal by Ctrl+Shift+F5 party_debug, F6 party_plain, F7 handle, F8 palbox, F9 auto")
 end
 
+-- Ctrl+Shift+F10: the fast-travel unlock probe.
+local function bindFastTravelProbeKey()
+    UTIL.bindKey(Key.F10, { ModifierKey.CONTROL, ModifierKey.SHIFT }, function()
+        log("--- fast-travel unlock probe")
+        local ok, err = pcall(fastTravelUnlockProbe)
+        if not ok then
+            log("fast-travel unlock probe: error " .. tostring(err))
+        end
+    end, "[test] fast-travel unlock probe")
+    log("test tools on: Ctrl+Shift+F10 fast-travel unlock probe")
+end
+
 -- Binds the test tools' keys (main.lua, with test_tools=1).
 function TEST_TOOLS.install()
     log("test tools on: the performance probe's hotkeys, with perf_log=1 (perf.lua)")
@@ -529,6 +586,7 @@ function TEST_TOOLS.install()
     CTRL = { ModifierKey.CONTROL }
     bindTrapAndProbeKeys()
     bindToolKeys()
+    bindFastTravelProbeKey()
     bindGiftKeys()
 end
 

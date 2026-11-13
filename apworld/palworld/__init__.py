@@ -46,7 +46,7 @@ SLOT_DATA_OPTIONS = (
     "goal", "tower_count", "paldeck_count", "relic_count", "relics_needed", "check_level",
     "area_locks", "lock_size", "beyond_goal", "gear_logic", "progressive_spheres",
     "tech_checks", "capture_checks", "alpha_checks", "fast_travel_checks", "level_checks",
-    "material_bundles", "tech_point_items",
+    "material_bundles", "tech_point_items", "palworld_crates",
     "crate_sphere_weight", "crate_food_weight", "crate_common_weight", "crate_rare_weight", "crate_jackpot_weight",
     "run_style", "speed_boost", "boost_exp_rate", "boost_work_speed", "boost_gather_rate",
     "death_link", "death_link_amnesty",
@@ -402,10 +402,12 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
         return self.random.choice(self.filler_names())
 
     def filler_names(self) -> List[str]:
-        """Palworld Crates, plus material bundles with Material Bundles on and the tech-point items with Tech Point
-        Items on."""
+        """Palworld Crates with Palworld Crates on, the tech-point items with Tech Point Items on and material bundles
+        with Material Bundles on. With all three off the tech-point items fill: every check needs an item."""
         o = self.options
-        return [CRATE] + (TECH_POINT_ITEMS if o.tech_point_items else []) + (BUNDLES if o.material_bundles else [])
+        names = (([CRATE] if o.palworld_crates else []) + (TECH_POINT_ITEMS if o.tech_point_items else [])
+                 + (BUNDLES if o.material_bundles else []))
+        return names or TECH_POINT_ITEMS
 
     def trap_weights(self) -> list:
         """Each trap's weight option, in the order of TRAPS."""

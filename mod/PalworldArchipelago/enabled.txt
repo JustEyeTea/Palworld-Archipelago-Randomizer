@@ -1,0 +1,2 @@
+UE4SS starts the mod in this folder because this file is here, whether or not mods.txt lists it.
+To turn the mod off, delete this file and set its line in mods.txt to 0 (or remove the line).

@@ -19,20 +19,20 @@ with `[PalworldAP]`.
 
 ## Installing
 
+![Where the files go: UE4SS installed by hand or from the Steam Workshop (never both), the mod folders, the optional art pak and the APWorld](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/install-tree.png)
+
 1. Find the game's folder: in Steam, right-click Palworld > Manage > Browse local files. The paths below start
    there (usually `C:\Program Files (x86)\Steam\steamapps\common\Palworld`).
 2. Install UE4SS into `Pal\Binaries\Win64`, as its own instructions say. Start the game once and quit, to check that
-   `Pal\Binaries\Win64\ue4ss\UE4SS.log` appears.
+   `Pal\Binaries\Win64\ue4ss\UE4SS.log` appears. If your UE4SS came from the Steam Workshop instead (the "UE4SS
+   Experimental (Palworld)" item), it lives in `Mods\NativeMods\UE4SS`: use that folder wherever these steps say
+   `Pal\Binaries\Win64\ue4ss` (untested with this mod). Never keep both: two copies of UE4SS crash the game.
 3. Copy the package's `ue4ss` folder over `Pal\Binaries\Win64\ue4ss`, so that `ue4ss\Mods\APConnector` and
    `ue4ss\Mods\PalworldArchipelago` are there.
-4. Open `ue4ss\Mods\mods.txt` and add these two lines, above any `Keybinds` line:
-
-   ```
-   APConnector : 1
-   PalworldArchipelago : 1
-   ```
-
-   Without APConnector the log says `APConnector is not installed` and the mod stays off.
+4. Nothing to switch on: both folders hold an `enabled.txt`, so UE4SS starts them without a line in
+   `ue4ss\Mods\mods.txt`. (Lines there for them are fine too.) To turn the mod off, delete the two `enabled.txt`
+   files and any lines for them in `mods.txt`. Without APConnector the log says `APConnector is not installed` and
+   the mod stays off.
 5. Optional: copy `PalworldArchipelagoArt.pak` to `Pal\Content\Paks\LogicMods` (make the folder if it isn't there).
    `BPModLoaderMod` must stay on in `mods.txt`; UE4SS ships it on. (A second pak, `PalworldArchipelagoUI.pak`, would
    give the Archipelago Mailbox its own window; it isn't released yet, and the mailbox works in the game's chest
@@ -65,14 +65,17 @@ with `[PalworldAP]`.
 
 ## Playing
 
+![What the mod's pictures mean: item icons on shop cards, crates, traps, and pass tickets on the map and at walls](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/legend.png)
+
 - The Technology tree (levels 2 and up) is the shop. Each card shows what buying it sends; buying spends the usual
   tech points. A tech itself unlocks only when its item arrives. If the connection drops while you play, you can
   keep buying: the check is sent when the connection is back. You can also start without connecting, in a world
   you have played the seed in before: purchases are kept and sent the next time you connect to that seed (untested
   in game). In a new world, nothing can be bought until you connect. In a world that is not the seed's, research
   works as in plain Palworld.
-- Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them. Gear and
-  accessories from Palworld Crates go straight into your bag.
+- Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them, and so
+  does what you get from opening a Palworld Crate or from a Nomad tech. Gear and accessories don't show in the
+  mailbox's chest: they go into your bag when you open the mailbox (with a full bag, they wait until you open it again).
 - With Area Locks on, a locked region is walled off and shown grey on the map until its Region Pass arrives (with
   Lock Size: areas, each area and its Area Pass). Its walls wear the region's colour: with
   `PalworldArchipelagoArt.pak`, the region's own wall over it, and a bunker grille on a region beyond your goal (an

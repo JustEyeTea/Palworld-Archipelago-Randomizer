@@ -7,12 +7,12 @@
 --   Common   Gold Coins (200 x level x 0.5-2.5), medicine, small Training Manuals, Copper Keys
 --   Rare     Skill Fruits, accessories, gear up to a tier above the player ("sometimes good stuff"), big manuals, keys
 --   Jackpot  stat fruits, Remedies and Elixirs, gear up to two tiers above, a big stack of high spheres
--- Plain items go to the mailbox; gear and accessories, which carry per-item data the mailbox chest can't hold, go
--- straight to the bag, and what the bag refuses waits in `pending` and is tried again.
+-- Everything a crate holds goes to the mailbox; gear and accessories are marked `gear`, for the mailbox's gear list
+-- (mailbox.lua: the hidden chest can't hold their per-item data).
 -- Item ids from the 1.0.5 item table. Untested in game: opening a crate and the items it gives.
 -- Tests: mod/test/tests/crates_run_style.lua; groups "Palworld Crates", "the crate window"
 --   (tools/lua_harness.sh, in CI).
-local C = { list = {}, pending = {} }
+local C = { list = {} }
 local UTIL = require("util")
 local log = UTIL.log
 
@@ -159,44 +159,24 @@ C.ABOUT = { sphere = "Spheres of your tier: more as you level.", food = "Dishes 
             common = "Gold, medicine, Training Manuals or keys.", rare = "Skill Fruits, accessories, gear or keys.",
             jackpot = "Stat fruits, Elixirs, top gear or high spheres." }
 
--- The save file: crates=rare,sphere,... and cratebag=id:n,... (gear the bag refused).
+-- The save file: crates=rare,sphere,...
 function C.serialize()
-    local p = {}
-    for _, held in ipairs(C.pending) do p[#p + 1] = held.id .. ":" .. held.n end
-    return "crates=" .. table.concat(C.list, ",") .. "\ncratebag=" .. table.concat(p, ",") .. "\n"
+    return "crates=" .. table.concat(C.list, ",") .. "\n"
 end
+-- One line of the save file; true if it was the crates'.
 function C.load(line)
     local list = line:match("^crates=(.*)$")
-    if list then
-        C.list = {}
-        for k in list:gmatch("[^,]+") do if C.NAMES[k] then C.list[#C.list + 1] = k end end
-        return true
-    end
-    local bag = line:match("^cratebag=(.*)$")
-    if bag then
-        C.pending = {}
-        for id, n in bag:gmatch("([^:,]+):(%d+)") do C.pending[#C.pending + 1] = { id = id, n = tonumber(n) } end
-        return true
-    end
-    return false
+    if not list then return false end
+    C.list = {}
+    for k in list:gmatch("[^,]+") do if C.NAMES[k] then C.list[#C.list + 1] = k end end
+    return true
 end
-function C.reset() C.list, C.pending = {}, {} end
+function C.reset() C.list = {} end
 
--- Holds n of item `id` that the bag refused (crate gear, a Nomad gift), to be tried again by C.retryBag.
-function C.holdForBag(id, n)
-    C.pending[#C.pending + 1] = { id = id, n = n }
-end
-
--- Tries the held items again, oldest first. give(id, n) puts up to n in the bag and returns how many went in; the
--- first item that gets none stops the round, so the order is kept.
-function C.retryBag(give)
-    while C.pending[1] do
-        local held = C.pending[1]
-        local got = give(held.id, held.n)
-        if got <= 0 then return end
-        held.n = held.n - got
-        if held.n <= 0 then table.remove(C.pending, 1) end
-    end
+-- Whether the seed has Palworld Crates, from slot data's options.palworld_crates as text. A seed from an APWorld
+-- without that option sends none, and has crates.
+function C.inSeed(optionText)
+    return optionText ~= "0" and optionText ~= "false"
 end
 
 -- The player's tier: the best sphere unlocked by `level` (1-based index into SPHERES); rank 1-5 for gear and food.
@@ -213,7 +193,7 @@ local function pick(list, ok)
 end
 local function between(a, b) return a + math.random() * (b - a) end
 
--- Opens the next crate (of `want`'s kind, if given): its kind and a list of { id, n, bag = true for gear }.
+-- Opens the next crate (of `want`'s kind, if given): its kind and a list of { id, n, gear = true for gear }.
 -- `level`: the player's level now.
 function C.openNext(level, want)
     local at = 1
@@ -226,7 +206,7 @@ function C.openNext(level, want)
     if not kind then return nil end
     level = math.max(1, tonumber(level) or 1)
     local out = {}
-    local function add(id, n, bag) if id and n and n > 0 then out[#out + 1] = { id = id, n = n, bag = bag } end end
+    local function add(id, n, gear) if id and n and n > 0 then out[#out + 1] = { id = id, n = n, gear = gear } end end
     local tier, rank = sphereTier(level), rankOf(level)
     if kind == "sphere" then
         local r, t = math.random(), tier

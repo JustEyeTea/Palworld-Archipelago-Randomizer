@@ -3,7 +3,7 @@
 -- (cppmod/APConnector/src/dllmain.cpp). Each topic lives in a file of its own; docs/architecture.md lists them.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 -- Tests: every file in mod/test/tests/: the harness loads main.lua and runs them all (tools/lua_harness.sh, in CI).
-local VERSION = "0.15.0-dev.1"
+local VERSION = "0.15.0-dev.2"
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
@@ -377,6 +377,7 @@ local function installWindows()
     MAIL.install({ notify = notify, save = writeSave, cfg = cfg, guardedHook = guardedHook,
                    connected = function() return ap.status == "connected" end, seedWorld = WORLD.seedWorld })
     CWIN.install({ chestWidget = function() return MAIL.chestWidget() end, openCrate = openCrateOfKind,
+                   cratesInSeed = function() return CRATES.inSeed(SLOT.text("options.palworld_crates")) end,
                    guardedHook = guardedHook })
     TRAPS.install({ notify = notify, save = writeSave, announce = announceTrap,
                     sender = function(index) return ap.from[index] end,

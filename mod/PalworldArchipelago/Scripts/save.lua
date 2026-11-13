@@ -38,8 +38,9 @@ end
 --   bought=123,456            checks the mod sent itself (ap.bought): sent again on connecting
 --   visited=Lock|Lock         open locks the player has stood in (the map's open stamps)
 --   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
---   mail=id:n,...             mailbox.lua: the mailbox's items
---   crates=kind,... and cratebag=id:n,...    crates.lua: unopened crates; crate gear the bag refused
+--   mail=id:n,... and mailgear=id:n,...    mailbox.lua: the mailbox's items, and its gear (an older mod's save has
+--                             cratebag= in place of mailgear=, which mailbox.lua reads as gear)
+--   crates=kind,...           crates.lua: unopened crates
 --   syncbase=Field:value,...  run_style.lua: the world's own rates from before the run style changed them
 --   end                       the last line: the file was written whole
 -- The save file of `seed` played as `slot`.

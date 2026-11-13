@@ -276,6 +276,8 @@ jobs:
           mkdir -p "$out/APConnector/dlls"
           cp "$(find build -name APConnector.dll | head -1)" "$out/APConnector/dlls/main.dll"
           curl -sSfL -o "$out/APConnector/cacert.pem" https://curl.se/ca/cacert.pem   # Mozilla's CA bundle (MPL 2.0)
+          # Each mod folder carries enabled.txt, so UE4SS starts it without a mods.txt line (the Workshop's UE4SS too)
+          cp palworld-archipelago/mod/PalworldArchipelago/enabled.txt "$out/APConnector/"
           cp -r palworld-archipelago/mod/PalworldArchipelago "$out/"
           ls -R package
       - uses: actions/upload-artifact@v6
