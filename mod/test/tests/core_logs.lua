@@ -23,20 +23,6 @@ group("errors that repeat every update are logged once each", function()
     DB.tick, CW.update = dbTick, cwUpdate
     expect(tries == 5 and countLoggedText("debuff boom at") == 1 and countLoggedText("crate window boom at") == 1,
            "the debuff icons' and the crate window's errors, each naming a new address: one line each")
-    local CR, BAGM = require("crates"), require("bag")
-    local give = BAGM.give
-    BAGM.give = function(id)
-        tries = tries + 1
-        error(string.format("give boom at 0x%x", 8192 + tries))
-    end
-    h.switchSeed("70031", {})                                  -- a new seed, played in this world
-    CR.holdForBag(CR.GEAR[1][1], 1)                            -- crate gear the bag refused, tried every update
-    local triesBefore = tries
-    runCycles(4)
-    BAGM.give = give
-    CR.pending = {}
-    expect(tries > triesBefore + 1 and countLoggedText("give boom at") == 1,
-           "crate gear the bag keeps failing on, a new address each time: one line")
 end)
 
 group("small failures of the core files say so in the log", function()
@@ -110,7 +96,7 @@ group("log lines say what the code found", function()
            "config.txt and research.txt that can't be written are logged with their path and the reason")
 end)
 
-group("one way to give to the bag", function()
+group("a crate's contents all go to the mailbox", function()
     local CR, MB, BAGM, ITEMS = require("crates"), require("mailbox"), require("bag"), require("items")
     local noticesBefore, give, mailAdd = #announced, BAGM.give, MB.add
     MB.add = function() end
@@ -120,15 +106,18 @@ group("one way to give to the bag", function()
     expect(table.concat(announced, "|",
                         noticesBefore + 1):find("Opened a Sphere Crate: %d+ x [%w_]+ %(in the mailbox%)%."),
            "a crate's stack says it went to the mailbox, as a Nomad gift's does")
-    local openNext = CR.openNext
-    CR.openNext = function() return "rare", { { id = CR.GEAR[1][1], n = 1, bag = true } } end   -- a crate's gear
-    BAGM.give = function() error("the bag broke") end
+    local openNext, gearId = CR.openNext, CR.GEAR[1][1]
+    CR.openNext = function() return "rare", { { id = gearId, n = 1, gear = true } } end   -- a crate's gear
+    BAGM.give = function() error("opening a crate called the bag") end
     CR.list = { "rare" }
-    ITEMS.openCrate()
+    local opened, err = pcall(ITEMS.openCrate)
     CR.openNext, BAGM.give = openNext, give
-    expect(logged("could not give [%w_]+: .*the bag broke"),
-           "a give that errors is logged with the item, for crates too")
-    CR.list, CR.pending = {}, {}
+    local waiting = MB.gear[#MB.gear]
+    expect(opened and waiting and waiting.id == gearId
+           and announced[#announced]:find("%(in the mailbox%)%.$"),
+           "a crate's gear says it went to the mailbox too, and opening it never calls the bag: " .. tostring(err))
+    MB.removeCount(MB.gear, gearId, 1)
+    CR.list = {}
 end)
 
 group("a setting config.txt no longer has is ignored, and says so", function()

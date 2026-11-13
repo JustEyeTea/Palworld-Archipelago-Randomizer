@@ -355,7 +355,7 @@ the other modules.
 | `player.lua` | This update's player, looked up once (`PLAYER.lookUpFrame`: the frame record and its fields), `playerPawn`, `pawnXY`, and `notify`, the chat notice (`announce` without the mod's prefix). |
 | `world.lua` | The world step (`WORLD.note`: which world, how long ago it loaded, what each module forgets when it changes) and the seed's world (`checkWorld`, `tieWorld`). |
 | `tech_lock.lua` | The game's list of researched techs holds the techs items unlocked and no other shop tech (`lockAndUnlockTechs`); the techs a seed leaves as normal research (`research.txt`). |
-| `items.lua` | What each kind of item does on arrival (`onItem`) and once per seed (`applyItems`, with a table of kinds above it), crates, bundles and Nomad's gifts (`giveToBag`, `handOver`). |
+| `items.lua` | What each kind of item does on arrival (`onItem`) and once per seed (`applyItems`, with a table of kinds above it), crates, bundles and Nomad's gifts, all handed over to the mailbox (`handOver`). |
 | `checks.lua` | Checks from the game's records (`pollRecords`, `sendChecks`) and the goal (`goalReached`, `sendGoalOnceOutOfArena`). |
 | `shop_cards.lua` | What each shop card shows (`relabel`, `cardLabel`, `cardPicture`), relabelled only when it changed. |
 | `shop.lua` | The shop's seven hooks (`SHOP_HOOKS`) and buying a slot (`buy`). |
@@ -505,6 +505,11 @@ list in the game's own chest window on a hidden chest, through `mailbox_chest.lu
 The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other three are handed it. The list is the
 truth: a take leaves it (and the mod's save file) at once, while the item in the bag is kept only by the game's next
 world save, so an item taken just before a crash is lost rather than given twice (`mailbox_chest_slots.lua` says so).
+
+Gear and accessories (from a crate or a Nomad tech) wait in a list of their own, `M.gear` (`mailgear=` in the save),
+and never go in the chest: they carry per-item data (durability, the ammo loaded) a chest slot filled by the mod would
+not have. `handOutGear` gives them to the bag through the game's own `AddItem` the first update the mailbox is open,
+and again when more gear arrives while it is; what the bag refuses waits for the next open.
 
 | File | What it holds |
 |---|---|

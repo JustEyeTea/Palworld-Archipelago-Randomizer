@@ -10,7 +10,7 @@ local BAG = require("bag")
 local log = UTIL.log
 
 -- What mailbox.lua hands over (WINDOW.install).
---   list                  the mailbox module: its queue, count(), take(id), takeAll() and TITLE
+--   list                  the mailbox module: its queue and gear, count(), take(id), takeAll() and TITLE
 --   once(key, msg)        the mailbox's log-once for this world
 --   notify(text)          shows a line to the player
 --   save()                writes the mod's save file (after a row's take)
@@ -80,18 +80,25 @@ local function claimButton(button, action)
     CLICKS.claim(button, WINDOW_OWNER, function() doAction(action) end)
 end
 
--- One row per item in the list; the first row made, or nil.
+-- One row for an item in the list; the row, or nil when the game would not make it.
+local function addRow(widget, rowClass, library, entry)
+    local row = library:Create(widget, rowClass, nil)
+    if not (row and row:IsValid()) then return nil end
+    setLabel(row, BAG.nameOf(entry.id) .. "  x" .. entry.n)
+    setIcon(row, entry.id)
+    widget.List:AddChild(row)
+    claimButton(row, { kind = "take", id = entry.id })
+    return row
+end
+
+-- One row per item waiting: the plain items, then any gear the bag had no room for; the first row made, or nil.
 local function addRows(widget)
     local rowClass = UTIL.findClass(WINDOW_GAME.row)
     local library = StaticFindObject(WINDOW_GAME.widgetLibrary)
     local first
-    for _, entry in ipairs(LIST.queue) do
-        local row = library:Create(widget, rowClass, nil)
-        if row and row:IsValid() then
-            setLabel(row, BAG.nameOf(entry.id) .. "  x" .. entry.n)
-            setIcon(row, entry.id)
-            widget.List:AddChild(row)
-            claimButton(row, { kind = "take", id = entry.id })
+    for _, list in ipairs({ LIST.queue, LIST.gear }) do
+        for _, entry in ipairs(list) do
+            local row = addRow(widget, rowClass, library, entry)
             first = first or row
         end
     end

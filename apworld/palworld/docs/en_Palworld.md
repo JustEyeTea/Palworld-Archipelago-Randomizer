@@ -69,15 +69,19 @@ Tech slots cost their usual tech points, which the logic doesn't count. So only 
 the goal) can hold anyone's progression or useful items; the rest hold filler and traps. Fast-travel points and
 Technical Manuals give the spare points for those.
 
-Filler items are material bundles (Wood, Stone, Paldium, Ingot, Sphere, Food); the Tech Point Items option adds
-Tech Points +2 and Ancient Tech Points +1.
+Filler items are Palworld Crates by default: each is a Sphere, Food, Common, Rare or Jackpot crate (the Crate Chance
+options), opened when you like from the mailbox or the Inventory page, with contents for your level then. The Material
+Bundles option adds Wood, Stone, Paldium, Ingot, Sphere and Food bundles, and the Tech Point Items option adds Tech
+Points +2 and Ancient Tech Points +1. Turn the Palworld Crates option off for no crates: the other filler takes their
+place (tech points when both of those options are off).
 
 By default the décor techs (furniture, flag and foliage sets, statues, signs and lights) stay normal research, bought
 with tech points as usual; the Tech Checks option can make them checks too.
 
-Items you receive (material bundles and the like) wait in your Archipelago Mailbox until you take them, so nothing
-lands in your bag mid-fight. Open it from the Esc menu's Archipelago Mailbox button, or from the one at the right
-of your name on the Inventory page (new, not yet tried in game); it has no size limit.
+Items you receive (material bundles, what a crate holds, a Nomad tech's gifts) wait in your Archipelago Mailbox until
+you take them, so nothing lands in your bag mid-fight. Open it from the Esc menu's Archipelago Mailbox button, or from
+the one at the right of your name on the Inventory page (new, not yet tried in game); it has no size limit. Gear and
+accessories don't show in the mailbox's chest, which can't hold them: they go into your bag when you open the mailbox.
 
 ## Run Style
 
@@ -85,8 +89,8 @@ What a tech you receive gives you:
 
 - **Standard** (the default): its recipe, as in Palworld; you craft the rest at a base.
 - **Nomad**: its recipe, and what it makes, so you don't need a base that can craft it first: a weapon, armour,
-  glider, accessory or saddle (one, into your bag), or a stack of spheres, ammo, grenades, materials or food (into the
-  mailbox). Techs for buildings unlock as usual. Suits a game played in one sitting.
+  glider, accessory or saddle (one), or a stack of spheres, ammo, grenades, materials or food, all waiting in your
+  Archipelago Mailbox. Techs for buildings unlock as usual. Suits a game played in one sitting.
 
 ## Speed Boost and World Settings
 

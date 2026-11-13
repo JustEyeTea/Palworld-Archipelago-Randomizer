@@ -1,7 +1,7 @@
 {
  "game": "Palworld",
  "game_yaml": "Palworld",
- "world_version": "0.9.0",
+ "world_version": "0.10.0",
  "archipelago_version": "0.6.8",
  "yaml_header": "# Q. What is this file?\n# A. This file contains options which allow you to configure your multiworld experience while allowing\n#    others to play how they want as well.\n#\n# Q. How do I use it?\n# A. The options in this file are weighted. This means the higher number you assign to a value, the\n#    more chances you have for that option to be chosen. For example, an option like this:\n#\n#    map_shuffle:\n#      on: 5\n#      off: 15\n#\n#    Means you have 5 chances for map shuffle to occur, and 15 chances for map shuffle to be turned\n#    off.\n#\n# Q. I've never seen a file like this before. What characters am I allowed to use?\n# A. This is a .yaml file. You are allowed to use most characters.\n#    To test if your yaml is valid or not, you can use this website:\n#        http://www.yamllint.com/\n#    You can also verify that your Archipelago options are valid at this site:\n#        https://archipelago.gg/check\n\n# Your name in-game, limited to 16 characters.\n#     {player} will be replaced with the player's slot number.\n#     {PLAYER} will be replaced with the player's slot number, if that slot number is greater than 1.\n#     {number} will be replaced with the counter value of the name.\n#     {NUMBER} will be replaced with the counter value of the name, if the counter value is greater than 1.\n",
  "descriptions": {
@@ -135,7 +135,7 @@
      "key": "run_style",
      "name": "Run Style",
      "type": "Choice",
-     "help": "What a tech you receive gives you.\nStandard: its recipe (and buildings), as in Palworld; you craft the rest at a base.\nNomad: its recipe, and what it makes, so you don't need a base that can craft it: a weapon, armour, glider,\naccessory or saddle (one, into your bag), or a stack of spheres, ammo, grenades, materials or food (into the\nmailbox). Techs for buildings unlock as usual: a building can't be handed over. Suits a game played in one\nsitting.",
+     "help": "What a tech you receive gives you.\nStandard: its recipe (and buildings), as in Palworld; you craft the rest at a base.\nNomad: its recipe, and what it makes, so you don't need a base that can craft it: a weapon, armour, glider,\naccessory or saddle (one), or a stack of spheres, ammo, grenades, materials or food, all waiting in your\nArchipelago Mailbox. Techs for buildings unlock as usual: a building can't be handed over. Suits a game played in\none sitting.",
      "choices": [
       {
        "name": "standard",
@@ -435,6 +435,25 @@
    "start_collapsed": false,
    "options": [
     {
+     "key": "palworld_crates",
+     "name": "Palworld Crates",
+     "type": "DefaultOnToggle",
+     "help": "Palworld Crates among the filler items: each one you receive is a Sphere, Food, Common, Rare or Jackpot crate\n(the chances below), and you open it when you like, from the mailbox or the Inventory page. What is inside suits\nyour level when you open it, and goes to your Archipelago Mailbox.\nOff: no crates; the other filler items take their place: tech points and material bundles as their options say,\nor Tech Points +2 and Ancient Tech Points +1 when both of those are off.",
+     "choices": [
+      {
+       "name": "false",
+       "value": 0,
+       "yaml": "'false'"
+      },
+      {
+       "name": "true",
+       "value": 1,
+       "yaml": "'true'"
+      }
+     ],
+     "default": "true"
+    },
+    {
      "key": "crate_sphere_weight",
      "name": "Sphere Crate Chance",
      "type": "Range",
@@ -483,7 +502,7 @@
      "key": "material_bundles",
      "name": "Material Bundles",
      "type": "Toggle",
-     "help": "Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items, besides Palworld Crates. Worth it in\nlong games; little use once a base makes them.",
+     "help": "Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items. Worth it in long games; little use\nonce a base makes them.",
      "choices": [
       {
        "name": "false",
@@ -502,7 +521,7 @@
      "key": "tech_point_items",
      "name": "Tech Point Items",
      "type": "Toggle",
-     "help": "Tech Points +2 and Ancient Tech Points +1 among the filler items (otherwise only material bundles).",
+     "help": "Tech Points +2 and Ancient Tech Points +1 among the filler items.",
      "choices": [
       {
        "name": "false",

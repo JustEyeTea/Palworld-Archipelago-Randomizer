@@ -20,32 +20,20 @@ local TRAPS = require("traps")
 local UTIL = require("util")
 local WORLD = require("world")
 local ap = STATE.ap
-local log, once, onceErr, safe = UTIL.log, UTIL.once, UTIL.onceErr, UTIL.safe
+local log, once, safe = UTIL.log, UTIL.once, UTIL.safe
 local notify, playerState, writeSave = PLAYER.notify, PLAYER.playerState, SAVE.write
 
--- Puts up to n of item `id` in the bag and returns how many went in (what a full bag answers is untested in game).
--- An error is logged once, with the item's id, and counts as none in.
-local function giveToBag(id, n)
-    local okg, got = pcall(BAG.give, id, n)
-    if okg then return got end
-    onceErr("give", got, "could not give " .. id .. ": " .. tostring(got))
-    return 0
-end
-
--- Hands n of item `id` over: into the bag when `toBag` (what does not fit waits for room, CRATES.holdForBag), else into
--- the mailbox. Returns its part of the chat line, such as "2 x Wood (in your bag)".
-local function handOver(id, n, toBag)
-    local name = BAG.nameOf(id)
-    if not toBag then
-        MAIL.add(id, n)
-        return n .. " x " .. name .. " (in the mailbox)"
+-- Hands an item over to the mailbox: { id, n, gear = true for gear and accessories }, from a crate or a Nomad tech.
+-- Gear waits in the mailbox's gear list (MAIL.addGear says why). Returns its part of the chat line, such as
+-- "2 x Wood (in the mailbox)".
+local function handOver(item)
+    if item.gear then
+        MAIL.addGear(item.id, item.n)
+    else
+        MAIL.add(item.id, item.n)
     end
-    local got = giveToBag(id, n)
-    if got < n then
-        CRATES.holdForBag(id, n - got)
-    end
-    local count = n > 1 and (n .. " x ") or ""
-    return count .. name .. (got < n and " (waits for room in your bag)" or " (in your bag)")
+    local count = item.n > 1 and (item.n .. " x ") or ""
+    return count .. BAG.nameOf(item.id) .. " (in the mailbox)"
 end
 
 -- A Palworld Crate received: its kind is rolled from the seed's crate weights and the item's index (crates.lua).
@@ -125,18 +113,6 @@ function ITEMS.relicCount(upto)
     return n
 end
 
--- Gear and accessories from a crate go straight to the bag (the mailbox chest can't hold per-item data); what the
--- bag refused is tried again here, every applying update.
-local function givePending()
-    CRATES.retryBag(function(id, n)
-        local got = giveToBag(id, n)
-        if got > 0 then
-            notify("Your bag had room: " .. BAG.nameOf(id) .. " from a crate is in it now.")
-        end
-        return got
-    end)
-end
-
 -- Opening a crate (the Inventory page's Open button: the next one; the crate window's: one of `kind`), its contents
 -- rolled from the player's level now. Returns the kind and the contents. In a world that is not the seed's nothing
 -- opens: the crate's contents would leave the seed for that world's bag.
@@ -156,7 +132,7 @@ function ITEMS.openCrate(kind)
     if not kind then return end
     local parts = {}
     for _, row in ipairs(out) do
-        parts[#parts + 1] = handOver(row.id, row.n, row.bag)
+        parts[#parts + 1] = handOver(row)
     end
     log("crate: opened a " .. CRATES.NAMES[kind] .. " at level " .. lv .. ": " .. table.concat(parts, ", ")
         .. "; " .. CRATES.count() .. " left")
@@ -165,15 +141,14 @@ function ITEMS.openCrate(kind)
     return kind, out
 end
 
--- Run Style "Nomad": a received tech also hands over what it makes (run_style.lua). Gear goes to the bag, like a
--- crate's (what the bag refuses waits with the crates' and is tried again); a stack goes to the mailbox. The recipe
--- unlocks as in every style, so a hand-over that fails still leaves the tech.
+-- Run Style "Nomad": a received tech also hands over what it makes (run_style.lua), into the mailbox like a crate's
+-- contents. The recipe unlocks as in every style, so a hand-over that fails still leaves the tech.
 local function giveTechGift(it)
     local gifts = RUN_STYLE.gifts(SLOT.text, it.tech)
     if not gifts then return end
     local parts = {}
     for _, gift in ipairs(gifts) do
-        parts[#parts + 1] = handOver(gift.id, gift.n, gift.bag)
+        parts[#parts + 1] = handOver(gift)
     end
     log("nomad: " .. it.name .. " brought " .. table.concat(parts, ", "))
     notify(it.name .. " brought " .. table.concat(parts, ", ") .. ".")
@@ -212,11 +187,10 @@ local function applyNewItems(ps)
     end
 end
 
--- Applies the items received since the last time, after retrying the gear the bag refused (from crates and Nomad
--- gifts), and saves how far it got. An item whose effect raises stops the pass there: what was applied before it is
--- saved all the same (else it would be given again after a restart), and the error goes on to the caller.
+-- Applies the items received since the last time, and saves how far it got. An item whose effect raises stops the
+-- pass there: what was applied before it is saved all the same (else it would be given again after a restart), and the
+-- error goes on to the caller.
 function ITEMS.applyItems(ps)
-    givePending()
     local ok, err = pcall(applyNewItems, ps)
     writeSave()
     if not ok then

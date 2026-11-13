@@ -73,8 +73,9 @@ with `[PalworldAP]`.
   you have played the seed in before: purchases are kept and sent the next time you connect to that seed (untested
   in game). In a new world, nothing can be bought until you connect. In a world that is not the seed's, research
   works as in plain Palworld.
-- Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them. Gear and
-  accessories from Palworld Crates go straight into your bag.
+- Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them, and so
+  does what you get from opening a Palworld Crate or from a Nomad tech. Gear and accessories don't show in the
+  mailbox's chest: they go into your bag when you open the mailbox (with a full bag, they wait until you open it again).
 - With Area Locks on, a locked region is walled off and shown grey on the map until its Region Pass arrives (with
   Lock Size: areas, each area and its Area Pass). Its walls wear the region's colour: cream paws over it with
   `PalworldArchipelagoArt.pak`, a coloured wall with paw-shaped holes without it, and slate grey for a region beyond

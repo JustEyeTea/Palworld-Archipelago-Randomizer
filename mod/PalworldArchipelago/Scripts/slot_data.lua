@@ -29,6 +29,7 @@ SLOT.KEYS = {
     ["options.trap_chance"] = { use = "the share of filler items that are traps, for the log (connection.lua)" },
     ["options.death_link"] = { use = "whether Death Link is on (death_link.lua)" },
     ["options.death_link_amnesty"] = { use = "deaths forgiven before one is sent (death_link.lua)" },
+    ["options.palworld_crates"] = { use = "whether the seed has crates, else no crate button (main.lua, crates.lua)" },
     ["options.crate_sphere_weight"] = { use = "a crate kind's weight (items.lua, crates.lua WEIGHT_KEYS)" },
     ["options.crate_food_weight"] = { use = "a crate kind's weight (items.lua, crates.lua WEIGHT_KEYS)" },
     ["options.crate_common_weight"] = { use = "a crate kind's weight (items.lua, crates.lua WEIGHT_KEYS)" },

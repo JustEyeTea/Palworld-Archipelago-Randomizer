@@ -117,9 +117,18 @@ class GearLogic(Toggle):
     display_name = "Gear Logic"
 
 
+class PalworldCrates(DefaultOnToggle):
+    """Palworld Crates among the filler items: each one you receive is a Sphere, Food, Common, Rare or Jackpot crate
+    (the chances below), and you open it when you like, from the mailbox or the Inventory page. What is inside suits
+    your level when you open it, and goes to your Archipelago Mailbox.
+    Off: no crates; the other filler items take their place: tech points and material bundles as their options say,
+    or Tech Points +2 and Ancient Tech Points +1 when both of those are off."""
+    display_name = "Palworld Crates"
+
+
 class MaterialBundles(Toggle):
-    """Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items, besides Palworld Crates. Worth it in
-    long games; little use once a base makes them."""
+    """Wood, Stone, Paldium, Ingot, Sphere and Food bundles among the filler items. Worth it in long games; little use
+    once a base makes them."""
     display_name = "Material Bundles"
 
 
@@ -165,7 +174,7 @@ class CrateJackpotWeight(Range):
 
 
 class TechPointItems(Toggle):
-    """Tech Points +2 and Ancient Tech Points +1 among the filler items (otherwise only material bundles)."""
+    """Tech Points +2 and Ancient Tech Points +1 among the filler items."""
     display_name = "Tech Point Items"
 
 
@@ -212,9 +221,9 @@ class RunStyle(Choice):
     """What a tech you receive gives you.
     Standard: its recipe (and buildings), as in Palworld; you craft the rest at a base.
     Nomad: its recipe, and what it makes, so you don't need a base that can craft it: a weapon, armour, glider,
-    accessory or saddle (one, into your bag), or a stack of spheres, ammo, grenades, materials or food (into the
-    mailbox). Techs for buildings unlock as usual: a building can't be handed over. Suits a game played in one
-    sitting."""
+    accessory or saddle (one), or a stack of spheres, ammo, grenades, materials or food, all waiting in your
+    Archipelago Mailbox. Techs for buildings unlock as usual: a building can't be handed over. Suits a game played in
+    one sitting."""
     display_name = "Run Style"
     option_standard = 0
     option_nomad = 1
@@ -335,6 +344,7 @@ class PalworldOptions(PerGameCommonOptions):
     level_checks: LevelChecks
     tech_point_items: TechPointItems
     material_bundles: MaterialBundles
+    palworld_crates: PalworldCrates
     crate_sphere_weight: CrateSphereWeight
     crate_food_weight: CrateFoodWeight
     crate_common_weight: CrateCommonWeight
@@ -354,8 +364,8 @@ option_groups = [
     OptionGroup("Run Style", [RunStyle, SpeedBoost, BoostExpRate, BoostWorkSpeed, BoostGatherRate]),
     OptionGroup("Progression", [AreaLocks, LockSize, BeyondGoal, GearLogic, ProgressiveSpheres]),
     OptionGroup("Checks", [CheckLevel, TechChecks, CaptureChecks, AlphaChecks, FastTravelChecks, LevelChecks]),
-    OptionGroup("Filler", [CrateSphereWeight, CrateFoodWeight, CrateCommonWeight, CrateRareWeight, CrateJackpotWeight,
-                           MaterialBundles, TechPointItems]),
+    OptionGroup("Filler", [PalworldCrates, CrateSphereWeight, CrateFoodWeight, CrateCommonWeight, CrateRareWeight,
+                           CrateJackpotWeight, MaterialBundles, TechPointItems]),
     OptionGroup("Traps", [TrapChance, SlowTrapWeight, HungerTrapWeight, TeleportTrapWeight, FoolTrapWeight]),
     OptionGroup("Death Link", [DeathLink, DeathLinkAmnesty]),
 ]

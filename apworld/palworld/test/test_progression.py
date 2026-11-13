@@ -3,6 +3,7 @@ Regions Beyond the Goal), Gear Logic (progression_techs, normal_research in chec
 (unaffordable_slots in checks.py), the filler (filler_names in __init__.py) and the tech-slot names
 (data.shop_location)."""
 from . import PalworldTestBase
+from ..data import BUNDLES, CRATE, TECH_POINT_ITEMS
 from ..levels import ANCIENT_POINTS_PER_TOWER, TECH_POINTS_PER_LEVEL, TOWER_LEVELS, TOWER_MARGIN
 
 ONE_TOWER_CAP = TOWER_LEVELS["Starting Zone Tower"] + TOWER_MARGIN      # Zoe's level and the margin: 18
@@ -222,13 +223,19 @@ class TestPointsBudget(PalworldTestBase):
                 self.assertFalse(loc.item.advancement or loc.item.useful, f"{loc.name} holds {loc.item.name}")
 
 
+def pool_fills_every_check(test):
+    """The item pool holds one item for every check not already filled (events and the locked first sphere)."""
+    test.assertEqual(len(test.multiworld.itempool), len(test.multiworld.get_unfilled_locations(test.player)))
+
+
 class TestCrates(PalworldTestBase):
     """The default filler is the Palworld Crate (and traps); material bundles only with Material Bundles on."""
 
     def test_crates_not_bundles(self):
         names = [i.name for i in self.multiworld.itempool]
-        self.assertGreater(names.count("Palworld Crate"), 100)
+        self.assertGreater(names.count(CRATE), 100)
         self.assertFalse(any(n.endswith(" Bundle") for n in names))
+        pool_fills_every_check(self)
         weights = self.world.fill_slot_data()["options"]
         self.assertEqual([weights[k] for k in ("crate_sphere_weight", "crate_food_weight", "crate_common_weight",
                                                "crate_rare_weight", "crate_jackpot_weight")], [30, 25, 30, 12, 3])
@@ -241,6 +248,31 @@ class TestMaterialBundles(PalworldTestBase):
         names = [i.name for i in self.multiworld.itempool]
         self.assertIn("Palworld Crate", names)
         self.assertTrue(any(n.endswith(" Bundle") for n in names))
+
+
+class TestNoCrates(PalworldTestBase):
+    """Palworld Crates off, and Tech Point Items and Material Bundles off as by default: no crates, and the tech-point
+    items take their place, so every check still has an item."""
+    options = {"palworld_crates": False}
+
+    def test_tech_points_fill_in_place_of_crates(self):
+        names = [i.name for i in self.multiworld.itempool]
+        self.assertNotIn(CRATE, names)
+        self.assertGreater(sum(names.count(n) for n in TECH_POINT_ITEMS), 100)
+        pool_fills_every_check(self)
+
+
+class TestNoCratesWithBundles(PalworldTestBase):
+    """Palworld Crates off with Material Bundles on: the bundles take the crates' place, and tech points stay out as
+    Tech Point Items (off) says."""
+    options = {"palworld_crates": False, "material_bundles": True}
+
+    def test_bundles_fill_in_place_of_crates(self):
+        names = [i.name for i in self.multiworld.itempool]
+        self.assertNotIn(CRATE, names)
+        self.assertGreater(sum(names.count(n) for n in BUNDLES), 100)
+        self.assertFalse(any(n in TECH_POINT_ITEMS for n in names))
+        pool_fills_every_check(self)
 
 
 class TestTechSlotNames(PalworldTestBase):
