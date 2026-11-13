@@ -12,6 +12,9 @@ It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipe
                               by _ here and by - in the file), cooked with mips
   T_APWallSealed              the regions skin's bunker grille for locks beyond the goal
                               (logicmod/art/walls/ap-wall-sealed-bunker.png), cooked with mips
+  T_APWallDissolve            the unlock's dissolve pattern, embers (logicmod/art/walls/ap-wall-dissolve-embers.png):
+                              greyscale data, not colour, so imported with sRGB off; without it the material uses
+                              the engine's noise
   ModActor                    an empty Actor Blueprint, so BPModLoader's log shows the pak loaded
   PalworldArchipelagoArt_Label  Primary Asset Label: chunk 2, always cooked, everything in the folder
 
@@ -39,7 +42,9 @@ distance from the camera like the game's walls. Parameters the Lua mod sets on i
                         set by the Lua mod each update, 300 ms): within ReactRadius cm (600), rings RippleSize cm
                         apart (60) moving RippleSpeed a second
   DissolveStart, DissolveTime, EdgeColor  the wall dissolves from DissolveStart (game seconds, the Time node's clock;
-                        1e8: never) over DissolveTime s (1.6), a glowing EdgeColor edge eating it away (an unlock)
+                        1e8: never) over DissolveTime s (1.6), a glowing EdgeColor edge eating it away (an unlock).
+                        Where it opens first is T_APWallDissolve's grey (dark first), one texture tile per pattern
+                        tile, so the holes keep their place on the pattern
 The material is replaced as a whole if it already exists, so it is safe to run again after changing this script.
 Tests: none; it runs only in the Modding Kit on Windows, and the pak is checked in game (logicmod/README.md).
 """
@@ -51,6 +56,8 @@ ROOT = "/Game/Mods/PalworldArchipelagoArt"
 NAME = "M_APWall"
 CHUNK_ID = 2
 DISSOLVE_EDGE = 0.08             # how wide the dissolve's glowing edge is, in the noise's 0..1
+DISSOLVE_FILE = "ap-wall-dissolve-embers"  # logicmod/art/walls/ap-wall-dissolve-embers.png (the user's pick, A)
+DISSOLVE_TEXTURE = "T_APWallDissolve"
 REGION_WALL_PREFIX = "ap-wall-region-"    # logicmod/art/walls/ap-wall-region-<region>-<version>.png
 BUNKER_FILE = "ap-wall-sealed-bunker"     # logicmod/art/walls/ap-wall-sealed-bunker.png
 
@@ -370,16 +377,28 @@ def dissolve_progress(mat, time):
     return prog
 
 
-def dissolve(mat, wpos, time):
+def dissolve_order(mat, wpos, final_uv, pattern):
+    """Where the wall opens first, 0 to 1 (low first): the dissolve pattern's grey on the wall pattern's tiles, or,
+    without the pattern, the engine's noise in world space."""
+    if pattern:
+        grey = node(mat, unreal.MaterialExpressionTextureSample, 1250, 1550, texture=pattern,
+                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)
+        link(final_uv, "", grey, "UVs")
+        return grey
+    noise = node(mat, unreal.MaterialExpressionNoise, 1250, 1550, scale=0.006, levels=3, output_min=0.0, output_max=1.0)
+    link(wpos, "", noise, "Position")
+    return noise
+
+
+def dissolve(mat, wpos, time, final_uv, pattern):
     """The unlock's dissolve by the game's clock (DissolveStart, DissolveTime). Returns (what is left, the
     glowing edge)."""
     prog = dissolve_progress(mat, time)
-    noise = node(mat, unreal.MaterialExpressionNoise, 1250, 1550, scale=0.006, levels=3, output_min=0.0, output_max=1.0)
-    link(wpos, "", noise, "Position")
+    order = dissolve_order(mat, wpos, final_uv, pattern)
     # Clamped: layered noise overshoots its 0..1, and bits above 1 + e would never dissolve; the piece would go with
     # them still there.
     noise01 = node(mat, unreal.MaterialExpressionSaturate, 1400, 1600)
-    link(noise, "", noise01, "")
+    link(order, "", noise01, "")
     edge = DISSOLVE_EDGE
     thr = node(mat, unreal.MaterialExpressionMultiply, 1700, 1400, const_b=1.0 + edge)
     link(prog, "", thr, "A")
@@ -453,8 +472,9 @@ def opacity_output(mat, o1, react, left, rim, fade):
     mel.connect_material_property(o2, "", unreal.MaterialProperty.MP_OPACITY)
 
 
-def material():
-    """M_APWall, built node by node in the order its parts feed each other, then laid out and compiled."""
+def material(dissolve_pattern):
+    """M_APWall, built node by node in the order its parts feed each other, then laid out and compiled.
+    dissolve_pattern is T_APWallDissolve, or None for the engine's noise."""
     mat = new_material()
     wpos, u_face = wall_axes(mat)
     time, moving = moving_tiles(mat, wpos, u_face)
@@ -463,12 +483,14 @@ def material():
     c1, c2 = tinted(mat, seen)
     fade, o1 = faded_opacity(mat, wpos, solid)
     react = player_glow(mat, wpos, time)
-    left, rim = dissolve(mat, wpos, time)
+    left, rim = dissolve(mat, wpos, time, final_uv, dissolve_pattern)
     emissive_output(mat, c1, c2, react, rim)
     opacity_output(mat, o1, react, left, rim, fade)
     mel.layout_material_expressions(mat)
     mel.recompile_material(mat)
-    log(f"{NAME}: made (unlit, translucent, two-sided; {mel.get_num_material_expressions(mat)} nodes)")
+    how = DISSOLVE_TEXTURE if dissolve_pattern else "the engine's noise"
+    log(f"{NAME}: made (unlit, translucent, two-sided; {mel.get_num_material_expressions(mat)} nodes; "
+        f"dissolve by {how})")
     return mat
 
 
@@ -603,6 +625,28 @@ def region_walls():
     return made
 
 
+def dissolve_pattern():
+    """T_APWallDissolve: the dissolve's greyscale pattern, imported as data (sRGB off, 8-bit grey, so the threshold
+    keeps all 256 steps), with mips. None when the file is missing or the import fails."""
+    src = os.path.join(logicmod_folder(), "art", "walls", DISSOLVE_FILE + ".png")
+    without = "M_APWall dissolves by the engine's noise"
+    if not os.path.isfile(src):
+        log(f"{DISSOLVE_TEXTURE}: skipped, no {src} ({without})")
+        return None
+    task = import_task(src, DISSOLVE_TEXTURE)
+    tools.import_asset_tasks([task])
+    tex, found_by = imported_texture(task, DISSOLVE_TEXTURE)
+    if not tex:
+        log(f"{DISSOLVE_TEXTURE}: the import of {src} failed ({without})")
+        return None
+    tex.set_editor_property("srgb", False)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE)
+    tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP)
+    tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
+    log(f"{DISSOLVE_TEXTURE}: imported from {src} (greyscale data, sRGB off, with mips), found by {found_by}")
+    return tex
+
+
 def mod_actor():
     """An empty Actor Blueprint named ModActor: UE4SS's BPModLoader then loads the pak's ModActor and says so, proof
     that the game mounted the pak. Without one it logs "ModClass ... is not valid", and a failed LoadAsset of
@@ -621,7 +665,8 @@ def mod_actor():
 def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
-    for a in [material(), paw_layer(), *region_walls(), mod_actor(), label()]:
+    pattern = dissolve_pattern()
+    for a in [material(pattern), pattern, paw_layer(), *region_walls(), mod_actor(), label()]:
         if a:
             assets.save_loaded_asset(a, only_if_is_dirty=False)
     log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as "
