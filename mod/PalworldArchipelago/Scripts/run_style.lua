@@ -56,7 +56,7 @@ function RUN_STYLE.boost(get)
     return v == "1" or v == "true"
 end
 
--- What a received tech hands over in Nomad: { { id, n, bag = gear } }, or nil (Standard, or a building).
+-- What a received tech hands over in Nomad: { { id, n, gear } }, or nil (Standard, or a building).
 function RUN_STYLE.gifts(get, tech)
     if RUN_STYLE.style(get) ~= RUN_STYLE.STYLE.nomad then return nil end
     return TECH_GIFTS[tech]

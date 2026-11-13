@@ -1,8 +1,9 @@
 -- The Palworld Crates window, drawn over the mailbox's chest window (which already has the cursor and the input): a
 -- row per crate kind waiting (its icon, its count, a button to open one), the chosen kind in the details pane, and the
 -- last crate opened in the contents cells. Closed, a small button brings it back whenever the chest window is open:
--- "Open Palworld Crates (N)" while crates wait, "Palworld Crates" (to see the last crate opened) when none do. Every
--- image falls back to a plain box without its file. Untested in game: the reopen button, where it is now.
+-- "Open Palworld Crates (N)" while crates wait, "Palworld Crates" (to see the last crate opened) when none do. In a
+-- seed without Palworld Crates (the YAML's option) neither shows while none wait. Every image falls back to a plain box
+-- without its file. Untested in game: the reopen button, where it is now.
 -- Tests: mod/test/tests/crates_run_style.lua; group "the crate window" (tools/lua_harness.sh, in CI).
 local CW = {}
 local ART = require("art")
@@ -19,6 +20,7 @@ local place, sized = WIDGETS.place, WIDGETS.sized
 -- What main.lua hands over (CW.install).
 --   chestWidget()     the chest window the mailbox has open, or nil
 --   openCrate(kind)   opens one crate of a kind into the mailbox: the kind opened and its contents { id, n }, or nil
+--   cratesInSeed()    whether the seed has Palworld Crates
 --   guardedHook(name, fn)  optional: a hook callback that no update can run inside
 local env = nil
 
@@ -405,12 +407,18 @@ local function keepSelectionValid()
     end
 end
 
+-- Whether the window or its small button belongs on the chest window: in a seed with Palworld Crates, and in one
+-- without them only while crates wait all the same.
+local function cratesBelong()
+    return env.cratesInSeed() or CRATES.count() > 0
+end
+
 -- Every update: runs the buttons' clicks, follows the mailbox's chest window, and draws the window or its small
 -- button again when the crates, the choice or the last crate opened change, or what was drawn has gone.
 function CW.update()
     CLICKS.run(OWNER)
     local widget = env and env.chestWidget()
-    if not (widget and valid(widget)) then
+    if not (widget and valid(widget) and cratesBelong()) then
         if overlay then
             hide()
         end

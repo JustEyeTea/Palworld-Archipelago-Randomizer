@@ -1,6 +1,8 @@
 -- The Archipelago mailbox: items received from the multiworld wait here until the player takes them, instead of
 -- landing in the bag mid-fight. The list is the mod's own, kept in the save file, with no limit. It opens from the
 -- "Archipelago Mailbox" button on the Esc menu and the Inventory page (menu.lua), or an optional key (mailbox_key).
+-- Gear and accessories wait in a list of their own (M.gear): they carry per-item data (durability, the ammo loaded)
+-- that the hidden chest's slots can't hold, so they never go in the chest, and go into the bag when the mailbox opens.
 -- config.txt: mailbox_view=chest skips the LogicMod's window.
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local M = {}
@@ -10,7 +12,7 @@ local WINDOW = require("mailbox_window")
 local CHEST = require("mailbox_chest")
 local log = UTIL.log
 -- The window's, the chest's and the list's lines are logged once a world (forgetOnWorldChange() forgets them); the
--- bag's (bag.lua) once a session, since the bag is also used for crate gear.
+-- bag's (bag.lua) once a session, since how the game answers its calls does not change from world to world.
 local once, forgetOnce = UTIL.onceForgettable()
 
 -- The name the player sees, on the buttons, the LogicMod window and the chest window's heading.
@@ -26,7 +28,7 @@ M.TITLE = "Archipelago Mailbox"
 local env
 
 ------------------------------------------------------------------------------------------------------------------------
--- The list and the save file (the line mail=Wood:50,Stone:50, in the mod's per-seed save).
+-- The lists and the save file (the lines mail=Wood:50,Stone:50 and mailgear=Sword:1, in the mod's per-seed save).
 
 -- The mailbox's states, as the player sees them, and the moves between them. Every state but "closed" is held in the
 -- records named; mailboxState() says which one the mailbox is in.
@@ -59,8 +61,11 @@ local WAIT = {
     menuCloses = UTIL.updates(0.6),   -- after an open is asked, so the game's menu closes first
 }
 
--- State: the list. Forgotten: on a new seed (M.reset()); kept in the save file.
+-- State: the lists. Forgotten: on a new seed (M.reset()); kept in the save file.
 M.queue = {}                  -- { { id = static item id, n = count } } in arrival order, one entry per item
+M.gear = {}                   -- the same for gear and accessories, which never go in the hidden chest (M.addGear)
+-- State. Forgotten: on a new seed (M.reset()).
+local gearToHandOut = false   -- gear arrived, or an open was asked for, since gear was last handed out (handOutGear)
 -- State: the opening. Forgotten: on a new world (forgetOnWorldChange()), on a new seed (M.reset()).
 local openAsked = false       -- an open was asked for and is not done yet
 local updatesToWait = 0       -- updates left before an asked open is tried (the menu closes first)
@@ -93,12 +98,14 @@ function M.removeCount(list, id, count)
     end
 end
 
--- How many kinds of item wait, and how many items in all.
+-- How many kinds of item wait (gear included), and how many items in all.
 function M.count()
     local kinds, items = 0, 0
-    for _, entry in ipairs(M.queue) do
-        kinds = kinds + 1
-        items = items + entry.n
+    for _, list in ipairs({ M.queue, M.gear }) do
+        for _, entry in ipairs(list) do
+            kinds = kinds + 1
+            items = items + entry.n
+        end
     end
     return kinds, items
 end
@@ -121,48 +128,78 @@ function M.busy()
     return state ~= "closed" and (state ~= "lost" or openAsked)
 end
 
--- The buttons' label. The count is the kinds waiting (a stack each in the chest), not the items: one crate's gold
--- alone is thousands of coins.
+-- The buttons' label. The count is the kinds waiting (a stack each in the chest, and each kind of gear), not the
+-- items: one crate's gold alone is thousands of coins.
 function M.label()
     local kinds = M.count()
     return M.TITLE .. (kinds > 0 and (" (" .. kinds .. ")") or "")
+end
+
+-- Tells the player, once a session, where the items they receive wait.
+local function tellWhereItemsWaitOnce()
+    if tipped then return end
+    tipped = true
+    -- Only the Esc route: the Inventory page's button is untested in game.
+    env.notify("Items you receive wait in your Archipelago Mailbox: Esc menu > Archipelago Mailbox.")
 end
 
 -- An item received: it waits in the list (and in the chest's waiting line while the chest view is open).
 function M.add(id, count)
     M.addCount(M.queue, id, count)
     CHEST.received(id, count)
-    if not tipped then
-        tipped = true
-        -- Only the Esc route: the Inventory page's button is untested in game.
-        env.notify("Items you receive wait in your Archipelago Mailbox: Esc menu > Archipelago Mailbox.")
+    tellWhereItemsWaitOnce()
+end
+
+-- Gear or an accessory received (from a crate or a Nomad tech): it waits in the gear list, out of the hidden chest,
+-- and goes into the bag the next time the mailbox is open (handOutGear). In the bag it is made by the game's own
+-- AddItem, which gives it its per-item data; a chest slot would hold it without any.
+function M.addGear(id, count)
+    M.addCount(M.gear, id, count)
+    gearToHandOut = true
+    tellWhereItemsWaitOnce()
+end
+
+-- A list as the save file writes it: "Wood:50,Stone:50".
+local function listText(list)
+    local parts = {}
+    for _, entry in ipairs(list) do
+        parts[#parts + 1] = entry.id .. ":" .. entry.n
     end
+    return table.concat(parts, ",")
+end
+
+-- A list read back from its text in the save file.
+local function listFromText(text)
+    local list = {}
+    for id, count in text:gmatch("([^:,]+):(%d+)") do
+        M.addCount(list, id, tonumber(count))
+    end
+    return list
 end
 
 -- The mailbox's lines for the save file.
 function M.serialize()
-    local parts = {}
-    for _, entry in ipairs(M.queue) do
-        parts[#parts + 1] = entry.id .. ":" .. entry.n
-    end
-    return "mail=" .. table.concat(parts, ",") .. "\n"
+    return "mail=" .. listText(M.queue) .. "\nmailgear=" .. listText(M.gear) .. "\n"
 end
 
--- One line of the save file; true if it was the mailbox's.
+-- One line of the save file; true if it was the mailbox's. A save from an older mod holds the gear its bag refused as
+-- cratebag= in place of mailgear=: that gear waits in the gear list too.
 function M.load(line)
-    local list = line:match("^mail=(.*)$")
-    if not list then return false end
-    if CHEST.viewing() then return true end           -- a chest view is open: the list in memory is newer
-    M.queue = {}
-    for id, count in list:gmatch("([^:,]+):(%d+)") do
-        M.addCount(M.queue, id, tonumber(count))
+    local items = line:match("^mail=(.*)$")
+    local gear = line:match("^mailgear=(.*)$") or line:match("^cratebag=(.*)$")
+    if not (items or gear) then return false end
+    if CHEST.viewing() then return true end           -- a chest view is open: the lists in memory are newer
+    if items then
+        M.queue = listFromText(items)
+    else
+        M.gear = listFromText(gear)
     end
     return true
 end
 
--- Forgets the last seed's list and whatever was open.
+-- Forgets the last seed's lists and whatever was open.
 function M.reset()
-    M.queue, openAsked = {}, false
+    M.queue, M.gear, openAsked, gearToHandOut = {}, {}, false, false
     WINDOW.forget()
     CHEST.forget()
 end
@@ -176,15 +213,16 @@ function M.tellStays(id, why)
     log("mailbox: " .. id .. " stays in the mailbox: " .. tostring(why))
 end
 
--- Takes one item's whole entry into the bag; how many went in. What the bag refuses stays in the list. The caller
--- writes the save file (once, after all it takes: a write each kind would be one per kind on Take all).
-function M.take(id)
-    for index, entry in ipairs(M.queue) do
+-- Takes one item's whole entry in `list` (M.queue or M.gear) into the bag; how many went in. What the bag refuses
+-- stays in the list. The caller writes the save file (once, after all it takes: a write each kind would be one per
+-- kind on Take all).
+local function takeEntry(list, id)
+    for index, entry in ipairs(list) do
         if entry.id == id then
             local got, why = BAG.give(id, entry.n)
             entry.n = entry.n - got
             if entry.n <= 0 then
-                table.remove(M.queue, index)
+                table.remove(list, index)
             end
             if got == 0 then
                 M.tellStays(id, why)
@@ -195,14 +233,23 @@ function M.take(id)
     return 0
 end
 
--- Takes everything into the bag; how many items went in, and how many are left.
+-- Takes one item's whole entry, plain or gear, into the bag; how many went in (see takeEntry).
+function M.take(id)
+    local got = takeEntry(M.queue, id)
+    if got > 0 then return got end
+    return takeEntry(M.gear, id)
+end
+
+-- Takes everything, gear included, into the bag; how many items went in, and how many are left.
 function M.takeAll()
     local took, left = 0, 0
-    for _, entry in ipairs({ table.unpack(M.queue) }) do
-        local count = entry.n
-        local got = M.take(entry.id)
-        took = took + got
-        left = left + (count - got)
+    for _, list in ipairs({ M.queue, M.gear }) do
+        for _, entry in ipairs({ table.unpack(list) }) do
+            local count = entry.n
+            local got = takeEntry(list, entry.id)
+            took = took + got
+            left = left + (count - got)
+        end
     end
     env.save()
     return took, left
@@ -215,14 +262,14 @@ function M.open()
         env.notify("Your mailbox opens only in the world this seed is played in.")
         return
     end
-    if not env.connected() and #M.queue == 0 then
+    if not env.connected() and M.count() == 0 then
         env.notify("Connect to Archipelago to see your mailbox.")
         return
     end
     -- Already open (the key pressed again): nothing to do; asking again would reopen it as soon as it closes. A chest
     -- view that can't be followed is the exception: a new open is what settles it.
     if WINDOW.isOpen() or CHEST.followable() then return end
-    openAsked, updatesToWait = true, WAIT.menuCloses
+    openAsked, updatesToWait, gearToHandOut = true, WAIT.menuCloses, true
 end
 
 -- A new world (or the title): what was open or asked for belongs to the old one.
@@ -308,6 +355,24 @@ local function tryOpen()
     tryChest(pawn, playerState)
 end
 
+-- While the mailbox is open (its window, or the chest view), the gear waiting goes into the bag: on the first update
+-- it is open, and again when more gear arrives. What the bag refuses stays in the gear list until then; the player is
+-- told what went in. Untested in game: gear handed to the bag as the mailbox opens.
+local function handOutGear()
+    if not gearToHandOut or not (WINDOW.isOpen() or CHEST.viewing()) then return end
+    gearToHandOut = false
+    local names = {}
+    for _, entry in ipairs({ table.unpack(M.gear) }) do
+        if takeEntry(M.gear, entry.id) > 0 then
+            names[#names + 1] = BAG.nameOf(entry.id)
+        end
+    end
+    if #names == 0 then return end
+    log("mailbox: gear handed to the bag: " .. table.concat(names, ", ") .. "; " .. #M.gear .. " kind(s) of gear stay")
+    env.notify("From your mailbox, now in your bag: " .. table.concat(names, ", ") .. ".")
+    env.save()
+end
+
 -- One update of the mailbox, as a list of steps in order.
 local function updateMailbox(ctx)
     forgetOnWorldChange(ctx)
@@ -323,6 +388,7 @@ local function updateMailbox(ctx)
     followChestBeingMade()
     settleLostView()
     tryOpen()
+    handOutGear()
 end
 
 -- Called from the mod's update loop (game thread). ctx: this update's player from main.lua ({ pc, pawn, controllerKey,

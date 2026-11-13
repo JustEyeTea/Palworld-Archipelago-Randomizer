@@ -1,10 +1,10 @@
 -- The player's bag: who the player is in this update, and giving items to their bag, with item names and stack
--- sizes. The mailbox uses it, and so does items.lua: crate gear and Nomad gear gifts.
+-- sizes. The mailbox gives with it; items.lua and the crate window read item names from it.
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local BAG = {}
 local UTIL = require("util")
 local log = UTIL.log
-local onceSession = UTIL.onceIn("mailbox")   -- once a session: the bag is also used for crate gear
+local onceSession = UTIL.onceIn("mailbox")   -- once a session: how the game answers does not change by world
 
 local BAG_GAME = {
     palUtility = "/Script/Pal.Default__PalUtility",      -- the game's helpers for the player's HUD, items and map
