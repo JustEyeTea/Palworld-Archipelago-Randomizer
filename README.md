@@ -21,7 +21,7 @@ Archipelago server. Targets Palworld 1.0.5 and Archipelago 0.6.8. To install and
 
 <img src="art/readme/feature-shop.png" alt="The Technology tree becomes an Archipelago shop" width="800">
 <img src="art/readme/feature-passes.png" alt="Regions open with Region Passes" width="800">
-<img src="art/readme/feature-walls.png" alt="Locked regions are walled off until their pass arrives" width="800">
+<img src="art/readme/feature-walls.png" alt="A locked region's wall: cream paws over the region's colour, with the hint pop-up for its pass" width="800">
 
 `apworld/palworld/` is the APWorld: options, items, locations and logic, with `game_data.py` generated from the game's
 tables by `tools/gen_apworld_data.py`. `mod/PalworldArchipelago/` is the UE4SS Lua mod (its `Scripts/ap_data.lua` is
