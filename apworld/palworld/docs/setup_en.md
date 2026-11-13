@@ -22,17 +22,15 @@ with `[PalworldAP]`.
 1. Find the game's folder: in Steam, right-click Palworld > Manage > Browse local files. The paths below start
    there (usually `C:\Program Files (x86)\Steam\steamapps\common\Palworld`).
 2. Install UE4SS into `Pal\Binaries\Win64`, as its own instructions say. Start the game once and quit, to check that
-   `Pal\Binaries\Win64\ue4ss\UE4SS.log` appears.
+   `Pal\Binaries\Win64\ue4ss\UE4SS.log` appears. If your UE4SS came from the Steam Workshop instead (the "UE4SS
+   Experimental (Palworld)" item), it lives in `Mods\NativeMods\UE4SS`: use that folder wherever these steps say
+   `Pal\Binaries\Win64\ue4ss` (untested with this mod). Never keep both: two copies of UE4SS crash the game.
 3. Copy the package's `ue4ss` folder over `Pal\Binaries\Win64\ue4ss`, so that `ue4ss\Mods\APConnector` and
    `ue4ss\Mods\PalworldArchipelago` are there.
-4. Open `ue4ss\Mods\mods.txt` and add these two lines, above any `Keybinds` line:
-
-   ```
-   APConnector : 1
-   PalworldArchipelago : 1
-   ```
-
-   Without APConnector the log says `APConnector is not installed` and the mod stays off.
+4. Nothing to switch on: both folders hold an `enabled.txt`, so UE4SS starts them without a line in
+   `ue4ss\Mods\mods.txt`. (Lines there for them are fine too.) To turn the mod off, delete the two `enabled.txt`
+   files and any lines for them in `mods.txt`. Without APConnector the log says `APConnector is not installed` and
+   the mod stays off.
 5. Optional: copy `PalworldArchipelagoArt.pak` to `Pal\Content\Paks\LogicMods` (make the folder if it isn't there).
    `BPModLoaderMod` must stay on in `mods.txt`; UE4SS ships it on. (A second pak, `PalworldArchipelagoUI.pak`, would
    give the Archipelago Mailbox its own window; it isn't released yet, and the mailbox works in the game's chest
