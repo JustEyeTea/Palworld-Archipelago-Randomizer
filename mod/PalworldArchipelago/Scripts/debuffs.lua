@@ -1,6 +1,7 @@
--- Debuff icons for timed traps, so the player sees each running effect and its time left. A row at the top centre of
--- the HUD, under the compass: one tile per running effect (art/ap-debuff-<name>.png; a tinted tile with the effect's
--- short name until it arrives) with its time left under it (m:ss), in the order the effects started. Hosted on the
+-- Debuff icons for traps, so the player sees each running effect and its time left. A row at the top centre of the
+-- HUD, under the compass: one tile per effect (art/ap-debuff-<name>.png; a tinted tile with the effect's short name
+-- until it arrives), in the order the effects started. A timed effect (a Slow Trap) has its time left under it (m:ss);
+-- an untimed tile (a trap that acts at once, or one waiting) has nothing under it. Hosted on the
 -- HUD layout's canvas like the hint pop-up (WIDGETS.hudCanvas; seen working in game), never taking a click.
 -- Untested in game: the icon row and its timers.
 -- Tests: mod/test/tests/locks_hud.lua; group "debuff icons, the hint plate and the goal banner"
@@ -27,8 +28,9 @@ local WAIT = {
 
 local CREAM, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("17324D", 0.9)
 
--- State: the running effects, in the order they started: { key, icon, short, tint, untilTick }. Forgotten: when an
--- effect ends (DEBUFFS.clear, from traps.lua) or its time is up (DEBUFFS.tick); kept through a world change, since
+-- State: the running effects, in the order they started: { key, icon, short, tint, untilTick, timed }. untilTick is
+-- nil for an untimed tile kept until DEBUFFS.clear; timed says whether its time left shows under it. Forgotten: when
+-- an effect ends (DEBUFFS.clear, from traps.lua) or its time is up (DEBUFFS.tick); kept through a world change, since
 -- traps.lua ends the effect itself.
 local effects = {}
 -- State: the row on screen: { box, layout, hud = the HUD layout's address (UTIL.addr), sig, timers = { key ->
@@ -65,8 +67,8 @@ local function hide()
     shown = nil
 end
 
--- One effect's tile at `x` on the row's overlay: its icon (or a plain tile with its short name) and its timer. The
--- timer's text block.
+-- One effect's tile at `x` on the row's overlay: its icon (or a plain tile with its short name) and, for a timed
+-- effect, its timer. The timer's text block, or nil for an untimed tile.
 local function addTile(layout, over, effect, x, tick)
     local art = ART.box(layout, effect.icon, TILE, TILE)
     if art then
@@ -77,6 +79,7 @@ local function addTile(layout, over, effect, x, tick)
         local label = tileWide(layout, centredLine(layout, effect.short, LABEL_PT, CREAM))
         WIDGETS.place(over, label, x, TILE / 2 - LABEL_HALF_LINE)
     end
+    if not effect.timed then return nil end
     local timer = centredLine(layout, (clock(effect.untilTick, tick)), TIMER_PT, CREAM)
     WIDGETS.place(over, tileWide(layout, timer), x, TILE + TIMER_GAP)
     return timer
@@ -96,7 +99,9 @@ local function build(tick)
     local timers, left = {}, {}
     for i, effect in ipairs(effects) do
         timers[effect.key] = addTile(layout, over, effect, (i - 1) * (TILE + GAP), tick)
-        left[effect.key] = select(2, clock(effect.untilTick, tick))
+        if effect.timed then
+            left[effect.key] = select(2, clock(effect.untilTick, tick))
+        end
     end
     WIDGETS.pinToCanvas(canvas, box, { anchor = { X = 0.5, Y = 0 }, alignment = { X = 0.5, Y = 0 },
                                        position = { X = 0, Y = ROW_TOP }, z = ROW_Z })
@@ -108,21 +113,34 @@ end
 local function signature()
     local parts = {}
     for _, effect in ipairs(effects) do
-        parts[#parts + 1] = effect.key .. ":" .. effect.icon
+        parts[#parts + 1] = effect.key .. ":" .. effect.icon .. (effect.timed and ":timed" or "")
     end
     return table.concat(parts, "|")
 end
 
--- An effect starts, or restarts with a new end (a second Slow Trap). icon: the art file's name (no .png); short: the
--- tile's label until that art arrives; tint: the plain tile's colour (linear) or nil.
-function DEBUFFS.set(key, icon, short, untilTick, tint)
+-- Starts effect `key`, or changes it if it is shown already. The one place that writes an effect (DEBUFFS.set and
+-- DEBUFFS.setUntimed call it).
+local function put(key, icon, short, untilTick, tint, timed)
     for _, effect in ipairs(effects) do
         if effect.key == key then
-            effect.untilTick, effect.icon, effect.short, effect.tint = untilTick, icon, short, tint
+            effect.icon, effect.short, effect.untilTick, effect.tint, effect.timed = icon, short, untilTick, tint, timed
             return
         end
     end
-    effects[#effects + 1] = { key = key, icon = icon, short = short, untilTick = untilTick, tint = tint }
+    effects[#effects + 1] = { key = key, icon = icon, short = short, untilTick = untilTick, tint = tint, timed = timed }
+end
+
+-- A timed effect starts, or restarts with a new end (a second Slow Trap), with its time left under its tile. icon: the
+-- art file's name (no .png); short: the tile's label until that art arrives; tint: the plain tile's colour (linear) or
+-- nil.
+function DEBUFFS.set(key, icon, short, untilTick, tint)
+    put(key, icon, short, untilTick, tint, true)
+end
+
+-- An untimed tile, with nothing under it: shown until `untilTick`, or until DEBUFFS.clear when that is nil (a trap
+-- waiting). Same icon, short and tint as DEBUFFS.set.
+function DEBUFFS.setUntimed(key, icon, short, untilTick, tint)
+    put(key, icon, short, untilTick, tint, false)
 end
 
 -- An effect has ended (traps.lua): its tile goes at the next update.
@@ -144,10 +162,19 @@ function DEBUFFS.active()
     return out
 end
 
+-- The art name an effect shows, or nil when it is not running (for the harness: traps.lua).
+function DEBUFFS.iconOf(key)
+    for _, effect in ipairs(effects) do
+        if effect.key == key then return effect.icon end
+    end
+    return nil
+end
+
 -- Drops the effects whose time is up (and has shown at 0:00 for WAIT.endedShows).
 local function dropEnded(tick)
     for i = #effects, 1, -1 do
-        if tick >= effects[i].untilTick + WAIT.endedShows then
+        local untilTick = effects[i].untilTick
+        if untilTick and tick >= untilTick + WAIT.endedShows then
             table.remove(effects, i)
         end
     end
@@ -161,14 +188,16 @@ local function rowStands()
     return ok and stands
 end
 
--- Sets each timer's text when its second changes.
+-- Sets each timed effect's timer text when its second changes.
 local function countDown(tick)
     for _, effect in ipairs(effects) do
         local timer = shown.timers[effect.key]
-        local text, seconds = clock(effect.untilTick, tick)
-        if timer and shown.left[effect.key] ~= seconds then
-            shown.left[effect.key] = seconds
-            pcall(function() timer:SetText(FText(text)) end)
+        if timer then
+            local text, seconds = clock(effect.untilTick, tick)
+            if shown.left[effect.key] ~= seconds then
+                shown.left[effect.key] = seconds
+                pcall(function() timer:SetText(FText(text)) end)
+            end
         end
     end
 end

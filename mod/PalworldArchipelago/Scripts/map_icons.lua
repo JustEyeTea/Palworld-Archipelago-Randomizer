@@ -43,10 +43,12 @@ local function openTexture(k)
     if ART.file("ap-map-stamp-open") ~= "" then return ART.texture("ap-map-stamp-open") end
     return nil
 end
--- A map point (0-1 across and down the map square) as a world location. The numbers are the map's bounds
--- (region_map.lua, area_map.lua): world X runs from 349400 at the top down 1448800, world Y from -724400 at the left
--- across 1448800.
-local function worldAt(u, v) return { X = 349400 - v * 1448800, Y = u * 1448800 - 724400, Z = 0 } end
+-- A map point (0-1 across and down the map square) as a world location, from the map's bounds (layout.bounds, as
+-- *_map.lua writes them): world X runs from xMax at the top down to xMin, world Y from yMin at the left across to yMax.
+local function worldAt(u, v)
+    local b = layout.bounds
+    return { X = b.xMax - v * (b.xMax - b.xMin), Y = b.yMin + u * (b.yMax - b.yMin), Z = 0 }
+end
 MAP_ICONS.worldAt = worldAt                                       -- (for the harness)
 -- A live screen's key in mapIcons: its address and its owning player's ("?" when that can't be read). A pawn change
 -- in the same world keeps its player controller, so the icons are not added twice then.

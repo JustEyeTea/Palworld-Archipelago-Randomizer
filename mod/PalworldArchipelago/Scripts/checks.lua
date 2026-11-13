@@ -9,10 +9,11 @@ local ITEMS = require("items")
 local PLAYER = require("player")
 local POPUP = require("hint_popup")
 local RECORDS = require("records")
+local SLOT = require("slot_data")
 local STATE = require("ap_state")
 local UTIL = require("util")
 local WAIT = CLOCK.WAIT
-local ap, slotNumber = STATE.ap, STATE.slotNumber
+local ap = STATE.ap
 local log, once = UTIL.log, UTIL.once
 local notify, relicCount = PLAYER.notify, ITEMS.relicCount
 
@@ -21,7 +22,7 @@ local GOAL_NEVER = math.huge  -- the count a goal needs when slot data does not 
 local GOALS = { ["0"] = "towers", ["1"] = "relic_hunt", ["2"] = "paldeck", ["3"] = "world_tree" }
 -- Says which goal this seed has (each connection; each goal is logged once).
 function CHECKS.logSeedGoal()
-    local number = AP_SlotData("options.goal")
+    local number = SLOT.text("options.goal")
     if number == nil or number == "" then
         UTIL.took("the seed's goal", "towers (the seed does not say: the default)")
         return
@@ -31,7 +32,7 @@ end
 
 -- What was done, as the goal's notice words it, once the records (`found`) say the seed's goal is reached; else nil.
 local function goalReached(found)
-    local number = AP_SlotData("options.goal")
+    local number = SLOT.text("options.goal")
     if number == nil or number == "" then    -- (a seed without the option: the default, towers)
         number = "0"
     end
@@ -42,15 +43,15 @@ local function goalReached(found)
         return nil
     end
     if goal == "relic_hunt" then
-        local have, need = relicCount(), slotNumber("relics_needed", GOAL_NEVER)
+        local have, need = relicCount(), SLOT.number("relics_needed", GOAL_NEVER)
         return have >= need and (have .. " Palpagos Relics found") or nil
     elseif goal == "paldeck" then
-        local need = slotNumber("options.paldeck_count", GOAL_NEVER)
+        local need = SLOT.number("options.paldeck_count", GOAL_NEVER)
         return found.pals >= need and (found.pals .. " Pals registered") or nil
     elseif goal == "world_tree" then
         return found.beaten.WorldTreeBoss and "the World Tree's boss beaten" or nil
     end
-    local need = slotNumber("options.tower_count", GOAL_NEVER)
+    local need = SLOT.number("options.tower_count", GOAL_NEVER)
     return found.towers >= need and (found.towers .. " tower(s) beaten") or nil
 end
 

@@ -17,6 +17,7 @@ local MAIL = require("mailbox")
 local PERF = require("perf")
 local PLAYER = require("player")
 local SAVE = require("save")
+local SLOT = require("slot_data")
 local STATE = require("ap_state")
 local RUN_STYLE = require("run_style")
 local TECH_LOCK = require("tech_lock")
@@ -27,7 +28,7 @@ local WALL_HINTS = require("wall_hints")
 local WALLS = require("walls")
 local WORLD = require("world")
 local WAIT = CLOCK.WAIT
-local ap, slotFlag, slotNumber = STATE.ap, STATE.slotFlag, STATE.slotNumber
+local ap = STATE.ap
 local cfg, writeConfig = CONFIG.cfg, CONFIG.write
 local log = UTIL.log
 local notify, loadSave = PLAYER.notify, SAVE.load
@@ -78,12 +79,12 @@ end
 -- renamed send options.area_size, with the same numbers (its values were "areas" for the 15 and "regions" for the 75);
 -- older seeds send neither. WALLS names each cut as Lock Size does.
 local function applyLockSize()
-    local size = AP_SlotData("options.lock_size")
+    local size = SLOT.text("options.lock_size")
     local useAreas                                  -- true: the 75 areas; false: the 15 regions
     if size ~= nil and size ~= "" then
         useAreas = size == "1" or size == "areas"
     else                                            -- a seed made before the rename
-        local old = AP_SlotData("options.area_size")
+        local old = SLOT.text("options.area_size")
         useAreas = old == "1" or old == "regions"
     end
     WALLS.setLayout(useAreas and "areas" or "regions")
@@ -94,10 +95,10 @@ end
 local function applyBeyondGoal()
     ap.beyond = {}
     local nBeyond = 0
-    for lock in AP_SlotData("beyond_goal_areas"):gmatch("[^|]+") do
+    for lock in SLOT.text("beyond_goal_areas"):gmatch("[^|]+") do
         ap.beyond[lock], nBeyond = true, nBeyond + 1
     end
-    local mode = AP_SlotData("options.beyond_goal")
+    local mode = SLOT.text("options.beyond_goal")
     ap.beyondOpen = mode == "2" or mode == "open"
     if ap.beyondOpen then
         for lock in pairs(ap.beyond) do
@@ -112,14 +113,14 @@ end
 
 -- The options that are only logged: the run style, Speed Boost and traps.
 local function logRunOptions()
-    local style = RUN_STYLE.style(AP_SlotData)
+    local style = RUN_STYLE.style(SLOT.text)
     if style ~= 0 then
         log("run style: " .. RUN_STYLE.NAMES[style] .. " (techs also hand over what they make)")
     end
-    if RUN_STYLE.boost(AP_SlotData) then
+    if RUN_STYLE.boost(SLOT.text) then
         log("speed boost: on (this seed changes the world's EXP, work speed and gathering)")
     end
-    local chance = slotNumber("options.trap_chance", 0)
+    local chance = SLOT.number("options.trap_chance", 0)
     if chance > 0 then
         log("traps: " .. chance .. "% of filler items are traps in this seed")
     end
@@ -128,7 +129,7 @@ end
 -- The seed's options that shape this session: Area Locks and their cut of the map, the locks beyond the goal, and
 -- Death Link; the run style and traps are logged.
 local function applySeedOptions()
-    AREA_LOCKS.setOn(slotFlag("options.area_locks"))
+    AREA_LOCKS.setOn(SLOT.flag("options.area_locks"))
     applyLockSize()
     applyBeyondGoal()
     DEATH_LINK.applyOption()
@@ -141,8 +142,8 @@ end
 local function onConnected(was)
     STATE.setStatus("connected")
     ap.connectedTick = CLOCK.now()
-    ap.me = tonumber(AP_SlotData("slot"))
-    local seed = AP_SlotData("seed")
+    ap.me = tonumber(SLOT.text("slot"))
+    local seed = SLOT.text("seed")
     if seed ~= "" and (seed ~= ap.seed or cfg.slot ~= ap.slotName) then
         if ap.seed then    -- another seed or slot: nothing of the last one carries over
             resetSeed(seed, cfg.slot)
@@ -150,7 +151,7 @@ local function onConnected(was)
         ap.seed, ap.slotName = seed, cfg.slot
         loadSave()
     end
-    local research = AP_SlotData("research_techs")
+    local research = SLOT.text("research_techs")
     TECH_LOCK.setResearch(research)
     TECH_LOCK.keepResearch(research)
     local locs = {}

@@ -256,7 +256,7 @@ end
 -- (art/ap-chart-hatch.png; a plain hatch in the ink if the file is missing). Both are kept to land, since a lock's
 -- labels take in its waters (the colour map tells land from sea, as for the chart); the hatch is light, at 0.28, so
 -- the map does not look busy; and the line's edge is softened so it does not stair-step zoomed in.
--- config.txt map_regions=0: none. Format: image_tools.hpp, compose_fog, argument regions (these borders).
+-- config.txt map_regions=0: none. Format: image_tools.hpp, compose_fog, argument borders.
 local BORDER_INK, BORDER_WIDTH, BORDER_DASH, BORDER_GAP, BORDER_HATCH = "59,42,26,210", 3, 14, 8, 0.28
 local function bordersSpec(passes)
     if W.chartBordersOff then return "" end
@@ -269,8 +269,7 @@ local function startFog(stamps, borders, tag)
     local def = W.dir .. "\\" .. DEFAULT_MASK_FILE
     local art = territories() and TERR_FOG or CHART_FILE
     local size = territories() and terr.size or CHART_SIZE                  -- (the fog art's own size: its 8-bit path)
-    -- AP_ComposeFog(fog art, mask, default mask, spec, out, size, stamps, regions): dllmain.cpp's list (regions: the
-    -- borders)
+    -- AP_ComposeFog(fog art, mask, default mask, spec, out, size, stamps, borders): dllmain.cpp's list
     local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\" .. MASK_FILE, exists(def) and def or "", chart.spec,
         W.dir .. "\\" .. fogFile(), tostring(size), stamps, borders)
     if err == "" then chart.fog, chart.stampKey = "composing", stamps .. "\n" .. borders .. (tag or "")

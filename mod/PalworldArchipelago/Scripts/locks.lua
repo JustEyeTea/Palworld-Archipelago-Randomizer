@@ -27,8 +27,7 @@ local function useLayoutData(name)
     local walls = require(prefix .. "walls")
     layout.prefix, layout.walls, layout.locks, layout.start = prefix, walls.walls, walls.locks, walls.start
     layout.map, layout.shapes = require(prefix .. "map"), nil
-    local b = layout.map.bounds
-    layout.bounds = { xMin = b[1], xMax = b[2], yMin = b[3], yMax = b[4] }
+    layout.bounds = layout.map.bounds
     layout.centres = require(prefix .. "centres")    -- rows by name, as tools/lock_centres.py writes them (see above)
     decoded = {}
 end
@@ -43,9 +42,9 @@ local function isOpen(lock, passes)
     return lock == SEA or lock == layout.start or passes[lock] == true
 end
 
--- Whether a wall row stands: while either lock it separates is locked.
-local function standing(row, passes)
-    return not (isOpen(layout.locks[row[5] + 1], passes) and isOpen(layout.locks[row[6] + 1], passes))
+-- Whether a wall piece (a row of *_walls.lua) stands: while either lock it separates is locked.
+local function standing(wall, passes)
+    return not (isOpen(layout.locks[wall.lockA + 1], passes) and isOpen(layout.locks[wall.lockB + 1], passes))
 end
 
 -- Which lock a spot is in (nil off the main map: the World Tree's own map). The map's rows are decoded when first used.

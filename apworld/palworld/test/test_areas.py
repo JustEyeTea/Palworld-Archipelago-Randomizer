@@ -48,7 +48,7 @@ class TestAreasBossAboveTheClimb(PalworldTestBase):
     options = {"lock_size": "areas", "tower_count": 1, "check_level": 41}
 
     def test_no_event_for_a_boss_above_the_climb(self):
-        from .. import TOWER_LEVELS
+        from ..levels import TOWER_LEVELS
         self.assertIn(self.world.layout.towers["Snow Tower"], self.world.live)
         self.assertLess(self.world.climb_top(self.world.live), TOWER_LEVELS["Snow Tower"])
         names = {l.name for l in self.multiworld.get_locations(self.player)}

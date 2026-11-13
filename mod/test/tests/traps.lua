@@ -59,7 +59,7 @@ group("traps", function()
     game.inStage = false
     expect(h.updatesUntil("trap #" .. teleport .. " Teleport Trap: from %-340000, 236000, %-1500 %(region unreadable",
                           100)
-           and teleported and teleported.X == liveWalls.home[1] and teleported.Y == liveWalls.home[2],
+           and teleported and teleported.X == liveWalls.home.x and teleported.Y == liveWalls.home.y,
            "out of the dungeon, it sends the player home")
     expect(h.told("Teleport Trap: whisked back to " .. shared.WD.start .. "."), "your own trap names no sender")
     -- Waiting while fainted. (Death Link sends this faint: amnesty is 0 here.)
@@ -245,3 +245,33 @@ group("death link amnesty", function()
     expect(#bounces == bounced + 1, "the next one is forgiven again")
     slotData["options.death_link_amnesty"] = nil
 end)
+
+group("trap tiles on the debuff row", function()
+    -- A trap that acts at once shows its tile for WAIT.tileShown (6 s) after it fires, with no timer; a Teleport Trap
+    -- waiting in a dungeon shows its waiting tile until it fires.
+    local DB = require("debuffs")
+    inWorld(true)
+    game.playerDead = false
+    runCycles(2)
+    local fool = trap("Fool Trap", "Friend")
+    expect(h.updatesUntil("trap #" .. fool .. " Fool Trap from Friend: fake notice", 80)
+           and DB.iconOf("Fool Trap") == "ap-debuff-fool",
+           "a Fool Trap shows its tile when it fires: " .. tostring(DB.iconOf("Fool Trap")))
+    run(30)
+    expect(DB.iconOf("Fool Trap") == nil, "and the tile goes after a few seconds")
+    game.inStage = true
+    local teleport = trap("Teleport Trap")
+    expect(h.updatesUntil("trap #" .. teleport .. " Teleport Trap waits: the player is in a dungeon", 80)
+           and DB.iconOf("Teleport Trap waiting") == "ap-debuff-teleport-waiting",
+           "a Teleport Trap waiting in a dungeon shows its waiting tile")
+    run(20)
+    expect(DB.iconOf("Teleport Trap waiting") == "ap-debuff-teleport-waiting", "for as long as it waits")
+    game.inStage = false
+    expect(h.updatesUntil("trap #" .. teleport .. " Teleport Trap: from", 80), "(out of the dungeon, it fires)")
+    run(1)
+    expect(DB.iconOf("Teleport Trap waiting") == nil and DB.iconOf("Teleport Trap") == "ap-debuff-teleport",
+           "then the waiting tile gives way to the fired one")
+    run(30)
+    expect(DB.iconOf("Teleport Trap") == nil, "which goes after a few seconds too")
+end)
+

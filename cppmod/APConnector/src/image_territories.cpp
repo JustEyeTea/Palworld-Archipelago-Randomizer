@@ -1,5 +1,5 @@
-// The Territories pictures: every area tinted by its state, with a rim inside its edge, and the standing walls as a
-// glow and a core. compose_territories draws them from the area label map, compose_field from a distance field
+// The Territories pictures: every lock tinted by its state, with a rim inside its edge, and the standing walls as a
+// glow and a core. compose_territories draws them from the lock label map, compose_field from a distance field
 // (smooth curves); image_tools.hpp defines the text each takes. The looks were tuned by eye; each number is named in
 // the block it belongs to.
 #include "image_tools.hpp"
@@ -21,12 +21,12 @@ namespace
 // 256 MB at 4096.
 constexpr int MAX_TERRITORIES_PX = 4096;
 
-// How each area state looks: the fill all over the area and the rim along its edge (0..1), the rim in the duotone
-// (which has no fills), and the area's brightness in the duotone fog picture. `closed` areas are greyscale on the
+// How each lock state looks: the fill all over the lock and the rim along its edge (0..1), the rim in the duotone
+// (which has no fills), and the lock's brightness in the duotone fog picture. `closed` locks are greyscale on the
 // map picture.
 struct StateLook
 {
-    char letter;            // as the `areas` text gives it
+    char letter;            // as the `locks` text gives it
     bool closed;
     float fill;
     float rim;
@@ -50,13 +50,13 @@ auto state_look(char letter) -> const StateLook*
     return nullptr;
 }
 
-// The Territories' look, shared by compose_territories and compose_field: each area's state and colour, the walls'
-// style and the fog colour, as image_tools.hpp's `areas`, `style` and `fog` give them. The defaults are the cream
+// The Territories' look, shared by compose_territories and compose_field: each lock's state and colour, the walls'
+// style and the fog colour, as image_tools.hpp's `locks`, `style` and `fog` give them. The defaults are the cream
 // walls (style "" in image_tools.hpp).
 struct TerritoryLook
 {
-    const StateLook* state[AREA_LABELS] = {};    // by area index; null: not listed, left clear
-    float colour[AREA_LABELS][3] = {};
+    const StateLook* state[LOCK_LABELS] = {};    // by lock index; null: not listed, left clear
+    float colour[LOCK_LABELS][3] = {};
     float glow_colour[3] = {1.f, 0.914f, 0.690f};
     float core_colour[3] = {1.f, 0.957f, 0.863f};
     float glow_alpha = 0.55f, core_alpha = 1.f;
@@ -66,15 +66,16 @@ struct TerritoryLook
 };
 constexpr size_t STYLE_FIELDS = 7, STYLE_FIELDS_WITH_MAP = 9;
 
-// The `areas` text ("index:state:RRGGBB,...") into look; "" or the item that was wrong.
-auto read_areas(const std::string& areas, TerritoryLook& look) -> std::string
+// The `locks` text ("index:state:RRGGBB,...") into look; "" or the item that was wrong. The error texts keep their
+// words ("areas"): see image_tools.hpp's opening comment.
+auto read_locks(const std::string& locks, TerritoryLook& look) -> std::string
 {
-    for (const auto& item : lua_text::split_csv(areas))
+    for (const auto& item : lua_text::split_csv(locks))
     {
         const size_t a = item.find(':'), b = item.find(':', a + 1);
         if (a == std::string::npos || b == std::string::npos || b != a + 2) return "areas item '" + item + "'";
         const int index = lua_text::int_or(item.substr(0, a), -1);
-        if (index < 0 || index >= AREA_LABELS) return "areas index in '" + item + "'";
+        if (index < 0 || index >= LOCK_LABELS) return "areas index in '" + item + "'";
         const StateLook* state = state_look(item[a + 1]);
         if (!state) return "areas state in '" + item + "'";
         if (!parse_hex_rgb(item.substr(b + 1), look.colour[index])) return "areas colour in '" + item + "'";
@@ -83,12 +84,12 @@ auto read_areas(const std::string& areas, TerritoryLook& look) -> std::string
     return "";
 }
 
-// The `style`, `fog` and `areas` texts into look; "" or what was wrong.
-auto read_look(const std::string& areas, const std::string& style, const std::string& fog, TerritoryLook& look)
+// The `style`, `fog` and `locks` texts into look; "" or what was wrong.
+auto read_look(const std::string& locks, const std::string& style, const std::string& fog, TerritoryLook& look)
     -> std::string
 {
-    const std::string badAreas = read_areas(areas, look);
-    if (!badAreas.empty()) return badAreas;
+    const std::string badLocks = read_locks(locks, look);
+    if (!badLocks.empty()) return badLocks;
     if (!style.empty())
     {
         std::vector<std::string> f;
@@ -134,7 +135,7 @@ auto read_walls(const std::string& walls, int size, std::vector<WallPiece>& piec
     return "";
 }
 
-// How strong an area's rim is at d px (of the reference map) inside its edge: full for RIM_FULL_PX, then fading by a
+// How strong a lock's rim is at d px (of the reference map) inside its edge: full for RIM_FULL_PX, then fading by a
 // factor of e every RIM_FADE_PX.
 constexpr float RIM_FULL_PX = 2.f;
 constexpr float RIM_FADE_PX = 7.f;
@@ -149,9 +150,9 @@ auto unit(float v) -> float
     return std::min(1.f, std::max(0.f, v));
 }
 
-// --- compose_territories: from the area label map ---
+// --- compose_territories: from the lock label map ---
 
-// The distance from each area pixel to its area's edge, by a 3-4 chamfer. Edge pixels (an area pixel with another
+// The distance from each lock pixel to its lock's edge, by a 3-4 chamfer. Edge pixels (a lock pixel with another
 // label, sea included, among its 8 neighbours) start at 0, the rest at FAR. A pass from the top-left gives each
 // pixel the least of its left and three upper neighbours plus a step; a pass back from the bottom-right does the same
 // with the other four. A step to a side neighbour costs STRAIGHT_STEP, to a corner one DIAGONAL_STEP: about 3 times 1
@@ -161,8 +162,8 @@ auto unit(float v) -> float
 constexpr int STRAIGHT_STEP = 3, DIAGONAL_STEP = 4;
 constexpr int FAR = 1 << 28;   // further than any picture is wide, with room to add a step
 
-// Each area pixel 0 on its area's edge, FAR elsewhere.
-auto area_edges(const std::vector<unsigned char>& labels, int size) -> std::vector<int>
+// Each lock pixel 0 on its lock's edge, FAR elsewhere.
+auto lock_edges(const std::vector<unsigned char>& labels, int size) -> std::vector<int>
 {
     std::vector<int> dist(labels.size(), FAR);
     for (int y = 0; y < size; ++y)
@@ -193,7 +194,7 @@ auto area_edges(const std::vector<unsigned char>& labels, int size) -> std::vect
     return dist;
 }
 
-// The chamfer's pass from the top-left over area_edges' start: each pixel's least of its left and three upper
+// The chamfer's pass from the top-left over lock_edges' start: each pixel's least of its left and three upper
 // neighbours plus a step (see STRAIGHT_STEP).
 void chamfer_forward(std::vector<int>& dist, int size)
 {
@@ -257,18 +258,18 @@ void overlay_over(Overlay& img, size_t i, const float* c, float a)
     blend_over(&img[i * 4], img[i * 4 + 3], c, a);
 }
 
-// Each listed area's fill, and its rim by its distance to the edge (`dist` from the chamfer; `scale`: this picture's
+// Each listed lock's fill, and its rim by its distance to the edge (`dist` from the chamfer; `scale`: this picture's
 // pixels per pixel of the reference map).
 void fill_and_rim(Overlay& img, const std::vector<unsigned char>& labels, const std::vector<int>& dist,
                   const TerritoryLook& look, float scale)
 {
     for (size_t i = 0; i < labels.size(); ++i)
     {
-        const unsigned char area = labels[i];
-        if (!area || !look.state[area]) continue;
-        const StateLook& state = *look.state[area];
+        const unsigned char lockIndex = labels[i];
+        if (!lockIndex || !look.state[lockIndex]) continue;
+        const StateLook& state = *look.state[lockIndex];
         const float d = dist[i] / static_cast<float>(STRAIGHT_STEP) / scale;     // in px of the reference map
-        overlay_over(img, i, look.colour[area], unit(state.fill + rim_strength(d) * state.rim));
+        overlay_over(img, i, look.colour[lockIndex], unit(state.fill + rim_strength(d) * state.rim));
     }
 }
 
@@ -370,18 +371,18 @@ constexpr float NO_PIECE = 1e9f;
 // MAP_CORE_LIFT of white.
 constexpr float MAP_CORE_KEEP = 0.6f, MAP_CORE_LIFT = 0.4f;
 // The duotone fog picture: the map's brightness from these weights (less green than Rec. 709's luminance; tuned by
-// eye for the duotone, not meant to match it), the open sea DUOTONE_SEA_MAP of it over the fog colour, and an area's
+// eye for the duotone, not meant to match it), the open sea DUOTONE_SEA_MAP of it over the fog colour, and a lock's
 // colour from dark to light as the brightness goes from DUOTONE_DARKEST over DUOTONE_RANGE, on a curve of
 // DUOTONE_CURVE.
 constexpr float DUOTONE_LUMA_RED = 0.30f, DUOTONE_LUMA_GREEN = 0.55f, DUOTONE_LUMA_BLUE = 0.15f;
 constexpr float DUOTONE_SEA_MAP = 0.42f, DUOTONE_SEA_FOG = 0.58f;
 constexpr float DUOTONE_DARKEST = 0.12f, DUOTONE_RANGE = 0.60f, DUOTONE_CURVE = 0.9f;
-// The dark end: mostly the fog colour with a little of the area's; the light end: the area's colour lightened.
-constexpr float DUOTONE_DARK_FOG = 0.70f, DUOTONE_DARK_AREA = 0.22f;
-constexpr float DUOTONE_LIGHT_AREA = 0.80f, DUOTONE_LIGHT_LIFT = 0.20f;
+// The dark end: mostly the fog colour with a little of the lock's; the light end: the lock's colour lightened.
+constexpr float DUOTONE_DARK_FOG = 0.70f, DUOTONE_DARK_LOCK = 0.22f;
+constexpr float DUOTONE_LIGHT_LOCK = 0.80f, DUOTONE_LIGHT_LIFT = 0.20f;
 
-// The distance field, read: R the pixel's own area, G the area across the nearest border (for the open sea: the
-// nearest area), B that distance.
+// The distance field, read: R the pixel's own lock, G the lock across the nearest border (for the open sea: the
+// nearest lock), B that distance.
 struct Field
 {
     StbPixels px = no_pixels();
@@ -458,12 +459,12 @@ auto piece_distances(const std::vector<WallPiece>& pieces, const Field& field, i
 struct FieldPixel
 {
     size_t i;
-    int own;                       // the field's R: the pixel's own area (0: the open sea)
-    int across;                    // G: the area across the nearest border
+    int own;                       // the field's R: the pixel's own lock (0: the open sea)
+    int across;                    // G: the lock across the nearest border
     float d;                       // B: the distance to that border, px of the reference map
-    const StateLook* state;        // the look of the area the pixel takes (its own, or for the sea the nearest)
-    int area;
-    bool closed;                   // its own area is locked or sealed
+    const StateLook* state;        // the look of lock_shown
+    int lock_shown;                // the lock whose look the pixel takes: its own, or for the sea the nearest
+    bool closed;                   // its own lock is locked or sealed
     float wall;                    // how strongly the walls show here (0..1): near a standing piece
     float free_d;                  // the distance to a free piece (NO_PIECE if none)
 };
@@ -479,8 +480,8 @@ auto field_pixel(const Field& field, const TerritoryLook& look, const PieceDista
     p.own = q[0];
     p.across = q[1];
     p.d = q[2] / FIELD_DISTANCE_STEPS * field.to_reference;
-    p.area = p.own ? p.own : p.across;
-    p.state = p.area ? look.state[p.area] : nullptr;
+    p.lock_shown = p.own ? p.own : p.across;
+    p.state = p.lock_shown ? look.state[p.lock_shown] : nullptr;
     p.closed = p.own && look.state[p.own] && look.state[p.own]->closed;
     p.wall = unit(1.f - std::max(pieces.near_border[p.i] - p.d - WALL_FADE_PX, 0.f) / WALL_FADE_PX);
     p.free_d = pieces.free.empty() ? NO_PIECE : pieces.free[p.i];
@@ -497,10 +498,10 @@ struct FieldPaint
     bool map_picture;              // the map picture's look (walls in the closed side's colour), else the fog's
 };
 
-// One look over (c, a) for pixel p: the fill and rim, then the walls. The open sea next to an area takes its look
+// One look over (c, a) for pixel p: the fill and rim, then the walls. The open sea next to a lock takes its look
 // over the last part of a pixel (the field's smoothed distance), so the coast's edge is a curve, not the label map's
 // stairs. The walls: a glow and a core across the border where a standing piece is near, fading out past its end;
-// free pieces in cream where they stand. On the map picture closed areas have no fill (they are greyscale) and the
+// free pieces in cream where they stand. On the map picture closed locks have no fill (they are greyscale) and the
 // walls take the closed side's colour, lighter, where the fog picture keeps the cream.
 void paint_field(const FieldPaint& how, const FieldPixel& p, float* c, float& a)
 {
@@ -510,14 +511,14 @@ void paint_field(const FieldPaint& how, const FieldPixel& p, float* c, float& a)
         const float fill = how.duotone ? 0.f : p.state->fill;
         const float rim = how.duotone ? p.state->duotone_rim : p.state->rim;
         const float cover = p.own ? 1.f : unit(1.f - p.d);
-        blend_over(c, a, look.colour[p.area], unit(fill + rim_strength(p.d) * rim) * cover);
+        blend_over(c, a, look.colour[p.lock_shown], unit(fill + rim_strength(p.d) * rim) * cover);
     }
-    const int wallArea = p.closed ? p.own : p.across;
+    const int wallLock = p.closed ? p.own : p.across;
     float mapGlow[3], mapCore[3];
     for (int k = 0; k < 3; ++k)
     {
-        mapGlow[k] = look.colour[wallArea][k];
-        mapCore[k] = look.colour[wallArea][k] * MAP_CORE_KEEP + MAP_CORE_LIFT;
+        mapGlow[k] = look.colour[wallLock][k];
+        mapCore[k] = look.colour[wallLock][k] * MAP_CORE_KEEP + MAP_CORE_LIFT;
     }
     const float* glowColour = how.map_picture ? mapGlow : look.glow_colour;
     const float* coreColour = how.map_picture ? mapCore : look.core_colour;
@@ -532,13 +533,13 @@ void paint_field(const FieldPaint& how, const FieldPixel& p, float* c, float& a)
     if (p.free_d < how.reach)
     {
         const float e = p.free_d;
-        blend_over(c, a, look.glow_colour, glowAlpha * std::exp(-e * e / spread));   // (out at sea, no area's: cream)
+        blend_over(c, a, look.glow_colour, glowAlpha * std::exp(-e * e / spread));   // (out at sea, no lock's: cream)
         blend_over(c, a, look.core_colour, coreAlpha * unit(look.core_width / 2.f + 0.5f - e));
     }
 }
 
 // The map picture's pixel (RGBA into `out`): the player's map (gamma applied with lut), greyscale where the pixel's
-// own area is closed, the look painted over it.
+// own lock is closed, the look painted over it.
 void map_picture_pixel(const FieldPaint& how, const FieldPixel& p, const unsigned char* map, const GammaTable& lut,
                        unsigned char* out)
 {
@@ -556,7 +557,7 @@ void map_picture_pixel(const FieldPaint& how, const FieldPixel& p, const unsigne
     out[3] = 255;
 }
 
-// The duotone fog picture's pixel (RGB into `out`): the open sea the map's brightness over the fog colour; an area
+// The duotone fog picture's pixel (RGB into `out`): the open sea the map's brightness over the fog colour; a lock
 // its own colour from dark to light with the map's brightness, dimmer while locked or sealed; then the rims and the
 // cream walls.
 void duotone_fog_pixel(const FieldPaint& how, const FieldPixel& p, const unsigned char* map, const GammaTable& lut,
@@ -579,8 +580,8 @@ void duotone_fog_pixel(const FieldPaint& how, const FieldPixel& p, const unsigne
         const float t = std::pow(unit((lum - DUOTONE_DARKEST) / DUOTONE_RANGE), DUOTONE_CURVE);
         for (int k = 0; k < 3; ++k)
         {
-            const float dark = look.fog_colour[k] * DUOTONE_DARK_FOG + look.colour[p.own][k] * DUOTONE_DARK_AREA;
-            const float light = (look.colour[p.own][k] * DUOTONE_LIGHT_AREA + DUOTONE_LIGHT_LIFT) *
+            const float dark = look.fog_colour[k] * DUOTONE_DARK_FOG + look.colour[p.own][k] * DUOTONE_DARK_LOCK;
+            const float light = (look.colour[p.own][k] * DUOTONE_LIGHT_LOCK + DUOTONE_LIGHT_LIFT) *
                                 own->duotone_brightness;
             c[k] = dark + (light - dark) * t;
         }
@@ -662,7 +663,7 @@ void field_pictures(const Field& field, const PlayerMap& map, const PieceDistanc
 
 } // namespace
 
-auto compose_territories(const std::string& labels, const std::string& areas, const std::string& walls,
+auto compose_territories(const std::string& labels, const std::string& locks, const std::string& walls,
                          const std::string& style, const std::string& out, const std::string& fogart,
                          const std::string& fog, int size) -> std::string
 {
@@ -672,28 +673,28 @@ auto compose_territories(const std::string& labels, const std::string& areas, co
     const StbPixels lab = read_png(labels, 1, lw, lh);
     if (!lab) return read_failure(labels);
     TerritoryLook look;
-    const std::string bad = read_look(areas, style, fog, look);
+    const std::string bad = read_look(locks, style, fog, look);
     if (!bad.empty()) return bad;
     std::vector<WallPiece> pieces;
     const std::string badWalls = read_walls(walls, size, pieces);
     if (!badWalls.empty()) return badWalls;
-    const std::vector<unsigned char> areaAt = labels_at_size(lab.get(), lw, lh, size);
-    std::vector<int> dist = area_edges(areaAt, size);
+    const std::vector<unsigned char> lockAt = labels_at_size(lab.get(), lw, lh, size);
+    std::vector<int> dist = lock_edges(lockAt, size);
     chamfer_forward(dist, size);
     chamfer_back(dist, size);
     Overlay img(static_cast<size_t>(size) * size * 4, 0.f);
-    fill_and_rim(img, areaAt, dist, look, scale);
+    fill_and_rim(img, lockAt, dist, look, scale);
     draw_walls(img, pieces, look, size, scale);
     return write_overlay(img, size, look, out, fogart);
 }
 
-auto compose_field(const std::string& field, const std::string& areas, const std::string& walls,
+auto compose_field(const std::string& field, const std::string& locks, const std::string& walls,
                    const std::string& style, const std::string& out, const std::string& fogart,
                    const std::string& fog, int size, const std::string& colour, double gamma) -> std::string
 {
     if (size < MIN_PICTURE_PX || size > MAX_TERRITORIES_PX) return "field size " + std::to_string(size);
     TerritoryLook look;
-    std::string err = read_look(areas, style, fog, look);
+    std::string err = read_look(locks, style, fog, look);
     if (!err.empty()) return err;
     Field distances;
     err = read_field(field, distances);

@@ -322,7 +322,7 @@ local TERR_SIZE = 2048        -- px: a Territories picture from the label map (a
 -- shows through the walls.
 local TERR_WALLS = "FFE9B0,0.35,FFF4DC,0.6,10,3,5"
 local function territories() return W.mapStyle == "territories" and AP_ComposeTerritories ~= nil end
--- Each lock's state and colour. Format: image_tools.hpp, compose_territories, argument areas (these locks).
+-- Each lock's state and colour. Format: image_tools.hpp, compose_territories, argument locks.
 local function lockSpec(passes)
     local out = {}
     for k, name in ipairs(layout.locks) do
@@ -345,11 +345,11 @@ end
 local function wallSpec(passes)
     local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
     local out = {}
-    for _, w in ipairs(layout.walls) do
-        if standing(w, passes) then
-            local u, v = (w[2] - y0) / (y1 - y0), (x1 - w[1]) / (x1 - x0)
-            local half = w[3] / 2 / (x1 - x0)
-            local yaw = math.rad(w[4])
+    for _, wall in ipairs(layout.walls) do
+        if standing(wall, passes) then
+            local u, v = (wall.y - y0) / (y1 - y0), (x1 - wall.x) / (x1 - x0)
+            local half = wall.length / 2 / (x1 - x0)
+            local yaw = math.rad(wall.yaw)
             local du, dv = math.sin(yaw) * half, -math.cos(yaw) * half
             out[#out + 1] = string.format("%.5f,%.5f,%.5f,%.5f", u - du, v - dv, u + du, v + dv)
         end
@@ -428,12 +428,12 @@ local function startTerritories(rendering, gameInstance, passes, key)
         local colour
         whole, colour = haveColourMap(rendering, gameInstance)
         size = FIELD_SIZE
-        -- AP_ComposeField(field, areas, walls, style, out, fogart, fog colour, size, colour, gamma): dllmain.cpp's list
+        -- AP_ComposeField(field, locks, walls, style, out, fogart, fog colour, size, colour, gamma): dllmain.cpp's list
         err = AP_ComposeField(field, lockSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
             W.dir .. "\\" .. TERR_FOG, PALETTE.fog, tostring(size), whole and colour or "", GAMMA)
     else
         size = TERR_SIZE
-        -- AP_ComposeTerritories(labels, areas, walls, style, out, fogart, fog colour, size): dllmain.cpp's list
+        -- AP_ComposeTerritories(labels, locks, walls, style, out, fogart, fog colour, size): dllmain.cpp's list
         err = AP_ComposeTerritories(labelsFile(), lockSpec(passes),
             wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY, W.dir .. "\\" .. TERR_FOG, PALETTE.fog,
             tostring(size))

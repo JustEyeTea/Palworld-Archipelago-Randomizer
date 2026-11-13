@@ -3,7 +3,7 @@
 -- (cppmod/APConnector/src/dllmain.cpp). Each topic lives in a file of its own; docs/architecture.md lists them.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 -- Tests: every file in mod/test/tests/: the harness loads main.lua and runs them all (tools/lua_harness.sh, in CI).
-local VERSION = "0.14.1-dev.10"
+local VERSION = "0.14.1-dev.11"
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
@@ -29,6 +29,7 @@ local POPUP = require("hint_popup")
 local SAVE = require("save")
 local SHOP = require("shop")
 local SHOP_CARDS = require("shop_cards")
+local SLOT = require("slot_data")
 local SOON = require("soon")
 local STATE = require("ap_state")
 local RUN_STYLE = require("run_style")
@@ -126,7 +127,7 @@ end
 -- The run style's sync (Speed Boost's world settings) and the notices held through the loading screen, once the
 -- world has settled.
 local function syncRunStyle(ps)
-    local oks, news = pcall(RUN_STYLE.apply, ps, AP_SlotData, PLAYER.frame().controllerKey, HELD.holdNotice)
+    local oks, news = pcall(RUN_STYLE.apply, ps, SLOT.text, PLAYER.frame().controllerKey, HELD.holdNotice)
     if not oks then
         onceErr("sync", news, "sync error: " .. tostring(news))
     elseif news then

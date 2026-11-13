@@ -86,7 +86,6 @@ The Archipelago tools take `AP_DIR`, your Archipelago folder with its venv in `.
 | `table_dumps.py` | the reader of the table dumps, and the facts several tools read the same way from them |
 | `apworld_loader.py` | loading the APWorld's tables or Archipelago's modules without Archipelago's loader; the Archipelago folder and version |
 | `ap_dir.sh` | the shell scripts' default Archipelago folder |
-| `region_names.py` | the regions by their player-facing names; read by nothing in the repository |
 
 ## The probe
 

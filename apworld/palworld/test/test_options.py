@@ -1,5 +1,5 @@
-"""Pins what the options do in __init__.py: refused options (plan_cap, check_counts), what reaches slot data
-(fill_slot_data), and that the options' player text matches the code's numbers."""
+"""Pins what the options do: refused options (plan_cap in __init__.py, check_counts in checks.py), what reaches slot
+data (fill_slot_data), and that the options' player text matches the code's numbers."""
 import unittest
 
 from Options import OptionError
@@ -113,13 +113,13 @@ class TestRunStyleDefault(PalworldTestBase):
 
 
 
-# The tower bosses in the game's order, as the player text names them (TOWER_LEVELS in __init__.py has their levels).
+# The tower bosses in the game's order, as the player text names them (TOWER_LEVELS in levels.py has their levels).
 TOWER_BOSSES = ("Zoe", "Lily", "Axel", "Marcus", "Victor", "Saya", "Bjorn", "Auri")
 
 
 def tower_text() -> str:
     """The towers as the player text lists them: "Zoe (level 10), Lily (20), ..."."""
-    from .. import TOWER_LEVELS
+    from ..levels import TOWER_LEVELS
     levels = sorted(TOWER_LEVELS.values())
     return ", ".join(f"{boss} (level {level})" if i == 0 else f"{boss} ({level})"
                      for i, (boss, level) in enumerate(zip(TOWER_BOSSES, levels)))
@@ -127,7 +127,7 @@ def tower_text() -> str:
 
 def cap_text() -> str:
     """How the automatic Check Level Cap is worked out, as the player text says it."""
-    from .. import PALDECK_MARGIN, RELIC_LEVEL, TOWER_LEVELS, TOWER_MARGIN
+    from ..levels import PALDECK_MARGIN, RELIC_LEVEL, TOWER_LEVELS, TOWER_MARGIN
     first, second = sorted(TOWER_LEVELS.values())[:2]
     return (f"{TOWER_MARGIN} levels past the last tower boss you need ({first + TOWER_MARGIN} for one tower, "
             f"{second + TOWER_MARGIN} for two), {PALDECK_MARGIN} levels past the level by which you can register "
@@ -165,7 +165,7 @@ class TestPlayerTextMatchesTheCode(unittest.TestCase):
 
     def test_game_page(self):
         import pathlib
-        from .. import LEVELS_BELOW_PIECE, TECH_POINTS_PER_LEVEL
+        from ..levels import LEVELS_BELOW_PIECE, TECH_POINTS_PER_LEVEL
         page = pathlib.Path(__file__).resolve().parent.parent / "docs" / "en_Palworld.md"
         text = one_line(page.read_text(encoding="utf-8"))
         for fragment in (tower_text(), cap_text(), f"no more than {LEVELS_BELOW_PIECE} levels below its Pals",

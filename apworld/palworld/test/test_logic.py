@@ -1,5 +1,5 @@
-"""Pins the logic's rules in __init__.py: the level climb (max_level, level_ok), mounts for the sea and the sky
-(can_enter, can_ride), shared alphas and level checks (wanted)."""
+"""Pins the logic's rules: the level climb (max_level, level_ok in levels.py), mounts for the sea and the sky
+(can_enter, can_ride in __init__.py), shared alphas and level checks (wanted in checks.py)."""
 from . import PalworldTestBase
 
 

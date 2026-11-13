@@ -26,6 +26,7 @@ PERF.records, PERF.world = noop, noop
 
 local BUILD = "perf-1"
 local CLOCK = require("clock")
+local SLOT = require("slot_data")
 local STATE = require("ap_state")
 local UTIL = require("util")
 local ap = STATE.ap
@@ -745,7 +746,7 @@ function PERF.replayUnsharedLookups(ctx)
     if env.oldCost.mapShown() then
         FindFirstOf("PalGameInstance")
     end
-    AP_SlotData("options.area_locks")
+    SLOT.text("options.area_locks")
     env.oldCost.sweepWalls()                             -- every raised piece checked every update
     for _, card in ipairs(env.oldCost.cards() or {}) do  -- every card labelled every update
         local key = card:IsValid() and UTIL.addr(card)

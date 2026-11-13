@@ -405,15 +405,17 @@ end
 -- The material a piece wears with the area skin (or paws), by name: paws:<hex>[:<area>], paws:sealed, area:<hex>,
 -- sealed, or a (a lock without a colour).
 local function pieceSkin(i, passes, mode)
-    local w = layout.walls[i]
-    local a1, a2 = layout.locks[w[5] + 1], layout.locks[w[6] + 1]
+    local wall = layout.walls[i]
+    local a1, a2 = layout.locks[wall.lockA + 1], layout.locks[wall.lockB + 1]
     local lock = wornLock(a1, a2, passes)
     local hex = REGION_COLOURS[W.regionOf(lock)]
     if mode == "paws" then
         if W.beyond[lock] then return "paws:sealed" end
         -- 75 Areas: each Area its Region's look, varied by its own number (pattern offset, mirror, Back shade).
         local own = ""
-        if W.layout == "areas" and W.regionOf(lock) ~= lock then own = ":" .. (lock == a1 and w[5] or w[6]) end
+        if W.layout == "areas" and W.regionOf(lock) ~= lock then
+            own = ":" .. (lock == a1 and wall.lockA or wall.lockB)
+        end
         return "paws:" .. (hex or PALETTE.teal) .. own         -- a lock without a colour: the start island's teal
     end
     if W.beyond[lock] then return "sealed" end

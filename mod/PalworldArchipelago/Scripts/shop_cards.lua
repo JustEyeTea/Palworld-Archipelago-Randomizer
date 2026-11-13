@@ -171,9 +171,11 @@ local function readStarterCategory(card, tech, key, full)
     end
 end
 
--- A card's picture, the first of these that loads: your own tech's icon; the crate's art; a Region Pass's own region's
--- ticket (art/ap-pass-<region>.png), an Area Pass's (Lock Size: areas) region's, else the small-pass ticket (an area's,
--- though its file is ap-pass-region.png); else the mod's icon for the item's kind. Returns it and its source.
+-- A card's picture, the first of these that loads: your own tech's icon; the crate's art; an Area Pass's (Lock Size:
+-- areas) own ticket (art/area-passes/ap-area-pass-<area>.png); a Region Pass's own region's ticket
+-- (art/ap-pass-<region>.png), which an Area Pass falls back to; else the small-pass ticket (an area's, though its file
+-- is ap-pass-region.png); else the mod's icon for the item's kind. Returns it and its source.
+local AREA_PASS_ART = "area-passes\\ap-area-pass-"   -- an area's ticket: this, its slug (WALLS.slugOf), .png
 local function cardPicture(mine, it, kind, card)
     local ART = require("art")
     local tex = mine and SHOP_CARDS.techIcon(mine)
@@ -181,6 +183,8 @@ local function cardPicture(mine, it, kind, card)
     tex = it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld")
     if tex then return tex, "the crate's art" end
     if kind == "area-pass" then
+        tex = it.name:find("^Area Pass") and ART.texture(AREA_PASS_ART .. WALLS.slugOf(it.lock))
+        if tex then return tex, "its area's own pass ticket" end
         tex = ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.regionOf(it.lock)))
         if tex then return tex, "its region's pass ticket" end
         tex = it.name:find("^Area Pass") and ART.texture("ap-pass-region")

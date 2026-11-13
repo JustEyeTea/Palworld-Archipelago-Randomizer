@@ -1,4 +1,4 @@
-// The pieces the map pictures (image_*.cpp) share: the locked-area list, blurs, and PNGs loaded and resampled as
+// The pieces the map pictures (image_*.cpp) share: the list of locked locks, blurs, and PNGs loaded and resampled as
 // floats. Internal to the picture code: the functions the Lua mod's calls reach are in image_tools.hpp.
 #pragma once
 
@@ -48,12 +48,12 @@ inline auto to_byte(float v) -> unsigned char
 {
     return static_cast<unsigned char>(std::lround(255.f * std::min(1.f, std::max(0.f, v))));
 }
-// An area label picture holds one byte per pixel: area indexes 0..255 (0 is no area).
-constexpr int AREA_LABELS = 256;
+// A lock label picture holds one byte per pixel: lock indexes 0..255 (0 is no lock).
+constexpr int LOCK_LABELS = 256;
 
-// The locked areas from Lua's "3,7,12" (area label indexes), into `locked`. Returns "" or the reason: a part that
-// is not a whole number, or not 0..255, fails the job rather than greying another area.
-auto read_locked_areas(const std::string& csv, bool (&locked)[AREA_LABELS]) -> std::string;
+// The locked locks from Lua's "3,7,12" (lock label indexes), into `locked`. Returns "" or the reason: a part that
+// is not a whole number, or not 0..255, fails the job rather than greying another lock.
+auto read_locked_indexes(const std::string& csv, bool (&locked)[LOCK_LABELS]) -> std::string;
 
 // A PNG's pixels as stb_image loaded them, freed with stbi_image_free; null when there are none.
 using StbPixels = std::unique_ptr<unsigned char, void (*)(void*)>;
@@ -107,7 +107,7 @@ using Plane = std::vector<float>;
 // A box blur of a float plane GAUSSIAN_BOX_PASSES times, close to a Gaussian.
 void blur(Plane& a, int w, int h, int r);
 
-// An RGBA picture as floats 0..1, resampled to s x s (area average when shrinking, bilinear when growing).
+// An RGBA picture as floats 0..1, resampled to s x s (box average when shrinking, bilinear when growing).
 struct Rgba
 {
     int s = 0;

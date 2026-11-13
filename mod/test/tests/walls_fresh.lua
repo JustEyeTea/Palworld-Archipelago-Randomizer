@@ -85,8 +85,8 @@ group("walls and the map, on fresh copies of walls.lua", function()
             W.update(true, {}, offMap)
         end
         local beside = {}                                         -- two regions next to the start
-        for _, w in ipairs(WD.walls) do
-            local other = h.otherSideOfStart(h.wallRow(w))
+        for _, wall in ipairs(WD.walls) do
+            local other = h.otherSideOfStart(wall)
             if other and other ~= "Open sea" and other ~= beside[1] then
                 beside[#beside + 1] = other
             end
@@ -470,10 +470,10 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local realSpawn = gameplay.BeginDeferredActorSpawnFromClass
         local first, firstAt                                      -- the first piece that stands with no pass held
         local function open(lock) return lock == "Open sea" or lock == WD.start end
-        for k, w in ipairs(WD.walls) do
-            local row = h.wallRow(w)
-            if not first and not (open(row.lockA) and open(row.lockB)) then
-                first, firstAt = row, k
+        for k, wall in ipairs(WD.walls) do
+            local nameA, nameB = h.lockNamesOf(wall)
+            if not first and not (open(nameA) and open(nameB)) then
+                first, firstAt = wall, k
             end
         end
         gameplay.BeginDeferredActorSpawnFromClass = function(self, ctx, cls, t, ...)

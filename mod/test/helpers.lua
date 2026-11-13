@@ -167,39 +167,38 @@ function h.sameColour(c, d)
         and math.abs(c.B - d.B) < COLOUR_PRECISION
 end
 
--- A row of a generated walls file (region_walls.lua, area_walls.lua), by name: its middle (x, y, game units),
--- its length, its yaw (degrees, along the wall), and the names of the locks on its two sides. `data` is the file's
--- table (shared.WD if none is given).
-function h.wallRow(w, data)
+-- The names of the locks on the two sides of a wall piece (a row of region_walls.lua or area_walls.lua, whose lockA
+-- and lockB are indexes into its locks). `data` is the file's table (shared.WD if none is given).
+function h.lockNamesOf(wall, data)
     data = data or shared.WD
-    return { x = w[1], y = w[2], length = w[3], yaw = w[4], lockA = data.locks[w[5] + 1], lockB = data.locks[w[6] + 1] }
+    return data.locks[wall.lockA + 1], data.locks[wall.lockB + 1]
 end
 
--- The lock on the other side of a wall from the start, or nil if the wall does not touch the start.
-function h.otherSideOfStart(row)
+-- The lock on the other side of a wall piece of shared.WD from the start, or nil if the piece does not touch the start.
+function h.otherSideOfStart(wall)
     local start = shared.WD.start
-    return (row.lockA == start and row.lockB) or (row.lockB == start and row.lockA) or nil
+    local nameA, nameB = h.lockNamesOf(wall)
+    return (nameA == start and nameB) or (nameB == start and nameA) or nil
 end
 
 local SPOT_FROM_WALL = 1500                              -- game units: close enough for the wall's notice
 local LONG_WALL = 5000                                   -- game units: a spot beside its middle is beside it alone
--- A spot on the start's side of a long wall between the start and a lock `wanted(lock, row)` accepts (the first
--- such wall in the file). Returns the spot (a location), the lock, and the wall's row as the file has it.
+-- A spot on the start's side of a long wall between the start and a lock `wanted(lock, wall)` accepts (the first
+-- such wall piece in the file). Returns the spot (a location), the lock, and the wall piece's row.
 function h.spotBesideStart(wanted)
     local start, liveWalls = shared.WD.start, require("walls")
-    for _, w in ipairs(shared.WD.walls) do
-        local row = h.wallRow(w)
-        local other = h.otherSideOfStart(row)
-        if other and row.length > LONG_WALL and wanted(other, row) then
-            local yaw, spot = math.rad(row.yaw), nil
+    for _, wall in ipairs(shared.WD.walls) do
+        local other = h.otherSideOfStart(wall)
+        if other and wall.length > LONG_WALL and wanted(other, wall) then
+            local yaw, spot = math.rad(wall.yaw), nil
             for _, side in ipairs({ 1, -1 }) do
-                local x = row.x - side * math.sin(yaw) * SPOT_FROM_WALL
-                local y = row.y + side * math.cos(yaw) * SPOT_FROM_WALL
+                local x = wall.x - side * math.sin(yaw) * SPOT_FROM_WALL
+                local y = wall.y + side * math.cos(yaw) * SPOT_FROM_WALL
                 if liveWalls.lockAt(x, y) == start then
                     spot = { X = x, Y = y, Z = 0 }
                 end
             end
-            if spot then return spot, other, w end
+            if spot then return spot, other, wall end
         end
     end
 end

@@ -7,9 +7,9 @@ group("area locks", function()
     shared.WD = WD                   -- the walls data (region_walls.lua), for the walls and map tests after this
     local function expected(open)
         local n = 0
-        for _, w in ipairs(WD.walls) do
-            local row = h.wallRow(w, WD)
-            if not (open[row.lockA] and open[row.lockB]) then
+        for _, wall in ipairs(WD.walls) do
+            local nameA, nameB = h.lockNamesOf(wall, WD)
+            if not (open[nameA] and open[nameB]) then
                 n = n + 1
             end
         end
@@ -115,7 +115,7 @@ group("area locks", function()
         expect(teleported == nil, "a player in a stage is not sent home by where the stage sits on the map")
     end
     runCycles(3)
-    expect(teleported and teleported.X == liveWalls.home[1], "a player inside a locked region is sent home")
+    expect(teleported and teleported.X == liveWalls.home.x, "a player inside a locked region is sent home")
     local sent = false
     for _, t in ipairs(announced) do
         if t:find("Bamboo Groves is locked") then
@@ -217,8 +217,8 @@ group("area locks", function()
         liveWalls.setSkin("paws")
         run(2)
         local target
-        for _, w in ipairs(WD.walls) do
-            local other = h.otherSideOfStart(h.wallRow(w, WD))
+        for _, wall in ipairs(WD.walls) do
+            local other = h.otherSideOfStart(wall)
             if other and other ~= "Open sea" and not open[other] then
                 target = other
                 break
@@ -332,25 +332,24 @@ group("area locks", function()
         liveWalls.radius = SHOWN_WITHIN
         local spot
         local function openHere(region) return open[region] or region == "Open sea" or region == WD.start end
-        for k, w in ipairs(WD.walls) do
-            local row = h.wallRow(w, WD)
-            if not openHere(row.lockA) or not openHere(row.lockB) then
+        for k, wall in ipairs(WD.walls) do
+            local nameA, nameB = h.lockNamesOf(wall, WD)
+            if not openHere(nameA) or not openHere(nameB) then
                 spot = k
                 break
             end
         end
         local home = { X = pawnAt.X, Y = pawnAt.Y, Z = pawnAt.Z }
         local spawnedBefore = spawned
-        local standAt = h.wallRow(WD.walls[spot], WD)
+        local standAt = WD.walls[spot]
         pawnAt = { X = standAt.x, Y = standAt.y, Z = -1700 }               -- standing at a locked wall
         run(40)
         local function tally()
             local shown, hiddenN, wrong = 0, 0, 0
             for wa in pairs(wallsUp) do
                 local i
-                for k, w in ipairs(WD.walls) do
-                    local row = h.wallRow(w, WD)
-                    if row.x == wa.t.Translation.X and row.y == wa.t.Translation.Y then
+                for k, wall in ipairs(WD.walls) do
+                    if wall.x == wa.t.Translation.X and wall.y == wa.t.Translation.Y then
                         i = k
                         break
                     end

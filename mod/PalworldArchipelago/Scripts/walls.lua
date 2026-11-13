@@ -58,7 +58,7 @@ W.setBeyond, W.slugOf = LOCKS.setBeyond, LOCKS.slugOf
 W.start, W.home = layout.start, layout.map.home
 -- Where a player found in a closed lock (or hit by a Teleport Trap) is sent: the layout's home as a location in cm.
 function W.homeLocation()
-    return { X = W.home[1], Y = W.home[2], Z = W.home[3] }
+    return { X = W.home.x, Y = W.home.y, Z = W.home.z }
 end
 local P = require("perf")
 local UTIL = require("util")
@@ -105,8 +105,8 @@ local checkAt = 0             -- the piece checkSome looks at next; forgotten: n
 local catchingUp = false      -- back to full after a Ctrl+7 test state: log when every piece is up again
 local function buildTrig()
     trig = {}
-    for i, w in ipairs(layout.walls) do
-        local yaw = math.rad(w[4])
+    for i, wall in ipairs(layout.walls) do
+        local yaw = math.rad(wall.yaw)
         trig[i] = { cos = math.cos(yaw), sin = math.sin(yaw) }
     end
 end
@@ -185,9 +185,9 @@ end
 
 -- How far a spot is from piece i (a segment: its middle, its direction, its length), in the plane.
 local function segDist(i, x, y)
-    local w, t = layout.walls[i], trig[i]
-    local dx, dy = x - w[1], y - w[2]
-    local along, half = dx * t.cos + dy * t.sin, w[3] / 2
+    local wall, t = layout.walls[i], trig[i]
+    local dx, dy = x - wall.x, y - wall.y
+    local along, half = dx * t.cos + dy * t.sin, wall.length / 2
     if along > half then along = half elseif along < -half then along = -half end
     local px, py = dx - along * t.cos, dy - along * t.sin
     return math.sqrt(px * px + py * py)
@@ -198,8 +198,8 @@ W.segDist = segDist
 -- vertical (as a quaternion: Z = sin(yaw/2), W = cos(yaw/2)), its middle 500 m above sea level. False when the spawn
 -- gave no actor.
 local function raise(i, pawn)
-    local w = layout.walls[i]
-    local x, y, length, yaw = w[1], w[2], w[3], math.rad(w[4])
+    local wall = layout.walls[i]
+    local x, y, length, yaw = wall.x, wall.y, wall.length, math.rad(wall.yaw)
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = x, Y = y, Z = MID_Z_CM },
                 Scale3D = { X = length / CUBE_CM, Y = THICK_CM / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
@@ -314,7 +314,7 @@ local function startOpening(i, pawn)
         UTIL.took("walls: an opening piece's start", "0 s (the game's clock could not be read)")
         now = 0
     end
-    opening[#opening + 1] = { actor = actor, scaleX = layout.walls[i][3] / CUBE_CM, scaleY = THICK_CM / CUBE_CM,
+    opening[#opening + 1] = { actor = actor, scaleX = layout.walls[i].length / CUBE_CM, scaleY = THICK_CM / CUBE_CM,
                               startedAt = now, addr = addr, dissolving = m and true or nil,
                               material = m and material or nil, collisionOff = nil, steps = 0 }
 end
@@ -373,9 +373,9 @@ function W.update(enabled, passes, pawn)
     end
     local budget = PER_TICK
     local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
-    for i, w in ipairs(layout.walls) do
+    for i, wall in ipairs(layout.walls) do
         if budget <= 0 then break end
-        local up = enabled and LOCKS.standing(w, passes)
+        local up = enabled and LOCKS.standing(wall, passes)
         if up and not raised[i] and spawning then
             local ok, made = pcall(raise, i, pawn)
             -- One piece that fails does not hold up the others: the loop goes on (the try counts against the budget).
@@ -423,15 +423,15 @@ function W.perfMode(mode)
 end
 
 
--- The locked side of a wall row other than `here` (the lock the player stands in), or nil; with both sides locked,
--- the second.
-local function lockedSide(row, here, passes)
-    local side = nil
-    for _, k in ipairs({ row[5], row[6] }) do
-        local name = layout.locks[k + 1]
-        if name ~= here and not isOpen(name, passes) then side = name end
-    end
-    return side
+-- The lock at index k of the cut when it is locked and not `here` (the lock the player stands in), or nil.
+local function lockedAndNotHere(k, here, passes)
+    local name = layout.locks[k + 1]
+    if name ~= here and not isOpen(name, passes) then return name end
+    return nil
+end
+-- The locked side of a wall piece other than `here`, or nil; with both sides locked, side B.
+local function lockedSide(wall, here, passes)
+    return lockedAndNotHere(wall.lockB, here, passes) or lockedAndNotHere(wall.lockA, here, passes)
 end
 -- The lock across a wall within NEAR of a spot (a player walking up to it) while it is locked, or nil. A wall locked
 -- on both sides names the lock the player is not in.

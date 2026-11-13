@@ -13,13 +13,16 @@ Round-1 art from the Art & Assets lane (2026-11-04; the user picked each design)
   ap-mailbox-emblem-64.png    beside the mailbox chest window's heading and the Inventory page's Mailbox button.
   ap-mailbox-emblem-128.png   the same at 128x128, for larger places.
 Round 2 (2026-11-04):
-  ap-pass-<region>.png        256x256, each region's own pass ticket on the Technology cards, for its Region Pass and
-                              its areas' Area Passes (shop_cards.lua; the shared icons/area-pass.png when missing).
+  ap-pass-<region>.png        256x256, each region's own pass ticket on the Technology cards, for its Region Pass, and
+                              for its areas' Area Passes when an area has no ticket of its own (shop_cards.lua; the
+                              shared icons/area-pass.png when missing).
   ap-map-stamp-<region>.png   256x256, each locked region's own stamp on the map, worn by its areas too (walls.lua;
                               ap-map-stamp.png when missing).
   ap-hint-icon-64/128.png     the hint prompt's icon; not drawn in play yet (needs a place on the in-game HUD).
-  ap-goal-banner.png          1200x300, the goal-complete banner (shown at 600x150); not drawn in play yet.
-  Both appear for 6 s with test_tools=1 and Ctrl+F4 (the HUD probe), to see whether and where the HUD takes them.
+  ap-goal-banner.png          1200x300, the goal-complete banner (shown at 600x150 once a seed's goal is reached;
+                              seen in game).
+  The hint icon appears for 6 s with test_tools=1 and Ctrl+F4 (the HUD probe), to see whether and where the HUD
+  takes it.
 Round 3 (2026-11-05):
   ap-map-stamp-sealed.png     256x256, the stamp of a region or area beyond the seed's goal (sealed for good; a chained
                               padlock).
@@ -29,7 +32,7 @@ Round 3 (2026-11-05):
                               at 380x84 in the middle of the screen, a little transparent).
   ap-hint-plate-short.png     the same without enough points.
   ap-hint-icon-short-64/128.png  the hint icon without enough points.
-Round 4 (2026-11-05, interim drafts until the user picks):
+Round 4 (2026-11-05; the user kept these as final):
   ap-crate-palworld.png       256x256, the Palworld Crate (a slot holding one shows it on the Technology cards).
   ap-crate-sphere/-food/-supply-common/-supply-rare/-supply-jackpot.png  256x256, the five crates (crate_window.lua).
   ap-mailbox-window.png       1600x1000, the crate window's plate (shown at 800x500 over the mailbox's chest window).
@@ -39,7 +42,7 @@ Round 4 (2026-11-05, interim drafts until the user picks):
 Round 5 (2026-11-06, the user's pick A):
   ap-debuff-slow.png          128x128, the Slow Trap's debuff icon (a snail; debuffs.lua shows it at 44 px at the top of
                               the HUD with the time left under it).
-  ap-debuff-frame.png         128x128, the same frame empty, for future timed traps (keep a glyph inside x 20-108,
+  ap-debuff-frame.png         128x128, the same frame empty, for future traps (keep a glyph inside x 20-108,
                               y 20-104).
 Round 6 (2026-11-06, the user's pick A, "engraved"): the explorer's-chart fog of war (the map's unexplored parts drawn
 as a chart; compose_chart in image_chart.cpp and compose_fog in image_fog.cpp, not drawn in play yet).
@@ -50,5 +53,16 @@ as a chart; compose_chart in image_chart.cpp and compose_fog in image_fog.cpp, n
                               (not used yet).
   ap-chart-hatch.png          256x256, seamless single diagonal engraved lines in ink #3B2A1A, drawn at 0.45 over locked
                               regions or areas on the chart, under the borders (the user's pick, 2026-11-07).
+Round 7 (2026-11-12, the user's picks):
+  ap-debuff-hunger.png        128x128 in the debuff frame: a bitten drumstick, shown for a few seconds when a Hunger
+                              Trap fires (traps.lua, debuffs.lua; no timer under it).
+  ap-debuff-teleport.png      a house with an arrow arcing onto its roof, shown when a Teleport Trap fires.
+  ap-debuff-teleport-waiting.png  the same, dimmed, with an amber hourglass badge: shown while a Teleport Trap waits
+                              for the player to leave a dungeon.
+  ap-debuff-fool.png          a jester's hat with three bells, shown when a Fool Trap fires.
+  area-passes/ap-area-pass-<area>.png  256x256, each of the 75 areas' own pass ticket (74: the starting area has
+                              none), for its Area Pass on the Technology cards (shop_cards.lua; the area's region's
+                              ticket when missing). <area> is the area's name in lower case, every run of other
+                              characters a "-" (WALLS.slugOf).
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).
