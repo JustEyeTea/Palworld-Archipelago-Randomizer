@@ -128,6 +128,44 @@ group("test tools", function()
         pawn.StatusComponent = nil
         expect(removals == 0 and loggedSince(skippedAt, "status Poison: .*skipped: the player character changed"),
                "a probe's later step skips a character that has changed: " .. removals .. " removal(s)")
+    do  -- Ctrl+Shift+F10: the fast-travel unlock probe picks the nearest LOCKED point and calls its interaction
+        -- handler with UnlockFastTravel (26), then reads whether it says it is unlocked
+        local calls = {}
+        local function point(id, dx, unlocked)
+            local a = { IsValid = function() return true end, FastTravelPointID = FNameOf(id), bUnlocked = unlocked }
+            a.IsUnlocked = function() return a.bUnlocked end
+            a.K2_GetActorLocation = function() return { X = pawnAt.X + dx, Y = pawnAt.Y, Z = 0 } end
+            a.OnTriggerInteract = function(self, who, kind)
+                calls[#calls + 1] = { id = id, who = who, kind = kind }
+                self.bUnlocked = true
+            end
+            return a
+        end
+        local listed = { point("FTPointOpen", 100, true), point("FTPointFar", 90000, false),
+                         point("FTPointNear", 5000, false) }
+        local savedFAO = FindAllOf
+        FindAllOf = function(class)
+            if class == "PalLevelObjectUnlockableFastTravelPoint" then return listed end
+            return savedFAO(class)
+        end
+        expect(keyBinds["key:F10+shift"] ~= nil and logged("Ctrl%+Shift%+F10 fast%-travel unlock probe"),
+               "test tools bind Ctrl+Shift+F10 to the fast-travel unlock probe")
+        local mark = logMark()
+        keyBinds["key:F10+shift"]()
+        runPast(require("util").updates(2))                    -- the probe reads back 2 s later (WAIT.afterProbe)
+        expect(#calls == 1 and calls[1].id == "FTPointNear" and calls[1].who == pawn and calls[1].kind == 26
+               and loggedSince(mark, "fast%-travel unlock probe: FTPointNear, 50 m away %(2 locked points%)")
+               and loggedSince(mark, "FTPointNear unlocked now: true"),
+               "the probe unlocks the nearest locked point as if its statue were used, and reads it back: "
+               .. #calls .. " call(s)")
+        for _, a in ipairs(listed) do a.bUnlocked = true end
+        mark = logMark()
+        keyBinds["key:F10+shift"]()
+        run(1)
+        FindAllOf = savedFAO
+        expect(#calls == 1 and loggedSince(mark, "no locked fast%-travel point found %(0 locked%)"),
+               "with every point unlocked the probe calls nothing and says so")
+    end
         local WAIT = require("clock").WAIT
         runPast(WAIT.settle + WAIT.heldNotice)                   -- (later groups expect a world long settled)
     end
