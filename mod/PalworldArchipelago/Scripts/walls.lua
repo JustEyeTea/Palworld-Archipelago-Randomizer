@@ -248,7 +248,7 @@ local function stepOne(s, now)
         return true
     end
     if s.dissolving then
-        once("dissolved", string.format("wall skin paws: an opened wall went %.2f s after it began dissolving"
+        once("dissolved", string.format("wall skins: an opened wall went %.2f s after it began dissolving"
             .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s.startedAt, DISSOLVE_S, s.steps))
     end
     pcall(function() actor:K2_DestroyActor() end)
@@ -298,9 +298,9 @@ local function stepOpeningAndGlow()
     local ok, err = pcall(WALL_SKINS.glowTick)
     if not ok then once("glow", "wall glow error: " .. tostring(err)) end
 end
--- Starts opening piece i: with the paws skin it dissolves (wall_skins.lua's dissolving: its material eats it away
--- over DISSOLVE_S by the game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway
--- and then goes.
+-- Starts opening piece i: with a skin on M_APWall (regions, paws) it dissolves (wall_skins.lua's dissolving: its
+-- material eats it away over DISSOLVE_S by the game's clock, an edge glowing); otherwise it shrinks. Either way it
+-- stops blocking halfway and then goes.
 local function startOpening(i, pawn)
     local actor, wore, addr = raised[i], WALL_SKINS.wornBy(i), raisedAt[i]
     forget(i)

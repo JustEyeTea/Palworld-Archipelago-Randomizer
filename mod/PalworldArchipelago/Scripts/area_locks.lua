@@ -46,8 +46,8 @@ function AREA_LOCKS.configureWalls(dir)
         mapStyle = cfg.map_style == "chart" and "chart" or "territories",
         testFogColour = cfg.test_tools == "1",
     }
-    -- wall skins (wall_skins.lua): wall_skin=paws|area|red, wall_tiling=U,V and wall_scroll=U,V in config.txt. A
-    -- setting that is not two numbers is said once and left out, so its default stands.
+    -- wall skins (wall_skins.lua): wall_skin=regions|paws|area|red, wall_tiling=U,V and wall_scroll=U,V in config.txt.
+    -- A setting that is not two numbers is said once and left out, so its default stands.
     local function pair(key)
         local text = cfg[key]
         if not text then return nil end

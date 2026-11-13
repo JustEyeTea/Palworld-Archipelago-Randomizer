@@ -7,6 +7,11 @@ It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipe
   M_APWall                    the area walls' material, built node by node here (nothing by hand)
   T_APWallPaws                the paws skin's cream-paw layer (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png in
                               this repo), cooked with mips so its navy rims don't shimmer far off
+  T_APWallRegion_<region>_<v>  the regions skin's walls, from logicmod/art/walls/ap-wall-region-<region>-<v>.png (each
+                              of the 15 regions in versions 0 to 3; <region> is its name in lower case, words joined
+                              by _ here and by - in the file), cooked with mips
+  T_APWallSealed              the regions skin's bunker grille for locks beyond the goal
+                              (logicmod/art/walls/ap-wall-sealed-bunker.png), cooked with mips
   ModActor                    an empty Actor Blueprint, so BPModLoader's log shows the pak loaded
   PalworldArchipelagoArt_Label  Primary Asset Label: chunk 2, always cooked, everything in the folder
 
@@ -20,8 +25,8 @@ distance from the camera like the game's walls. Parameters the Lua mod sets on i
   CellSize              centimetres per tile, both ways (300)
   ScrollU, ScrollV      tiles per second (0, 0)
   Tint (colour)         multiplies the colour (white)
-  Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws skin
-                        puts each region's colour at 0.34 under the cream-paw layer
+  Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws and
+                        regions skins put each region's colour at 0.34 under their layer
                         (A = a + BackAlpha*(1 - a), colour = (rgb*a + Back*BackAlpha*(1 - a)) / A)
   Brightness            emissive strength (1.5); NightDim multiplies it (1). The Lua mod does not set NightDim,
                         so the walls are as bright by night as by day; it is there for dimming them at night.
@@ -46,6 +51,8 @@ ROOT = "/Game/Mods/PalworldArchipelagoArt"
 NAME = "M_APWall"
 CHUNK_ID = 2
 DISSOLVE_EDGE = 0.08             # how wide the dissolve's glowing edge is, in the noise's 0..1
+REGION_WALL_PREFIX = "ap-wall-region-"    # logicmod/art/walls/ap-wall-region-<region>-<version>.png
+BUNKER_FILE = "ap-wall-sealed-bunker"     # logicmod/art/walls/ap-wall-sealed-bunker.png
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
@@ -483,13 +490,18 @@ def label():
     return lab
 
 
-def paw_layer_source():
-    """The paws layer's PNG in this repo (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png). Run as a script
-    file this one's folder finds it; run some other way, AP_REPO_LOGICMOD names this folder."""
+def logicmod_folder():
+    """This repo's logicmod folder. Run as a script file this one's folder is it; run some other way,
+    AP_REPO_LOGICMOD names it."""
     try:
-        here = os.path.dirname(os.path.abspath(__file__))
+        return os.path.dirname(os.path.abspath(__file__))
     except NameError:
-        here = os.environ.get("AP_REPO_LOGICMOD", "")
+        return os.environ.get("AP_REPO_LOGICMOD", "")
+
+
+def paw_layer_source():
+    """The paws layer's PNG in this repo (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png)."""
+    here = logicmod_folder()
     return os.path.normpath(os.path.join(here, "..", "mod", "PalworldArchipelago", "walls", "ap-wall-paws-layer.png"))
 
 
@@ -530,19 +542,17 @@ def imported_texture(task, name):
     return None, None
 
 
-def paw_layer():
-    """T_APWallPaws: the paws skin's layer, cooked into the pak with mips (a file imported at run time has none, and
-    its navy rims shimmer at a distance). The Lua mod loads the PNG itself if this is missing."""
-    name = "T_APWallPaws"
-    src = paw_layer_source()
+def import_layer(src, name, without):
+    """Imports src as the wall layer texture <name>: sRGB, with mips, in the world texture group. None, logged with
+    `without` (what the Lua mod does without it), when the file is missing or the import fails."""
     if not os.path.isfile(src):
-        log(f"{name}: skipped, no {src} (the Lua mod will load the PNG at run time, without mips)")
+        log(f"{name}: skipped, no {src} ({without})")
         return None
     task = import_task(src, name)
     tools.import_asset_tasks([task])
     tex, found_by = imported_texture(task, name)
     if not tex:
-        log(f"{name}: the import of {src} failed (the Lua mod will load the PNG at run time, without mips)")
+        log(f"{name}: the import of {src} failed ({without})")
         return None
     tex.set_editor_property("srgb", True)
     tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)
@@ -554,6 +564,43 @@ def paw_layer():
         size = "size unknown"
     log(f"{name}: imported from {src} ({size}, sRGB, with mips), found by {found_by}")
     return tex
+
+
+def paw_layer():
+    """T_APWallPaws: the paws skin's layer, cooked into the pak with mips (a file imported at run time has none, and
+    its navy rims shimmer at a distance)."""
+    return import_layer(paw_layer_source(), "T_APWallPaws", "the Lua mod will load the PNG at run time, without mips")
+
+
+def region_wall_name(stem):
+    """The texture name the Lua mod asks for (wall_skins.lua's regionTileName, BUNKER_TILE) for a file in
+    logicmod/art/walls, by its name without .png; None for a file that is not a region wall."""
+    if stem == BUNKER_FILE:
+        return "T_APWallSealed"
+    if stem.startswith(REGION_WALL_PREFIX):
+        return "T_APWallRegion_" + stem[len(REGION_WALL_PREFIX):].replace("-", "_")
+    return None
+
+
+def region_walls():
+    """The regions skin's layers, every logicmod/art/walls/*.png that is a region wall, cooked into the pak with mips:
+    T_APWallRegion_<region>_<version> and T_APWallSealed. The Lua mod has no copy of them, so without them it wears
+    the paws."""
+    folder = os.path.join(logicmod_folder(), "art", "walls")
+    if not os.path.isdir(folder):
+        log(f"region walls: skipped, no {folder} (the Lua mod will wear the paws)")
+        return []
+    made = []
+    for file in sorted(os.listdir(folder)):
+        stem, ext = os.path.splitext(file)
+        name = region_wall_name(stem) if ext.lower() == ".png" else None
+        if not name:
+            continue
+        tex = import_layer(os.path.join(folder, file), name, "the Lua mod's regions skin cannot wear it")
+        if tex:
+            made.append(tex)
+    log(f"region walls: {len(made)} textures imported from {folder}")
+    return made
 
 
 def mod_actor():
@@ -574,7 +621,7 @@ def mod_actor():
 def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
-    for a in (material(), paw_layer(), mod_actor(), label()):
+    for a in [material(), paw_layer(), *region_walls(), mod_actor(), label()]:
         if a:
             assets.save_loaded_asset(a, only_if_is_dirty=False)
     log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as "

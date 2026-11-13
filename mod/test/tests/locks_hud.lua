@@ -50,6 +50,73 @@ group("Lock Size: areas", function()
     expect(sisters >= 5,
            "75 Areas, paws: sister Areas wear their Region's colour, each its own variant (paws:<colour>:<area>): "
            .. sisters .. " regions with several")
+    do  -- 75 areas, regions skin: each area its region's own wall in the version wall_region_variants.lua gives it
+        local variants = dofile(MOD .. "/Scripts/wall_region_variants.lua")
+        local function openNow(lock) return lock == liveWalls.start or lock == "Open sea" end
+        local wrongRow = {}
+        for _, area in ipairs(RD.locks) do
+            local row = variants[area]
+            if area ~= "Open sea" and not (row and row.region == liveWalls.slugOf(liveWalls.regionOf(area))) then
+                wrongRow[#wrongRow + 1] = area
+            end
+        end
+        expect(#wrongRow == 0, "wall_region_variants.lua has every area, each with its region as area_regions.lua "
+               .. "says: " .. table.concat(wrongRow, ", "))
+        local wanted = { ["beyond the goal"] = "logicmod/art/walls/ap-wall-sealed-bunker.png" }   -- (from the root)
+        for area, row in pairs(variants) do
+            wanted[area] = "logicmod/art/walls/ap-wall-region-" .. row.region .. "-" .. row.version .. ".png"
+        end
+        local noFile = {}
+        for what, file in pairs(wanted) do
+            local f = io.open(file, "rb")
+            if f then
+                f:close()
+            else
+                noFile[#noFile + 1] = what .. ": " .. file
+            end
+        end
+        expect(#noFile == 0, "every area's region wall and the bunker grille are in logicmod/art/walls, for the pak: "
+               .. table.concat(noFile, ", "))
+        -- What each standing piece wears, with no passes: the look of its locked side (lockA's when both are).
+        local wrongLook, versionsOf = {}, {}
+        for i, wall in ipairs(RD.walls) do
+            local nameA, nameB = h.lockNamesOf(wall, RD)
+            local worn = openNow(nameA) and nameB or nameA
+            local slug, version = liveWalls.pieceSkin(i, {}, "regions"):match("^region:([%w%-]+)%-(%d+):")
+            local row = not openNow(worn) and variants[worn]
+            if row and not (slug == row.region and tonumber(version) == row.version) then
+                wrongLook[#wrongLook + 1] = worn
+            end
+            if row and slug then
+                versionsOf[slug] = versionsOf[slug] or {}
+                versionsOf[slug][version] = true
+            end
+        end
+        local varied = 0                       -- regions whose areas wear more than one version
+        for _, versions in pairs(versionsOf) do
+            local n = 0
+            for _ in pairs(versions) do
+                n = n + 1
+            end
+            if n > 1 then
+                varied = varied + 1
+            end
+        end
+        expect(#wrongLook == 0 and varied >= 8,
+               "75 Areas, regions: each area wears its region's own wall in its own version from the table ("
+               .. varied .. " regions in several versions): " .. table.concat(wrongLook, ", "))
+        local clashes = {}
+        for _, wall in ipairs(RD.walls) do
+            local nameA, nameB = h.lockNamesOf(wall, RD)
+            local rowA, rowB = variants[nameA], variants[nameB]
+            local sisters = rowA and rowB and nameA ~= nameB and rowA.region == rowB.region
+            if sisters and rowA.version == rowB.version then
+                clashes[#clashes + 1] = nameA .. " / " .. nameB
+            end
+        end
+        expect(#clashes == 0, "no two touching areas of one region wear the same version: "
+               .. table.concat(clashes, ", "))
+    end
     slotData["options.lock_size"], slotData["options.area_size"] = nil, "1"   -- a seed made before the rename
     h.reconnect("Tester")
     run(80)

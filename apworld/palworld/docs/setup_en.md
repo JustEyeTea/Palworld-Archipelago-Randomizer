@@ -12,10 +12,10 @@ with `[PalworldAP]`.
 - The mod package, `PalworldArchipelago-v<version>.zip`, from the project's
   [Releases](https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases) page. It holds
   `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
-- Optional: `PalworldArchipelagoArt.pak`, the walls' own material (paws in each region's colour, a glow near you, a
-  dissolve when a region opens), among the same release's downloads. It is built by hand in the Palworld Modding Kit
-  and added to each release separately, so an early release may not have it yet. Without it the walls use the game's
-  own wall material in your region colours.
+- Optional: `PalworldArchipelagoArt.pak`, the walls' own material (each region's own wall over its colour, a glow
+  near you, a dissolve when a region opens), among the same release's downloads. It is built by hand in the Palworld
+  Modding Kit and added to each release separately, so an early release may not have it yet. Without it the walls use
+  the game's own wall material in your region colours.
 
 ## Installing
 
@@ -74,9 +74,11 @@ with `[PalworldAP]`.
 - Items you receive wait in the **Archipelago Mailbox** (Esc menu > Archipelago Mailbox) until you take them. Gear and
   accessories from Palworld Crates go straight into your bag.
 - With Area Locks on, a locked region is walled off and shown grey on the map until its Region Pass arrives (with
-  Lock Size: areas, each area and its Area Pass). Its walls wear the region's colour: cream paws over it with
-  `PalworldArchipelagoArt.pak`, a coloured wall with paw-shaped holes without it, and slate grey for a region beyond
-  your goal. Press `H` at a wall to buy a hint for its pass (the `hint_key` setting).
+  Lock Size: areas, each area and its Area Pass). Its walls wear the region's colour: with
+  `PalworldArchipelagoArt.pak`, the region's own wall over it, and a bunker grille on a region beyond your goal (an
+  older pak without the region walls shows cream paws over the colour instead, slate grey beyond your goal); without
+  the pak, a coloured wall with paw-shaped holes, slate grey beyond your goal. Press `H` at a wall to buy a hint for
+  its pass (the `hint_key` setting).
 - The logic expects a mount that swims or flies to cross the open sea, and a flying one to reach the Sky Islands.
 
 ## Not tested in game yet

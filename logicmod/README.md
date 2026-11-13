@@ -150,7 +150,7 @@ Part 1's setup, not Parts 2 and 3.
 
 ```mermaid
 flowchart LR
-  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png)"] -->|"the editor runs it"| AS["M_APWall, T_APWallPaws, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
+  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png, art/walls/*.png)"] -->|"the editor runs it"| AS["M_APWall, T_APWallPaws, T_APWallRegion_*, T_APWallSealed, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
   AS -->|"package: Use Pak File, Generate Chunks,<br/>shaders kept in the pak"| PK["pakchunk2-Windows.pak"]
   PK -->|"renamed"| ART["PalworldArchipelagoArt.pak<br/>in Pal/Content/Paks/LogicMods"]
   ART -->|"attached by hand"| REL["each release"]
@@ -167,20 +167,28 @@ flowchart LR
    to hold the shaders.) The script also makes an empty `ModActor`, so BPModLoader's log says whether the game loaded
    the pak. Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc` if there), rename to `PalworldArchipelagoArt.pak`
    (and `.ucas` / `.utoc`), and copy to `Pal\Content\Paks\LogicMods\`.
-4. In game, the walls wear the default `paws` skin. UE4SS.log says `wall skin paws:<colour>: material made on
-   M_APWall`. Without the pak it says `wall skin paws: needs the PalworldArchipelagoArt pak` and the walls wear the
-   area colours instead.
+4. In game, the walls wear the default `regions` skin. UE4SS.log says `wall skin region:<region>-<version>:<colour>:
+   material made on M_APWall`. A pak built before the region walls makes it say `wall skin regions: the
+   PalworldArchipelagoArt pak has no region walls (or is not there); paws instead`, and the walls wear the cream paws
+   (`wall skin paws:<colour>: material made on M_APWall`). Without the pak it also says `wall skin paws: needs the
+   PalworldArchipelagoArt pak` and the walls wear the area colours instead.
 5. For a release: attach the same files to the draft release CI made from the version tag, before publishing it
    (the drafted notes remind you; the setup guide sends players there for the pak).
 
-What the Lua mod sets on it: `Pattern` (the cream-paw layer of the default `paws` skin), and optionally
-`Back`/`BackAlpha` (a colour under the pattern; the paws skin puts the region's colour at 0.34), `CellSize` (cm per
-tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm),
+What the Lua mod sets on it: `Pattern` (a region's wall in the default `regions` skin, the cream-paw layer in the
+`paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; both skins put the region's colour at
+0.34, and the regions skin a dark red-grey at 0.55 under the bunker grille of a lock beyond the goal), `CellSize` (cm
+per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm),
 `OffsetU`/`OffsetV`/`MirrorU` (each of the 75 Areas a variant of its Region's look), and `DissolveStart`/`DissolveTime`
 (an unlock: the wall dissolves by the game's clock). It also glows and ripples near the player, whose position the mod
 sets as `PlayerPos` each update (300 ms) (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`, `ReactColor`).
 The material also has `NightDim`, a multiplier on the brightness for dimming the walls at night; the mod does not
 set it, so it stays 1.
-The script also cooks `walls\ap-wall-paws-layer.png` into the pak as `T_APWallPaws`, with mips; it reads the PNG from
-this repo, so run it from a full checkout. The pattern is laid on the wall in world space, so it keeps its size on every
+The script also cooks, with mips, `walls\ap-wall-paws-layer.png` (in the Lua mod's folder) into the pak as
+`T_APWallPaws`, and every region wall in `logicmod\art\walls` (see its README.txt): each of the 15 regions in four
+versions as `T_APWallRegion_<region>_<version>` (the region's name in lower case, words joined by `_`, such as
+`T_APWallRegion_bamboo_groves_0`), and the bunker grille as `T_APWallSealed`. The 15 regions wear version 0; with Lock
+Size: areas each area wears the version `Scripts\wall_region_variants.lua` gives it. The Lua mod has no copy of the
+region walls, so a pak built before them gives the paws. It reads the PNGs from this repo, so run it from a full
+checkout. The pattern is laid on the wall in world space, so it keeps its size on every
 piece and recedes in perspective.

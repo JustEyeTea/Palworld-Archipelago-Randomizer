@@ -154,6 +154,7 @@ end
 LOCKS.PALETTE = {
     teal = "24E0CC",        -- the AP teal: the pattern skins, and the start island (its map colour, its paws)
     wallSealed = "9AA3B5",  -- slate grey: the walls of a lock beyond the goal
+    wallBunker = "4A1F24",  -- dark red-grey: between the bunker grille's bars (a lock beyond the goal, regions skin)
     mapSealed = "5A6472",   -- the map's colour of a lock beyond the goal
     noColour = "9AA3B5",    -- the map's colour of a lock with no colour of its own
     fog = "0E1A24",         -- the Territories fog over the unexplored map

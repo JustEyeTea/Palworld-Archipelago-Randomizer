@@ -817,4 +817,40 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "five pawn changes keep nothing new alive: kept " .. keptFirst .. " then " .. keptAfter
                .. "; pattern files loaded " .. importsFirst .. " then " .. importsAfter)
     end
+    do  -- The default skin: the region walls with a pak that has them; with a pak built before them, the paws, said
+        -- once
+        local hadPak, hadRegionWalls = game.logicMod, game.regionWalls
+        game.logicMod = true
+        -- How many pieces of a fresh copy of walls.lua, in the default skin, wear a layer whose name has `layer`, of
+        -- how many; and how many times the regions skin said it fell back to the paws.
+        local function defaultSkinWears(layer)
+            local saidBefore = countLogged("wall skin regions: the PalworldArchipelagoArt pak has no region walls")
+            local W, mine = h.freshWalls()
+            W.setSkin("")
+            for _ = 1, SETTLE_UPDATES do
+                W.update(true, {}, offMap)
+            end
+            local pieces, wearing = mine(), 0
+            for _, a in ipairs(pieces) do
+                local pattern = a.Cube.mat and a.Cube.mat.textures and a.Cube.mat.textures.Pattern
+                if pattern and tostring(pattern.path):find(layer, 1, true) then
+                    wearing = wearing + 1
+                end
+            end
+            h.wallsGo(pieces)
+            local said = countLogged("wall skin regions: the PalworldArchipelagoArt pak has no region walls")
+            return wearing, #pieces, said - saidBefore
+        end
+        game.regionWalls = true
+        local regionTiles, n1, said1 = defaultSkinWears(".T_APWallRegion_")
+        expect(n1 > 100 and regionTiles == n1 and said1 == 0,
+               "with the pak's region walls, the default skin is regions: " .. regionTiles .. " of " .. n1
+               .. " pieces wear a region's own wall")
+        game.regionWalls = false
+        local paws, n2, said2 = defaultSkinWears(".T_APWallPaws")
+        expect(n2 > 100 and paws == n2 and said2 == 1,
+               "with a pak built before the region walls, the default falls back to the paws and says so once: "
+               .. paws .. " of " .. n2 .. " pieces in paws, said " .. said2 .. " time(s)")
+        game.logicMod, game.regionWalls = hadPak, hadRegionWalls
+    end
 end)

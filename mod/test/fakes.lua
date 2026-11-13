@@ -27,6 +27,8 @@ local GAME_START = {
     bagFull = false,           -- the bag refuses every item
     movesWork = true,          -- false: the game's move from the hidden chest to the bag does nothing
     logicMod = false,          -- the mod's LogicMod paks are loaded (its assets and window classes exist)
+    regionWalls = true,        -- with logicMod: the PalworldArchipelagoArt pak has the region walls (false: one
+                               -- built before them, without T_APWallRegion_* and T_APWallSealed)
     composeFails = false,      -- the map picture's compositor fails every job, as when its file is locked
     palEditOk = true,          -- the game's PalEditableTextBox class exists
     umgEditOk = true,          -- UMG's EditableTextBox class exists
@@ -406,10 +408,17 @@ LoadAsset = function(path)
     if pkg:find("^/Game/Mods/PalworldArchipelagoArt/") then return end
     loaded[pkg] = true
 end
+-- Whether a mounted LogicMod pak holds the package at pkg: every one but the region walls of a pak built before them.
+local function inLogicMod(pkg)
+    if not (game.logicMod and pkg:find("^/Game/Mods/")) then return false end
+    local name = pkg:match("([^/]+)$")
+    local regionWall = name:find("^T_APWallRegion_") or name == "T_APWallSealed"
+    return game.regionWalls or not regionWall
+end
 assetRegistryHelpers = { IsValid = function() return true end }
 function assetRegistryHelpers.GetAsset(_, data)
     local pkg, name = data.PackageName:ToString(), data.AssetName:ToString()
-    if not (game.logicMod and pkg:find("^/Game/Mods/") and pkg:match("([^/]+)$") == name) then
+    if not (inLogicMod(pkg) and pkg:match("([^/]+)$") == name) then
         return { IsValid = function() return false end }
     end
     loaded[pkg] = true
@@ -484,7 +493,10 @@ StaticFindObject = function(path)
         return { CountLocalPlayerInventoryItemNum64 = function(_, _, id) return bagHas[id:ToString()] or 0 end }
     end
     if path == "/Script/AssetRegistry.Default__AssetRegistryHelpers" then return assetRegistryHelpers end
-    if path:find("^/Game/Mods/") then return game.logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
+    if path:find("^/Game/Mods/") then
+        local pkg = path:match("^[^.]+")
+        return inLogicMod(pkg) and loaded[pkg] and Texture(path) or nil
+    end
     if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then
         return loaded[path:match("^[^.]+")] and Texture(path) or nil
     end
