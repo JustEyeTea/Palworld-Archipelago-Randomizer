@@ -142,13 +142,68 @@ local function WallActor(t)
     end
     return a
 end
+-- The glows' pieces (glow_pieces.lua): plain StaticMeshActors, as BeginDeferredActorSpawnFromClass makes them for the
+-- engine's StaticMeshActor class. Each records what the mod sets on it: its mesh, material, mobility, collision,
+-- shadow, scale, place and turn.
+staticMeshActorClass = { IsValid = function() return true end, name = "StaticMeshActor" }
+glowActors = {}                                            -- the glow pieces standing: piece actor -> true
+glowSpawned = 0                                            -- glow pieces spawned
+local FIRST_GLOW_ADDRESS = 0x900000
+local function GlowActor(t)
+    glowSpawned = glowSpawned + 1
+    local address = FIRST_GLOW_ADDRESS + glowSpawned
+    local a = { IsValid = function(self) return not self.gone end, GetAddress = function() return address end,
+                glow = true, at = t.Translation, scale = t.Scale3D, destroyCalls = 0 }
+    a.StaticMeshComponent = { SetMobility = function(_, m) a.mobility = m end,
+                              SetStaticMesh = function(_, mesh) a.mesh = mesh end,
+                              SetMaterial = function(_, _, m) a.material = m end,
+                              SetCollisionEnabled = function(_, c) a.collision = c end,
+                              SetCastShadow = function(_, on) a.shadow = on end }
+    function a:SetActorEnableCollision(on) self.actorCollision = on end
+    function a:SetActorScale3D(sc) self.scale = sc end
+    function a:K2_SetActorRotation(r)
+        self.rotation = r
+        return true
+    end
+    function a:K2_TeleportTo(at, r)
+        self.at, self.rotation = at, r
+        return true
+    end
+    function a:K2_SetActorLocation()
+        error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS")
+    end
+    function a:K2_DestroyActor()
+        self.destroyCalls = self.destroyCalls + 1
+        self.gone = true
+        glowActors[self] = nil
+    end
+    return a
+end
+-- The glow pieces standing, as a list (FindAllOf("StaticMeshActor") lists them, live ones only).
+function glowList()
+    local list = {}
+    for a in pairs(glowActors) do
+        list[#list + 1] = a
+    end
+    return list
+end
 local FRAME_SECONDS = 0.016                                -- the engine's frame time here: 60 frames a second
 gameplay = { IsValid = function() return true end,
-             FinishSpawningActor = function(_, a) wallsUp[a] = true end,
              GetWorldDeltaSeconds = function() return FRAME_SECONDS end,
              GetTimeSeconds = function() return gameSeconds end,
              SpawnObject = function() return Widget() end }
-function gameplay.BeginDeferredActorSpawnFromClass(_, _, _, t) return WallActor(t) end
+-- A piece spawned and finished stands: a glow piece among glowActors, a wall among wallsUp.
+function gameplay.FinishSpawningActor(_, a)
+    if a.glow then
+        glowActors[a] = true
+    else
+        wallsUp[a] = true
+    end
+end
+function gameplay.BeginDeferredActorSpawnFromClass(_, _, cls, t)
+    if cls == staticMeshActorClass then return GlowActor(t) end
+    return WallActor(t)
+end
 -- How many wall actors stand now.
 function wallCount()
     local n = 0

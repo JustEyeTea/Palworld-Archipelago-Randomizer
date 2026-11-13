@@ -1,0 +1,73 @@
+Palworld Archipelago glow pieces: spec
+Made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction. Rebuilt by src/glow_export.py.
+
+Units: cm, Z up, UE axes (FBX unit = cm, so import without converting units).
+Every material is UNLIT ADDITIVE, two-sided, no shadows. Textures are light on black.
+"mask" = greyscale: import with sRGB off and multiply by a tint. "colour" = RGB: sRGB on, use as is.
+UV: U runs left to right on the image; "the bottom of the image" is its bottom row as viewed.
+
+THE CHECK GLOW (unvisited fast-travel statues first; alpha Pals and tower entrances later). Brand colours.
+Reference object: 100 cm wide, 200 cm tall.
+Scale X and Y by (object width / 100) and Z by (object height / 200).
+The pillar takes the X/Y scale only and keeps its height.
+
+SM_APGlowRing  the halo ring tube.
+  Radius 95 cm, tube radius 3.5 cm, centre 110 cm above the origin.
+  Tilted 14 deg about X, then -6 deg about Y (baked in).
+  Origin at the object's base, centred.
+  UV: U = once round the ring, V = once round the tube.
+  T_APGlowRing (colour, 1024x64): the four brand colours along U; even along V.
+  Motion: turn about Z at 45 deg/s (the baked tilt makes it sway).
+  Glow 2.6, times |N.V|^0.6 (soft edges).
+SM_APGlowSprite  the soft light: a flat quad facing +X, 240 cm square.
+  Origin at its CENTRE, so turning it to the camera keeps it in place.
+  Place it at the ring's centre (110 cm up at the reference size).
+  UV: the whole image, U along +Y, V up.
+  T_APGlowSprite (colour, 256x256): a soft cream glow. Glow 1.2.
+Twinkles round the object (optional; the twinkle quad below):
+  9 of them, cream, 11-21 cm across.
+  70-120 cm from the centre,
+  at 10%-85% of the object's height.
+  They drift round at 18 deg/s.
+  Each pulses between 60% and 100% size every 1.0 s.
+  Glow 3.0.
+SM_APGlowBeam  the pillar: an open cylinder (no caps).
+  Radius 38 cm, 2000 cm tall, rings bunched near the base. Origin at the base, centred.
+  UV: U = once round, V = up (the bottom of the image at the base).
+  T_APGlowBeam (mask, 256x512): bright at the base, fading up, faint streaks round.
+  Tint #FFD37C (brand gold). Glow 2.6, times |N.V|^1.6.
+  Suggested: fade the pillar in from 10 m to 25 m away,
+  so up close the halo shows alone.
+
+THE ITEM-ARRIVAL BURST round the player: 1.25 s.
+Sizes as they are (no scaling); origin at the player's feet.
+Tint by the type of item received: progression #AF99EF, useful #6D8BE8, filler #00EEEE. Traps show as filler.
+
+SM_APGlowShock  the ground shock ring: a flat disc facing up, 100 cm across.
+  It sits 2 cm above the origin.
+  UV: the whole image, U along +X, V along +Y.
+  T_APGlowShock (mask, 512x512): a thin bright ring at 90% of the radius, with a soft trail inside it.
+  Motion: from 0 to 0.75 s its width grows from 90 to 810 cm, eased out.
+  (The bright front goes from 40 to 364 cm radius.)
+  k = 1 - (1 - t/0.75)^3; glow 3.5 x (1 - k)^1.2. Gone after 0.75 s.
+SM_APGlowColumn  the column flash: an open cylinder.
+  Radius 42 cm, 260 cm tall at full size.
+  Origin at the base. UV: U = once round, V = up (the bottom of the image at the base).
+  T_APGlowColumn (mask, 256x512): bright at the base, fading up to nothing at the top edge.
+  Rise: Z scale grows 0 -> 1 from 0 to 0.3125 s, eased out (cubic).
+  Fade: from 0.25 s, fade = 1 - (t - 0.25)/0.6875.
+  Glow 1.1 x fade^1.5. Gone at 0.94 s.
+  Thin: over the fade, the X/Y scale shrinks by 0.4 a second (1 -> 0.72).
+  Glow also times |N.V|^2.2.
+SM_APGlowTwinkle  one twinkle: a flat quad facing +X, 20 cm square.
+  Origin at its CENTRE (turn it to the camera). UV: the whole image, U along +Y, V up.
+  T_APGlowTwinkle (mask, 128x128): a four-point sparkle with a soft glow.
+  Motion: 16 twinkles.
+  Each starts at a random time in 0.0-0.375 s and lives 0.75 s.
+  (All are gone by 1.12 s.) Over its life, with e = 1 - (1 - life)^3:
+    angle = random start + 137.5 deg x life
+    reach = 35 + 50 x e x random(0.6..1.0) cm
+    height = 20 + 220 x e x random(0.7..1.0) cm
+    size = random(15..27) cm x (1 - life)^0.7
+  Glow 4.0.
+Optional: a rim flash on the player in the tint, fading out over 0.625 s.

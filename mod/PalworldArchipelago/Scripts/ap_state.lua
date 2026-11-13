@@ -63,6 +63,10 @@ local ap = {
 }
 STATE.ap = ap
 
+-- Archipelago's item flags: bit masks on an item's flags, as the server sends them with a received or scouted item
+-- (cppmod/APConnector/src/ap_bridge.hpp). Filler has none of them.
+STATE.ITEM_FLAGS = { progression = 1, useful = 2, trap = 4 }
+
 -- The connection's states (ap.status), each with what it means for the player (see the list above).
 local STATUSES = { disconnected = true, connecting = true, connected = true, refused = true }
 

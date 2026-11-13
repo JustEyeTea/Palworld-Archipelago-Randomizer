@@ -40,6 +40,7 @@ WALL_SKINS.linearOf = UTIL.linear                                 -- (for the ha
 -- The paws' brightness: emissive 1.0 to 1.2 (1.5 blooms the cream); raise the back first.
 local PAW_BACK, PAW_BRIGHT = 0.34, 1.1
 local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
+WALL_SKINS.MID_FLAGS = MID_FLAGS  -- (glow_pieces.lua makes its looks with it too)
 local GLOW_MOVE_CM = 5        -- the player moves this far before the walls' glow is told again
 -- The paws' scatter: an Area's number turned into s, a fraction from 0 to 1 that looks random so neighbours differ
 -- (frac(sin(n * SCATTER_A + 1) * SCATTER_B), a common hash); s moves the pattern by s * OFFSET_U_RATE and

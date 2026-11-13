@@ -76,13 +76,10 @@ function SHOP_CARDS.techIcon(tech)
     return t
 end
 
--- Archipelago's item flags, bit masks on a scouted item's flags (a trap's bit is not shown on a card).
-local FLAG_PROGRESSION = 1
-local FLAG_USEFUL = 2
--- The icon a card shows for another item: by its most important flag.
+-- The icon a card shows for another item: by its most important flag (a trap's bit is not shown on a card).
 local function iconKind(flags)
-    if flags & FLAG_PROGRESSION ~= 0 then return "progression" end
-    if flags & FLAG_USEFUL ~= 0 then return "useful" end
+    if flags & STATE.ITEM_FLAGS.progression ~= 0 then return "progression" end
+    if flags & STATE.ITEM_FLAGS.useful ~= 0 then return "useful" end
     return "filler"
 end
 

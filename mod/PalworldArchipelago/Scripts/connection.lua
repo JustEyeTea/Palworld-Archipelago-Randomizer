@@ -12,6 +12,7 @@ local CONFIG = require("config")
 local CRATES = require("crates")
 local DATA = require("ap_data")
 local DEATH_LINK = require("death_link")
+local GLOW_CHECKS = require("glow_checks")
 local ITEMS = require("items")
 local MAIL = require("mailbox")
 local PERF = require("perf")
@@ -126,13 +127,14 @@ local function logRunOptions()
     end
 end
 
--- The seed's options that shape this session: Area Locks and their cut of the map, the locks beyond the goal, and
--- Death Link; the run style and traps are logged.
+-- The seed's options that shape this session: Area Locks and their cut of the map, the locks beyond the goal, Death
+-- Link, and whether fast-travel statues are checks (their glow); the run style and traps are logged.
 local function applySeedOptions()
     AREA_LOCKS.setOn(SLOT.flag("options.area_locks"))
     applyLockSize()
     applyBeyondGoal()
     DEATH_LINK.applyOption()
+    GLOW_CHECKS.setFastTravelChecks(SLOT.text("options.fast_travel_checks"))
     CHECKS.logSeedGoal()
     logRunOptions()
 end

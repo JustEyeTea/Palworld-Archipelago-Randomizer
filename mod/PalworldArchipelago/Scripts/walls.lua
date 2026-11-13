@@ -12,7 +12,7 @@
 --   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
 --     setSkin, cycleSkin, perfMode, count, lockedNear, lockedAround, lockAt, passName, regionOf, slugOf, mapShown,
 --     mapOff, oldSweep;
---     read: layout (the cut's name), start, home, SKINS
+--     read: layout (the cut's name), start, home, SKINS, SPAWN_ALWAYS (glow_pieces.lua)
 --   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, REGION_COLOURS
 local W = {}
 W.layout = "regions"
@@ -69,6 +69,7 @@ local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlock
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
 -- Sizes of one wall piece, all in centimetres (the game's unit).
 local SPAWN_ALWAYS = 1        -- ESpawnActorCollisionHandlingMethod::AlwaysSpawn: a piece goes up wherever it stands
+W.SPAWN_ALWAYS = SPAWN_ALWAYS   -- (glow_pieces.lua spawns its pieces with it too)
 local MIN_SCALE = 0.01        -- the height scale a shrinking piece ends at (never 0)
 local CUBE_CM = 100           -- the blocking cube's side at scale 1: a piece's scale is its size / CUBE_CM
 local THICK_CM = 400          -- 4 m thick, so nothing fast slips through

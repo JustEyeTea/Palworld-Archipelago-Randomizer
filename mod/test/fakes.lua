@@ -146,8 +146,10 @@ record = {
 pawnAt = { X = -342035, Y = 236885, Z = -1700 }            -- the starting region (FTPoint21)
 teleported = nil                                           -- where the last teleport sent the pawn
 pawnAddress = 4096
+local CAPSULE_HALF_HEIGHT_CM = 88                          -- the player's feet are this far below its middle
 pawn = { IsValid = function() return true end, GetAddress = function() return pawnAddress end,
-         K2_GetActorLocation = function() return pawnAt end }
+         K2_GetActorLocation = function() return pawnAt end,
+         CapsuleComponent = { GetScaledCapsuleHalfHeight = function() return CAPSULE_HALF_HEIGHT_CM end } }
 function pawn.K2_TeleportTo(_, loc)
     teleported = loc
     pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z }
@@ -213,6 +215,10 @@ function playerController.SelfKillPlayer()
     game.playerDead = true
 end
 playerController.GetControlPalCharacter = function() return pawn end
+-- The camera: behind the player and above.
+cameraAt = { X = pawnAt.X - 300, Y = pawnAt.Y, Z = pawnAt.Z + 150 }
+playerController.PlayerCameraManager = { IsValid = function() return true end,
+                                         GetCameraLocation = function() return cameraAt end }
 ps = {
     IsValid = function() return true end,
     IsPlayerDead = function() return game.playerDead end,
@@ -271,6 +277,21 @@ offMap = { IsValid = function() return true end,
            K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
 ftActor = { IsValid = function() return true end, FastTravelPointID = FNameOf("FTPoint101"), bUnlocked = false,
             LevelObjectInstanceId = { A = 0x6E03F846, B = 0x4BAD9E45, C = 0x8B843AA3, D = 0x0BE1CC8F } }
+-- More fast-travel statues the game has loaded, listed after ftActor (a test adds them with FastTravelStatue).
+statues = {}
+-- A fast-travel statue `id` standing `dx`, `dy` cm from the player, locked unless `unlocked`, `size` cm across and
+-- up ({ across, up }; its bounds, which GetActorBounds fills in as the game does).
+function FastTravelStatue(id, dx, dy, size, unlocked)
+    local at = { X = pawnAt.X + dx, Y = pawnAt.Y + dy, Z = pawnAt.Z }
+    local a = { IsValid = function() return true end, FastTravelPointID = FNameOf(id), bUnlocked = unlocked == true }
+    a.IsUnlocked = function() return a.bUnlocked end
+    a.K2_GetActorLocation = function() return at end
+    function a.GetActorBounds(_, _, centre, half)
+        centre.X, centre.Y, centre.Z = at.X, at.Y, at.Z + size.up / 2
+        half.X, half.Y, half.Z = size.across / 2, size.across / 2, size.up / 2
+    end
+    return a
+end
 -- PalUtility: notices in chat, the player's objects, the party, the world's clock.
 announced = {}                                             -- every notice shown in chat
 util = { IsValid = function() return true end }
@@ -459,7 +480,8 @@ FindAllOf = function(class)
     if class == "WBP_Map_Body_C" then return mapScreens() end
     if class == "PalPlayerState" then return game.noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
     if class == "PalPlayerController" then return controllers() end
-    if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
+    if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor, table.unpack(statues) } end
+    if class == "StaticMeshActor" then return glowList() end   -- (only the glows' pieces: no level here)
     if class == "PalMapObjectItemChestModel" then return chests end
     if class == "PalMapObjectItemChestParameterComponent" then return loaded[CHEST_PACKAGE] and chestTemplates or {} end
     if class == "WBP_MenuESC_C" then return game.escOpen and { escMenu } or {} end
@@ -505,6 +527,7 @@ StaticFindObject = function(path)
         return Widget({ WidgetStyle = { look = "world-name" } })
     end
     if path:find("KismetMaterialLibrary") then return materialLib end
+    if path == "/Script/Engine.StaticMeshActor" then return staticMeshActorClass end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("KismetSystemLibrary") then return systemLib end
     if path:find("^/Game/") then return Texture(path) end

@@ -52,6 +52,8 @@ assets = unreal.EditorAssetLibrary
 mel = unreal.MaterialEditingLibrary
 
 
+# log, node, scalar, link, import_task and imported_texture have copies in make_glow_assets.py (which says why): a fix
+# to one is made to the other.
 def log(msg):
     """One line of the Output Log, under this pak's prefix."""
     unreal.log("[PalworldArchipelagoArt] " + msg)
