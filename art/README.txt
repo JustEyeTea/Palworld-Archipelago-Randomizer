@@ -87,6 +87,11 @@ in light and dark themes. The older plain-logo banners switch with the viewer's 
     <img alt="Palworld Archipelago" src="art/png/banner-light.png" width="100%">
   </picture>
 
+Player-guide pictures: docs/ holds the pictures in the game page and setup guide (apworld/palworld/docs/). The
+Archipelago website can't follow a relative path, so the guides link them by their raw.githubusercontent.com address
+on main: a new or changed picture shows on the website once it reaches main. They leave out facts that change
+(counts, tuning numbers, "untested" notes); those stay in the guides' text.
+
 
 LICENCE
 -------
