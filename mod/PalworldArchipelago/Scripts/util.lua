@@ -1,6 +1,6 @@
--- Helpers every module shares: the log, log-once, guarded calls, a game object's identity, objects kept alive, the
--- mod's clock, the guard that keeps the core update out of hook callbacks, and hook registration that waits for a
--- class to load. A module takes what it needs with `local UTIL = require("util")`.
+-- Helpers every module shares: the log, log-once, counts in words, guarded calls, a game object's identity, objects
+-- kept alive, the mod's clock, the guard that keeps the core update out of hook callbacks, and hook registration that
+-- waits for a class to load. A module takes what it needs with `local UTIL = require("util")`.
 -- Tests: mod/test/tests/util.lua; group "util" (tools/lua_harness.sh, in CI).
 local UTIL = {}
 
@@ -78,6 +78,15 @@ end
 -- Says once which branch of a fallback chain ran: UTIL.took("goal", "unknown value 4, playing towers").
 function UTIL.took(what, branch)
     UTIL.once("took " .. what .. " " .. branch, what .. ": " .. branch)
+end
+
+------------------------------------------------------------------------------------------------------------------------
+-- Counts in words, for what the player reads.
+
+-- A count with its noun, singular for one: counted(1, "point") is "1 point", counted(3, "point") "3 points".
+-- `plural` is for nouns that don't just add an s.
+function UTIL.counted(n, noun, plural)
+    return n .. " " .. (n == 1 and noun or (plural or noun .. "s"))
 end
 
 ------------------------------------------------------------------------------------------------------------------------

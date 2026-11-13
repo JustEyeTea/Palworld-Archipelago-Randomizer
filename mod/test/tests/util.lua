@@ -6,6 +6,9 @@ group("util", function()
            "updates(seconds) counts 300 ms updates, rounded: " .. UTIL.updates(5))
     expect(UTIL.isDue(20, 10) and not UTIL.isDue(21, 10) and UTIL.isDue(21, 10, 1),
            "isDue: once in every period, on the update `first` names")
+    expect(UTIL.counted(1, "point") == "1 point" and UTIL.counted(0, "point") == "0 points"
+           and UTIL.counted(3, "point") == "3 points" and UTIL.counted(2, "Pal", "Pals") == "2 Pals",
+           "counted: singular for one, plural otherwise")
 
     local mark = logMark()
     UTIL.once("util-test-once", "util test: said once")
