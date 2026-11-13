@@ -91,11 +91,13 @@ local function wallNotice(lock)
     -- Both cases say what the player has and what a hint costs, with the configured key.
     if points >= cost then
         local offer = CONFIG.hintKey .. " for a hint: "
-        return text .. " Press " .. offer .. "you have " .. points .. " points, a hint costs " .. cost .. ".",
-            { title = lock .. " is sealed", line = offer .. points .. " points, a hint costs " .. cost,
+        local have = UTIL.counted(points, "point")
+        return text .. " Press " .. offer .. "you have " .. have .. ", a hint costs " .. cost .. ".",
+            { title = lock .. " is sealed", line = offer .. have .. ", a hint costs " .. cost,
               have = points, cost = cost, ready = true }
     end
-    return text .. " Not enough points for a hint: you have " .. points .. " points, a hint costs " .. cost .. ".",
+    return text .. " Not enough points for a hint: you have " .. UTIL.counted(points, "point") .. ", a hint costs "
+        .. cost .. ".",
         { title = lock .. " is sealed", line = "Not enough points for a hint: " .. points .. " of " .. cost,
           have = points, cost = cost, ready = false }
 end
@@ -105,7 +107,8 @@ local function askHint()
     if not lock or CLOCK.now() - hints.offeredAt > WAIT.hintOffer then return end
     local points, cost = hintPoints()
     if points and points < cost then
-        notify("Not enough hint points: you have " .. points .. ", a hint costs " .. cost .. ".")
+        notify("Not enough hint points: you have " .. UTIL.counted(points, "point") .. ", a hint costs " .. cost
+            .. ".")
         return
     end
     hints.offer, hints.asked = nil, CLOCK.now()

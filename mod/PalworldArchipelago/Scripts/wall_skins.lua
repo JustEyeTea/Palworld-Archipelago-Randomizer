@@ -9,9 +9,10 @@ local log = UTIL.log
 local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance          -- (materials belong to the game instance, as walls.lua's map pictures do)
 -- Handed over by install: W (settings: dir, keepAlive, keepInPlace, fade, tiling, scroll; data: beyond, layout), the
--- locks part's layout, isOpen, REGION_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(), count(),
--- statics(), passes(), pawn()) and DISSOLVE_S.
+-- locks part's layout, isOpen, standing, REGION_COLOURS and beyondSig, the pieces (raised(), isHidden(i), opening(),
+-- count(), statics(), passes(), pawn()) and DISSOLVE_S.
 local W, pieces, layout, isOpen, REGION_COLOURS, DISSOLVE_S, beyondSig = nil, nil, nil, nil, nil, nil, nil
+local standing = nil           -- locks.lua's test of whether a piece stands (either lock it separates still locked)
 local PALETTE, SEALED, TEAL = nil, nil, nil   -- locks.lua's palette, and its sealed grey and teal in linear light
 
 -- The skins (wall_skin in config.txt, or Ctrl+F3 with test_tools=1 to cycle them):
@@ -445,6 +446,8 @@ end
 -- A pass that opens one side of a piece still up turns it to the other side's colour; so does the list of locks
 -- beyond the goal arriving. A few pieces an update (RECOLOUR), only after something changed: the trigger is the number
 -- of passes held and the locks beyond the goal (passes are only ever added, so a new one changes the count).
+-- A piece with both sides open is left as it is: walls.lua is about to open it (a few an update, so this pass can get
+-- there first), and its dissolve takes the colour it wears, the one the player saw.
 local RECOLOUR = 40
 function WALL_SKINS.recolour(passes)
     if not byArea(skin.now) then return end
@@ -456,7 +459,8 @@ function WALL_SKINS.recolour(passes)
     local budget = RECOLOUR
     while recolourAt <= #layout.walls and budget > 0 do
         local i, actor = recolourAt, pieces.raised()[recolourAt]
-        if actor and actor:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
+        local stillUp = standing(layout.walls[i], passes)
+        if stillUp and actor and actor:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
             local ok, err = pcall(areaDress, actor, i, passes, skin.now)
             if not ok then
                 UTIL.onceErr("walls:recolour", err, "wall skin " .. skin.now .. ": could not recolour piece " .. i
@@ -594,7 +598,7 @@ end
 function WALL_SKINS.install(env)
     W, pieces, DISSOLVE_S = env.W, env.pieces, env.DISSOLVE_S
     layout, isOpen, REGION_COLOURS = env.locks.layout, env.locks.isOpen, env.locks.REGION_COLOURS
-    beyondSig = env.locks.beyondSig
+    beyondSig, standing = env.locks.beyondSig, env.locks.standing
     PALETTE = env.locks.PALETTE
     SEALED, TEAL = UTIL.linear(PALETTE.wallSealed), UTIL.linear(PALETTE.teal)
     W.tiling, W.scroll = nil, nil                                  -- { u, v } from config.txt, or the material's own

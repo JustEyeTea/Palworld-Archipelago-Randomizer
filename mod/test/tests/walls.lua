@@ -279,6 +279,47 @@ group("area locks", function()
         expect(wallCount() == expected(open), "(the core's own passes put that region's walls back up: "
                .. wallCount() .. ")")
     end
+    do  -- More pieces open at once than the opener takes an update (30), so the recolour pass (40 an update) reaches
+        -- some first. It must not repaint them: an orange wall dissolved green in game, in the colour of the lock on
+        -- its other side, opened earlier.
+        local hadPak = game.logicMod
+        game.logicMod = true
+        liveWalls.setSkin("paws")
+        run(2)
+        local function backOf(wa)
+            local back = wa.Cube.mat and wa.Cube.mat.vectors and wa.Cube.mat.vectors.Back
+            return back and string.format("%.4f,%.4f,%.4f", back.R, back.G, back.B)
+        end
+        local before, n = {}, 0
+        for wa in pairs(wallsUp) do
+            before[wa], n = backOf(wa), n + 1
+        end
+        local everyLock = {}
+        for _, lock in ipairs(WD.locks) do
+            everyLock[lock] = true
+        end
+        local standIn = { IsValid = function() return true end, K2_GetActorLocation = function() return pawnAt end }
+        for _ = 1, 40 do
+            liveWalls.update(true, everyLock, standIn)
+        end
+        local dissolved, changed = 0, {}
+        for wa, was in pairs(before) do
+            local m = wa.Cube.mat
+            if m and m.scalars and m.scalars.DissolveStart then
+                dissolved = dissolved + 1
+                if backOf(wa) ~= was then
+                    changed[#changed + 1] = tostring(was) .. " -> " .. tostring(backOf(wa))
+                end
+            end
+        end
+        expect(n > 30 and dissolved == n and #changed == 0,
+               "every opened wall dissolves in the colour it wore while locked (" .. dissolved .. " of " .. n
+               .. ", " .. #changed .. " changed): " .. table.concat(changed, "; ", 1, math.min(#changed, 3)))
+        game.logicMod = hadPak
+        liveWalls.setSkin("red")
+        run(40)
+        expect(wallCount() == expected(open), "(the core's own passes put the walls back up: " .. wallCount() .. ")")
+    end
     do  -- a dead object called at a wall crashed the game after Return to title and a new world: after a world
         -- change no material of the world before is called again, by the glow or anything else
         local hadPak = game.logicMod
