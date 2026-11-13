@@ -19,6 +19,9 @@ local CRATES = require("crates")
 local CWIN = require("crate_window")
 local DEATH_LINK = require("death_link")
 local DEBUFFS = require("debuffs")
+local GLOW_BURST = require("glow_burst")
+local GLOW_CHECKS = require("glow_checks")
+local GLOW_PIECES = require("glow_pieces")
 local HELD = require("held_notices")
 local ITEMS = require("items")
 local MAIL = require("mailbox")
@@ -207,6 +210,23 @@ local function runPhase(pawn)
     end
 end
 
+-- The glows, visual only: round check objects near the player (glow_checks.lua) and the burst when an item arrives
+-- (glow_burst.lua). Only in a world that has settled (spawning into a world still loading can crash the game), and
+-- never on pieces kept under another controller (glow_pieces.lua's sameWorld).
+local function updateGlows(pawn)
+    if not (pawn and WORLD.settled() and GLOW_PIECES.sameWorld()) then return end
+    PERF.start("glow")
+    local okc, errc = pcall(GLOW_CHECKS.update, pawn)
+    if not okc then
+        onceErr("glowchecks", errc, "check glow error: " .. tostring(errc))
+    end
+    local okb, errb = pcall(GLOW_BURST.update, pawn)
+    if not okb then
+        onceErr("glowburst", errb, "item-arrival burst error: " .. tostring(errb))
+    end
+    PERF.stop("glow")
+end
+
 -- One core update (coreTick, every UPDATE_MS on the game thread): what runs every time, then this update's phase.
 local function update(frame)
     CLOCK.advance()
@@ -231,6 +251,7 @@ local function update(frame)
     if ap.ready then
         AREA_LOCKS.update(pawn)
     end
+    updateGlows(pawn)
     runPhase(pawn)
 end
 
@@ -386,14 +407,18 @@ end
 
 -- What a world change forgets, in this order: whether this world is the seed's (looked at again in the records phase
 -- before any wall goes up; a question asked, and its yes, are kept with the world folder they are for), the pop-up or
--- goal banner and the debuff icons (they went with the old world's HUD), the walls, and the skip of the tech list's
--- comparison (another world's list is compared in full).
+-- goal banner and the debuff icons (they went with the old world's HUD), the walls, the skip of the tech list's
+-- comparison (another world's list is compared in full), and the glows (their targets, the burst playing, then their
+-- pieces and looks).
 local function forgetOnWorldChange()
     WORLD.onChange(WORLD.forgetWorldCheck)
     WORLD.onChange(POPUP.forget)
     WORLD.onChange(DEBUFFS.forget)
     WORLD.onChange(WALLS.reset)
     WORLD.onChange(TECH_LOCK.forgetSeen)
+    WORLD.onChange(GLOW_CHECKS.forget)
+    WORLD.onChange(GLOW_BURST.forget)
+    WORLD.onChange(GLOW_PIECES.forgetWorld)
 end
 
 -- The core update, every UPDATE_MS (the harness's thread-rule check reads this loop: keep its shape).

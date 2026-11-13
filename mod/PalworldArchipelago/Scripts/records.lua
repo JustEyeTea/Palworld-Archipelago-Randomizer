@@ -10,6 +10,7 @@
 -- Tests: mod/test/tests/core.lua, mod/test/tests/goals.lua; groups "connect and receive", "the other goals"
 --   (tools/lua_harness.sh, in CI).
 local RECORDS = {}
+local FAST_TRAVEL = require("fast_travel")
 local PERF = require("perf")
 local UTIL = require("util")
 local log = UTIL.log
@@ -67,7 +68,7 @@ local function scanFastTravel(now, unlockedNow)
     if fastTravelScanned and now - fastTravelScanned < WAIT.fastTravelRescan then return end
     fastTravelScanned = now
     local n = 0
-    for _, actor in ipairs(FindAllOf("PalLevelObjectUnlockableFastTravelPoint") or {}) do
+    for _, actor in ipairs(FindAllOf(FAST_TRAVEL.CLASS) or {}) do
         if noteFastTravelActor(actor, unlockedNow) then
             n = n + 1
         end

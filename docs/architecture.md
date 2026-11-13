@@ -366,6 +366,8 @@ the other modules.
 | `run_style.lua` | Run Style (Nomad's hand-overs, `RUN_STYLE.gifts`) and Speed Boost: the world settings it multiplies (`RUN_STYLE.apply`), the world's own values (`syncbase=` in the save) and the warning. |
 | `death_link.lua` | Death Link: the faint routes (`ROUTES`), a death received, the player's own death and the amnesty. |
 | `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`TECHSCAN.phase`) that sends the checks of slots another mod removed. |
+| `glow_pieces.lua`, `glow_checks.lua`, `glow_burst.lua` | The glows, visual only (`updateGlows` in `main.lua`, in a settled world): the pieces (the pak's meshes and `M_APGlow` looks on plain StaticMeshActors, `glow=0`, forgetting them at a world change); the check glow round objects still checks near the player (`KINDS`: fast-travel statues so far); the burst round the player when a new item arrives (`items.lua` calls `noteArrival`). |
+| `fast_travel.lua` | The loaded fast-travel statues still locked (`lockedPoints`), shared by the check glow, the test tools' unlock probe and `records.lua`. |
 
 The connection's four states (`ap.status`; `STATE.setStatus` in `ap_state.lua` is their only writer):
 
@@ -626,6 +628,7 @@ Always first: open `UE4SS.log` and search for `[PalworldAP]` (the Lua mod) or `[
 | The mailbox won't open, or its items look wrong | The log's `mailbox:` lines | The list of states and moves at the top of `mailbox.lua` (closed, asked, window, making, opening, viewing, lost), then `mailbox_chest*.lua` |
 | The Palworld Crates window won't come back | The log's `crate window:` lines (the button placed, the click hook in place, the click arrived) | `crate_window.lua` |
 | The title menu's Archipelago rows are missing or odd | The log's `menu:` lines and the menu survey | `menu_title*.lua`, `menu_survey.lua` |
+| No glow round a statue, or no burst when an item arrives | The log's `glow:` lines: `off (glow=0 ...)`, `off for this session: the PalworldArchipelagoArt pak has no ...`, `the first statue's bounds`, `an item-arrival burst (...)` | `KINDS` and `RADIUS_CM` in `glow_checks.lua`; `GLOW_BURST.update` in `glow_burst.lua`; the pak's assets come from `logicmod/make_glow_assets.py` |
 | A trap "fizzled" or never fires | The log's `trap #N ...` lines (what it waits for, or `fizzled`) | The trap's entry in `TRAP_KINDS` in `traps.lua` (its `wait` and `run`) |
 | The Lua harness fails | **The first FAIL line**: it names the group, the file and the line | Later FAILs are often the state the first one left behind |
 | CI fails | Which job failed: "ap_data.lua is stale" means run `tools/gen_lua_data.py`; the Windows job's "Report build errors" step; the release's "tag ... but the mod says ..." means `VERSION` in `main.lua` | `.github/workflows/ci.yml` |

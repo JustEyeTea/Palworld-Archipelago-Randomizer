@@ -43,6 +43,10 @@ wall_scroll=
 # PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are fully there, and where they are gone.
 wall_radius=
 wall_fade=
+# glow=0: no glows. Empty: with the PalworldArchipelagoArt pak, a halo, a soft light and a tall pillar of light mark
+# the fast-travel statues near you that are still checks in your slot, and a burst of light round you marks each new
+# item (its colour says progression, useful or filler; traps look like filler). Untested in game.
+glow=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=

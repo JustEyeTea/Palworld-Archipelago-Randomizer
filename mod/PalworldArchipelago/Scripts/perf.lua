@@ -58,8 +58,8 @@ local HOOKS = {
 -- rewriting, so research never really unlocks a shop tech (and main.lua buys nothing while the bypass is on: the
 -- confirm box showed the game's own text); the unhover (H3) and the clicks (H8-H11) cost nothing.
 local BYPASSED = { H1 = true, H2 = true, H4 = true, H6 = true, H7 = true }
-local SECTIONS = { "ctx", "poll", "menu", "mail", "cards", "scan", "walls", "map", "e7", "rec", "techs", "save",
-                   "legacy" }
+local SECTIONS = { "ctx", "poll", "menu", "mail", "cards", "scan", "walls", "map", "glow", "e7", "rec", "techs",
+                   "save", "legacy" }
 local COUNTERS = { "sweep", "refill", "rec", "techs", "save" }
 
 -- What main.lua hands over (PERF.install).

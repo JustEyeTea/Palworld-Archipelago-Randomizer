@@ -60,6 +60,7 @@ local BUNKER_BACK_ALPHA = 0.55
 local ART_PAK = "/Game/Mods/PalworldArchipelagoArt/"         -- the PalworldArchipelagoArt pak's folder of assets
 local BUNKER_TILE = "T_APWallSealed"                          -- the bunker grille's texture in the pak
 local MID_FLAGS = 0            -- EMIDCreationFlags::None, for CreateDynamicMaterialInstance
+WALL_SKINS.MID_FLAGS = MID_FLAGS  -- (glow_pieces.lua makes its looks with it too)
 local GLOW_MOVE_CM = 5        -- the player moves this far before the walls' glow is told again
 -- The paws' scatter: an Area's number turned into s, a fraction from 0 to 1 that looks random so neighbours differ
 -- (frac(sin(n * SCATTER_A + 1) * SCATTER_B), a common hash); s moves the pattern by s * OFFSET_U_RATE and

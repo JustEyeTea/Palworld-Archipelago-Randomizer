@@ -142,24 +142,38 @@ To go back to the chest window without removing the pak, set `mailbox_view=chest
   parameter itself and call `CreateIndividual` with a real callback.
 - **Wall look:** done as its own pak; see "The wall material" below.
 
-## The wall material (PalworldArchipelagoArt.pak)
+## The wall material and the glows (PalworldArchipelagoArt.pak)
 
-A second, separate pak with one material, `M_APWall`, for multicoloured area walls. The game's wall material shows one
-colour per wall piece. This one shows a full-colour picture. It is independent of the mailbox window: it needs only
-Part 1's setup, not Parts 2 and 3.
+A second, separate pak. It holds `M_APWall`, for multicoloured area walls (the game's wall material shows one colour
+per wall piece; this one shows a full-colour picture), and the glows' meshes, textures and `M_APGlow` material (the
+check glow round fast-travel statues still to check, and the burst round the player when an item arrives). It is
+independent of the mailbox window: it needs only Part 1's setup, not Parts 2 and 3.
 
 ```mermaid
 flowchart LR
-  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png, art/walls/*.png)"] -->|"the editor runs it"| AS["M_APWall, T_APWallPaws, T_APWallRegion_*, T_APWallSealed, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
+  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png, art/walls/*.png)"] -->|"the editor runs it"| AS["M_APWall, T_APWallPaws, T_APWallRegion_*, T_APWallSealed, T_APWallDissolve, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
+  GY["make_glow_assets.py<br/>(and art/glow/*.fbx, *.png)"] -->|"the editor runs it"| AS
   AS -->|"package: Use Pak File, Generate Chunks,<br/>shaders kept in the pak"| PK["pakchunk2-Windows.pak"]
   PK -->|"renamed"| ART["PalworldArchipelagoArt.pak<br/>in Pal/Content/Paks/LogicMods"]
   ART -->|"attached by hand"| REL["each release"]
 ```
 
-1. Run `logicmod\make_wall_material.py` the same way as Part 2 (Tools > Execute Python Script..., or the
-   `UnrealEditor-Cmd.exe ... -run=pythonscript` line with this script). It builds the whole material and its chunk
-   label (chunk 2); nothing is by hand. The Output Log lines start with `[PalworldArchipelagoArt]`.
-2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and look for a compile error at the bottom.
+1. Run both scripts, one after the other, the same way as Part 2 (Tools > Execute Python Script..., or with the
+   editor closed, from a Command Prompt):
+
+   ```
+   "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
+     -run=pythonscript -script="<repo>\logicmod\make_wall_material.py"
+   "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
+     -run=pythonscript -script="<repo>\logicmod\make_glow_assets.py"
+   ```
+
+   `make_wall_material.py` builds `M_APWall`, `ModActor` and the chunk label (chunk 2), which takes everything in
+   the folder. `make_glow_assets.py` imports the six glow meshes and six textures from `logicmod\art\glow\` and
+   builds `M_APGlow`; a file missing there is skipped with a log line. Nothing is by hand. Every Output Log line
+   starts with `[PalworldArchipelagoArt]`; check for `LogPython: Error`.
+2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and `M_APGlow` and look for a compile error
+   at the bottom.
 3. Package as in Part 4 (Use Pak File and Generate Chunks on), and also, in `Config\DefaultGame.ini` under
    `[/Script/UnrealEd.ProjectPackagingSettings]`, `bShareMaterialShaderCode=False` (and
    `bSharedMaterialNativeLibraries=False`), so the material's compiled shaders go in its own pak, not in a shared
@@ -172,10 +186,12 @@ flowchart LR
    PalworldArchipelagoArt pak has no region walls (or is not there); paws instead`, and the walls wear the cream paws
    (`wall skin paws:<colour>: material made on M_APWall`). Without the pak it also says `wall skin paws: needs the
    PalworldArchipelagoArt pak` and the walls wear the area colours instead.
+   For the glows it says `glow: the pak's glow meshes, textures and M_APGlow found`, or without them
+   `glow: off for this session: the PalworldArchipelagoArt pak has no ...`.
 5. For a release: attach the same files to the draft release CI made from the version tag, before publishing it
    (the drafted notes remind you; the setup guide sends players there for the pak).
 
-What the Lua mod sets on it: `Pattern` (a region's wall in the default `regions` skin, the cream-paw layer in the
+What the Lua mod sets on `M_APWall`: `Pattern` (a region's wall in the default `regions` skin, the cream-paw layer in the
 `paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; both skins put the region's colour at
 0.34, and the regions skin a dark red-grey at 0.55 under the bunker grille of a lock beyond the goal), `CellSize` (cm
 per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm),
@@ -192,3 +208,10 @@ Size: areas each area wears the version `Scripts\wall_region_variants.lua` gives
 region walls, so a pak built before them gives the paws. It reads the PNGs from this repo, so run it from a full
 checkout. The pattern is laid on the wall in world space, so it keeps its size on every
 piece and recedes in perspective.
+
+What the Lua mod sets on `M_APGlow` (`glow_pieces.lua`; the full list is at the top of `make_glow_assets.py`): `Tex`
+(a colour picture) or `Mask` (a light mask), `Tint`, `Brightness`, `EdgePower` (soft edges), `Spin` (turns a second,
+the halo), `StartTime`, `Life`, `FadeDelay` and `FadePower` (a fade by the game's clock, as `M_APWall`'s dissolve),
+`GrowXY`, `GrowZ` and `GrowTime` (the burst's shock ring and column grow in the material, smooth between the mod's
+300 ms updates), and `NearFadeStart`/`NearFadeEnd` (the pillar hides up close). The glows are on by default;
+`glow=0` in the mod's `config.txt` turns them off. The glows are untested in game.

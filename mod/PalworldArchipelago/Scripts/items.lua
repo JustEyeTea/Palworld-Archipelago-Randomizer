@@ -8,6 +8,7 @@ local ITEMS = {}
 local BAG = require("bag")
 local CRATES = require("crates")
 local DATA = require("ap_data")
+local GLOW_BURST = require("glow_burst")
 local MAIL = require("mailbox")
 local PLAYER = require("player")
 local RECORDS = require("records")
@@ -199,10 +200,14 @@ function ITEMS.applyItems(ps)
 end
 
 -- item <index> <item id> <location id> <player slot> <flags> <item name> <player name>
-function ITEMS.onItem(indexText, itemText, _locationText, playerText, _flagsText, name, from)
+-- A new item (past those already given; never one sent again on reconnecting) also brings the arrival burst.
+function ITEMS.onItem(indexText, itemText, _locationText, playerText, flagsText, name, from)
     local index, id, player = tonumber(indexText), tonumber(itemText), tonumber(playerText)
     if ap.items[index] == id then return end
     ap.items[index] = id
+    if index > ap.given then
+        GLOW_BURST.noteArrival(tonumber(flagsText) or 0)
+    end
     TECH_LOCK.techsChanged()
     local it = DATA.items[id]
     if not it then
