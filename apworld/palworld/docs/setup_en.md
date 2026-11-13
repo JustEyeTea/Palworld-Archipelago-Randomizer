@@ -19,6 +19,8 @@ with `[PalworldAP]`.
 
 ## Installing
 
+![Where the files go: UE4SS installed by hand or from the Steam Workshop (never both), the mod folders, the optional art pak and the APWorld](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/install-tree.png)
+
 1. Find the game's folder: in Steam, right-click Palworld > Manage > Browse local files. The paths below start
    there (usually `C:\Program Files (x86)\Steam\steamapps\common\Palworld`).
 2. Install UE4SS into `Pal\Binaries\Win64`, as its own instructions say. Start the game once and quit, to check that
