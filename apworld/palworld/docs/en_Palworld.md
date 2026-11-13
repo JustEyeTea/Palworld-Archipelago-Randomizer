@@ -11,6 +11,8 @@ levels and towers are further checks.
 
 ## Goals
 
+![The four goals: Towers (the default), Relic Hunt, Paldeck and World Tree](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/goals.png)
+
 - **Towers** (default): beat a number of tower bosses. Any towers count, but the logic plans for the first ones in the
   game's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).
 - **Relic Hunt**: collect Palpagos Relics, shuffled across the whole multiworld.
