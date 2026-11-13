@@ -83,7 +83,11 @@ you take them, so nothing lands in your bag mid-fight. Open it from the Esc menu
 the one at the right of your name on the Inventory page (new, not yet tried in game); it has no size limit. Gear and
 accessories don't show in the mailbox's chest, which can't hold them: they go into your bag when you open the mailbox.
 
+![Items you receive wait in the Archipelago Mailbox until you take them; crate contents too, and gear goes into your bag when you open the mailbox](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/mailbox.png)
+
 ## Run Style
+
+![Run Style: Standard gives a tech's recipe; Nomad also gives what it makes, into the mailbox](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/run-style.png)
 
 What a tech you receive gives you:
 
