@@ -145,7 +145,7 @@ group("a setting config.txt no longer has is ignored, and says so", function()
         local HINTS3 = dofile(MOD .. "/Scripts/wall_hints.lua")    -- (required first, as main.lua does)
         CONFIG3.install({ dir = hintFolder })
         local boundBefore = keyBinds[Key.J]
-        HINTS3.bindKey()
+        HINTS3.bindKey(require("area_locks").actOn)
         local bound = keyBinds[Key.J] ~= boundBefore
         package.loaded["config"], package.loaded["wall_hints"] = sessionConfig, sessionHints
         os.remove(hintFolder .. "/config.txt")

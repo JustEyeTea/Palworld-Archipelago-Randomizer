@@ -69,8 +69,7 @@ group("locks beyond the goal", function()
     expect(logged("areas beyond the goal: 1, sealed for good"), "a locked region beyond the goal is logged")
     local up = wallCount()
     local noticesBefore = #announced
-    pawnAt = shared.hintAt
-    runPast(WAIT.wallNotice)
+    h.walkAwayAndBack(shared.hintAt)
     local toldBeyond, offered = false, false
     for i = noticesBefore + 1, #announced do
         if announced[i]:find(shared.hintRegion .. " is beyond this seed's goal: its walls stay up.", 1, true) then
@@ -154,10 +153,14 @@ group("region-coloured walls and the hint pop-up", function()
                   or m.textures.MainTexture01.path == "ap-wall-pattern-a")
            and h.sameColour(m.vectors.Color, require("walls").linearOf("9AA3B5")),
            "a wall to a region beyond the goal wears the sealed grey, #9AA3B5")
-    local sealedBox = popupAfter(#hudKids)
+    local kidsBefore, saidBefore = #hudKids, #said
+    keyBinds["key:H"]()                                    -- the player is still at that wall: its notice was shown
+    local sealedBox = popupAfter(kidsBefore)
     expect(sealedBox and sealedBox.child.children[2].text == popupRegion .. " is beyond the goal"
            and sealedBox.child.children[3].text == "Its walls stay up for good." and not sealedBox.child.children[4],
-           "its pop-up says it is beyond the goal, with no points bar")
+           "the hint key at its wall shows the plate saying it is beyond the goal, with no points bar")
+    expect(#said == saidBefore and announced[#announced]:find(popupRegion .. " is beyond this seed's goal", 1, true),
+           "and asks no hint for a pass that isn't there, saying so in chat: " .. tostring(announced[#announced]))
     slotData.beyond_goal_areas, slotData["options.beyond_goal"] = nil, nil
     h.reconnect("Tester")
     run(80)

@@ -10,8 +10,8 @@
 --     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
 --     install. The harness sets them on its copies directly
 --   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
---     setSkin, cycleSkin, perfMode, count, lockedNear, lockedAround, lockAt, passName, regionOf, slugOf, mapShown,
---     mapOff, oldSweep;
+--     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, regionOf,
+--     slugOf, mapShown, mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS
 --   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, REGION_COLOURS
 local W = {}
@@ -462,6 +462,18 @@ function W.lockedNear(x, y, passes)
         end
     end
     return best
+end
+
+-- How far a spot is from the nearest raised piece on `lock`'s border, in cm; math.huge when none of its pieces is up.
+function W.distanceToLock(lock, x, y)
+    local nearest = math.huge
+    for i in pairs(raised) do
+        local wall = layout.walls[i]
+        if layout.locks[wall.lockA + 1] == lock or layout.locks[wall.lockB + 1] == lock then
+            nearest = math.min(nearest, segDist(i, x, y))
+        end
+    end
+    return nearest
 end
 
 -- How many pieces are raised, and how many the cut has in all.

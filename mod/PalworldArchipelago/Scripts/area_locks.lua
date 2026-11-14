@@ -145,7 +145,7 @@ end
 -- Whether the area locks act on the player this update: ready (a pawn was read), in the seed's world once it has
 -- settled, and with area locks on. Inside a stage (a dungeon, a tower's arena) the map position says nothing about
 -- the lock the player entered it from: no notice, no visit and no sending home there.
-local function areaLocksApply(pawn)
+function AREA_LOCKS.actOn(pawn)
     if not (pawn and WORLD.settled() and WORLD.seedWorld() and areaLocks) then return false end
     local okS, inStage = pcall(function() return playerState():IsInStage() end)
     return not (okS and inStage)
@@ -153,7 +153,7 @@ end
 
 -- The locks phase: the open locks the player stands in, and sending the player home from inside a locked one.
 function AREA_LOCKS.phaseLocks(pawn)
-    if not areaLocksApply(pawn) then return end
+    if not AREA_LOCKS.actOn(pawn) then return end
     rememberVisited(pawn)
     -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
     if PERF.walls == "full" then
@@ -163,7 +163,7 @@ end
 
 -- The wall-notice phase: the chat notice and hint offer at a locked wall the player walks up to.
 function AREA_LOCKS.phaseWallNotice(pawn)
-    if not areaLocksApply(pawn) then return end
+    if not AREA_LOCKS.actOn(pawn) then return end
     WALL_HINTS.noticeLockedWall(pawn)
 end
 
