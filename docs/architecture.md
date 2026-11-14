@@ -443,7 +443,7 @@ flowchart TD
   PH -->|1| P1["other mods' techs"]
   PH -->|2| P2["techs and items, held notices,<br/>Death Link, traps"]
   PH -->|3| P3["visited locks; sent home<br/>from a lock still locked"]
-  PH -->|5| P5["the notice and hint offer<br/>at a locked wall"]
+  PH -->|5| P5["the notice and hint plate<br/>at a locked wall"]
 ```
 
 **An item's kind** decides what it does (`DATA.items[id].kind`; the table above `ITEMS.applyItems` in `items.lua`).
@@ -624,7 +624,7 @@ Always first: open `UE4SS.log` and search for `[PalworldAP]` (the Lua mod) or `[
 | "This world already has progress" asks before the seed starts | The log's `world: <id> has N researched shop tech(s) ...` line: tying the seed would lock them again | `tieWorld` and `checkWorld` in `world.lua`; the hint key says yes |
 | No walls, or walls in the wrong place | The log's `area locks: ...` lines (`no walls: <reason>`, `could not raise wall ...`) | `W.update` in `walls.lua` and `standing` in `locks.lua`; the wall rows are generated (`region_walls.lua`, `area_walls.lua`): run `tools/lock_walls.py` again, never edit them |
 | Sent home when you shouldn't be | The log's `inside locked <lock>: sent home` lines | `area_locks.lua` and `lockAt` in `locks.lua`; inside a dungeon or tower it never happens (`IsInStage`) |
-| No notice at a wall, or the hint key does nothing | A `hint_key=... is not a key UE4SS knows` line; the wall notice and hint lines | `wallNotice` and `askHint` in `wall_hints.lua`; config.txt's `hint_key` |
+| No notice at a wall, or the hint key does nothing | A `hint_key=... is not a key UE4SS knows` line; the wall notice and hint lines | `wallNotice`, `askHint` and `bindKey` in `wall_hints.lua`; config.txt's `hint_key` |
 | The mailbox won't open, or its items look wrong | The log's `mailbox:` lines | The list of states and moves at the top of `mailbox.lua` (closed, asked, window, making, opening, viewing, lost), then `mailbox_chest*.lua` |
 | The Palworld Crates window won't come back | The log's `crate window:` lines (the button placed, the click hook in place, the click arrived) | `crate_window.lua` |
 | The title menu's Archipelago rows are missing or odd | The log's `menu:` lines and the menu survey | `menu_title*.lua`, `menu_survey.lua` |

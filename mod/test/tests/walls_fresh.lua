@@ -853,4 +853,137 @@ group("walls and the map, on fresh copies of walls.lua", function()
                .. paws .. " of " .. n2 .. " pieces in paws, said " .. said2 .. " time(s)")
         game.logicMod, game.regionWalls = hadPak, hadRegionWalls
     end
+    do  -- A fog picture left by an earlier session is never shown: until this session's is made, C++ is given none
+        -- (the game's own fog shows). Then, with the map closed, the explored mask is read again from the world's map
+        -- data every MASK_READ_GAP and the picture made again, so places explored since show at the next opening.
+        local calls = {}
+        local takeAway = plugInTerritories(calls)
+        local putBack = savedColourMap(game.mapArt)
+        writeFile(MOD .. "/map-fog-territories.png", "an earlier session's")
+        local fogBusy = true
+        AP_FogStatus = function() return fogBusy and "busy" or "done" end
+        local mapData = { IsValid = function() return true end }
+        function mapData.GetRenderTargetByMapName() return { IsValid = function() return true end } end
+        util.GetLocalWorldMapData = function() return mapData end
+        local function fogPicturesSent()
+            local n = 0
+            for _, c in ipairs(calls) do
+                if c:find("^fogpic=") then
+                    n = n + 1
+                end
+            end
+            return n
+        end
+        local W = h.freshWalls()
+        game.mapOpen = false
+        local jobsBefore = fogJobs
+        for _ = 1, W.MASK_READ_GAP do                              -- until the mask is read before the map opens
+            W.updateMap(true, {}, pawn)
+            if fogJobs > jobsBefore then break end
+        end
+        W.updateMap(true, {}, pawn)
+        expect(fogJobs == jobsBefore + 1 and fogPicturesSent() == 0,
+               "while this session's fog picture is being made, none is handed to C++ (not the earlier session's): "
+               .. fogPicturesSent())
+        fogBusy = false
+        W.updateMap(true, {}, pawn)
+        expect(fogPicturesSent() == 1, "this session's picture is handed over once made: " .. fogPicturesSent())
+        local mark = logMark()
+        for _ = 1, W.MASK_READ_GAP do
+            W.updateMap(true, {}, pawn)
+        end
+        W.updateMap(true, {}, pawn)
+        expect(fogJobs == jobsBefore + 2 and fogPicturesSent() == 2
+               and loggedSince(mark, "the fog picture is made again every 60 s while the map is closed"),
+               "with the map closed, the fog picture is made again from the explored mask a minute later: "
+               .. fogJobs - jobsBefore .. " made, " .. fogPicturesSent() .. " handed over")
+        util.GetLocalWorldMapData = nil
+        takeAway()
+        putBack()
+    end
+    do  -- Ctrl+7 back to full after "none": the pieces nearest the player go up first, and the log says when the
+        -- catch-up starts and when it ends, with the count
+        local W, mine = h.freshWalls()
+        W.radius = 0
+        for _ = 1, SETTLE_UPDATES do
+            W.update(true, {}, offMap)
+        end
+        local all = #mine()
+        local layout, LOCKS = package.loaded["locks"].layout, package.loaded["locks"]
+        local far = layout.walls[#layout.walls]                    -- the player by the last piece: far from the first
+        local spot = { X = far.x, Y = far.y, Z = 0 }
+        local standIn = { IsValid = function() return true end, K2_GetActorLocation = function() return spot end }
+        W.perfMode("none")
+        W.perfMode("full")
+        local mark = logMark()
+        W.update(true, {}, standIn)
+        local indexAt = {}
+        for i, wall in ipairs(layout.walls) do
+            indexAt[wall.x .. "," .. wall.y] = i
+        end
+        local raisedNow, farthestRaised, nearestLeft = {}, 0, math.huge
+        for _, a in ipairs(mine()) do
+            local i = indexAt[a.t.Translation.X .. "," .. a.t.Translation.Y]
+            if i then
+                raisedNow[i] = true
+                farthestRaised = math.max(farthestRaised, W.segDist(i, spot.X, spot.Y))
+            end
+        end
+        for i, wall in ipairs(layout.walls) do
+            if LOCKS.standing(wall, {}) and not raisedNow[i] then
+                nearestLeft = math.min(nearestLeft, W.segDist(i, spot.X, spot.Y))
+            end
+        end
+        expect(next(raisedNow) and farthestRaised <= nearestLeft,
+               "the first update of the catch-up raises the pieces nearest the player: the farthest raised "
+               .. farthestRaised .. " cm away, the nearest still down " .. nearestLeft .. " cm")
+        expect(loggedSince(mark, "walls catching up: " .. all .. " piece%(s%) to raise, nearest the player first"),
+               "the catch-up's start is logged with the count to raise")
+        for _ = 1, SETTLE_UPDATES do
+            W.update(true, {}, standIn)
+        end
+        expect(#mine() == all and loggedSince(mark, "walls full again: " .. all .. " raised"),
+               "and its end, with the count: " .. #mine() .. " of " .. all)
+        h.wallsGo(mine())
+    end
+end)
+
+group("a wall piece that cannot be read does not stop the walls", function()
+    local WD = shared.WD
+    local SETTLE_UPDATES = 60             -- enough updates to raise every piece of the cut (30 an update)
+    local OPEN_UPDATES = 20               -- 6 s of updates: longer than an opening piece's shrink or dissolve
+    local W, mine = h.freshWalls()
+    local walls = package.loaded["locks"].layout.walls
+    local last, row = #walls, walls[#walls]
+    walls[last] = last                    -- a number where the row was, as the game's log showed
+    for _ = 1, SETTLE_UPDATES do
+        gameSeconds = gameSeconds + UPDATE_SECONDS
+        pcall(W.update, true, {}, offMap)
+    end
+    local function standingCount()
+        local n = 0
+        for _, a in ipairs(mine()) do
+            if not a.gone then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    local before, mark = standingCount(), logMark()
+    local passes = { [WD.locks[4]] = true }
+    local updateErrors = 0
+    for _ = 1, OPEN_UPDATES do
+        gameSeconds = gameSeconds + UPDATE_SECONDS
+        if not pcall(W.update, true, passes, offMap) then
+            updateErrors = updateErrors + 1
+        end
+    end
+    walls[last] = row
+    expect(before > 0 and standingCount() < before,
+           "with one unreadable piece the opened walls still go: " .. before .. " standing, then " .. standingCount())
+    expect(updateErrors == 0, "W.update itself never fails on the unreadable piece: " .. updateErrors .. " errors")
+    expect(logged("walls: raise and open failed"), "the failed step is named in the log")
+    expect(not loggedSince(mark, "walls: raise and open failed"),
+           "the failed step is logged once, not on every update")
+    h.wallsGo(mine())
 end)

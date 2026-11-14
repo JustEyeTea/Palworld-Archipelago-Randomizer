@@ -25,15 +25,36 @@ local WAIT = {
 local fastTravelIds = {}      -- record key (32 hex digits) -> FastTravelPointID
 local fastTravelScanned = nil -- the update (CLOCK.now()) of the last scan, or nil before the first
 
--- Calls fn(key, value) for each entry of one of the record data's fast arrays, and counts them for the perf probe.
-local function each(fastArray, fn)
-    local n = 0
-    fastArray.Items:ForEach(function(_, e)
+-- One entry of a record fast array as its key (text) and value, or nil when the game can't give it yet: just after a
+-- world loads an entry's object can be gone ("the UObject instance is nullptr"). Read under pcall, so no error rises
+-- inside ForEach, where UE4SS logs a traceback even though the records pass catches it.
+local function readEntry(e)
+    local ok, key, value = pcall(function()
         local it = e:get()
+        return it.Key:ToString(), it.Value
+    end)
+    if not ok then return nil end
+    return key, value
+end
+
+-- Calls fn(key, value) for each entry of one of the record data's fast arrays, and counts them for the perf probe.
+-- An entry that can't be read is skipped, and said once: the next records pass reads it again.
+local function each(fastArray, fn)
+    local n, skipped = 0, 0
+    fastArray.Items:ForEach(function(_, e)
+        local key, value = readEntry(e)
+        if key == nil then
+            skipped = skipped + 1
+            return
+        end
         n = n + 1
-        fn(it.Key:ToString(), it.Value)
+        fn(key, value)
     end)
     PERF.count("rec", n)
+    if skipped > 0 then
+        warnOnce("unreadable", "records: " .. skipped .. " record entr" .. (skipped == 1 and "y" or "ies")
+            .. " not readable yet (the world still loading?); skipped until the next pass")
+    end
 end
 
 -- The player's level, or nil when it can't be read (the pawn missing for a moment): callers keep the last one read.

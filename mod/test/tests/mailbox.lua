@@ -84,9 +84,8 @@ group("the mailbox", function()
            .. ((lookups.PalPlayerController or 0) - l0.pc) .. ", " .. ((lookups.PalPlayerState or 0) - l0.ps))
     expect((lookups.WBP_ItemChest_C or 0) == l0.chest,
            "the chest widget is not looked for while the HUD's id says it is open")
-    expect((lookups.WBP_TitleMenu_C or 0) - l0.title <= 1,
-           "in a world the title menu is looked for every 10th update only: "
-           .. ((lookups.WBP_TitleMenu_C or 0) - l0.title))
+    expect((lookups.WBP_TitleMenu_C or 0) == l0.title,
+           "in a world the title menu is not looked for: " .. ((lookups.WBP_TitleMenu_C or 0) - l0.title))
     slots[1].StackCount = 20                                   -- the player takes 30 Wood
     run(1)
     local bagWood = bagHas.Wood or 0

@@ -657,7 +657,7 @@ end
 -- The test hotkeys (test_tools=1). Each one runs its work on the game thread (UTIL.bindKey).
 local WALL_MODES = { full = "hidden", hidden = "nocoll", nocoll = "none", none = "full" }
 local WALL_MODE_SAYS = {
-    full = ": raised again by the normal path (about 30 per update)",
+    full = " again: raised by the normal path, nearest the player first (about 30 per update)",
     hidden = ": every raised piece hidden, collision kept", nocoll = ": shown, collision off",
     none = ": every raised piece removed (no sinking)",
 }
@@ -760,6 +760,12 @@ function PERF.replayUnsharedLookups(ctx)
     PERF.stop("legacy")
 end
 
+-- Called by the walls as a full re-raise starts (after Ctrl+7 back to full): how many pieces are missing, and
+-- whether they go up nearest the player first (false: in index order, the player's position unknown).
+function PERF.wallsCatchingUp(missing, nearestFirst)
+    log("walls catching up: " .. missing .. " piece(s) to raise, "
+        .. (nearestFirst and "nearest the player first" or "in index order (no player position)"))
+end
 -- Called by the walls when a full re-raise has caught up (after Ctrl+7 back to full).
 function PERF.wallsCaughtUp(n)
     log("walls full again: " .. n .. " raised")

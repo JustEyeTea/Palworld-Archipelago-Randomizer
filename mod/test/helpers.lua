@@ -120,6 +120,16 @@ function h.wallsGo(walls)
     end
 end
 
+-- The player walks to the start's home, well away from the walls near `spot`, for a cycle of phases, then back to
+-- `spot` for another: a lock's wall notice shows once per approach.
+function h.walkAwayAndBack(spot)
+    local home = require("walls").home
+    pawnAt = { X = home.x, Y = home.y, Z = home.z }
+    runCycles(1)
+    pawnAt = spot
+    runCycles(1)
+end
+
 -- A world loads again (after Return to title): the last one's walls are gone, and the player has a new pawn. `dir`
 -- is the world's save folder, if it is another world.
 function h.loadWorld(dir)
