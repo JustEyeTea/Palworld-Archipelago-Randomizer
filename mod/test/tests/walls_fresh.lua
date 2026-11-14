@@ -818,3 +818,43 @@ group("walls and the map, on fresh copies of walls.lua", function()
                .. "; pattern files loaded " .. importsFirst .. " then " .. importsAfter)
     end
 end)
+
+group("a wall piece that cannot be read does not stop the walls", function()
+    local WD = shared.WD
+    local SETTLE_UPDATES = 60             -- enough updates to raise every piece of the cut (30 an update)
+    local OPEN_UPDATES = 20               -- 6 s of updates: longer than an opening piece's shrink or dissolve
+    local W, mine = h.freshWalls()
+    local walls = package.loaded["locks"].layout.walls
+    local last, row = #walls, walls[#walls]
+    walls[last] = last                    -- a number where the row was, as the game's log showed
+    for _ = 1, SETTLE_UPDATES do
+        gameSeconds = gameSeconds + UPDATE_SECONDS
+        pcall(W.update, true, {}, offMap)
+    end
+    local function standingCount()
+        local n = 0
+        for _, a in ipairs(mine()) do
+            if not a.gone then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    local before, mark = standingCount(), logMark()
+    local passes = { [WD.locks[4]] = true }
+    local updateErrors = 0
+    for _ = 1, OPEN_UPDATES do
+        gameSeconds = gameSeconds + UPDATE_SECONDS
+        if not pcall(W.update, true, passes, offMap) then
+            updateErrors = updateErrors + 1
+        end
+    end
+    walls[last] = row
+    expect(before > 0 and standingCount() < before,
+           "with one unreadable piece the opened walls still go: " .. before .. " standing, then " .. standingCount())
+    expect(updateErrors == 0, "W.update itself never fails on the unreadable piece: " .. updateErrors .. " errors")
+    expect(logged("walls: raise and open failed"), "the failed step is named in the log")
+    expect(not loggedSince(mark, "walls: raise and open failed"),
+           "the failed step is logged once, not on every update")
+    h.wallsGo(mine())
+end)

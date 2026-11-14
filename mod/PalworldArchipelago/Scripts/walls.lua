@@ -361,16 +361,9 @@ local function showNear(pawn)
     end
 end
 
--- Each update (main.lua): checks a share of the pieces, raises missing pieces of locked borders and starts opening
--- pieces whose locks are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
--- pieces whose side opened and steps the opening pieces and the glow.
-function W.update(enabled, passes, pawn)
-    checkSome()
-    lastPasses, lastPawn = passes, pawn
-    if not ready() then
-        once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
-        return
-    end
+-- Raises missing pieces of locked borders and starts opening pieces whose locks are both open, up to PER_TICK of
+-- them. Returns the budget left (all of it: nothing was left to do).
+local function raiseAndOpenSome(enabled, passes, pawn)
     local budget = PER_TICK
     local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
     for i, wall in ipairs(layout.walls) do
@@ -392,9 +385,31 @@ function W.update(enabled, passes, pawn)
             budget = budget - 1
         end
     end
-    showNear(pawn)
-    WALL_SKINS.skinTick()
-    WALL_SKINS.recolour(passes)
+    return budget
+end
+-- One step of the update, its error logged once by kind. A step that fails does not stop the steps after it: an
+-- opening piece left unstepped would stand, still blocking, for good. Returns what the step returned, or nil.
+local function updateStep(kind, fn, ...)
+    local ok, result = pcall(fn, ...)
+    if ok then return result end
+    UTIL.onceErr("walls " .. kind, result, "walls: " .. kind .. " failed: " .. tostring(result))
+    return nil
+end
+
+-- Each update (main.lua): checks a share of the pieces, raises missing pieces of locked borders and starts opening
+-- pieces whose locks are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
+-- pieces whose side opened and steps the opening pieces and the glow.
+function W.update(enabled, passes, pawn)
+    checkSome()
+    lastPasses, lastPawn = passes, pawn
+    if not ready() then
+        once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
+        return
+    end
+    local budget = updateStep("raise and open", raiseAndOpenSome, enabled, passes, pawn)
+    updateStep("hide far", showNear, pawn)
+    updateStep("skin", WALL_SKINS.skinTick)
+    updateStep("recolour", WALL_SKINS.recolour, passes)
     stepOpeningAndGlow()
     if catchingUp and budget == PER_TICK then
         catchingUp = false
