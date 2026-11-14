@@ -86,9 +86,8 @@ group("the mailbox", function()
            "the chest widget is not looked for while the HUD's id says it is open")
     -- (with the probe on, its notify check walks the title menu's class once every 100 updates: the probe's walk,
     -- and whether it falls in these 10 depends on how many updates the groups before took)
-    expect((lookups.WBP_TitleMenu_C or 0) - l0.title <= 1 + (PERF and 1 or 0),
-           "in a world the title menu is looked for every 10th update only: "
-           .. ((lookups.WBP_TitleMenu_C or 0) - l0.title))
+    expect((lookups.WBP_TitleMenu_C or 0) - l0.title <= (PERF and 1 or 0),
+           "in a world the title menu is not looked for: " .. ((lookups.WBP_TitleMenu_C or 0) - l0.title))
     slots[1].StackCount = 20                                   -- the player takes 30 Wood
     run(1)
     local bagWood = bagHas.Wood or 0

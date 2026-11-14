@@ -45,7 +45,6 @@ local fails = {}              -- a title menu's address -> builds that failed in
 -- State. Forgotten: never.
 local buildFailures = 0       -- builds that failed in a row, on any menu (the first LOGGED_FAILURES are logged)
 local lookUpdates = 0         -- updates since the start (the title menu's lookups count them)
-local titleInWorld = false    -- a title menu was found in a world: from then it is looked for every update
 local rowsEverMade = false    -- our rows were made on a title menu (then no survey is needed)
 
 -- A title menu's record, with every field it has.
@@ -230,12 +229,12 @@ local function rowsAlive(m)
 end
 
 -- The live title menus, and whether they were looked for this update. At the title they are looked for every
--- update; in a world (playerInWorld, the one test of it) only every EVERY.titleLookInWorld, as a lookup walks the
--- whole object array and the menu is never there. If one is found in a world all the same, the in-world test is
--- wrong for this game: that is logged and the menu is looked for every update from then on.
+-- update. In a world (playerInWorld, the one test of it) none is looked for, and the answer is none: a lookup walks
+-- the whole object array (about 9 ms in game), and a title menu left in memory after loading into a world is not one
+-- the player can see. So every title menu kept is given up, without a call, on entering a world.
 function TITLE.find(inWorld)
     lookUpdates = lookUpdates + 1
-    if inWorld and not titleInWorld and not UTIL.isDue(lookUpdates, EVERY.titleLookInWorld) then return false, {} end
+    if inWorld then return true, {} end
     -- Live title menus only: FindAllOf also gives the class's default object and the template the title screen's
     -- asset keeps; a template can't own new buttons, and its widget tree must not be touched. A live one is under
     -- /Engine/Transient.
@@ -248,10 +247,6 @@ function TITLE.find(inWorld)
         else
             found[#found + 1] = menu
         end
-    end
-    if inWorld and #found > 0 and not titleInWorld then
-        titleInWorld = true
-        log("menu: a title menu was found with the player's pawn in a world; looking for it every update again")
     end
     return true, found
 end

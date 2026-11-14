@@ -18,6 +18,7 @@ local GAME_START = {
     escOpen = false,           -- the Esc menu is up
     escNoMain = false,         -- a client where the main menu is not found by its class while the Esc menu is up
     mainMenuOpen = false,      -- the in-game main menu (mainMenu) is up
+    overlayAnswerWrong = false, -- the HUD service says no overlay UI is up even while the main menu is
     inputSubsystems = false,   -- the CommonInputSubsystem objects FindAllOf lists (false: none)
     noPlayer = false,          -- no player state (the title, a load)
     pawnGone = false,          -- the player state has no pawn for a moment, in the same world

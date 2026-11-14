@@ -396,15 +396,15 @@ group("the title menu's Archipelago menu", function()
         noController()
         game.titleOpen = true
         run(2)
-        expect(inTen <= 1,
-               "in a world, the title menu is looked for every 10th update, as the world buttons see it: " .. inTen)
+        expect(inTen == 0, "in a world, as the world buttons see it, the title menu is not looked for: " .. inTen)
     end
-    -- A title menu while the player's pawn is in a world (should the in-world test be wrong in the game): found within
-    -- 10 updates, logged, and looked for every update again.
+    -- A title menu left in memory while the player's pawn is in a world: never looked for, and ours are given up.
     inWorld(true)
     controllerAgain()
+    local looksBefore = lookups.WBP_TitleMenu_C or 0
     run(10)
-    expect(logged("a title menu was found with the player's pawn in a world"), "a title menu seen in a world is logged")
+    expect((lookups.WBP_TitleMenu_C or 0) == looksBefore,
+           "a title menu still in memory in a world is not looked for: " .. (lookups.WBP_TitleMenu_C or 0) - looksBefore)
     inWorld(false)
     noController()
     game.titleOpen = false

@@ -285,6 +285,8 @@ function hud.Close(_, id)
         hudWindows[id].gone = true
     end
 end
+-- Whether an overlay UI is up: the in-game main menu, with the Esc menu as its tab (the game's IsAnyOverlayUIActive).
+function hud.IsAnyOverlayUIActive() return (game.mainMenuOpen or game.escOpen) and not game.overlayAnswerWrong end
 util.GetHUDService = function() return hud end
 
 -- The Esc menu, and the HUD's mission list beside it ---------------------------------------------------------------
