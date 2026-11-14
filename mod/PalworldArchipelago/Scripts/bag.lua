@@ -14,9 +14,14 @@ local BAG_GAME = {
     playerState = "PalPlayerState",
 }
 -- Game functions called: GetItemIDManager, GetStaticItemData, GetMaxStackCount, GetItemName, GetInventoryData,
--- AddItem_ServerInternal, CountLocalPlayerInventoryItemNum64, K2_GetPawn.
+-- AddItem_ServerInternal, CountLocalPlayerInventoryItemNum64, IsEquip, K2_GetPawn.
 local STACK_WHEN_UNKNOWN = 9999                  -- items per stack when the game can't say: its largest stack size
 local OK_RESULTS = { [0] = true, [1] = true }    -- EPalItemOperationResult Success, SuccessNoOperation
+-- The game puts gear it is given straight into an empty equipment slot (an accessory into an empty accessory slot),
+-- where the bag's count does not see it. These are EPalPlayerEquipItemSlotType's slots, Head (0) to
+-- CaptureItemModifier (8): armour, accessories, shield, glider and the sphere modifier. Weapons have their own
+-- loadout, not among them. Untested in game: whether a weapon handed out lands in an empty weapon slot, out of sight.
+local FIRST_EQUIP_SLOT, LAST_EQUIP_SLOT = 0, 8
 
 -- State. Forgotten: never (item names and stack sizes do not change in a session).
 local maxStacks = {}          -- item id -> most of it in one stack
@@ -97,22 +102,51 @@ local function bagCount(playerState, id)
     return ok and tonumber(count) or nil
 end
 
+-- How many of the player's equipment slots wear an item, or nil when the game can't say.
+local function wornCount(inventory, id)
+    local ok, count = pcall(function()
+        local worn = 0
+        for slotType = FIRST_EQUIP_SLOT, LAST_EQUIP_SLOT do
+            if inventory:IsEquip(slotType, FName(id)) then
+                worn = worn + 1
+            end
+        end
+        return worn
+    end)
+    return ok and count or nil
+end
+
+-- What the player holds of an item: { bag = in the bag, worn = in equipment slots (0 when the game can't say) }, or
+-- nil when the bag can't be counted.
+local function heldNow(inventory, playerState, id)
+    local inBag = bagCount(playerState, id)
+    if not inBag then return nil end
+    local worn = wornCount(inventory, id)
+    if not worn then
+        UTIL.took("mailbox: counting what was given", "the bag only (the game can't say what the player wears)")
+    end
+    return { bag = inBag, worn = worn or 0 }
+end
+
 -- One stack into the bag; true when the game took it, else false and why: "full" when the game refused it, "error"
--- when the call failed. The bag is counted before and after, and a gain that does not
--- match the game's answer is logged: what a full bag does with AddItem is untested in game.
+-- when the call failed. The third value is how many went straight into an equipment slot. The bag and the equipment
+-- slots are counted before and after, and a gain that does not match the game's answer is logged: what a full bag
+-- does with AddItem is untested in game.
 local function giveStack(inventory, playerState, id, count)
-    local before = bagCount(playerState, id)
+    local before = heldNow(inventory, playerState, id)
     local ok, answer = pcall(function()
         return inventory:AddItem_ServerInternal(FName(id), count, false, 0.0, true)
     end)
     local result = ok and tonumber(answer) or nil
     local accepted = ok and (result == nil or OK_RESULTS[result]) or false
-    local after = before and bagCount(playerState, id)
-    if before and after and after - before ~= (accepted and count or 0) then
+    local after = before and heldNow(inventory, playerState, id)
+    local wornGain = after and math.max(0, after.worn - before.worn) or 0
+    local gain = after and (after.bag + after.worn) - (before.bag + before.worn)
+    if gain and gain ~= (accepted and count or 0) then
         onceSession("bag" .. tostring(result), "mailbox: adding " .. count .. " " .. id .. " answered "
-            .. tostring(result) .. " but the bag gained " .. (after - before))
+            .. tostring(result) .. " but the bag and equipment slots gained " .. gain)
     end
-    if accepted then return true end
+    if accepted then return true, nil, wornGain end
     if not ok then
         log("mailbox: could not give " .. id .. ": " .. tostring(answer))
         return false, "error"
@@ -123,23 +157,24 @@ local function giveStack(inventory, playerState, id, count)
 end
 
 -- Into the player's bag, a stack at a time. Returns how many went in and, when that is not all, why: "full" (the game
--- refused it), "error" (the game's call failed) or "no bag" (the player has no inventory data, as while loading).
+-- refused it), "error" (the game's call failed) or "no bag" (the player has no inventory data, as while loading). The
+-- third value is how many of those the game put straight into an equipment slot instead of the bag.
 function BAG.give(id, count)
     local _, playerState = BAG.player()
     local inventory = playerState and playerState:GetInventoryData()
     if not inventory then
         onceSession("nobag", "mailbox: the player has no inventory data (no player state, or still loading); " .. id
             .. " not given")
-        return 0, "no bag"
+        return 0, "no bag", 0
     end
-    local perStack, given = BAG.maxStack(id), 0
+    local perStack, given, worn = BAG.maxStack(id), 0, 0
     while given < count do
         local stack = math.min(perStack, count - given)
-        local took, why = giveStack(inventory, playerState, id, stack)
-        if not took then return given, why end
-        given = given + stack
+        local took, why, wornNow = giveStack(inventory, playerState, id, stack)
+        if not took then return given, why, worn end
+        given, worn = given + stack, worn + wornNow
     end
-    return given
+    return given, nil, worn
 end
 
 -- The live player controller's address (FindFirstOf can return the class default object, which never changes).

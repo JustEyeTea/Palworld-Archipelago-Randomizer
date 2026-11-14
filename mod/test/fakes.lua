@@ -25,6 +25,7 @@ local GAME_START = {
     playerDead = false,        -- the player is fainted
     playerLevel = 4,           -- the player's level
     bagFull = false,           -- the bag refuses every item
+    equipsFreeSlot = false,    -- the game puts an item it is given into an empty equipment slot, not the bag
     movesWork = true,          -- false: the game's move from the hidden chest to the bag does nothing
     logicMod = false,          -- the mod's LogicMod paks are loaded (its assets and window classes exist)
     composeFails = false,      -- the map picture's compositor fails every job, as when its file is locked
@@ -128,12 +129,21 @@ given = {}                                                 -- every item given, 
 bagHas = {}                                                -- item id -> how many the bag holds
 local BAG_FULL = 16                                        -- EPalItemOperationResult FailedNotEnoughSlotSpace
 inv = { MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 } } } }
+wornIn = {}                                                -- equipment slot type -> the item id worn there
+local ACCESSORY_SLOTS = { 2, 3, 6, 7 }                     -- EPalPlayerEquipItemSlotType Accessory1 to Accessory4
 function inv.AddItem_ServerInternal(_, name, n)
     if game.bagFull then return BAG_FULL end
     given[#given + 1] = name:ToString() .. " x" .. n
+    for _, slotType in ipairs(ACCESSORY_SLOTS) do
+        if game.equipsFreeSlot and not wornIn[slotType] then
+            wornIn[slotType] = name:ToString()
+            return 0
+        end
+    end
     bagHas[name:ToString()] = (bagHas[name:ToString()] or 0) + n
     return 0
 end
+function inv.IsEquip(_, slotType, name) return wornIn[slotType] == name:ToString() end
 -- The player's records: captures, the Paldeck, towers, alphas, fast-travel points.
 record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
