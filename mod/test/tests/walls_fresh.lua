@@ -865,6 +865,51 @@ group("walls and the map, on fresh copies of walls.lua", function()
         takeAway()
         putBack()
     end
+    do  -- Ctrl+7 back to full after "none": the pieces nearest the player go up first, and the log says when the
+        -- catch-up starts and when it ends, with the count
+        local W, mine = h.freshWalls()
+        W.radius = 0
+        for _ = 1, SETTLE_UPDATES do
+            W.update(true, {}, offMap)
+        end
+        local all = #mine()
+        local layout, LOCKS = package.loaded["locks"].layout, package.loaded["locks"]
+        local far = layout.walls[#layout.walls]                    -- the player by the last piece: far from the first
+        local spot = { X = far.x, Y = far.y, Z = 0 }
+        local standIn = { IsValid = function() return true end, K2_GetActorLocation = function() return spot end }
+        W.perfMode("none")
+        W.perfMode("full")
+        local mark = logMark()
+        W.update(true, {}, standIn)
+        local indexAt = {}
+        for i, wall in ipairs(layout.walls) do
+            indexAt[wall.x .. "," .. wall.y] = i
+        end
+        local raisedNow, farthestRaised, nearestLeft = {}, 0, math.huge
+        for _, a in ipairs(mine()) do
+            local i = indexAt[a.t.Translation.X .. "," .. a.t.Translation.Y]
+            if i then
+                raisedNow[i] = true
+                farthestRaised = math.max(farthestRaised, W.segDist(i, spot.X, spot.Y))
+            end
+        end
+        for i, wall in ipairs(layout.walls) do
+            if LOCKS.standing(wall, {}) and not raisedNow[i] then
+                nearestLeft = math.min(nearestLeft, W.segDist(i, spot.X, spot.Y))
+            end
+        end
+        expect(next(raisedNow) and farthestRaised <= nearestLeft,
+               "the first update of the catch-up raises the pieces nearest the player: the farthest raised "
+               .. farthestRaised .. " cm away, the nearest still down " .. nearestLeft .. " cm")
+        expect(loggedSince(mark, "walls catching up: " .. all .. " piece%(s%) to raise, nearest the player first"),
+               "the catch-up's start is logged with the count to raise")
+        for _ = 1, SETTLE_UPDATES do
+            W.update(true, {}, standIn)
+        end
+        expect(#mine() == all and loggedSince(mark, "walls full again: " .. all .. " raised"),
+               "and its end, with the count: " .. #mine() .. " of " .. all)
+        h.wallsGo(mine())
+    end
 end)
 
 group("a wall piece that cannot be read does not stop the walls", function()
