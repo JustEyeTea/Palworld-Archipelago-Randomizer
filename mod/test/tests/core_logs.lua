@@ -262,3 +262,20 @@ group("a wall setting in config.txt that is not two numbers keeps its default", 
     expect(loggedSince(mark, "wall_fade=15,25%.0%.1 is not two numbers")
            and loggedSince(mark, "wall_tiling=1%.5%.0,2 is not two numbers"), "and says so")
 end)
+
+group("a record entry the game cannot read yet is skipped quietly", function()
+    -- Just after a world loads, an entry of the record data can be a null object: reading it fails. The pass reads the
+    -- others, without an error inside ForEach (UE4SS logs a traceback for one there).
+    local RECORDS, DATA = require("records"), require("ap_data")
+    local paldeck = record.PaldeckUnlockFlag
+    local readable = { Key = FNameOf("Blueplatypus"), Value = true }
+    record.PaldeckUnlockFlag = { Items = { ForEach = function(_, fn)
+        fn(1, NullObject())                                        -- its get() fails: "the UObject instance is nullptr"
+        fn(2, { get = function() return readable end })
+    end } }
+    local mark = logMark()
+    local ok, found = pcall(RECORDS.progress, ps, DATA, 0)
+    record.PaldeckUnlockFlag = paldeck
+    expect(ok and found.pals >= 1, "the records pass reads the entries it can: " .. tostring(ok and found.pals or found))
+    expect(loggedSince(mark, "records: 1 record entry not readable yet"), "and says once that one was skipped")
+end)
