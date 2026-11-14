@@ -13,7 +13,7 @@
 --     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, regionOf,
 --     slugOf, mapShown, mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS
---   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, REGION_COLOURS
+--   for the harness only: segDist, stampSize, worldAt, lockedStampArt, linearOf, modAsset, pieceSkin, REGION_COLOURS
 local W = {}
 W.layout = "regions"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
@@ -520,5 +520,6 @@ MAP_PICTURE.install({ W = W, locks = LOCKS, icons = MAP_ICONS, fog = MAP_FOG })
 MAP_FOG.install({ W = W, locks = LOCKS, icons = MAP_ICONS, picture = MAP_PICTURE })
 W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_FOG.mapShown, MAP_FOG.mapOff
 W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_ICONS.worldAt                              -- (for the harness)
+W.lockedStampArt = MAP_ICONS.lockedStampArt                                                    -- (for the harness)
 
 return W

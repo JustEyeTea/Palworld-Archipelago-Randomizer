@@ -20,6 +20,13 @@ group("Lock Size: areas", function()
     expect(liveWalls.regionOf("Golden Hills") == "Bamboo Groves"
            and liveWalls.regionOf("Gobfin's Turf") == "Crescent Moon Shore",
            "an area wears its region's colour, ticket and stamp (area_regions.lua)")
+    do  -- The starting region has no stamp of its own: its locked areas wear the shared one, with no failed load.
+        local startStamp, regionStamp = liveWalls.lockedStampArt("Sunlit Isle"), liveWalls.lockedStampArt("Golden Hills")
+        expect(liveWalls.regionOf("Sunlit Isle") == RD.start and startStamp == "ap-map-stamp"
+               and regionStamp == "ap-map-stamp-bamboo-groves" and not logged("windswept%-island"),
+               "an area of the starting region wears the shared map stamp, another its region's: "
+               .. tostring(startStamp) .. ", " .. tostring(regionStamp))
+    end
     -- An Area Pass's card shows the area's own ticket (art/area-passes/), not its region's.
     pushScout({ location = D.shop.Special_PalSphere_Grade_02.loc, name = "Area Pass: Golden Hills" })
     local areaCard = Card("Special_PalSphere_Grade_02")

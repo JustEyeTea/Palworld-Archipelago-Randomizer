@@ -9,9 +9,9 @@ local log = UTIL.log
 local once = UTIL.onceIn("walls")
 local owner = UTIL.gameInstance
 -- Handed over by install: W (settings: dir, keepInPlace, cppOff, testFogColour, chartOff, chartBordersOff; data:
--- beyond), the locks part's layout and lists, the icons part's active and the picture part (target(), territories(),
+-- beyond), the locks part's layout and lists, the icons part's active and lockedStampArt, and the picture part (target(), territories(),
 -- terr, TERR_FOG, COLOUR_FILE, stampSize, drawInto, drawWhole).
-local W, layout, slugOf, lockedList, lockedIndexes, iconsActive, picture = nil, nil, nil, nil, nil, nil, nil
+local W, layout, lockedList, lockedIndexes, iconsActive, lockedStampArt, picture = nil, nil, nil, nil, nil, nil, nil
 local territories, terr, TERR_FOG, COLOUR_FILE, stampSize = nil, nil, nil, nil, nil
 local GAMMA, RTF_RGBA8, BLEND_OPAQUE = nil, nil, nil
 -- Files this part writes into the mod folder (the game's own art, made on the player's machine, never shipped):
@@ -240,9 +240,8 @@ local function stampList(locked)
     for _, k in ipairs(locked) do
         local centre, name = layout.centres[k], layout.locks[k + 1]
         if centre and name then
-            local file = W.beyond[name] and "ap-map-stamp-sealed" or ("ap-map-stamp-" .. slugOf(W.regionOf(name)))
-            local path = artFile(file)
-            if path == "" then path = artFile("ap-map-stamp") end
+            local art = lockedStampArt(name)
+            local path = art and artFile(art) or ""
             if path ~= "" then
                 parts[#parts + 1] = table.concat({ path, centre.stampU, centre.stampV, stampSize(centre) }, "|")
             end
@@ -477,9 +476,9 @@ end
 
 -- Hands over what this part reads (see the top of the file).
 function MAP_FOG.install(env)
-    W, picture, iconsActive = env.W, env.picture, env.icons.active
+    W, picture, iconsActive, lockedStampArt = env.W, env.picture, env.icons.active, env.icons.lockedStampArt
     local locks = env.locks
-    layout, slugOf, lockedList, lockedIndexes = locks.layout, locks.slugOf, locks.lockedList, locks.lockedIndexes
+    layout, lockedList, lockedIndexes = locks.layout, locks.lockedList, locks.lockedIndexes
     territories, terr, TERR_FOG = picture.territories, picture.terr, picture.TERR_FOG
     COLOUR_FILE, stampSize = picture.COLOUR_FILE, picture.stampSize
     GAMMA, RTF_RGBA8, BLEND_OPAQUE = picture.GAMMA, picture.RTF_RGBA8, picture.BLEND_OPAQUE

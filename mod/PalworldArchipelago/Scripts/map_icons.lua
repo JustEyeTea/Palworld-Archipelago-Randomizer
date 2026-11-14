@@ -21,14 +21,26 @@ local mapIcons = {}
 local W, layout, slugOf, lockedList, openList = nil, nil, nil, nil, nil
 
 local function iconsActive() return not W.iconsOff and not iconsFailed end
--- A lock beyond the goal: the sealed stamp; a lock: its region's (an area wears its region's); the shared one when
--- there is none.
+-- The art a lock still locked wears on the map (art/<name>.png), or nil when there is no stamp file at all: the sealed
+-- stamp beyond the goal; else its region's own, which its areas wear too; else the shared ap-map-stamp. The starting
+-- region has no stamp of its own (with the 15 regions it is never locked), so its other areas, locked in the 75-area
+-- cut, wear the shared one; another region's stamp missing is said once.
+local function lockedStampArt(name)
+    if W.beyond[name] and ART.file("ap-map-stamp-sealed") ~= "" then return "ap-map-stamp-sealed" end
+    local region = W.regionOf(name)
+    if not W.beyond[name] and region ~= layout.start then
+        local own = "ap-map-stamp-" .. slugOf(region)
+        if ART.file(own) ~= "" then return own end
+        UTIL.took("map stamps: " .. region, "the shared ap-map-stamp (no " .. own .. ".png)")
+    end
+    if ART.file("ap-map-stamp") ~= "" then return "ap-map-stamp" end
+    return nil
+end
+-- The texture of the stamp lock index k wears while locked (lockedStampArt), or nil.
 local function stampTexture(k)
     local name = layout.locks[k + 1]
-    if not name then return nil end
-    return (W.beyond[name] and ART.texture("ap-map-stamp-sealed"))
-        or (not W.beyond[name] and ART.texture("ap-map-stamp-" .. slugOf(W.regionOf(name))))
-        or ART.texture("ap-map-stamp")
+    local art = name and lockedStampArt(name)
+    return art and ART.texture(art)
 end
 
 local ICON_ASSET = "/Game/Pal/Blueprint/UI/WorldMap/IconWidgets/WBP_WorldMap_IconBase_OnlyIcon."
@@ -193,5 +205,5 @@ function MAP_ICONS.install(env)
     layout, slugOf, lockedList, openList = locks.layout, locks.slugOf, locks.lockedList, locks.openList
 end
 
-MAP_ICONS.active, MAP_ICONS.stampTexture = iconsActive, stampTexture
+MAP_ICONS.active, MAP_ICONS.stampTexture, MAP_ICONS.lockedStampArt = iconsActive, stampTexture, lockedStampArt
 return MAP_ICONS
