@@ -286,8 +286,10 @@ function hud.Close(_, id)
     end
 end
 -- Whether an overlay UI is up: the in-game main menu, with the Esc menu as its tab (the game's IsAnyOverlayUIActive).
+function hud.IsValid() return true end
 function hud.IsAnyOverlayUIActive() return (game.mainMenuOpen or game.escOpen) and not game.overlayAnswerWrong end
-util.GetHUDService = function() return hud end
+local NULL_OBJECT = { IsValid = function() return false end }   -- what UE4SS hands back for a null object
+util.GetHUDService = function() return game.noHudService and NULL_OBJECT or hud end
 
 -- The Esc menu, and the HUD's mission list beside it ---------------------------------------------------------------
 

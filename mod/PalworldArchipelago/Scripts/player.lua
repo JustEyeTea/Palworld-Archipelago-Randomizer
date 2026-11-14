@@ -6,12 +6,19 @@ local UTIL = require("util")
 local log = UTIL.log
 local once = UTIL.onceIn("player")
 
--- The first valid player state, found by a walk of every object (FindAllOf).
+-- Whether an object is its class's default object (Default__PalPlayerState and the like): FindAllOf hands it back
+-- with the live ones, valid but in no world, so it has no pawn.
+local function isClassDefault(obj)
+    local okn, n = pcall(function() return obj:GetFullName() end)
+    return okn and tostring(n):find("Default__", 1, true) ~= nil
+end
+
+-- The first valid player state that is not the class's default object, found by a walk of every object (FindAllOf).
 function PLAYER.findPlayerState()
     local all = FindAllOf("PalPlayerState")
     if not all then return nil end
     for _, ps in ipairs(all) do
-        if ps:IsValid() then return ps end
+        if ps:IsValid() and not isClassDefault(ps) then return ps end
     end
 end
 -- The player for this update. Each FindAllOf walks the whole object array (UE4SS has no class index; an estimated
@@ -23,9 +30,7 @@ end
 local frame = nil
 -- A controller's address, or nil for one that is not valid or is the class's default object.
 local function liveControllerKey(pc)
-    if not pc:IsValid() then return nil end
-    local okn, n = pcall(function() return pc:GetFullName() end)
-    if okn and tostring(n):find("Default__", 1, true) then return nil end
+    if not pc:IsValid() or isClassDefault(pc) then return nil end
     return UTIL.addr(pc)
 end
 -- Looks up this update's player: the frame record every part of the update reads. Its fields:
@@ -72,7 +77,8 @@ function PLAYER.pawnXY(pawn)
     return at.X, at.Y
 end
 
--- The pawn of this update's player state, or nil (no player state, or none read).
+-- The pawn of this update's player state, or nil (no player state, or none read). Outside an update (a key press) the
+-- player state is looked up afresh (findPlayerState, which passes over the class's default object: it has no pawn).
 function PLAYER.playerPawn()
     local ps = PLAYER.playerState()
     return ps and UTIL.safe(function() return ps:GetPawn() end)

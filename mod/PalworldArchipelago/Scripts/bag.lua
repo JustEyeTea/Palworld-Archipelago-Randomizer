@@ -3,6 +3,7 @@
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local BAG = {}
 local UTIL = require("util")
+local PLAYER = require("player")    -- (findPlayerState: the player state, outside an update)
 local log = UTIL.log
 local onceSession = UTIL.onceIn("mailbox")   -- once a session: how the game answers does not change by world
 
@@ -11,16 +12,16 @@ local BAG_GAME = {
     uiUtility = "/Script/Pal.Default__PalUIUtility",     -- item names in the player's language
     itemUtility = "/Script/Pal.Default__PalItemUtility", -- counts what is in the bag
     playerController = "PalPlayerController",
-    playerState = "PalPlayerState",
 }
 -- Game functions called: GetItemIDManager, GetStaticItemData, GetMaxStackCount, GetItemName, GetInventoryData,
--- AddItem_ServerInternal, CountLocalPlayerInventoryItemNum64, IsEquip, K2_GetPawn.
+-- AddItem_ServerInternal, CountLocalPlayerInventoryItemNum64, IsEquip, IsEquipForWeapon, K2_GetPawn.
 local STACK_WHEN_UNKNOWN = 9999                  -- items per stack when the game can't say: its largest stack size
 local OK_RESULTS = { [0] = true, [1] = true }    -- EPalItemOperationResult Success, SuccessNoOperation
 -- The game puts gear it is given straight into an empty equipment slot (an accessory into an empty accessory slot),
 -- where the bag's count does not see it. These are EPalPlayerEquipItemSlotType's slots, Head (0) to
 -- CaptureItemModifier (8): armour, accessories, shield, glider and the sphere modifier. Weapons have their own
--- loadout, not among them. Untested in game: whether a weapon handed out lands in an empty weapon slot, out of sight.
+-- loadout, not among them, and land in an empty weapon slot just the same (an Old Bow did, in game), so the loadout is
+-- asked too (IsEquipForWeapon: whether a weapon slot holds the item; one counted however many hold it).
 local FIRST_EQUIP_SLOT, LAST_EQUIP_SLOT = 0, 8
 
 -- State. Forgotten: never (item names and stack sizes do not change in a session).
@@ -45,14 +46,7 @@ function BAG.player()
     if frame then return frame.pawn, frame.playerState() end
     local controller = FindFirstOf(BAG_GAME.playerController)
     local pawn = controller and controller:IsValid() and controller:K2_GetPawn() or nil
-    local playerState
-    for _, candidate in ipairs(FindAllOf(BAG_GAME.playerState) or {}) do
-        if candidate:IsValid() then
-            playerState = candidate
-            break
-        end
-    end
-    return pawn and pawn:IsValid() and pawn or nil, playerState
+    return pawn and pawn:IsValid() and pawn or nil, PLAYER.findPlayerState()
 end
 
 -- The most of an item one stack holds.
@@ -110,6 +104,9 @@ local function wornCount(inventory, id)
             if inventory:IsEquip(slotType, FName(id)) then
                 worn = worn + 1
             end
+        end
+        if inventory:IsEquipForWeapon(FName(id)) then
+            worn = worn + 1
         end
         return worn
     end)

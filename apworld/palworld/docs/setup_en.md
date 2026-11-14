@@ -33,6 +33,9 @@ with `[PalworldAP]`.
    `ue4ss\Mods\mods.txt`. (Lines there for them are fine too.) To turn the mod off, delete the two `enabled.txt`
    files and any lines for them in `mods.txt`. Without APConnector the log says `APConnector is not installed` and
    the mod stays off.
+   While you are in `mods.txt`, set `Keybinds : 0`. UE4SS ships its Keybinds mod on, and its Ctrl+H dumps the
+   game's files: pressing the hint key (H) while crouched (Ctrl) sets it off, and the game can crash soon after. The
+   mod warns in chat while Keybinds is on.
 5. Optional: copy `PalworldArchipelagoArt.pak` to `Pal\Content\Paks\LogicMods` (make the folder if it isn't there).
    `BPModLoaderMod` must stay on in `mods.txt`; UE4SS ships it on. (A second pak, `PalworldArchipelagoUI.pak`, would
    give the Archipelago Mailbox its own window; it isn't released yet, and the mailbox works in the game's chest

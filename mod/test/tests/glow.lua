@@ -163,7 +163,7 @@ group("the check glow", function()
     frameUnder("check glow test")
     local pieces, _, checks = freshGlows()
     local near, far = 5000, 200000                           -- cm from the player: 50 m and 2 km
-    local statue = { across = 240, up = 410 }
+    local statue = { across = 240, up = 410, off = 300 }     -- (its bounds' centre 3 m off its place, as in game)
     local checked = FastTravelStatue("FTPoint113", near, 0, statue)
     local open = FastTravelStatue("FTPoint114", 0, near, statue, true)
     local distant = FastTravelStatue("FTPoint115", far, 0, statue)
@@ -186,10 +186,11 @@ group("the check glow", function()
            "only the locked statue still a check, near the player, glows (ring, light, pillar): " .. glowCount())
     local ring = glows and glows.glow.ring.actor
     expect(ring and math.abs(ring.scale.X - 2.4) < 1e-6 and math.abs(ring.scale.Z - 2.05) < 1e-6
-           and ring.at.Z == pawnAt.Z, "the glow is sized to the statue's bounds (240 cm across, 410 up) and stands"
-           .. " at its foot: " .. tostring(ring and ring.scale.X))
-    expect(loggedSince(mark, "glow: the first statue's bounds %(statue FTPoint%d+%): 240 x 240 x 410 cm"),
-           "the first statue's bounds are logged")
+           and ring.at.Z == pawnAt.Z and ring.at.X == pawnAt.X - near and ring.at.Y == pawnAt.Y,
+           "the glow is sized to the statue's bounds (240 cm across, 410 up) and stands at its foot, on its own place"
+           .. " (not the bounds' centre, 3 m off): " .. tostring(ring and ring.at.X))
+    expect(loggedSince(mark, "glow: statue FTPoint%d+ at .-; bounds 240 x 240 x 410 cm"),
+           "the first statues' places and bounds are logged")
     local beam = pieceWearing("Beam")
     expect(beam and beam.scale.Z == 1 and beam.material.scalars.NearFadeEnd > beam.material.scalars.NearFadeStart,
            "the pillar keeps its height and fades out up close")
@@ -234,6 +235,22 @@ group("the check glow", function()
     pawnAt = home
     checks.update(pawn)
     expect(glowCount() == 3, "within the radius it is put up again")
+
+    -- Bounds far taller than a statue (one's were 4 km in game): the glow stands at the statue's own place, not 2 km
+    -- down at the bounds' bottom, and keeps its height.
+    statues = { FastTravelStatue("FTPoint55", -near, 0, { across = 240, up = 400000, off = 300 }) }
+    runPast(checks.WAIT.rescan)
+    frameUnder("check glow test")
+    checks.update(pawn)
+    local tall = checks.targets()["statue FTPoint55"]
+    local tallRing = tall and tall.glow and tall.glow.ring.actor
+    expect(tallRing and tallRing.at.Z == pawnAt.Z and tallRing.at.X == pawnAt.X - near and tallRing.scale.Z == 1,
+           "bounds taller than any statue: the glow stands at its own place, unstretched: "
+           .. tostring(tallRing and tallRing.at.Z))
+    statues = { checked, open, distant, wanted, notACheck }
+    runPast(checks.WAIT.rescan)
+    frameUnder("check glow test")
+    checks.update(pawn)
 
     -- A world change: under the same controller (a faint) its pieces are taken down; under another (another world)
     -- they are only forgotten, never called.

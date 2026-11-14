@@ -87,6 +87,7 @@ local selected = nil          -- the kind in the details pane
 -- State. Forgotten: never (the last crate opened can be seen again on a later mailbox).
 local last = nil              -- the last crate opened: { kind, out = its contents { id, n }, stamp = +1 a crate }
 local layoutLogged = false    -- the reopen button's place as laid out was logged (once a session)
+local layoutLooks = 0         -- updates its layout was looked at while the canvas had no size yet
 
 local function valid(object)
     local ok, answer = pcall(function() return object:IsValid() end)
@@ -381,17 +382,22 @@ local function screenBox(widget)
     return ok and box or "?"
 end
 
--- Once a session, on the update after the reopen button is first drawn (the game has laid it out by then): what it
--- sits on, whether it shows, and where it is beside that canvas.
+-- Once a session, once the game has laid the reopen button out (its canvas has a size: one update after it was drawn,
+-- in game, the canvas was still 0x0), or after LAYOUT_LOOKS updates: what it sits on, whether it shows, and where it
+-- is beside that canvas.
+local LAYOUT_LOOKS = 10      -- updates to wait for the canvas to have a size before logging what is there anyway
 local function logToggleLayoutOnce()
     if layoutLogged or not (overlay and overlay.toggle) then return end
-    layoutLogged = true
     local toggle = overlay.toggle
     local okParent, canvas = pcall(function() return toggle:GetParent() end)
+    layoutLooks = layoutLooks + 1
+    local canvasBox = okParent and screenBox(canvas) or "?"
+    if canvasBox:find(" 0x0$") and layoutLooks < LAYOUT_LOOKS then return end
+    layoutLogged = true
     local okShown, shown = pcall(function() return toggle:IsVisible() end)
-    log("crate window: reopen button as laid out: on " .. (okParent and WIDGETS.nameOf(canvas) or "?") .. ", visible "
-        .. (okShown and tostring(shown) or "?") .. ", at " .. screenBox(toggle) .. " on a canvas at "
-        .. (okParent and screenBox(canvas) or "?"))
+    log("crate window: reopen button as laid out (after " .. UTIL.counted(layoutLooks, "update") .. "): on "
+        .. (okParent and WIDGETS.nameOf(canvas) or "?") .. ", visible " .. (okShown and tostring(shown) or "?")
+        .. ", at " .. screenBox(toggle) .. " on a canvas at " .. canvasBox)
 end
 
 -- The first kind with a crate waiting, when the chosen kind has none left.

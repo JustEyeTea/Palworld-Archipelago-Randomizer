@@ -192,12 +192,13 @@ end
 
 -- Whether an overlay UI may be up, asked of the HUD service: the in-game main menu is one (WBP_InGameMainMenu_C is a
 -- UPalUserWidgetOverlayUI), and the question costs far less than a walk of the object array. True when the HUD can't
--- say, so the menus are looked for as before.
+-- say, so the menus are looked for as before. Before there is a HUD service (the title screen has a pawn but none) it
+-- can't say either, quietly: only a HUD service that fails the question is logged.
 local function overlayMayBeUp(pawn)
-    if not overlayAnswerTrusted then return true end
-    local ok, active = pcall(function()
-        return StaticFindObject(GAME.palUtility):GetHUDService(pawn):IsAnyOverlayUIActive()
-    end)
+    if not overlayAnswerTrusted or not pawn then return true end
+    local okh, hud = pcall(function() return StaticFindObject(GAME.palUtility):GetHUDService(pawn) end)
+    if not (okh and hud and hud:IsValid()) then return true end
+    local ok, active = pcall(function() return hud:IsAnyOverlayUIActive() end)
     if ok and type(active) == "boolean" then return active end
     UTIL.took("menu: whether a menu may be up", "the main menu looked for every update (the HUD service can't say: "
         .. tostring(active) .. ")")

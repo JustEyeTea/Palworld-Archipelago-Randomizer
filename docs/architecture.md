@@ -363,6 +363,7 @@ the other modules.
 | `wall_hints.lua` | The notice at a locked wall and buying its pass's hint with the hint key; the server's chat (`onMessage`, `parsePassHint`). |
 | `area_locks.lua` | When the walls act (`AREA_LOCKS.update`), the visited locks, sending the player home from a locked one, and the walls' settings from config.txt (`configureWalls`). |
 | `held_notices.lua` | Notices held through a loading screen. |
+| `keybinds_check.lua` | Whether UE4SS's own Keybinds mod is on (its Ctrl+H header dump, set off by the hint key while crouching, crashed the game), and a chat warning once a session saying how to turn it off. |
 | `run_style.lua` | Run Style (Nomad's hand-overs, `RUN_STYLE.gifts`) and Speed Boost: the world settings it multiplies (`RUN_STYLE.apply`), the world's own values (`syncbase=` in the save) and the warning. |
 | `death_link.lua` | Death Link: the faint routes (`ROUTES`), a death received, the player's own death and the amnesty. |
 | `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`TECHSCAN.phase`) that sends the checks of slots another mod removed. |

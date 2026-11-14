@@ -61,3 +61,37 @@ group("util", function()
     expect(logged("util test: could not hook Fn yet %(will retry%)") and logged("util test: hooked Fn %(try 11%)"),
            "and logs the first failure and the success")
 end)
+
+group("the UE4SS Keybinds check", function()
+    -- UE4SS's Keybinds mod dumps the game's headers on Ctrl+H (the hint key while crouching), which crashed the game:
+    -- while it is on, the player is told once how to turn it off.
+    local modsDir = os.tmpname()               -- a name of our own, made a folder: the mods folder, Keybinds in it
+    os.remove(modsDir)
+    assert(os.execute("mkdir -p '" .. modsDir .. "/Keybinds'"))
+    local modDir = modsDir .. "\\PalworldArchipelago"
+    local function modsTxt(text)
+        local f = assert(io.open(modsDir .. "\\mods.txt", "w"))
+        f:write(text)
+        f:close()
+    end
+    local function check()
+        local K = dofile(MOD .. "/Scripts/keybinds_check.lua")   -- a fresh copy: its state is once a session
+        K.check(modDir)
+        local held = {}
+        for _ = 1, 3 do
+            K.warnOnce(function(msg) held[#held + 1] = msg end)
+        end
+        return held
+    end
+    modsTxt("BPModLoaderMod : 1\nKeybinds : 1\nPalworldArchipelago : 1\n")
+    local held = check()
+    expect(#held == 1 and held[1]:find("Keybinds : 0", 1, true), "Keybinds on in mods.txt: told once, with the fix: "
+           .. tostring(held[1]))
+    modsTxt("BPModLoaderMod : 1\nKeybinds : 0\n")
+    expect(#check() == 0, "Keybinds off: nothing said")
+    local enabled = modsDir .. "\\Keybinds\\enabled.txt"
+    local f = assert(io.open(enabled, "w"))
+    f:close()
+    expect(#check() == 1, "an enabled.txt in its folder counts as on")
+    os.execute("rm -r '" .. modsDir .. "'")
+end)

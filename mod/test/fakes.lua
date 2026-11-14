@@ -19,6 +19,7 @@ local GAME_START = {
     escNoMain = false,         -- a client where the main menu is not found by its class while the Esc menu is up
     mainMenuOpen = false,      -- the in-game main menu (mainMenu) is up
     overlayAnswerWrong = false, -- the HUD service says no overlay UI is up even while the main menu is
+    noHudService = false,      -- the pawn has no HUD service yet (the title screen): GetHUDService gives a null object
     inputSubsystems = false,   -- the CommonInputSubsystem objects FindAllOf lists (false: none)
     noPlayer = false,          -- no player state (the title, a load)
     pawnGone = false,          -- the player state has no pawn for a moment, in the same world
@@ -27,6 +28,7 @@ local GAME_START = {
     playerLevel = 4,           -- the player's level
     bagFull = false,           -- the bag refuses every item
     equipsFreeSlot = false,    -- the game puts an item it is given into an empty equipment slot, not the bag
+    givesWeapons = false,      -- with equipsFreeSlot, the item is a weapon: it goes into an empty weapon slot
     movesWork = true,          -- false: the game's move from the hidden chest to the bag does nothing
     logicMod = false,          -- the mod's LogicMod paks are loaded (its assets and window classes exist)
     regionWalls = true,        -- with logicMod: the PalworldArchipelagoArt pak has the region walls (false: one
@@ -133,10 +135,18 @@ bagHas = {}                                                -- item id -> how man
 local BAG_FULL = 16                                        -- EPalItemOperationResult FailedNotEnoughSlotSpace
 inv = { MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 } } } }
 wornIn = {}                                                -- equipment slot type -> the item id worn there
+weaponSlots = {}                                           -- the weapon loadout's item ids, in slot order
 local ACCESSORY_SLOTS = { 2, 3, 6, 7 }                     -- EPalPlayerEquipItemSlotType Accessory1 to Accessory4
+local WEAPON_SLOTS = 4                                     -- the loadout's slots at the start of a game
+-- game.equipsFreeSlot: the game puts gear straight into an empty slot (an accessory slot, or with game.givesWeapons
+-- a weapon slot, as an Old Bow went in game) instead of the bag.
 function inv.AddItem_ServerInternal(_, name, n)
     if game.bagFull then return BAG_FULL end
     given[#given + 1] = name:ToString() .. " x" .. n
+    if game.equipsFreeSlot and game.givesWeapons and #weaponSlots < WEAPON_SLOTS then
+        weaponSlots[#weaponSlots + 1] = name:ToString()
+        return 0
+    end
     for _, slotType in ipairs(ACCESSORY_SLOTS) do
         if game.equipsFreeSlot and not wornIn[slotType] then
             wornIn[slotType] = name:ToString()
@@ -147,6 +157,12 @@ function inv.AddItem_ServerInternal(_, name, n)
     return 0
 end
 function inv.IsEquip(_, slotType, name) return wornIn[slotType] == name:ToString() end
+function inv.IsEquipForWeapon(_, name)
+    for _, id in ipairs(weaponSlots) do
+        if id == name:ToString() then return true end
+    end
+    return false
+end
 -- The player's records: captures, the Paldeck, towers, alphas, fast-travel points.
 record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
@@ -293,14 +309,15 @@ ftActor = { IsValid = function() return true end, FastTravelPointID = FNameOf("F
 -- More fast-travel statues the game has loaded, listed after ftActor (a test adds them with FastTravelStatue).
 statues = {}
 -- A fast-travel statue `id` standing `dx`, `dy` cm from the player, locked unless `unlocked`, `size` cm across and
--- up ({ across, up }; its bounds, which GetActorBounds fills in as the game does).
+-- up ({ across, up, off }; its bounds, which GetActorBounds fills in as the game does, their centre `off` cm east of
+-- its place when given, as a statue's were in game).
 function FastTravelStatue(id, dx, dy, size, unlocked)
     local at = { X = pawnAt.X + dx, Y = pawnAt.Y + dy, Z = pawnAt.Z }
     local a = { IsValid = function() return true end, FastTravelPointID = FNameOf(id), bUnlocked = unlocked == true }
     a.IsUnlocked = function() return a.bUnlocked end
     a.K2_GetActorLocation = function() return at end
     function a.GetActorBounds(_, _, centre, half)
-        centre.X, centre.Y, centre.Z = at.X, at.Y, at.Z + size.up / 2
+        centre.X, centre.Y, centre.Z = at.X + (size.off or 0), at.Y, at.Z + size.up / 2
         half.X, half.Y, half.Z = size.across / 2, size.across / 2, size.up / 2
     end
     return a
@@ -469,6 +486,9 @@ local function mapScreens()
     end
     return list
 end
+-- The player state's class default object: FindAllOf lists it before the live one; valid, in no world, no pawn.
+defaultPlayerState = { IsValid = function() return true end, GetPawn = function() return nil end,
+                       GetFullName = function() return "PalPlayerState /Script/Pal.Default__PalPlayerState" end }
 -- The player controllers: the class default object first, as in the game.
 local function controllers()
     return { { IsValid = function() return true end, GetAddress = function() return 1 end,
@@ -497,7 +517,8 @@ FindAllOf = function(class)
     if class == "WBP_TitleMenu_C" then return game.titleOpen and { titleTemplate, titleMenu } or {} end
     if class == "WBP_Title_MenuButton_C" then return game.titleOpen and { gameTitleButton } or {} end
     if class == "WBP_Map_Body_C" then return mapScreens() end
-    if class == "PalPlayerState" then return game.noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
+    -- (noPlayer: the title, a load; the class default object first, valid and with no pawn, as in the game)
+    if class == "PalPlayerState" then return game.noPlayer and { defaultPlayerState } or { defaultPlayerState, ps } end
     if class == "PalPlayerController" then return controllers() end
     if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor, table.unpack(statues) } end
     if class == "StaticMeshActor" then return glowList() end   -- (only the glows' pieces: no level here)

@@ -16,7 +16,6 @@ local WALLS = require("walls")
 local WORLD = require("world")
 local ap = STATE.ap
 local log = UTIL.log
-local once = UTIL.onceIn("glow")
 
 local WAIT = {
     rescan = UTIL.updates(5),           -- the loaded objects are looked through again this often (a walk of every
@@ -32,6 +31,10 @@ local REFERENCE_WIDTH_CM, REFERENCE_HEIGHT_CM = 100, 200   -- the object the pie
                                                            -- object's width / 100, Z by its height / 200
 local SMALLEST_SIZE, LARGEST_SIZE = 0.5, 4.0   -- a glow's scale is kept between these, in case an object's bounds
                                                -- take in something far bigger or smaller than the object seen
+local TALLEST_OBJECT_CM = 5000          -- bounds taller than this (50 m) take in more than the object seen (one
+                                        -- statue's were 4 km tall): its foot is then its own place, not the bounds'
+                                        -- bottom
+local SIZES_LOGGED = 3                  -- the first objects of a kind whose place and bounds are logged
 local RING_TURNS_PER_S = 45 / 360       -- the halo's colours run round its ring at 45 degrees a second
 local RING_GLOW, RING_EDGE_POWER = 2.6, 0.6
 local LIGHT_CENTRE_CM = 110             -- the soft light sits at the ring's centre, this high at the reference size
@@ -57,11 +60,13 @@ local fastTravelChecks = nil
 -- State: the objects that glow or may. Forgotten: at a world change (forget); a target when its check is done, or a
 -- scan no longer finds it.
 local targets = {}            -- key ("statue FTPoint21") -> { key, location (its check's id), base (where its
-                              -- glow stands: the bottom of its bounds), scale, glow = { ring, sprite, beam } or nil,
-                              -- centre (the soft light's place), unraisable (its glow failed: not tried again) }
+                              -- glow stands: its own place, on the bottom of its bounds), scale, glow = { ring,
+                              -- sprite, beam } or nil, centre (the soft light's place), unraisable (its glow failed:
+                              -- not tried again) }
 local lastScan = nil          -- the update (CLOCK.now()) of the last scan; nil: scan at once
 -- State: what was read of each object's bounds. Forgotten: never (an object's place and size are the game's).
 local sizes = {}              -- key -> { base, scale }
+local sizesLogged = {}        -- kind name -> how many of its objects' sizes were logged
 
 -- Sets whether this slot has fast-travel checks, from slot data's options.fast_travel_checks (each connection). A
 -- seed made before the option sends nothing: its points were checks, as the option's default is.
@@ -109,8 +114,23 @@ local function clamp(x, low, high)
     return math.max(low, math.min(high, x))
 end
 
--- Where an object's glow stands and its scale, from its bounds (read once an object; the first of each kind is
--- logged, so the real sizes show in the playtest log): { base, scale = { X, Y, Z } }.
+-- Logs one object's place, bounds and glow (the first SIZES_LOGGED of each kind).
+local function logSize(object, kind, bounds, size, believable)
+    local logged = sizesLogged[kind.name] or 0
+    if logged >= SIZES_LOGGED then return end
+    sizesLogged[kind.name] = logged + 1
+    local centre, half, at = bounds.centre, bounds.half, object.at
+    log(string.format("glow: %s at %.0f, %.0f, %.0f; bounds %.0f x %.0f x %.0f cm, centre %.0f, %.0f, %.0f (%.0f cm"
+        .. " off its place%s); glow on %.0f, %.0f, %.0f, scaled %.2f across, %.2f up", object.key, at.X, at.Y, at.Z,
+        2 * half.X, 2 * half.Y, 2 * half.Z, centre.X, centre.Y, centre.Z,
+        math.sqrt((centre.X - at.X) ^ 2 + (centre.Y - at.Y) ^ 2), believable and "" or ", too tall: foot at its place",
+        size.base.X, size.base.Y, size.base.Z, size.scale.X, size.scale.Z))
+end
+
+-- Where an object's glow stands and its scale (read once an object): { base, scale = { X, Y, Z } }. It stands on the
+-- object's own place (its actor's location: the bounds' centre can sit metres off it, as a statue's pillar did), on
+-- the bounds' bottom while the bounds are no taller than TALLEST_OBJECT_CM; the bounds give the scale. The first
+-- SIZES_LOGGED of each kind are logged, so the real sizes and offsets show in the playtest log.
 local function sizeOf(object, kind)
     local known = sizes[object.key]
     if known then return known end
@@ -119,15 +139,14 @@ local function sizeOf(object, kind)
         UTIL.took("glow: a " .. kind.name .. "'s size", "the reference size (its bounds could not be read)")
         return { base = object.at, scale = { X = 1, Y = 1, Z = 1 } }
     end
-    local centre, half = bounds.centre, bounds.half
+    local centre, half, at = bounds.centre, bounds.half, object.at
+    local believable = 2 * half.Z <= TALLEST_OBJECT_CM
     local across = clamp(2 * math.max(half.X, half.Y) / REFERENCE_WIDTH_CM, SMALLEST_SIZE, LARGEST_SIZE)
-    local up = clamp(2 * half.Z / REFERENCE_HEIGHT_CM, SMALLEST_SIZE, LARGEST_SIZE)
-    local size = { base = { X = centre.X, Y = centre.Y, Z = centre.Z - half.Z }, scale = { X = across, Y = across,
-                   Z = up } }
+    local up = believable and clamp(2 * half.Z / REFERENCE_HEIGHT_CM, SMALLEST_SIZE, LARGEST_SIZE) or 1
+    local size = { base = { X = at.X, Y = at.Y, Z = believable and centre.Z - half.Z or at.Z },
+                   scale = { X = across, Y = across, Z = up } }
     sizes[object.key] = size
-    once("bounds " .. kind.name, string.format("glow: the first %s's bounds (%s): %.0f x %.0f x %.0f cm, centre"
-        .. " %.0f, %.0f, %.0f; its glow scaled %.2f across, %.2f up", kind.name, object.key, 2 * half.X, 2 * half.Y,
-        2 * half.Z, centre.X, centre.Y, centre.Z, across, up))
+    logSize(object, kind, bounds, size, believable)
     return size
 end
 

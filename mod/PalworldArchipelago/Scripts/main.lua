@@ -3,7 +3,7 @@
 -- (cppmod/APConnector/src/dllmain.cpp). Each topic lives in a file of its own; docs/architecture.md lists them.
 -- Everything is logged to ue4ss/UE4SS.log with the prefix [PalworldAP].
 -- Tests: every file in mod/test/tests/: the harness loads main.lua and runs them all (tools/lua_harness.sh, in CI).
-local VERSION = "0.15.0-dev.3"
+local VERSION = "0.15.0-dev.4"
 
 local modDir = (debug.getinfo(1, "S").source:gsub("^@", ""):gsub("[/\\]Scripts[/\\]main%.lua$", ""))
 package.path = modDir .. "\\Scripts\\?.lua;" .. package.path
@@ -24,6 +24,7 @@ local GLOW_CHECKS = require("glow_checks")
 local GLOW_PIECES = require("glow_pieces")
 local HELD = require("held_notices")
 local ITEMS = require("items")
+local KEYBINDS = require("keybinds_check")
 local MAIL = require("mailbox")
 local MENU = require("menu")
 local PERF = require("perf")
@@ -136,6 +137,7 @@ local function syncRunStyle(ps)
     elseif news then
         writeSave()
     end
+    KEYBINDS.warnOnce(HELD.holdNotice)
     local okl, errl = pcall(HELD.showHeldNotices, PLAYER.playerPawn())
     if not okl then
         onceErr("heldNotices", errl, "notice error: " .. tostring(errl))
@@ -445,6 +447,7 @@ end
 local function start()
     if not connectorInstalled() then return end
     CONFIG.install({ dir = modDir })
+    KEYBINDS.check(modDir)
     installPerfProbe()
     installCoreFiles()
     SHOP.registerNativeHooks()

@@ -276,6 +276,21 @@ group("the Inventory page's mailbox button", function()
     end
 end)
 
+group("a pawn with no HUD service yet is no error", function()
+    -- At the title screen the game has a pawn but no HUD service: the menus are looked for as before, and nothing
+    -- is logged as a failure (dev.3 logged a nullptr traceback there).
+    controllerAgain()
+    inWorld(true)
+    game.noHudService = true
+    local mark = logMark()
+    run(5)
+    expect(not loggedSince(mark, "HUD service can't say") and not loggedSince(mark, "nullptr"),
+           "no HUD service yet: nothing logged as a failure")
+    game.noHudService = false
+    inWorld(false)
+    noController()
+end)
+
 group("a HUD that says no menu is up while the main menu is", function()
     -- The main menu is looked for only while the HUD service says an overlay UI is up. Should that answer be wrong in
     -- the game, the safety look still finds the main menu, says so, and from then it is looked for every update.

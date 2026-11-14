@@ -559,6 +559,25 @@ group("crate and Nomad gear waits in the mailbox, out of its hidden chest", func
            "the log counts the equipment slot as a gain, and says where it went")
     h.closeChestWindow()
     run(2)
+    -- A weapon goes into an empty weapon slot, which is no EPalPlayerEquipItemSlotType: the loadout is asked too.
+    game.equipsFreeSlot, game.givesWeapons = true, true
+    local weaponMark, weaponAnnouncedBefore = logMark(), #announced
+    local weapon = openRareGear()
+    MB.open()
+    run(6)
+    game.equipsFreeSlot, game.givesWeapons = false, false
+    local weaponEquipped = false
+    for i = weaponAnnouncedBefore + 1, #announced do
+        if announced[i]:find("From your mailbox, now equipped: ", 1, true) then
+            weaponEquipped = true
+        end
+    end
+    expect(waiting(weapon) == 0 and weaponEquipped and not loggedSince(weaponMark, "gained"),
+           "gear the game puts straight into an empty weapon slot is told as equipped, not in the bag: "
+           .. tostring(announced[#announced]))
+    weaponSlots = {}
+    h.closeChestWindow()
+    run(2)
     -- A save from an older mod: the gear its bag refused (cratebag=) waits in the gear list.
     MB.load("cratebag=Sword:1")
     expect(waiting("Sword") == 1, "an older save's cratebag= gear waits in the mailbox")
