@@ -817,6 +817,54 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "five pawn changes keep nothing new alive: kept " .. keptFirst .. " then " .. keptAfter
                .. "; pattern files loaded " .. importsFirst .. " then " .. importsAfter)
     end
+    do  -- A fog picture left by an earlier session is never shown: until this session's is made, C++ is given none
+        -- (the game's own fog shows). Then, with the map closed, the explored mask is read again from the world's map
+        -- data every MASK_READ_GAP and the picture made again, so places explored since show at the next opening.
+        local calls = {}
+        local takeAway = plugInTerritories(calls)
+        local putBack = savedColourMap(game.mapArt)
+        writeFile(MOD .. "/map-fog-territories.png", "an earlier session's")
+        local fogBusy = true
+        AP_FogStatus = function() return fogBusy and "busy" or "done" end
+        local mapData = { IsValid = function() return true end }
+        function mapData.GetRenderTargetByMapName() return { IsValid = function() return true end } end
+        util.GetLocalWorldMapData = function() return mapData end
+        local function fogPicturesSent()
+            local n = 0
+            for _, c in ipairs(calls) do
+                if c:find("^fogpic=") then
+                    n = n + 1
+                end
+            end
+            return n
+        end
+        local W = h.freshWalls()
+        game.mapOpen = false
+        local jobsBefore = fogJobs
+        for _ = 1, W.MASK_READ_GAP do                              -- until the mask is read before the map opens
+            W.updateMap(true, {}, pawn)
+            if fogJobs > jobsBefore then break end
+        end
+        W.updateMap(true, {}, pawn)
+        expect(fogJobs == jobsBefore + 1 and fogPicturesSent() == 0,
+               "while this session's fog picture is being made, none is handed to C++ (not the earlier session's): "
+               .. fogPicturesSent())
+        fogBusy = false
+        W.updateMap(true, {}, pawn)
+        expect(fogPicturesSent() == 1, "this session's picture is handed over once made: " .. fogPicturesSent())
+        local mark = logMark()
+        for _ = 1, W.MASK_READ_GAP do
+            W.updateMap(true, {}, pawn)
+        end
+        W.updateMap(true, {}, pawn)
+        expect(fogJobs == jobsBefore + 2 and fogPicturesSent() == 2
+               and loggedSince(mark, "the fog picture is made again every 60 s while the map is closed"),
+               "with the map closed, the fog picture is made again from the explored mask a minute later: "
+               .. fogJobs - jobsBefore .. " made, " .. fogPicturesSent() .. " handed over")
+        util.GetLocalWorldMapData = nil
+        takeAway()
+        putBack()
+    end
 end)
 
 group("a wall piece that cannot be read does not stop the walls", function()

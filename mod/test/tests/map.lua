@@ -202,8 +202,9 @@ group("the world map", function()
                 fog = fog or j
             end
         end
-        expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png") and logged("explored reads a%-"),
-               "the mask is read at the player and beyond the edge: explored is alpha low here (a-)")
+        expect(fog and fog.spec == "a-" and fog.mask:find("fog%-mask%.png")
+               and logged("beyond the world's edge [%d,]+: explored where its alpha channel is low %(a%-%)"),
+               "the mask is read at the player and beyond the edge: explored is alpha low here (a-), said in words")
         -- The fog's borders argument, by name: image_tools.hpp, compose_fog.
         local BORDER_FIELDS = { "labels", "locked", "hatch", "ink", "width", "dash", "gap", "hatchOpacity", "colour",
                                 "gamma" }
