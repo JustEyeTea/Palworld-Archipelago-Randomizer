@@ -140,7 +140,7 @@ end
 function runSeconds(seconds)
     run(require("util").updates(seconds))
 end
--- Moves time on just past one of clock.lua's waits (WAIT.wallNotice ...).
+-- Moves time on just past one of clock.lua's waits (WAIT.heldNotice ...).
 function runPast(wait)
     run(wait + PAST_A_WAIT)
 end

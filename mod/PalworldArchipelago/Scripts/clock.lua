@@ -11,9 +11,7 @@ local WAIT = {
     firstItems = updates(1.5),  -- after connecting, before anything is locked: the first batch of items arrives
     settle = updates(5),        -- after a world loads, before any wall: spawning into a world still loading can crash
     goal = updates(120),        -- the goal waits at most this long for the player to leave the boss's arena
-    hintOffer = updates(60),    -- a hint offered at a wall can be taken for this long
     hintAnswer = updates(15),   -- the server's answer to a hint the player asked for is shown if it comes within this
-    wallNotice = updates(120),  -- the same wall's notice comes again only after this
     heldNotice = updates(60),   -- notices held through a loading screen show after this even if the player hasn't moved
     deathLate = updates(6),     -- a linked death older than this (received at the title, or loading) is dropped
     ownDeath = updates(15),     -- a death this soon after the link fainted the player came from the link
@@ -26,7 +24,7 @@ local PHASE = {
     techScan = 1,               -- other mods' techs, until found
     items = 2,                  -- techs, items, the run style's sync, held notices, Death Link, traps
     locks = 3,                  -- visited locks; sent home from inside a lock still locked
-    wallNotice = 5,             -- the chat notice and hint offer at a locked wall
+    wallNotice = 5,             -- the chat notice and hint plate at a locked wall
 }
 CLOCK.WAIT, CLOCK.CYCLE, CLOCK.PHASE = WAIT, CYCLE, PHASE
 

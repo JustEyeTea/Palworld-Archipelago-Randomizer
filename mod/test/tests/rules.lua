@@ -203,5 +203,6 @@ end)
 
 group("the whole run", function()
     expect(#badLoads == 0, "every LoadAsset path is a full /Game/Dir/Asset.Asset: " .. table.concat(badLoads, ", "))
-    expect(not logged("but the bag gained"), "the bag gained what the game said it took")
+    expect(not logged("but the bag and equipment slots gained"),
+           "the bag and equipment slots gained what the game said it took")
 end)

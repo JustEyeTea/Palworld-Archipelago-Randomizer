@@ -29,7 +29,9 @@ local HALIGN, VALIGN = WIDGETS.HALIGN, WIDGETS.VALIGN
 -- Untested in game (the only marks for the menu files):
 --   * the Inventory page's mailbox button, placed on the page's name bar as the server's files lay it out;
 --   * whether a controller can reach that button (SURVEY.focusOnce logs it);
---   * Close() on the in-game main menu from Lua, which the Inventory page's button uses to close the menu.
+--   * Close() on the in-game main menu from Lua, which the Inventory page's button uses to close the menu;
+--   * that the HUD service's IsAnyOverlayUIActive is true while the main menu is open (overlayMayBeUp; safetyLook
+--     says so in the log if it is not).
 
 -- What main.lua hands over, through menu.lua (WORLD.install): see menu.lua.
 local api
@@ -59,6 +61,11 @@ local mainMenuSeen = false    -- a main menu was ever seen (until then the Esc m
 local fallbackUpdates = 0     -- updates the Esc menu was looked for without a main menu
 local mainMenuLook = nil      -- updates until the look whether the main menu closed for the mailbox (a diagnostic)
 local lookFrom = nil          -- which button that look follows: "esc" | "inventory"
+-- State: whether the HUD's answer "no overlay UI is up" is trusted (overlayMayBeUp). Forgotten: never (it is a fact
+-- of the game's build).
+local overlayAnswerTrusted = true -- false once a main menu was shown while the HUD said none was: then it is looked
+                                  -- for every update
+local noOverlayUpdates = 0        -- updates the HUD said no overlay UI was up (the safety look's schedule)
 -- State: log-once flags and counts. Forgotten: never.
 local escLogged, pageLogged, noBarSaid = false, false, false
 local escAdds, pageAdds = 0, 0   -- buttons added (the first is logged with where it went)
@@ -166,17 +173,66 @@ local function inventoryPagesOf(mainMenus)
     return found
 end
 
--- One object scan per update while the main menu is closed (FindAllOf walks the whole object array): the main menu,
--- and only while one is up the Esc menu (its Options tab) and the Inventory page (its tab, no scan of its own). Until
--- a main menu was ever seen, the Esc menu is also looked for by its class every EVERY.escFallbackLook, in case the
--- client names the main menu differently. Returns whether the Esc menus were looked for, the ones found (empty when
--- none is up) and the Inventory pages up.
-local function menusUp()
+-- The live in-game main menus (FindAllOf: a walk of the whole object array, about 9 ms in game).
+local function liveMainMenus()
     local mainMenus = {}
     for _, mainMenu in ipairs(FindAllOf(GAME.mainMenuClass) or {}) do
         if WIDGETS.isLive(mainMenu) then
             mainMenus[#mainMenus + 1] = mainMenu
         end
+    end
+    return mainMenus
+end
+
+-- Whether a widget is on screen now (a main menu closed can stay live until it is collected).
+local function shownNow(widget)
+    local ok, shown = pcall(function() return widget:IsVisible() and widget:IsInViewport() end)
+    return ok and shown == true
+end
+
+-- Whether an overlay UI may be up, asked of the HUD service: the in-game main menu is one (WBP_InGameMainMenu_C is a
+-- UPalUserWidgetOverlayUI), and the question costs far less than a walk of the object array. True when the HUD can't
+-- say, so the menus are looked for as before.
+local function overlayMayBeUp(pawn)
+    if not overlayAnswerTrusted then return true end
+    local ok, active = pcall(function()
+        return StaticFindObject(GAME.palUtility):GetHUDService(pawn):IsAnyOverlayUIActive()
+    end)
+    if ok and type(active) == "boolean" then return active end
+    UTIL.took("menu: whether a menu may be up", "the main menu looked for every update (the HUD service can't say: "
+        .. tostring(active) .. ")")
+    return true
+end
+
+-- While the HUD says no overlay UI is up, the main menu is still looked for every EVERY.mainMenuSafetyLook. One shown
+-- then means the HUD's answer can't be trusted in this game: that is logged, and from then the main menu is looked
+-- for every update. Returns the live main menus when one was shown, else none.
+local function safetyLook()
+    noOverlayUpdates = noOverlayUpdates + 1
+    if not UTIL.isDue(noOverlayUpdates, EVERY.mainMenuSafetyLook) then return {} end
+    local mainMenus = liveMainMenus()
+    for _, mainMenu in ipairs(mainMenus) do
+        if shownNow(mainMenu) then
+            overlayAnswerTrusted = false
+            log("menu: a main menu is shown while the HUD says no overlay UI is up; looking for it every update")
+            return mainMenus
+        end
+    end
+    return {}
+end
+
+-- The main menu, and only while one is up the Esc menu (its Options tab) and the Inventory page (its tab, no scan of
+-- its own). The main menu is looked for only while the HUD says an overlay UI may be up (overlayMayBeUp; `pawn` is
+-- this update's), so with every menu closed there is no object scan but the safety look's. Until a main menu was ever
+-- seen, the Esc menu is also looked for by its class every EVERY.escFallbackLook, in case the client names the main
+-- menu differently. Returns whether the Esc menus were looked for, the ones found (empty when none is up) and the
+-- Inventory pages up.
+local function menusUp(pawn)
+    local overlayUp = overlayMayBeUp(pawn)
+    local mainMenus = overlayUp and liveMainMenus() or safetyLook()
+    if not (overlayUp or mainMenus[1]) then
+        mainMenuNow, mainMenuTabNow = false, nil
+        return true, {}, {}
     end
     if mainMenus[1] then
         mainMenuSeen = true
@@ -494,13 +550,14 @@ local function updatePages(found)
     end
 end
 
--- Every update: the in-world buttons. Out of a world nothing of ours is up: all of it is dropped (as with nothing
--- found), so an address of ours can't match a new button at the title (the WBP_CommonButton click hook stays).
-function WORLD.update(inWorld)
+-- Every update: the in-world buttons (`pawn`: this update's player pawn, for the HUD service). Out of a world nothing
+-- of ours is up: all of it is dropped (as with nothing found), so an address of ours can't match a new button at the
+-- title (the WBP_CommonButton click hook stays).
+function WORLD.update(inWorld, pawn)
     if not api.mailboxLabel then return end
     local escLooked, escFound, pagesFound = true, {}, {}
     if inWorld then
-        local ok, err = pcall(function() escLooked, escFound, pagesFound = menusUp() end)
+        local ok, err = pcall(function() escLooked, escFound, pagesFound = menusUp(pawn) end)
         if not ok then
             UTIL.onceErr("menu main menu", err, "menu: main menu error: " .. tostring(err))
         end

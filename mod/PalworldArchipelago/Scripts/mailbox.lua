@@ -213,13 +213,13 @@ function M.tellStays(id, why)
     log("mailbox: " .. id .. " stays in the mailbox: " .. tostring(why))
 end
 
--- Takes one item's whole entry in `list` (M.queue or M.gear) into the bag; how many went in. What the bag refuses
--- stays in the list. The caller writes the save file (once, after all it takes: a write each kind would be one per
--- kind on Take all).
+-- Takes one item's whole entry in `list` (M.queue or M.gear) into the bag; how many went in, and how many of those the
+-- game put straight into an empty equipment slot. What the bag refuses stays in the list. The caller writes the save
+-- file (once, after all it takes: a write each kind would be one per kind on Take all).
 local function takeEntry(list, id)
     for index, entry in ipairs(list) do
         if entry.id == id then
-            local got, why = BAG.give(id, entry.n)
+            local got, why, worn = BAG.give(id, entry.n)
             entry.n = entry.n - got
             if entry.n <= 0 then
                 table.remove(list, index)
@@ -227,10 +227,10 @@ local function takeEntry(list, id)
             if got == 0 then
                 M.tellStays(id, why)
             end
-            return got
+            return got, worn
         end
     end
-    return 0
+    return 0, 0
 end
 
 -- Takes one item's whole entry, plain or gear, into the bag; how many went in (see takeEntry).
@@ -355,21 +355,39 @@ local function tryOpen()
     tryChest(pawn, playerState)
 end
 
+-- What the player is told of the gear handed out: the names that went into the bag, and those the game put straight
+-- into an empty equipment slot.
+local function gearHandedOutLine(inBag, equipped)
+    local parts = {}
+    if #inBag > 0 then
+        parts[#parts + 1] = "now in your bag: " .. table.concat(inBag, ", ")
+    end
+    if #equipped > 0 then
+        parts[#parts + 1] = "now equipped: " .. table.concat(equipped, ", ")
+    end
+    return "From your mailbox, " .. table.concat(parts, "; ") .. "."
+end
+
 -- While the mailbox is open (its window, or the chest view), the gear waiting goes into the bag: on the first update
 -- it is open, and again when more gear arrives. What the bag refuses stays in the gear list until then; the player is
 -- told what went in. Untested in game: gear handed to the bag as the mailbox opens.
 local function handOutGear()
     if not gearToHandOut or not (WINDOW.isOpen() or CHEST.viewing()) then return end
     gearToHandOut = false
-    local names = {}
+    local inBag, equipped = {}, {}       -- the names of the gear handed out, by where the game put it
     for _, entry in ipairs({ table.unpack(M.gear) }) do
-        if takeEntry(M.gear, entry.id) > 0 then
-            names[#names + 1] = BAG.nameOf(entry.id)
+        local got, worn = takeEntry(M.gear, entry.id)
+        if worn > 0 then
+            equipped[#equipped + 1] = BAG.nameOf(entry.id)
+        end
+        if got > worn then
+            inBag[#inBag + 1] = BAG.nameOf(entry.id)
         end
     end
-    if #names == 0 then return end
-    log("mailbox: gear handed to the bag: " .. table.concat(names, ", ") .. "; " .. #M.gear .. " kind(s) of gear stay")
-    env.notify("From your mailbox, now in your bag: " .. table.concat(names, ", ") .. ".")
+    if #inBag + #equipped == 0 then return end
+    log("mailbox: gear handed out: to the bag " .. table.concat(inBag, ", ") .. "; straight into an equipment slot "
+        .. table.concat(equipped, ", ") .. "; " .. #M.gear .. " kind(s) of gear stay")
+    env.notify(gearHandedOutLine(inBag, equipped))
     env.save()
 end
 

@@ -62,8 +62,8 @@ local GAME = {
     palTextBox = "/Script/Pal.PalEditableTextBox",        -- the game's own text box class
     userWidgetClass = "UserWidget",
 }
--- Game functions called: GetHUDService, Push, GetWidget, SpawnObject, CloseAction, Close, CloseOwnerStackableUI,
--- GetCurrentInputType, Create, and the UMG widgets' own functions.
+-- Game functions called: GetHUDService, IsAnyOverlayUIActive, Push, GetWidget, SpawnObject, CloseAction, Close,
+-- CloseOwnerStackableUI, GetCurrentInputType, Create, and the UMG widgets' own functions.
 
 -- The clock (UTIL.updates turns seconds into updates of 300 ms).
 local WAIT = {
@@ -72,8 +72,8 @@ local WAIT = {
     mainMenuLook = UTIL.updates(0.6),        -- after closing the main menu for the mailbox, look whether it went
 }
 local EVERY = {
-    titleLookInWorld = UTIL.updates(3),      -- in a world, a title menu is looked for only this often
     escFallbackLook = UTIL.updates(1.2),     -- until a main menu is seen, the Esc menu is looked for this often
+    mainMenuSafetyLook = UTIL.updates(3),    -- while the HUD says no menu is up, the main menu is looked for this often
     failedMenuRetry = UTIL.updates(3),       -- a title menu whose rows keep failing is tried again this often
 }
 local FAILS_BEFORE_BACKOFF = 10    -- failed builds in a row before a menu is tried only every EVERY.failedMenuRetry

@@ -7,16 +7,19 @@ group("the Inventory page's mailbox button", function()
     game.escOpen = false
     MB.add("Wood", 5)                          -- something to count on the button
     run(1)
-    -- Menus closed: one object scan per update, for the main menu only (open-questions: the FPS drop and FindAllOf).
+    -- Menus closed: the HUD says no overlay UI is up, so no object scan but the main menu's safety look
+    -- (open-questions: the FPS drop and FindAllOf).
+    local SAFETY_LOOK = require("menu_names").EVERY.mainMenuSafetyLook
+    local CLOSED_UPDATES = 2 * SAFETY_LOOK
     local escScans, mainScans = lookups.WBP_MenuESC_C or 0, lookups.WBP_InGameMainMenu_C or 0
     -- (with the probe on, its notify check walks the Esc menu's class once every 100 updates: the probe's walk, not
-    -- the menu's, and whether it falls in these 10 depends on how many updates the groups before took)
+    -- the menu's, and whether it falls in these updates depends on how many updates the groups before took)
     local probeWalks = PERF and 1 or 0
-    run(10)
-    expect((lookups.WBP_MenuESC_C or 0) - escScans <= probeWalks
-           and (lookups.WBP_InGameMainMenu_C or 0) == mainScans + 10,
-           "with the menus closed, only the main menu is looked for: " .. (lookups.WBP_MenuESC_C or 0) - escScans
-           .. " Esc scans")
+    run(CLOSED_UPDATES)
+    local mainLooks = (lookups.WBP_InGameMainMenu_C or 0) - mainScans
+    expect((lookups.WBP_MenuESC_C or 0) - escScans <= probeWalks and mainLooks == CLOSED_UPDATES / SAFETY_LOOK,
+           "with the menus closed, only the main menu's safety look scans: " .. mainLooks .. " main menu and "
+           .. (lookups.WBP_MenuESC_C or 0) - escScans .. " Esc scans in " .. CLOSED_UPDATES .. " updates")
     -- Each tab widget the main menu shows is logged once, with the tab, so a missing button has a reason in the log.
     mainMenu = MainMenu(NamedWidget("WBP_MainMenu_Pal_C_1", "WBP_MainMenu_Pal_C"), 2)
     game.mainMenuOpen = true
@@ -274,4 +277,28 @@ group("the Inventory page's mailbox button", function()
         inWorld(false)
         noController()
     end
+end)
+
+group("a HUD that says no menu is up while the main menu is", function()
+    -- The main menu is looked for only while the HUD service says an overlay UI is up. Should that answer be wrong in
+    -- the game, the safety look still finds the main menu, says so, and from then it is looked for every update.
+    local SAFETY_LOOK = require("menu_names").EVERY.mainMenuSafetyLook
+    controllerAgain()
+    inWorld(true)
+    local page, kids = inventoryPage()
+    local was = mainMenu
+    mainMenu = MainMenu(inventoryTab(page), 8)
+    game.mainMenuOpen, game.overlayAnswerWrong = true, true
+    run(SAFETY_LOOK)
+    expect(logged("a main menu is shown while the HUD says no overlay UI is up") and kids[1] ~= nil,
+           "within one safety look the main menu is found, said in the log, and gets its mailbox button")
+    local looks = lookups.WBP_InGameMainMenu_C or 0
+    game.mainMenuOpen = false
+    run(SAFETY_LOOK)
+    expect((lookups.WBP_InGameMainMenu_C or 0) - looks == SAFETY_LOOK,
+           "from then the main menu is looked for every update: " .. (lookups.WBP_InGameMainMenu_C or 0) - looks)
+    game.overlayAnswerWrong = false
+    mainMenu = was
+    inWorld(false)
+    noController()
 end)

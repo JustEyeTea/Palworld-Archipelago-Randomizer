@@ -149,14 +149,25 @@ group("area locks", function()
     local count = #announced
     runCycles(2)
     expect(#announced == count, "and not again straight away")
+    local STAY_AT_WALL_S = 300                                     -- five minutes standing by the same wall
+    runSeconds(STAY_AT_WALL_S)
+    expect(#announced == count, "nor while the player stays at that wall: " .. tostring(announced[#announced]))
+    local POPUP = require("hint_popup")
+    local plates, realShow = {}, POPUP.show                         -- the plates the hint key and notices show
+    POPUP.show = function(info, tick)
+        plates[#plates + 1] = info
+        return realShow(info, tick)
+    end
     keyBinds["key:H"]()
     expect(said[#said] == "!hint Region Pass: " .. hintRegion,
-           "the hint key asks the server: " .. tostring(said[#said]))
+           "the hint key asks the server, minutes after the notice: " .. tostring(said[#said]))
+    expect(plates[#plates] and plates[#plates].title == hintRegion .. " is sealed",
+           "and shows the wall's hint plate again: " .. tostring(plates[#plates] and plates[#plates].title))
     push("message", "[Hint]: Tester's Region Pass: " .. hintRegion
          .. " is at Shop: Foo Stand in Tester's World. (not found)", "Hint")
     run(1)
     expect(announced[#announced]:find("is at Shop: Foo Stand", 1, true), "the server's answer shows in chat")
-    runPast(WAIT.wallNotice)
+    h.walkAwayAndBack(hintAt)
     local remembered
     for i = count + 1, #announced do
         local sealed = hintRegion .. " is sealed. Tester's Region Pass: " .. hintRegion .. " is at Shop: Foo Stand"
@@ -169,7 +180,7 @@ group("area locks", function()
     push("message", "[Hint]: Friend's Region Pass: " .. hintRegion
          .. " is at Shop: Palbox in Tester's World. (not found)", "Hint")
     local count2 = #announced
-    runPast(WAIT.wallNotice)
+    h.walkAwayAndBack(hintAt)
     local stillOurs, theirs = false, false
     for i = count2 + 1, #announced do
         if announced[i]:find("sealed. Tester's Region Pass: " .. hintRegion, 1, true) then
@@ -198,9 +209,21 @@ group("area locks", function()
         expect(at and short, "short of points, the wall says so with the points and the cost: "
                .. tostring(announced[#announced]))
     end
-    local saidBefore = #said
+    local saidBefore, platesBefore = #said, #plates
     keyBinds["key:H"]()
-    expect(#said == saidBefore, "no offer pending, nothing asked")
+    expect(#said == saidBefore, "short of points, the hint key asks nothing: " .. tostring(said[#said]))
+    expect(announced[#announced]:find("Not enough hint points: you have 3 points, a hint costs 121.", 1, true),
+           "and says so: " .. tostring(announced[#announced]))
+    expect(#plates == platesBefore + 1 and plates[#plates].ready == false,
+           "and shows the wall's plate, short of points: " .. tostring(#plates - platesBefore))
+    local awayMark = logMark()
+    local wasAt = pawnAt
+    pawnAt = { X = liveWalls.home.x, Y = liveWalls.home.y, Z = liveWalls.home.z }    -- no locked wall near
+    keyBinds["key:H"]()
+    pawnAt = wasAt
+    expect(#said == saidBefore and #plates == platesBefore + 1 and loggedSince(awayMark, "no locked wall within reach"),
+           "away from any locked wall, the hint key shows nothing and asks nothing")
+    POPUP.show = realShow
     expect(lastGone and lastGone.collision == false and lastGone.shrunkTo and lastGone.shrunkTo < 1,
            "an opened wall shrinks to nothing (no K2_SetActorLocation: its FHitResult crashed UE4SS), stops "
            .. "blocking on the way, then goes: " .. tostring(lastGone and lastGone.shrunkTo))

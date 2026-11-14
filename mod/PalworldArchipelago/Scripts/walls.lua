@@ -10,10 +10,11 @@
 --     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
 --     install. The harness sets them on its copies directly
 --   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
---     setSkin, cycleSkin, perfMode, count, lockedNear, lockedAround, lockAt, passName, regionOf, slugOf, mapShown,
---     mapOff, oldSweep;
+--     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, regionOf,
+--     slugOf, mapShown, mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS
---   for the harness only: segDist, stampSize, worldAt, linearOf, modAsset, pieceSkin, REGION_COLOURS
+--   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin,
+--     REGION_COLOURS
 local W = {}
 W.layout = "regions"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
@@ -102,7 +103,10 @@ local lastPasses, lastPawn = nil, nil
 local cls, statics = nil, nil
 local trig = {}               -- piece index -> its direction { cos, sin }; made again for each cut (buildTrig)
 local checkAt = 0             -- the piece checkSome looks at next; forgotten: never (it wraps round)
-local catchingUp = false      -- back to full after a Ctrl+7 test state: log when every piece is up again
+-- State: back to full after a Ctrl+7 test state, until every piece is up again: { started = the order was made,
+-- order = the piece indexes nearest the player first, or nil for index order }; nil otherwise. Forgotten: when
+-- caught up, and at a change of cut (its indexes are another cut's).
+local catchUp = nil
 local function buildTrig()
     trig = {}
     for i, wall in ipairs(layout.walls) do
@@ -337,13 +341,19 @@ function W.oldSweep()                 -- every piece checked at once (only for t
     for _, actor in pairs(raised) do actor:IsValid() end
 end
 
+-- Where the pawn stands, X and Y in cm, or nil when it can't be read.
+local function pawnSpot(pawn)
+    local okL, loc = pcall(function() return pawn:K2_GetActorLocation() end)
+    if not (okL and loc and loc.X) then return nil end
+    return loc.X, loc.Y
+end
+
 -- Shows the raised pieces near the player and hides the rest (W.radius; a few at a time; a dissolving piece has left
 -- raised already). Without the player's position, or with W.radius 0, every piece is shown.
 local function showNear(pawn)
     local px, py = nil, nil
     if W.radius > 0 then
-        local okL, loc = pcall(function() return pawn:K2_GetActorLocation() end)
-        if okL and loc and loc.X then px, py = loc.X, loc.Y end
+        px, py = pawnSpot(pawn)
     end
     local budget = VIS_PER_TICK
     for i, actor in pairs(raised) do
@@ -361,20 +371,17 @@ local function showNear(pawn)
     end
 end
 
--- Each update (main.lua): checks a share of the pieces, raises missing pieces of locked borders and starts opening
--- pieces whose locks are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
--- pieces whose side opened and steps the opening pieces and the glow.
-function W.update(enabled, passes, pawn)
-    checkSome()
-    lastPasses, lastPawn = passes, pawn
-    if not ready() then
-        once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
-        return
-    end
+-- Raises missing pieces of locked borders and starts opening pieces whose locks are both open, up to PER_TICK of
+-- them, in index order, or nearest the player first while catching up after Ctrl+7. Returns the budget left (all of
+-- it: nothing was left to do).
+local function raiseAndOpenSome(enabled, passes, pawn)
     local budget = PER_TICK
     local spawning = true                 -- false once a spawn gave nothing: the next would too, this update
-    for i, wall in ipairs(layout.walls) do
+    local order = catchUp and catchUp.order
+    for k = 1, #layout.walls do
         if budget <= 0 then break end
+        local i = order and order[k] or k
+        local wall = layout.walls[i]
         local up = enabled and LOCKS.standing(wall, passes)
         if up and not raised[i] and spawning then
             local ok, made = pcall(raise, i, pawn)
@@ -392,12 +399,67 @@ function W.update(enabled, passes, pawn)
             budget = budget - 1
         end
     end
-    showNear(pawn)
-    WALL_SKINS.skinTick()
-    WALL_SKINS.recolour(passes)
+    return budget
+end
+-- The piece indexes nearest the pawn first (by segDist), or nil without its position.
+local function nearestFirst(pawn)
+    local x, y = pawnSpot(pawn)
+    if not x then return nil end
+    local order, distance = {}, {}
+    for i in ipairs(layout.walls) do
+        order[i], distance[i] = i, segDist(i, x, y)
+    end
+    table.sort(order, function(a, b) return distance[a] < distance[b] end)
+    return order
+end
+
+-- How many pieces of locked borders are not raised, for these passes.
+local function missingPieces(passes)
+    local missing = 0
+    for i, wall in ipairs(layout.walls) do
+        if not raised[i] and LOCKS.standing(wall, passes) then
+            missing = missing + 1
+        end
+    end
+    return missing
+end
+
+-- The first update of a catch-up after Ctrl+7: the order to raise in (nearest the player first), said in the log
+-- with how many pieces are missing.
+local function startCatchUp(passes, pawn)
+    catchUp.started, catchUp.order = true, nearestFirst(pawn)
+    P.wallsCatchingUp(missingPieces(passes), catchUp.order ~= nil)
+end
+
+-- One step of the update, its error logged once by kind. A step that fails does not stop the steps after it: an
+-- opening piece left unstepped would stand, still blocking, for good. Returns what the step returned, or nil.
+local function updateStep(kind, fn, ...)
+    local ok, result = pcall(fn, ...)
+    if ok then return result end
+    UTIL.onceErr("walls " .. kind, result, "walls: " .. kind .. " failed: " .. tostring(result))
+    return nil
+end
+
+-- Each update (main.lua): checks a share of the pieces, raises missing pieces of locked borders and starts opening
+-- pieces whose locks are both open (a few per call), then hides the far ones, puts on the skin wanted, recolours
+-- pieces whose side opened and steps the opening pieces and the glow.
+function W.update(enabled, passes, pawn)
+    checkSome()
+    lastPasses, lastPawn = passes, pawn
+    if not ready() then
+        once("noclass", "area locks: no walls: " .. missingForWalls() .. " was not found")
+        return
+    end
+    if catchUp and not catchUp.started then
+        updateStep("catch up", startCatchUp, passes, pawn)
+    end
+    local budget = updateStep("raise and open", raiseAndOpenSome, enabled, passes, pawn)
+    updateStep("hide far", showNear, pawn)
+    updateStep("skin", WALL_SKINS.skinTick)
+    updateStep("recolour", WALL_SKINS.recolour, passes)
     stepOpeningAndGlow()
-    if catchingUp and budget == PER_TICK then
-        catchingUp = false
+    if catchUp and budget == PER_TICK then
+        catchUp = nil
         P.wallsCaughtUp(nRaised)
     end
 end
@@ -419,7 +481,9 @@ function W.perfMode(mode)
             pcall(function() actor:SetActorEnableCollision(mode ~= "nocoll") end)
         end
     end
-    if mode == "full" then catchingUp = true end
+    if mode == "full" then
+        catchUp = { started = false, order = nil }
+    end
 end
 
 
@@ -449,6 +513,18 @@ function W.lockedNear(x, y, passes)
     return best
 end
 
+-- How far a spot is from the nearest raised piece on `lock`'s border, in cm; math.huge when none of its pieces is up.
+function W.distanceToLock(lock, x, y)
+    local nearest = math.huge
+    for i in pairs(raised) do
+        local wall = layout.walls[i]
+        if layout.locks[wall.lockA + 1] == lock or layout.locks[wall.lockB + 1] == lock then
+            nearest = math.min(nearest, segDist(i, x, y))
+        end
+    end
+    return nearest
+end
+
 -- How many pieces are raised, and how many the cut has in all.
 function W.count()
     return nRaised, #layout.walls
@@ -465,6 +541,7 @@ function W.setLayout(name)
     for _, actor in pairs(raised) do pcall(function() if actor:IsValid() then actor:K2_DestroyActor() end end) end
     destroyOpening()
     forgetAll()
+    catchUp = catchUp and { started = false, order = nil }        -- (the order is made again for the new cut)
     LOCKS.useLayoutData(name)
     W.start, W.home = layout.start, layout.map.home
     W.layout = name
@@ -493,5 +570,7 @@ MAP_PICTURE.install({ W = W, locks = LOCKS, icons = MAP_ICONS, fog = MAP_FOG })
 MAP_FOG.install({ W = W, locks = LOCKS, icons = MAP_ICONS, picture = MAP_PICTURE })
 W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_FOG.mapShown, MAP_FOG.mapOff
 W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_ICONS.worldAt                              -- (for the harness)
+W.lockedStampArt = MAP_ICONS.lockedStampArt                                                    -- (for the harness)
+W.MASK_READ_GAP = MAP_FOG.MASK_READ_GAP                                                        -- (for the harness)
 
 return W

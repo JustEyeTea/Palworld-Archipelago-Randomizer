@@ -204,9 +204,13 @@ if PERF then
         runCycles(3)
         expect(liveWalls.count() == 0 and teleported == nil, "and nothing is raised again while held")
         keyBinds["key:SEVEN"]()
+        expect(logged("%[perf%] walls full again: raised by the normal path, nearest the player first"),
+               "back to full, the state is named as the reminder names it: walls full again")
         run(60)
-        expect(liveWalls.count() == full and logged("%[perf%] walls full again: " .. full .. " raised"),
-               "full: every piece raised again by the normal path: " .. liveWalls.count())
+        expect(liveWalls.count() == full and logged("%[perf%] walls catching up: %d+ piece%(s%) to raise")
+               and logged("%[perf%] walls full again: " .. full .. " raised"),
+               "full: every piece raised again by the normal path, the catch-up's start and end logged: "
+               .. liveWalls.count())
         runCycles(3)
         expect(teleported ~= nil, "and the send-home check is back")
         teleported = nil

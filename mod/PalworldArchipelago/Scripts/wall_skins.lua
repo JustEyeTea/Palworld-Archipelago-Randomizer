@@ -459,6 +459,7 @@ function WALL_SKINS.recolour(passes)
     local budget = RECOLOUR
     while recolourAt <= #layout.walls and budget > 0 do
         local i, actor = recolourAt, pieces.raised()[recolourAt]
+        recolourAt = i + 1                 -- before the calls that can fail: a piece that errors is passed over
         local stillUp = standing(layout.walls[i], passes)
         if stillUp and actor and actor:IsValid() and dressedAs[i] ~= pieceSkin(i, passes, skin.now) then
             local ok, err = pcall(areaDress, actor, i, passes, skin.now)
@@ -468,7 +469,6 @@ function WALL_SKINS.recolour(passes)
             end
             budget = budget - 1
         end
-        recolourAt = recolourAt + 1
     end
     if recolourAt > #layout.walls then recolourAt = nil end
 end
