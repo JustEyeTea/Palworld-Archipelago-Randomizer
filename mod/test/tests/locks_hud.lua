@@ -21,7 +21,8 @@ group("Lock Size: areas", function()
            and liveWalls.regionOf("Gobfin's Turf") == "Crescent Moon Shore",
            "an area wears its region's colour, ticket and stamp (area_regions.lua)")
     do  -- The starting region has no stamp of its own: its locked areas wear the shared one, with no failed load.
-        local startStamp, regionStamp = liveWalls.lockedStampArt("Sunlit Isle"), liveWalls.lockedStampArt("Golden Hills")
+        local startStamp = liveWalls.lockedStampArt("Sunlit Isle")
+        local regionStamp = liveWalls.lockedStampArt("Golden Hills")
         expect(liveWalls.regionOf("Sunlit Isle") == RD.start and startStamp == "ap-map-stamp"
                and regionStamp == "ap-map-stamp-bamboo-groves" and not logged("windswept%-island"),
                "an area of the starting region wears the shared map stamp, another its region's: "

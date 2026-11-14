@@ -550,8 +550,9 @@ local function updatePages(found)
     end
 end
 
--- Every update: the in-world buttons (`pawn`: this update's player pawn, for the HUD service). Out of a world nothing of ours is up: all of it is dropped (as with nothing
--- found), so an address of ours can't match a new button at the title (the WBP_CommonButton click hook stays).
+-- Every update: the in-world buttons (`pawn`: this update's player pawn, for the HUD service). Out of a world nothing
+-- of ours is up: all of it is dropped (as with nothing found), so an address of ours can't match a new button at the
+-- title (the WBP_CommonButton click hook stays).
 function WORLD.update(inWorld, pawn)
     if not api.mailboxLabel then return end
     local escLooked, escFound, pagesFound = true, {}, {}

@@ -276,6 +276,7 @@ group("a record entry the game cannot read yet is skipped quietly", function()
     local mark = logMark()
     local ok, found = pcall(RECORDS.progress, ps, DATA, 0)
     record.PaldeckUnlockFlag = paldeck
-    expect(ok and found.pals >= 1, "the records pass reads the entries it can: " .. tostring(ok and found.pals or found))
+    expect(ok and found.pals >= 1,
+           "the records pass reads the entries it can: " .. tostring(ok and found.pals or found))
     expect(loggedSince(mark, "records: 1 record entry not readable yet"), "and says once that one was skipped")
 end)

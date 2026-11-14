@@ -13,7 +13,8 @@
 --     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, regionOf,
 --     slugOf, mapShown, mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS
---   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin, REGION_COLOURS
+--   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin,
+--     REGION_COLOURS
 local W = {}
 W.layout = "regions"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua

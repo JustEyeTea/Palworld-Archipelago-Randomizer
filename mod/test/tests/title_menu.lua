@@ -404,7 +404,8 @@ group("the title menu's Archipelago menu", function()
     local looksBefore = lookups.WBP_TitleMenu_C or 0
     run(10)
     expect((lookups.WBP_TitleMenu_C or 0) == looksBefore,
-           "a title menu still in memory in a world is not looked for: " .. (lookups.WBP_TitleMenu_C or 0) - looksBefore)
+           "a title menu still in memory in a world is not looked for: "
+           .. (lookups.WBP_TitleMenu_C or 0) - looksBefore)
     inWorld(false)
     noController()
     game.titleOpen = false

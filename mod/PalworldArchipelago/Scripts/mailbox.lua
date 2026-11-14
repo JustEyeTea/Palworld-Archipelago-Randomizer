@@ -214,8 +214,8 @@ function M.tellStays(id, why)
 end
 
 -- Takes one item's whole entry in `list` (M.queue or M.gear) into the bag; how many went in, and how many of those the
--- game put straight into an empty equipment slot. What the bag refuses stays in the list. The caller writes the save file (once, after all it takes: a write each kind would be one per
--- kind on Take all).
+-- game put straight into an empty equipment slot. What the bag refuses stays in the list. The caller writes the save
+-- file (once, after all it takes: a write each kind would be one per kind on Take all).
 local function takeEntry(list, id)
     for index, entry in ipairs(list) do
         if entry.id == id then
