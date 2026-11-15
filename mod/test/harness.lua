@@ -116,6 +116,7 @@ function run(updates)
     for _ = 1, updates do
         clock, frameCount = clock + UPDATE_SECONDS, frameCount + FRAMES_PER_UPDATE
         gameSeconds = gameSeconds + UPDATE_SECONDS
+        gameTick()
         loop()
         runExtraLoops()
     end

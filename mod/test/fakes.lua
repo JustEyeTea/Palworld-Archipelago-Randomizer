@@ -29,7 +29,10 @@ local GAME_START = {
     bagFull = false,           -- the bag refuses every item
     equipsFreeSlot = false,    -- the game puts an item it is given into an empty equipment slot, not the bag
     givesWeapons = false,      -- with equipsFreeSlot, the item is a weapon: it goes into an empty weapon slot
-    movesWork = true,          -- false: the game's move from the hidden chest to the bag does nothing
+    equipsLater = false,       -- with equipsFreeSlot, the slot is filled only at the next update, not in AddItem (as
+                               -- in game: right after the call neither the bag nor the slot held it)
+    gearPieces = false,        -- items given to the bag are made as pieces of gear: a bag slot each, with its own id
+    movesWork = true,          -- false: the game's moves between the hidden chest and the bag do nothing
     logicMod = false,          -- the mod's LogicMod paks are loaded (its assets and window classes exist)
     regionWalls = true,        -- with logicMod: the PalworldArchipelagoArt pak has the region walls (false: one
                                -- built before them, without T_APWallRegion_* and T_APWallSealed)
@@ -138,23 +141,87 @@ wornIn = {}                                                -- equipment slot typ
 weaponSlots = {}                                           -- the weapon loadout's item ids, in slot order
 local ACCESSORY_SLOTS = { 2, 3, 6, 7 }                     -- EPalPlayerEquipItemSlotType Accessory1 to Accessory4
 local WEAPON_SLOTS = 4                                     -- the loadout's slots at the start of a game
+bagPieces = {}                                             -- bag slot index -> the piece of gear in it: { id, own }
+equipLanding = {}                                          -- accessory slot type -> the item id it gets next update
+local BAG_SLOTS = 42                                       -- the bag's slots at the start of a game
+local piecesMade = 0                                       -- every piece made has an own id of its own
+-- A piece of gear's own id (FPalItemId's DynamicId.LocalIdInCreatedWorld), new each time.
+function newPieceId()
+    piecesMade = piecesMade + 1
+    return { A = 7, B = 7, C = 7, D = piecesMade }
+end
+-- Puts a piece of gear into the first empty bag slot.
+function putPieceInBag(id, own)
+    for index = 0, BAG_SLOTS - 1 do
+        if not bagPieces[index] then
+            bagPieces[index] = { id = id, own = own }
+            return
+        end
+    end
+end
+-- Whether an accessory slot is free: nothing worn in it, and nothing on its way there.
+local function accessorySlotFree(slotType)
+    return not wornIn[slotType] and not equipLanding[slotType]
+end
 -- game.equipsFreeSlot: the game puts gear straight into an empty slot (an accessory slot, or with game.givesWeapons
--- a weapon slot, as an Old Bow went in game) instead of the bag.
+-- a weapon slot, as an Old Bow went in game) instead of the bag; with game.equipsLater only at the next update.
 function inv.AddItem_ServerInternal(_, name, n)
     if game.bagFull then return BAG_FULL end
-    given[#given + 1] = name:ToString() .. " x" .. n
+    local id = name:ToString()
+    given[#given + 1] = id .. " x" .. n
     if game.equipsFreeSlot and game.givesWeapons and #weaponSlots < WEAPON_SLOTS then
-        weaponSlots[#weaponSlots + 1] = name:ToString()
+        weaponSlots[#weaponSlots + 1] = id
         return 0
     end
     for _, slotType in ipairs(ACCESSORY_SLOTS) do
-        if game.equipsFreeSlot and not wornIn[slotType] then
-            wornIn[slotType] = name:ToString()
+        if game.equipsFreeSlot and accessorySlotFree(slotType) then
+            if game.equipsLater then
+                equipLanding[slotType] = id
+            else
+                wornIn[slotType] = id
+            end
             return 0
         end
     end
-    bagHas[name:ToString()] = (bagHas[name:ToString()] or 0) + n
+    bagHas[id] = (bagHas[id] or 0) + n
+    if game.gearPieces then
+        for _ = 1, n do
+            putPieceInBag(id, newPieceId())
+        end
+    end
     return 0
+end
+-- The game's own work between two updates (run() calls it): gear given with game.equipsLater reaches its slot.
+function gameTick()
+    for slotType, id in pairs(equipLanding) do
+        wornIn[slotType] = id
+    end
+    equipLanding = {}
+end
+-- One slot of the bag, as its container hands it out: the piece of gear at that index, or empty.
+local function bagSlot(index)
+    local slot = {}
+    function slot:IsValid() return true end
+    function slot:IsEmpty() return bagPieces[index] == nil end
+    function slot:GetItemId()
+        local piece = bagPieces[index]
+        return { StaticId = FNameOf(piece and piece.id or "None"),
+                 DynamicId = { LocalIdInCreatedWorld = piece and piece.own or { A = 0, B = 0, C = 0, D = 0 } } }
+    end
+    function slot:GetStackCount() return bagPieces[index] and 1 or 0 end
+    function slot:GetSlotId()
+        return { ContainerId = { ID = inv.MyInventoryInfo.CommonContainerId.ID }, SlotIndex = index }
+    end
+    return slot
+end
+-- The bag's container (only its pieces of gear: plain items are counted in bagHas).
+bagContainer = { Num = function() return BAG_SLOTS end, Get = function(_, index) return bagSlot(index) end }
+function bagContainer.GetLastNotEmptyIndex()
+    local last = -1
+    for index in pairs(bagPieces) do
+        last = math.max(last, index)
+    end
+    return last
 end
 function inv.IsEquip(_, slotType, name) return wornIn[slotType] == name:ToString() end
 function inv.IsEquipForWeapon(_, name)
@@ -328,6 +395,7 @@ util = { IsValid = function() return true end }
 function util.SendSystemAnnounce(_, _, text) announced[#announced + 1] = text end
 util.GetLocalPlayerController = function() return playerController end
 util.GetLocalPlayerState = function() return ps end
+util.GetItemContainerManager = function() return { GetContainer = function() return bagContainer end } end
 partySize = 3
 function util.GetOtomoHolderComponent(_, who)
     assert(who == pawn, "the party of the player's pawn")

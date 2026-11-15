@@ -444,6 +444,7 @@ chestTemplates = nil                                         -- the chest Bluepr
 chestSpawnAsked = nil                                        -- the map object id the last spawn asked for
 uiUtil = nil                                                 -- PalUIUtility (item names), once installChest
 moves = {}                                                   -- every move from the chest to the bag: { to, index, n }
+movesIn = {}                                                 -- every move from the bag into a chest slot: { from, to }
 -- An item id that names no item (a slot's own: a test writes into it).
 local function noItem() return { A = 0, B = 0, C = 0, D = 0 } end
 -- A slot's or a container's permission: what may be put in it.
@@ -495,6 +496,10 @@ function mapObjects.RequestSpawnMapObjectByPlayer_Server(_, id, at)
     return true
 end
 function mapObjects.FindModel() return chests[1].model end
+-- Whether a piece's per-item id names a piece of gear (a plain item's is all zero).
+local function isPiece(own)
+    return own.A ~= 0 or own.B ~= 0 or own.C ~= 0 or own.D ~= 0
+end
 -- The game's move from a chest slot to the bag (the Item part of the player's network transmitter).
 local function moveToBag(_, _, to, froms)
     for _, f in ipairs(froms) do
@@ -503,11 +508,38 @@ local function moveToBag(_, _, to, froms)
             local slot = chests[1].c.slots[f.SlotId.SlotIndex + 1]
             local id = slot.ItemId.StaticId:ToString()
             bagHas[id] = (bagHas[id] or 0) + f.Num
+            if isPiece(slot.ItemId.DynamicId.LocalIdInCreatedWorld) then
+                putPieceInBag(id, slot.ItemId.DynamicId.LocalIdInCreatedWorld)
+            end
             slot.StackCount = slot.StackCount - f.Num
             if slot.StackCount <= 0 then                -- an emptied slot holds no item at all
                 slot.ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = noItem() } }
                 slot.StackCount = 0
             end
+        end
+    end
+end
+-- Whether a permission lets an item in: it names the item (a permission naming nothing lets everything in).
+local function lets(permission, id)
+    local named = permission.PermissionItemStaticIds.list
+    if #named == 0 then return true end
+    for _, name in ipairs(named) do
+        if name:ToString() == id then return true end
+    end
+    return false
+end
+-- The game's move of a bag slot's piece of gear into a chest slot: refused unless the chest and the slot let it in.
+local function moveIntoSlot(_, _, to, froms)
+    local chest = chests[1].c
+    for _, f in ipairs(froms) do
+        movesIn[#movesIn + 1] = { from = f.SlotId.SlotIndex, to = to.SlotIndex }
+        local piece, slot = bagPieces[f.SlotId.SlotIndex], chest.slots[to.SlotIndex + 1]
+        if game.movesWork and piece and slot:IsEmpty() and lets(chest.Permission, piece.id)
+                and lets(slot.Permission, piece.id) then
+            slot.ItemId = { StaticId = FNameOf(piece.id), DynamicId = { LocalIdInCreatedWorld = piece.own } }
+            slot.StackCount = 1
+            bagPieces[f.SlotId.SlotIndex] = nil
+            bagHas[piece.id] = bagHas[piece.id] - 1
         end
     end
 end
@@ -526,7 +558,8 @@ function installChest()
         return { GetStaticItemData = function() return { GetMaxStackCount = function() return 9999 end } end }
     end
     util.GetNetworkTransmitter = function()
-        return { Item = { IsValid = function() return true end, RequestMoveToContainer_ToServer = moveToBag } }
+        return { Item = { IsValid = function() return true end, RequestMoveToContainer_ToServer = moveToBag,
+                          RequestMove_ToServer = moveIntoSlot } }
     end
     uiUtil = {}
     function uiUtil.GetItemName(_, _, id, out)

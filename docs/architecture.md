@@ -504,21 +504,27 @@ flowchart LR
 ### The mailbox's hidden chest
 
 `mailbox.lua` keeps the mailbox's list and opens it. Without the LogicMod window (`mailbox_window.lua`) it shows the
-list in the game's own chest window on a hidden chest, through `mailbox_chest.lua`, which uses three files of its own.
-The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other three are handed it. The list is the
+list in the game's own chest window on a hidden chest, through `mailbox_chest.lua`, which uses four files of its own.
+The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other four are handed it. The list is the
 truth: a take leaves it (and the mod's save file) at once, while the item in the bag is kept only by the game's next
 world save, so an item taken just before a crash is lost rather than given twice (`mailbox_chest_slots.lua` says so).
 
-Gear and accessories (from a crate or a Nomad tech) wait in a list of their own, `M.gear` (`mailgear=` in the save),
-and never go in the chest: they carry per-item data (durability, the ammo loaded) a chest slot filled by the mod would
-not have. `handOutGear` gives them to the bag through the game's own `AddItem` the first update the mailbox is open,
-and again when more gear arrives while it is; what the bag refuses waits for the next open.
+Gear and accessories (from a crate or a Nomad tech) wait in a list of their own, `M.gear` (`mailgear=` in the save):
+they carry per-item data (durability, the ammo loaded) a chest slot written by the mod would not have. `handOutGear`
+gives them to the bag through the game's own `AddItem` the first update the mailbox is open, and again when more gear
+arrives while it is; what the bag refuses waits for the next open. The game may put a piece straight into an empty
+equipment slot, but only after `AddItem` returns, so `mailbox_gear.lua` reads where each piece went half a second
+later: worn ("now equipped"), or in the bag, from where a piece is moved on into the chest window by the game's own
+move (`mailbox_chest_gear.lua`), so the player sees it in the mailbox. Gear the player leaves there goes to the bag as
+the window closes, and the player is warned of that whenever gear arrives. When the move does nothing, the piece
+stays in the bag and the player is told so.
 
 | File | What it holds |
 |---|---|
 | `mailbox_chest.lua` | The hidden chest made once per world (`CHEST.startMaking`, `CHEST.followMaking`) and kept from decaying (`harden`), its window opened (`CHEST.open`), followed every update until the player closes it (`CHEST.followView`), and closed (`CHEST.close`). |
 | `mailbox_chest_slots.lua` | The chest's slots: emptied of copies and filled from the list as the window opens (`SLOTS.emptyThenFillChest`), emptied back into the list as it closes (`SLOTS.absorb`), and the slot helpers the sweep also uses (`SLOTS.put`, `SLOTS.clear`). |
 | `mailbox_chest_sweep.lua` | Every update while the window is open (`SWEEP.run`): what the player took comes off the list, deposits go back to the bag, and items received go into the slots that empty; and the rule that refuses deposits (`SWEEP.lockPermission`). |
+| `mailbox_chest_gear.lua` | The mailbox's own gear: a piece moved in from the bag by the game's move, the slot and the chest letting that item in until it arrives (`CGEAR.moveIn`, `CGEAR.follow`), and the pieces left in the chest sent to the bag as the window closes (`CGEAR.sendLeftToBag`). The sweep leaves these pieces alone (`view.gearMine`). |
 | `mailbox_chest_heading.lua` | The window's heading set to the mailbox's name, and the mailbox emblem beside it (`HEADING.dress`). |
 
 The chest window's life, from the mailbox's side:

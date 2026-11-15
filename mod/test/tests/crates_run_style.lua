@@ -1,5 +1,5 @@
 -- Palworld Crates and their window, and the run style (Nomad) and Speed Boost.
--- Tests crates.lua, crate_window.lua, items.lua, run_style.lua.
+-- Tests crates.lua, crate_window.lua, items.lua, run_style.lua, mailbox_gear.lua, mailbox_chest_gear.lua.
 
 group("Palworld Crates", function()
     -- Rolled on arrival, the same every time.
@@ -455,41 +455,51 @@ group("run style and speed boost: Nomad's hand-overs, and world settings changed
     inWorld(false)
 end)
 
+-- Opens a Rare Supply Crate rolled to hold gear (a roll of 0.6 is its gear branch); the gear's id, or nil. (The
+-- two gear groups below use it.)
+local function openRareGear()
+    local random = math.random
+    math.random = function(low)
+        if low then return low end
+        return 0.6
+    end
+    require("crates").list = { "rare" }
+    local _, out = require("items").openCrate()
+    math.random = random
+    return out and out[1] and out[1].id
+end
+
+-- How many of a gear item wait in the mailbox's gear list.
+local function waiting(id)
+    local n = 0
+    for _, e in ipairs(require("mailbox").gear) do
+        if e.id == id then
+            n = n + e.n
+        end
+    end
+    return n
+end
+
+-- The hidden chest's slot holding an item, or nil.
+local function chestSlotWith(id)
+    for _, slot in ipairs(chests[1] and chests[1].c.slots or {}) do
+        if not slot:IsEmpty() and slot.ItemId.StaticId:ToString() == id then return slot end
+    end
+    return nil
+end
+local function inChest(id)
+    return chestSlotWith(id) ~= nil
+end
+
 group("crate and Nomad gear waits in the mailbox, out of its hidden chest", function()
     -- Gear carries per-item data a chest slot filled by the mod would not have: it waits in the mailbox's gear list,
-    -- goes into the bag (through the game's AddItem) when the mailbox is open, and is never put in the hidden chest,
-    -- lost when the chest closes, or given twice.
-    local CR, MB, ITEMS = require("crates"), require("mailbox"), require("items")
+    -- goes into the bag (through the game's AddItem) when the mailbox is open, and is never written into the hidden
+    -- chest, lost when the chest closes, or given twice. Here the game makes no piece the mailbox could move on into
+    -- the chest (the next group), so the gear stays in the bag.
+    local MB = require("mailbox")
     inWorld(true)
     newController()                                               -- a world with a live player, to open the mailbox
     h.switchSeed("70040", {})
-    local random = math.random
-    -- Opens a Rare Supply Crate rolled to hold gear (a roll of 0.6 is its gear branch); the gear's id, or nil.
-    local function openRareGear()
-        math.random = function(low)
-            if low then return low end
-            return 0.6
-        end
-        CR.list = { "rare" }
-        local _, out = ITEMS.openCrate()
-        math.random = random
-        return out and out[1] and out[1].id
-    end
-    local function waiting(id)
-        local n = 0
-        for _, e in ipairs(MB.gear) do
-            if e.id == id then
-                n = n + e.n
-            end
-        end
-        return n
-    end
-    local function inChest(id)
-        for _, slot in ipairs(chests[1] and chests[1].c.slots or {}) do
-            if not slot:IsEmpty() and slot.ItemId.StaticId:ToString() == id then return true end
-        end
-        return false
-    end
     -- Opened with the mailbox shut: it waits, and nothing goes into the bag.
     local givenBefore = #given
     local gear = openRareGear()
@@ -555,7 +565,7 @@ group("crate and Nomad gear waits in the mailbox, out of its hidden chest", func
     expect(waiting(worn) == 0 and toldEquipped,
            "gear the game puts straight into an empty accessory slot is handed out, and the player told it is "
            .. "equipped: " .. tostring(announced[#announced]))
-    expect(not loggedSince(equipMark, "gained") and loggedSince(equipMark, "straight into an equipment slot "),
+    expect(not loggedSince(equipMark, "gained") and loggedSince(equipMark, "; equipped "),
            "the log counts the equipment slot as a gain, and says where it went")
     h.closeChestWindow()
     run(2)
@@ -582,6 +592,93 @@ group("crate and Nomad gear waits in the mailbox, out of its hidden chest", func
     MB.load("cratebag=Sword:1")
     expect(waiting("Sword") == 1, "an older save's cratebag= gear waits in the mailbox")
     MB.removeCount(MB.gear, "Sword", 1)
+    inWorld(false)
+end)
+
+group("crate gear shows in the mailbox's chest", function()
+    -- The game makes gear a piece of its own in the bag; the mailbox moves it on into its chest by the game's own move,
+    -- so the player sees it there and takes it out. What is left there goes to the bag as the window closes, and the
+    -- player is warned of that whenever gear arrives.
+    local MB, BAG = require("mailbox"), require("bag")
+    inWorld(true)
+    newController()
+    h.switchSeed("70041", {})
+    game.gearPieces = true
+    local openMark = logMark()
+    -- 1. Into the chest, by the game's move, and the player warned.
+    local gear = openRareGear()
+    local name = BAG.nameOf(gear)
+    local bagBefore, movesBefore = bagHas[gear] or 0, #moves
+    MB.open()
+    run(10)
+    local slot = chestSlotWith(gear)
+    expect(slot and (bagHas[gear] or 0) == bagBefore and #movesIn == 1,
+           "the gear goes into the mailbox's chest by the game's move, not left in the bag: " .. #movesIn)
+    expect(h.told("In your mailbox: " .. name .. ". Gear you leave in the mailbox goes to your bag when you close it."),
+           "the player is told it is in the mailbox, and warned that gear left there goes to the bag")
+    expect(slot and #slot.Permission.PermissionItemStaticIds.list == 1
+           and #chests[1].c.Permission.PermissionItemStaticIds.list == 1,
+           "the slot and the chest refuse deposits again once the piece is in")
+    -- 2. The sweep leaves the mailbox's own piece alone.
+    run(20)
+    expect(chestSlotWith(gear) == slot and #moves == movesBefore, "the sweep does not send the mailbox's gear back")
+    -- 3. The player takes it out: it is theirs, given once.
+    local own = slot.ItemId.DynamicId.LocalIdInCreatedWorld
+    slot.ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }
+    slot.StackCount = 0
+    bagHas[gear] = (bagHas[gear] or 0) + 1
+    putPieceInBag(gear, own)
+    run(5)
+    expect(bagHas[gear] == bagBefore + 1 and not inChest(gear) and #movesIn == 1,
+           "taken out, it stays in the bag and is not moved back in")
+    -- 4. Gear left in the mailbox goes to the bag as the window closes, and the player is told.
+    local second = openRareGear()
+    run(10)
+    expect(inChest(second), "gear from a crate opened while the mailbox is open shows in it too")
+    h.closeChestWindow()
+    run(2)
+    expect(not inChest(second) and (bagHas[second] or 0) >= 1
+           and h.told("Gear you left in the mailbox went to your bag: " .. BAG.nameOf(second) .. "."),
+           "gear left in the mailbox goes to the bag when it closes, and the player is told")
+    -- 5. The game's move does nothing: the gear stays in the bag, and the player is told so.
+    game.movesWork = false
+    local third = openRareGear()
+    local thirdBefore = bagHas[third] or 0
+    MB.open()
+    run(12)
+    game.movesWork = true
+    expect(not inChest(third) and bagHas[third] == thirdBefore + 1
+           and h.told("From your mailbox, now in your bag: " .. BAG.nameOf(third) .. "."),
+           "when the move does nothing the gear stays in the bag, and the player is told")
+    expect(#chests[1].c.Permission.PermissionItemStaticIds.list == 1, "and the chest refuses deposits again")
+    h.closeChestWindow()
+    run(2)
+    -- 6. The game puts it into an empty accessory slot a moment after AddItem (as in game): "now equipped".
+    local wornBefore = wornIn
+    wornIn = {}
+    game.equipsFreeSlot, game.equipsLater = true, true
+    local fourth = openRareGear()
+    local toldAt = #announced
+    MB.open()
+    run(10)
+    game.equipsFreeSlot, game.equipsLater = false, false
+    local told = table.concat(announced, "|", toldAt + 1)
+    expect(told:find("now equipped: " .. BAG.nameOf(fourth), 1, true) and not told:find("now in your bag", 1, true),
+           "gear the game equips after AddItem returns is told as equipped, not in the bag: " .. told)
+    wornIn = wornBefore
+    h.closeChestWindow()
+    run(2)
+    -- 7. What opening cost is logged, once a world.
+    local costLines = 0
+    local COST_LINE = "mailbox: opening took %d+ ms %(finding the chest %d+, hiding it %d+, deposit rule %d+, "
+        .. "filling %d+"
+    for i = openMark + 1, #printed do
+        if printed[i]:find(COST_LINE) then
+            costLines = costLines + 1
+        end
+    end
+    expect(costLines == 1, "the opening's cost is logged once a world, part by part: " .. costLines .. " line(s)")
+    game.gearPieces = false
     inWorld(false)
 end)
 

@@ -2,7 +2,8 @@
 -- landing in the bag mid-fight. The list is the mod's own, kept in the save file, with no limit. It opens from the
 -- "Archipelago Mailbox" button on the Esc menu and the Inventory page (menu.lua), or an optional key (mailbox_key).
 -- Gear and accessories wait in a list of their own (M.gear): they carry per-item data (durability, the ammo loaded)
--- that the hidden chest's slots can't hold, so they never go in the chest, and go into the bag when the mailbox opens.
+-- that a slot written by the mod can't hold. When the mailbox opens they are made in the bag by the game, and moved on
+-- into the chest window by the game's own move, where the player takes them out (mailbox_gear.lua).
 -- config.txt: mailbox_view=chest skips the LogicMod's window.
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local M = {}
@@ -10,6 +11,7 @@ local UTIL = require("util")
 local BAG = require("bag")
 local WINDOW = require("mailbox_window")
 local CHEST = require("mailbox_chest")
+local GEAR = require("mailbox_gear")
 local log = UTIL.log
 -- The window's, the chest's and the list's lines are logged once a world (forgetOnWorldChange() forgets them); the
 -- bag's (bag.lua) once a session, since how the game answers its calls does not change from world to world.
@@ -63,7 +65,7 @@ local WAIT = {
 
 -- State: the lists. Forgotten: on a new seed (M.reset()); kept in the save file.
 M.queue = {}                  -- { { id = static item id, n = count } } in arrival order, one entry per item
-M.gear = {}                   -- the same for gear and accessories, which never go in the hidden chest (M.addGear)
+M.gear = {}                   -- the same for gear and accessories, which no slot write puts in the chest (M.addGear)
 -- State. Forgotten: on a new seed (M.reset()).
 local gearToHandOut = false   -- gear arrived, or an open was asked for, since gear was last handed out (handOutGear)
 -- State: the opening. Forgotten: on a new world (forgetOnWorldChange()), on a new seed (M.reset()).
@@ -150,9 +152,9 @@ function M.add(id, count)
     tellWhereItemsWaitOnce()
 end
 
--- Gear or an accessory received (from a crate or a Nomad tech): it waits in the gear list, out of the hidden chest,
--- and goes into the bag the next time the mailbox is open (handOutGear). In the bag it is made by the game's own
--- AddItem, which gives it its per-item data; a chest slot would hold it without any.
+-- Gear or an accessory received (from a crate or a Nomad tech): it waits in the gear list, and is handed out the
+-- next time the mailbox is open (handOutGear). In the bag it is made by the game's own AddItem, which gives it its
+-- per-item data; a chest slot the mod writes would hold it without any.
 function M.addGear(id, count)
     M.addCount(M.gear, id, count)
     gearToHandOut = true
@@ -202,6 +204,7 @@ function M.reset()
     M.queue, M.gear, openAsked, gearToHandOut = {}, {}, false, false
     WINDOW.forget()
     CHEST.forget()
+    GEAR.forget()
 end
 
 -- Tells the player an item stays in the mailbox because the bag is full; any other reason is only logged.
@@ -213,13 +216,13 @@ function M.tellStays(id, why)
     log("mailbox: " .. id .. " stays in the mailbox: " .. tostring(why))
 end
 
--- Takes one item's whole entry in `list` (M.queue or M.gear) into the bag; how many went in, and how many of those the
--- game put straight into an empty equipment slot. What the bag refuses stays in the list. The caller writes the save
--- file (once, after all it takes: a write each kind would be one per kind on Take all).
+-- Takes one item's whole entry in `list` (M.queue or M.gear) into the bag; how many went in. What the bag refuses
+-- stays in the list. The caller writes the save file (once, after all it takes: a write each kind would be one per kind
+-- on Take all).
 local function takeEntry(list, id)
     for index, entry in ipairs(list) do
         if entry.id == id then
-            local got, why, worn = BAG.give(id, entry.n)
+            local got, why = BAG.give(id, entry.n, list == M.gear)
             entry.n = entry.n - got
             if entry.n <= 0 then
                 table.remove(list, index)
@@ -227,10 +230,10 @@ local function takeEntry(list, id)
             if got == 0 then
                 M.tellStays(id, why)
             end
-            return got, worn
+            return got
         end
     end
-    return 0, 0
+    return 0
 end
 
 -- Takes one item's whole entry, plain or gear, into the bag; how many went in (see takeEntry).
@@ -288,6 +291,7 @@ local function forgetOnWorldChange(ctx)
     end
     CHEST.forget()
     WINDOW.forget()
+    GEAR.forget()
     openAsked = false
     forgetOnce()
     world = worldNow
@@ -355,39 +359,23 @@ local function tryOpen()
     tryChest(pawn, playerState)
 end
 
--- What the player is told of the gear handed out: the names that went into the bag, and those the game put straight
--- into an empty equipment slot.
-local function gearHandedOutLine(inBag, equipped)
-    local parts = {}
-    if #inBag > 0 then
-        parts[#parts + 1] = "now in your bag: " .. table.concat(inBag, ", ")
-    end
-    if #equipped > 0 then
-        parts[#parts + 1] = "now equipped: " .. table.concat(equipped, ", ")
-    end
-    return "From your mailbox, " .. table.concat(parts, "; ") .. "."
-end
-
--- While the mailbox is open (its window, or the chest view), the gear waiting goes into the bag: on the first update
--- it is open, and again when more gear arrives. What the bag refuses stays in the gear list until then; the player is
--- told what went in. Untested in game: gear handed to the bag as the mailbox opens.
+-- While the mailbox is open (its window, or the chest view), the gear waiting is given to the bag: on the first update
+-- it is open, and again when more gear arrives. What the bag refuses stays in the gear list until then. Where each
+-- piece went (worn, the bag, or on into the chest window) is read a moment later (GEAR.settle).
 local function handOutGear()
     if not gearToHandOut or not (WINDOW.isOpen() or CHEST.viewing()) then return end
     gearToHandOut = false
-    local inBag, equipped = {}, {}       -- the names of the gear handed out, by where the game put it
+    local gave = 0
     for _, entry in ipairs({ table.unpack(M.gear) }) do
-        local got, worn = takeEntry(M.gear, entry.id)
-        if worn > 0 then
-            equipped[#equipped + 1] = BAG.nameOf(entry.id)
-        end
-        if got > worn then
-            inBag[#inBag + 1] = BAG.nameOf(entry.id)
+        local noted = GEAR.noteBefore(entry.id)
+        local got = takeEntry(M.gear, entry.id)
+        if got > 0 then
+            GEAR.given(noted, got)
+            gave = gave + got
         end
     end
-    if #inBag + #equipped == 0 then return end
-    log("mailbox: gear handed out: to the bag " .. table.concat(inBag, ", ") .. "; straight into an equipment slot "
-        .. table.concat(equipped, ", ") .. "; " .. #M.gear .. " kind(s) of gear stay")
-    env.notify(gearHandedOutLine(inBag, equipped))
+    if gave == 0 then return end
+    log("mailbox: gear given to the bag: " .. gave .. " piece(s); " .. #M.gear .. " kind(s) of gear stay")
     env.save()
 end
 
@@ -407,6 +395,7 @@ local function updateMailbox(ctx)
     settleLostView()
     tryOpen()
     handOutGear()
+    GEAR.settle()
 end
 
 -- Called from the mod's update loop (game thread). ctx: this update's player from main.lua ({ pc, pawn, controllerKey,
@@ -437,6 +426,7 @@ function M.install(handedOver)
                     guardedHook = env.guardedHook }
     WINDOW.install(parts)
     CHEST.install(parts)
+    GEAR.install(parts)
     local key = ((env.cfg.mailbox_key or ""):match("^%s*(%w+)%s*$") or ""):upper()
     if key == "" or not (RegisterKeyBind and Key and Key[key]) then return end
     -- A key bind runs off the game thread: it only hands over this function, made once.
