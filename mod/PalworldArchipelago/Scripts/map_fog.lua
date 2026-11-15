@@ -25,7 +25,6 @@ local CHART_FILE, FOG_FILE, TERR_FOG_FILE = "map-chart.png", "map-fog.png", "map
 local MASK_FILE, DEFAULT_MASK_FILE = "fog-mask.png", "fog-default-mask.png"
 local LOG_FIRST = 3           -- openings, pictures put back, fog pictures loaded and mask reads that are logged;
                               -- after that they are only counted
-local MS_PER_SECOND = 1000    -- os.clock counts seconds; the log says milliseconds
 -- Which channel of the explored mask means explored: the mask sampled at the player and at EDGE_UV (map u and v, a
 -- point beyond the world's edge, never explored); a channel tells them apart by at least MIN_CHANNEL_GAP (of 255).
 local EDGE_UV = "0.02"
@@ -310,10 +309,6 @@ local function maskUnchanged()
     local mask = UTIL.readFile(W.dir .. "\\" .. MASK_FILE)
     return mask ~= nil and mask == chart.maskShown
 end
--- Milliseconds since an os.clock reading (wall time on Windows; perf.lua, now, says how exact), for the log.
-local function msSince(started)
-    return (os.clock() - started) * MS_PER_SECOND
-end
 -- A mask read (where: "with the map closed", "at an opening") and what it found, for the first LOG_FIRST of each
 -- finding: whether the mask changed, and how long the read took on the game thread.
 local function logMaskRead(where, same, ms)
@@ -426,7 +421,7 @@ local function refreshMask(pawn, rendering, gameInstance, stamps, borders, tag)
     once("fogrefresh", string.format("map chart: while the map is closed, the explored mask is read every %.0f s and"
         .. " the fog picture made again when it changed", CLOCK.seconds(MASK_READ_GAP)))
     local same = maskUnchanged()
-    logMaskRead("with the map closed", same, msSince(started))
+    logMaskRead("with the map closed", same, UTIL.msBetween(started))
     if not same then
         startFog(stamps, borders, tag)
     end
@@ -453,7 +448,7 @@ local function readMaskOnOpening(pawn, screen, rendering, gameInstance, stamps, 
         chart.spec = spec
     end
     local same = maskUnchanged()
-    logMaskRead("at an opening", same, msSince(started))
+    logMaskRead("at an opening", same, UTIL.msBetween(started))
     if not same then
         startFog(stamps, borders, tag)
     end
@@ -485,7 +480,7 @@ end
 local function loadFogPicture(rendering, gameInstance)
     local started = os.clock()
     local tex = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\" .. fogFile())
-    local ms = msSince(started)
+    local ms = UTIL.msBetween(started)
     if not (tex and tex:IsValid()) then
         once("fogload", "map chart: could not load " .. fogFile())
         return

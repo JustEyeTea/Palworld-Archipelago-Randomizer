@@ -206,6 +206,13 @@ function UTIL.exists(path)
     return true
 end
 
+local MS_PER_SECOND = 1000
+-- The milliseconds between two os.clock readings (it counts seconds; wall time on Windows, perf.lua says how exact),
+-- for log lines that time a step. `to` is now when left out.
+function UTIL.msBetween(from, to)
+    return ((to or os.clock()) - from) * MS_PER_SECOND
+end
+
 -- A whole file's bytes, or nil when it cannot be opened.
 function UTIL.readFile(path)
     local f = io.open(path, "rb")

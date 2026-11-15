@@ -234,12 +234,6 @@ local function refuseDeposits(chest)
     end
 end
 
-local MS_PER_SECOND = 1000
--- The milliseconds between two os.clock readings (in seconds).
-local function msBetween(from, to)
-    return (to - from) * MS_PER_SECOND
-end
-
 -- Opens the game's chest window on the hidden chest, emptied of copies and filled from the list. How long each part
 -- took is logged once a world: the opening was a ~300 ms frame in game.
 function CHEST.open(chest, pawn)
@@ -255,11 +249,11 @@ function CHEST.open(chest, pawn)
     parameter.MapObjectConcreteModel = chest
     local id = hud:ShowCommonUI(ITEM_CHEST_WINDOW, parameter)
     view = newView(id, hud, chest, held, inChest)
-    local finished = os.clock()
+    local finished, findMs = os.clock(), UTIL.msBetween(0, findSeconds)
     env.once("opencost", string.format("mailbox: opening took %.0f ms (finding the chest %.0f, hiding it %.0f, deposit "
-        .. "rule %.0f, filling %.0f, window %.0f)", msBetween(started, finished) + findSeconds * MS_PER_SECOND,
-        findSeconds * MS_PER_SECOND, msBetween(started, afterHiding), msBetween(afterHiding, afterRule),
-        msBetween(afterRule, afterFill), msBetween(afterFill, finished)))
+        .. "rule %.0f, filling %.0f, window %.0f)", UTIL.msBetween(started, finished) + findMs, findMs,
+        UTIL.msBetween(started, afterHiding), UTIL.msBetween(afterHiding, afterRule),
+        UTIL.msBetween(afterRule, afterFill), UTIL.msBetween(afterFill, finished)))
     log("mailbox: chest view open (" .. slots .. " slots, " .. placed .. " filled, " .. #held
         .. " kind(s) waiting behind)")
     if #held > 0 then
