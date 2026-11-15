@@ -494,9 +494,13 @@ local function lockedAndNotHere(k, here, passes)
     if name ~= here and not isOpen(name, passes) then return name end
     return nil
 end
--- The locked side of a wall piece other than `here`, or nil; with both sides locked, side B.
+-- The locked side of a wall piece, or nil: the side other than `here` (with both locked, side B), else `here` itself
+-- when it is a locked side. The map's cells (area_map.lua: about 29 m across) are as coarse as NEAR, so a player
+-- standing at a wall on its open side can read as inside the locked lock across it; the player is never really in
+-- there (the walls and AREA_LOCKS's sending home keep them out), so that lock is the one across the wall.
 local function lockedSide(wall, here, passes)
     return lockedAndNotHere(wall.lockB, here, passes) or lockedAndNotHere(wall.lockA, here, passes)
+        or lockedAndNotHere(wall.lockB, nil, passes) or lockedAndNotHere(wall.lockA, nil, passes)
 end
 -- The lock across a wall within NEAR of a spot (a player walking up to it) while it is locked, or nil. A wall locked
 -- on both sides names the lock the player is not in.

@@ -3,7 +3,7 @@
 -- last crate opened in the contents cells. Closed, a small button brings it back whenever the chest window is open:
 -- "Open Palworld Crates (N)" while crates wait, "Palworld Crates" (to see the last crate opened) when none do. In a
 -- seed without Palworld Crates (the YAML's option) neither shows while none wait. Every image falls back to a plain box
--- without its file. Untested in game: the reopen button, where it is now.
+-- without its file.
 -- Tests: mod/test/tests/crates_run_style.lua; group "the crate window" (tools/lua_harness.sh, in CI).
 local CW = {}
 local ART = require("art")
@@ -70,7 +70,6 @@ local CANVAS_DEPTH = 4                -- how deep under the chest window's root 
 local FONT = { title = 22, header = 12, rowName = 12, rowCount = 9, name = 16, detail = 10, contentsHeader = 11,
                cell = 8 }             -- point sizes
 local CENTRE = { X = 0.5, Y = 0.5 }    -- an anchor and alignment on a canvas
-local SLATE_LIBRARY = "/Script/UMG.Default__SlateBlueprintLibrary"   -- reads where a widget was laid out
 
 local CREAM, MUTED, NAVY = UTIL.linear("FFF4DC"), UTIL.linear("A3ADC9"), UTIL.linear("17324D")
 local GLOW = { sphere = UTIL.linear("3FC1D9"), food = UTIL.linear("ECBE6E"), common = UTIL.linear("C8B79A"),
@@ -86,8 +85,6 @@ local choice = nil            -- "closed" (the player closed the window), "open"
 local selected = nil          -- the kind in the details pane
 -- State. Forgotten: never (the last crate opened can be seen again on a later mailbox).
 local last = nil              -- the last crate opened: { kind, out = its contents { id, n }, stamp = +1 a crate }
-local layoutLogged = false    -- the reopen button's place as laid out was logged (once a session)
-local layoutLooks = 0         -- updates its layout was looked at while the canvas had no size yet
 
 local function valid(object)
     local ok, answer = pcall(function() return object:IsValid() end)
@@ -308,7 +305,7 @@ local function logClickHookOnce()
         .. "lost until it is")
 end
 
--- The small button that brings the window back (TOGGLE_FROM_CENTRE says where, and why there). Untested in game.
+-- The small button that brings the window back (TOGGLE_FROM_CENTRE says where, and why there).
 local function addToggle(widget, canvas)
     local count = CRATES.count()
     local label = count > 0 and ("Open Palworld Crates (" .. count .. ")") or "Palworld Crates"
@@ -371,35 +368,6 @@ local function redrawIfNeeded(widget)
     end
 end
 
--- Where a widget was laid out, in the screen's units: "x,y wxh", or "?" when it can't be read.
-local function screenBox(widget)
-    local ok, box = pcall(function()
-        local geometry = widget:GetCachedGeometry()
-        local slate = StaticFindObject(SLATE_LIBRARY)
-        local at, size = slate:LocalToAbsolute(geometry, { X = 0, Y = 0 }), slate:GetAbsoluteSize(geometry)
-        return string.format("%.0f,%.0f %.0fx%.0f", at.X, at.Y, size.X, size.Y)
-    end)
-    return ok and box or "?"
-end
-
--- Once a session, once the game has laid the reopen button out (its canvas has a size: one update after it was drawn,
--- in game, the canvas was still 0x0), or after LAYOUT_LOOKS updates: what it sits on, whether it shows, and where it
--- is beside that canvas.
-local LAYOUT_LOOKS = 10      -- updates to wait for the canvas to have a size before logging what is there anyway
-local function logToggleLayoutOnce()
-    if layoutLogged or not (overlay and overlay.toggle) then return end
-    local toggle = overlay.toggle
-    local okParent, canvas = pcall(function() return toggle:GetParent() end)
-    layoutLooks = layoutLooks + 1
-    local canvasBox = okParent and screenBox(canvas) or "?"
-    if canvasBox:find(" 0x0$") and layoutLooks < LAYOUT_LOOKS then return end
-    layoutLogged = true
-    local okShown, shown = pcall(function() return toggle:IsVisible() end)
-    log("crate window: reopen button as laid out (after " .. UTIL.counted(layoutLooks, "update") .. "): on "
-        .. (okParent and WIDGETS.nameOf(canvas) or "?") .. ", visible " .. (okShown and tostring(shown) or "?")
-        .. ", at " .. screenBox(toggle) .. " on a canvas at " .. canvasBox)
-end
-
 -- The first kind with a crate waiting, when the chosen kind has none left.
 local function keepSelectionValid()
     local counts = CRATES.counts()
@@ -437,7 +405,6 @@ function CW.update()
         choice, selected = nil, nil                       -- a fresh mailbox: the window again if crates wait
     end
     keepSelectionValid()
-    logToggleLayoutOnce()
     redrawIfNeeded(widget)
 end
 

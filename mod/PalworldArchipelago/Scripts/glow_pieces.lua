@@ -165,7 +165,7 @@ function GLOW_PIECES.look(name, params)
 end
 
 -- Dresses a piece between its spawn and its finish: movable (it turns and grows), the part's mesh and the look, no
--- collision and no shadow. Untested in game: a plain StaticMeshActor spawned from Lua and dressed this way.
+-- collision and no shadow.
 local function dressNew(actor, part, material)
     local mesh = actor.StaticMeshComponent
     mesh:SetMobility(MOVABLE)
@@ -261,7 +261,7 @@ function GLOW_PIECES.gameSeconds(pawn)
 end
 
 -- An actor's bounds: { centre, half = half its size along each axis }, both in cm, or nil when they can't be read.
--- Untested in game: GetActorBounds' two FVector out-parameters filled into Lua tables.
+-- GetActorBounds' two FVector out-parameters come back filled into the Lua tables passed in.
 function GLOW_PIECES.bounds(actor)
     local centre, half = {}, {}
     local ok = pcall(function() actor:GetActorBounds(false, centre, half, false) end)

@@ -269,6 +269,22 @@ group("area locks", function()
     pawnAt = wasAt
     expect(#said == saidBefore and #plates == platesBefore + 1 and loggedSince(awayMark, "no locked wall within reach"),
            "away from any locked wall, the hint key shows nothing and asks nothing")
+    do
+        -- Standing against a wall on the start's side, where the map's cell reads as the locked lock across it (the
+        -- cells are coarser than the distance to the wall, as in game): the hint key still finds that wall.
+        local at, region = h.spotAtWallReadAsLocked(function(other)
+            return other ~= "Open sea" and other ~= "Bamboo Groves" and other ~= hintRegion
+        end)
+        pawnAt = at
+        runCycles(2)
+        local platesAt, saidAt = #plates, #announced
+        keyBinds["key:H"]()
+        pawnAt = wasAt
+        expect(at and #plates == platesAt + 1 and plates[#plates].title == region .. " is sealed"
+               and #announced > saidAt and announced[#announced]:find("Not enough hint points", 1, true),
+               "against a wall whose map cell reads as the locked side, the hint key finds that wall: "
+               .. tostring(region) .. ", " .. tostring(announced[#announced]))
+    end
     POPUP.show = realShow
     expect(lastGone and lastGone.collision == false and lastGone.shrunkTo and lastGone.shrunkTo < 1,
            "an opened wall shrinks to nothing (no K2_SetActorLocation: its FHitResult crashed UE4SS), stops "

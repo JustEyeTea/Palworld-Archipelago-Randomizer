@@ -133,14 +133,18 @@ local function askHint(lock)
     notify("Asking the Archipelago server where " .. WALLS.passName(lock) .. " is...")
 end
 
--- The locked lock whose wall the player stands within the notice's distance of now, or nil (no pawn, or the area
--- locks do not act on the player: `applies` is area_locks.lua's test).
+-- The locked lock whose wall the player stands within the notice's distance of now; or nil and why, for the log (no
+-- pawn, the area locks do not act on the player: `applies` is area_locks.lua's test, or no locked wall near).
 local function lockedWallAtPlayer(applies)
     local pawn = PLAYER.playerPawn()
-    if not applies(pawn) then return nil end
+    if not pawn then return nil, "no player found" end
+    if not applies(pawn) then return nil, "the area locks do not act on the player here" end
     local x, y = PLAYER.pawnXY(pawn)
-    if not x then return nil end
-    return WALLS.lockedNear(x, y, ap.passes)
+    if not x then return nil, "the player's place could not be read" end
+    local lock = WALLS.lockedNear(x, y, ap.passes)
+    if lock then return lock end
+    return nil, string.format("no locked wall within reach at %.0f, %.0f (the map reads %s there)", x, y,
+        tostring(WALLS.lockAt(x, y)))
 end
 
 -- Binds the hint key (start-up). At a locked wall it shows the wall's plate again and asks for its hint (askHint);
@@ -150,9 +154,9 @@ function WALL_HINTS.bindKey(applies)
     assert(type(applies) == "function", "WALL_HINTS.bindKey needs area_locks.lua's AREA_LOCKS.actOn")
     local function answerHintKey()
         if WORLD.takeYes() then return end
-        local lock = lockedWallAtPlayer(applies)
+        local lock, why = lockedWallAtPlayer(applies)
         if not lock then
-            log("hint key: no locked wall within reach; nothing to ask")
+            log("hint key: " .. why .. "; nothing to ask")
             return
         end
         local _, info = wallNotice(lock)

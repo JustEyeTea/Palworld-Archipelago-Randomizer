@@ -207,23 +207,38 @@ function h.otherSideOfStart(wall)
 end
 
 local SPOT_FROM_WALL = 1500                              -- game units: close enough for the wall's notice
+local SPOT_AT_WALL = 200                                 -- game units: standing against the wall, as in game
 local LONG_WALL = 5000                                   -- game units: a spot beside its middle is beside it alone
--- A spot on the start's side of a long wall between the start and a lock `wanted(lock, wall)` accepts (the first
--- such wall piece in the file). Returns the spot (a location), the lock, and the wall piece's row.
-function h.spotBesideStart(wanted)
-    local start, liveWalls = shared.WD.start, require("walls")
+-- A spot `distance` from the middle of a long wall between the start and a lock `wanted(lock, wall)` accepts, where
+-- the map's cell reads as `cellOf(lock)` (the first such wall piece in the file). Returns the spot (a location), the
+-- lock, and the wall piece's row.
+local function spotByWall(wanted, distance, cellOf)
+    local liveWalls = require("walls")
     for _, wall in ipairs(shared.WD.walls) do
         local other = h.otherSideOfStart(wall)
         if other and wall.length > LONG_WALL and wanted(other, wall) then
             local yaw, spot = math.rad(wall.yaw), nil
             for _, side in ipairs({ 1, -1 }) do
-                local x = wall.x - side * math.sin(yaw) * SPOT_FROM_WALL
-                local y = wall.y + side * math.cos(yaw) * SPOT_FROM_WALL
-                if liveWalls.lockAt(x, y) == start then
+                local x = wall.x - side * math.sin(yaw) * distance
+                local y = wall.y + side * math.cos(yaw) * distance
+                if liveWalls.lockAt(x, y) == cellOf(other) then
                     spot = { X = x, Y = y, Z = 0 }
                 end
             end
             if spot then return spot, other, wall end
         end
     end
+end
+
+-- A spot on the start's side of a long wall between the start and a lock `wanted(lock, wall)` accepts, close enough
+-- for the wall's notice. Returns the spot (a location), the lock, and the wall piece's row.
+function h.spotBesideStart(wanted)
+    return spotByWall(wanted, SPOT_FROM_WALL, function() return shared.WD.start end)
+end
+
+-- A spot against a long wall between the start and a lock `wanted(lock, wall)` accepts, whose map cell reads as that
+-- locked lock: the map's cells are coarser than the distance to the wall, as in game, where a player standing on the
+-- start's side at a wall can read as inside the locked lock. Returns the spot, the lock, and the wall piece's row.
+function h.spotAtWallReadAsLocked(wanted)
+    return spotByWall(wanted, SPOT_AT_WALL, function(other) return other end)
 end
