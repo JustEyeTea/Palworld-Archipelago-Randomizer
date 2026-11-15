@@ -93,6 +93,8 @@ function maskMaterial(name)
 end
 rtOwners = {}                                              -- the owner given for every render target made
 exports = 0                                                -- render targets exported to files
+exportedPixels = "png"                                     -- what an export writes (a test changes it: the player
+                                                           -- explored, so the explored mask's pixels changed)
 renderLib = { IsValid = function() return true end,
               ReadRenderTargetPixel = function() return { R = game.mapArt, G = 90, B = 60, A = 255 } end,
               EndDrawCanvasToRenderTarget = function() end }
@@ -107,7 +109,7 @@ end
 function renderLib.ExportRenderTarget(_, _, _, dir, name)
     exports = exports + 1
     local f = io.open(dir .. "/" .. name, "w")
-    f:write("png")
+    f:write(exportedPixels)
     f:close()
 end
 function renderLib.BeginDrawCanvasToRenderTarget(_, _, rt, canvasOut, contextOut)

@@ -855,7 +855,8 @@ group("walls and the map, on fresh copies of walls.lua", function()
     end
     do  -- A fog picture left by an earlier session is never shown: until this session's is made, C++ is given none
         -- (the game's own fog shows). Then, with the map closed, the explored mask is read again from the world's map
-        -- data every MASK_READ_GAP and the picture made again, so places explored since show at the next opening.
+        -- data every MASK_READ_GAP and, if it changed, the picture made again, so places explored since show at the
+        -- next opening. An unchanged mask makes no picture: loading one decodes it on the game thread, a hitch.
         local calls = {}
         local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(game.mapArt)
@@ -888,15 +889,40 @@ group("walls and the map, on fresh copies of walls.lua", function()
         fogBusy = false
         W.updateMap(true, {}, pawn)
         expect(fogPicturesSent() == 1, "this session's picture is handed over once made: " .. fogPicturesSent())
-        local mark = logMark()
-        for _ = 1, W.MASK_READ_GAP do
+        local function aMinuteClosed()
+            for _ = 1, W.MASK_READ_GAP do
+                W.updateMap(true, {}, pawn)
+            end
             W.updateMap(true, {}, pawn)
         end
-        W.updateMap(true, {}, pawn)
-        expect(fogJobs == jobsBefore + 2 and fogPicturesSent() == 2
-               and loggedSince(mark, "the fog picture is made again every 60 s while the map is closed"),
-               "with the map closed, the fog picture is made again from the explored mask a minute later: "
+        local mark = logMark()
+        aMinuteClosed()
+        expect(fogJobs == jobsBefore + 1 and fogPicturesSent() == 1,
+               "a minute later with nothing new explored, no fog picture is made or loaded: "
                .. fogJobs - jobsBefore .. " made, " .. fogPicturesSent() .. " handed over")
+        expect(loggedSince(mark, "while the map is closed, the explored mask is read every 60 s")
+               and loggedSince(mark, "read with the map closed in %d+ ms: unchanged, the fog picture is kept"),
+               "the log says the mask was read and found unchanged, with how long the read took")
+        mark = logMark()
+        exportedPixels = "png, explored further"
+        aMinuteClosed()
+        expect(fogJobs == jobsBefore + 2 and fogPicturesSent() == 2,
+               "a minute after the player explored, the fog picture is made again and handed over: "
+               .. fogJobs - jobsBefore .. " made, " .. fogPicturesSent() .. " handed over")
+        expect(loggedSince(mark, "read with the map closed in %d+ ms: changed, the fog picture is made again")
+               and loggedSince(mark, "the fog picture is ready %(%d+ this session, loaded in %d+ ms"),
+               "the log says the mask changed, and how long the new picture took to load")
+        W.reset()                                                  -- a new world: C++ forgets the fog picture
+        local jobsInOldWorld = fogJobs
+        for _ = 1, W.MASK_READ_GAP do
+            W.updateMap(true, {}, pawn)
+            if fogJobs > jobsInOldWorld then break end
+        end
+        W.updateMap(true, {}, pawn)
+        expect(fogJobs == jobsInOldWorld + 1 and fogPicturesSent() == 3,
+               "in a new world the first mask read makes a fog picture even if the mask is the same: "
+               .. fogJobs - jobsInOldWorld .. " made, " .. fogPicturesSent() .. " handed over")
+        exportedPixels = "png"
         util.GetLocalWorldMapData = nil
         takeAway()
         putBack()

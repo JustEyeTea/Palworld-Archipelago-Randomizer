@@ -272,13 +272,6 @@ local function mapPrint(rendering, tex, gameInstance)
     end
     return table.concat(parts, ";")
 end
-local function readFile(path)
-    local f = io.open(path, "rb")
-    if not f then return nil end
-    local s = f:read("*a")
-    f:close()
-    return s
-end
 local function colourMap(rendering, tex, gameInstance)
     local path = W.dir .. "\\" .. COLOUR_FILE
     if not printChecked then
@@ -290,7 +283,7 @@ local function colourMap(rendering, tex, gameInstance)
             log("map: no fingerprint (" .. tostring(fp) .. "): keeping the saved colour map")
         end
     end
-    local saved = readFile(path .. ".txt")
+    local saved = UTIL.readFile(path .. ".txt")
     if UTIL.exists(path) then
         if not printNow or saved == printNow then return path end
         if saved then log("map: the game's map picture changed (another mod?): saving it again")
