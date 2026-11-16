@@ -895,7 +895,7 @@
   "FTPoint112": "Levels 17-28",
   "FTPoint113": "Levels 35-40",
   "FTPoint114": "Levels 35-40 (3)",
-  "FTPoint115": "Levels 29-34 (3)",
+  "FTPoint115": "Levels 35-40 (3)",
   "FTPoint116": "Levels 41-48",
   "FTPoint117": "Levels 49-59",
   "FTPoint118": "Levels 49-59",
@@ -940,7 +940,7 @@
   "FTPoint39": "Levels 29-34 (2)",
   "FTPoint4": "Levels 17-28",
   "FTPoint40": "Levels 17-28 (3)",
-  "FTPoint41": "Levels 1-16 (2)",
+  "FTPoint41": "Levels 17-28 (3)",
   "FTPoint42": "Levels 1-16",
   "FTPoint43": "Levels 17-28",
   "FTPoint44": "Levels 1-16 (2)",
@@ -1135,7 +1135,6 @@
    "Levels 1-16": 2,
    "Levels 1-16 (2)": 2,
    "Levels 1-16 (3)": 10,
-   "Levels 29-34 (3)": 35,
    "Levels 35-40": 35,
    "Levels 35-40 (3)": 35
   },
@@ -1143,7 +1142,6 @@
   "018": {
    "Levels 1-16 (3)": 22,
    "Levels 17-28 (4)": 20,
-   "Levels 29-34 (3)": 39,
    "Levels 35-40": 39,
    "Levels 35-40 (3)": 39
   },
@@ -1256,7 +1254,7 @@
    "Levels 17-28": 18
   },
   "038B": {
-   "Levels 29-34 (3)": 32,
+   "Levels 29-34 (3)": 36,
    "Levels 35-40": 32,
    "Levels 35-40 (3)": 32
   },
@@ -1368,7 +1366,6 @@
    "Levels 49-59 (6)": 34
   },
   "056B": {
-   "Levels 29-34 (3)": 40,
    "Levels 35-40": 40,
    "Levels 35-40 (3)": 40,
    "Levels 41-48 (2)": 52,
@@ -1389,18 +1386,15 @@
    "Levels 17-28 (3)": 20
   },
   "059": {
-   "Levels 1-16 (2)": 15,
    "Levels 17-28": 15,
    "Levels 17-28 (3)": 15,
    "Levels 60-69 (2)": 64
   },
   "060": {
-   "Levels 1-16 (2)": 16,
    "Levels 17-28": 16,
    "Levels 17-28 (3)": 16
   },
   "061": {
-   "Levels 1-16 (2)": 16,
    "Levels 17-28": 16,
    "Levels 17-28 (3)": 16
   },
@@ -1409,7 +1403,6 @@
    "Levels 60-69 (2)": 64
   },
   "063": {
-   "Levels 1-16 (2)": 25,
    "Levels 17-28": 25,
    "Levels 17-28 (3)": 25,
    "Levels 17-28 (4)": 20,
@@ -1453,7 +1446,6 @@
    "Levels 35-40": 30
   },
   "070": {
-   "Levels 1-16 (2)": 25,
    "Levels 17-28": 25,
    "Levels 17-28 (3)": 25,
    "Levels 29-34 (2)": 32,
@@ -1519,7 +1511,6 @@
    "Levels 49-59 (7)": 51
   },
   "079": {
-   "Levels 1-16 (2)": 25,
    "Levels 17-28": 25,
    "Levels 17-28 (3)": 25,
    "Levels 29-34 (2)": 32,
@@ -1529,7 +1520,6 @@
   },
   "079B": {},
   "080": {
-   "Levels 1-16 (2)": 25,
    "Levels 17-28": 25,
    "Levels 17-28 (3)": 24,
    "Levels 29-34 (2)": 34,
@@ -1600,13 +1590,11 @@
    "Levels 1-16": 26,
    "Levels 1-16 (2)": 26,
    "Levels 17-28": 26,
-   "Levels 29-34 (3)": 36,
    "Levels 35-40": 36,
    "Levels 35-40 (3)": 36,
    "Levels 70-80": 80
   },
   "087B": {
-   "Levels 29-34 (3)": 37,
    "Levels 35-40": 36,
    "Levels 35-40 (3)": 37,
    "Levels 70-80": 80
@@ -1698,14 +1686,12 @@
   },
   "097B": {},
   "098": {
-   "Levels 29-34 (3)": 31,
    "Levels 35-40": 31,
    "Levels 35-40 (3)": 31,
    "Levels 49-59 (2)": 52,
    "Levels 60-69": 56
   },
   "098B": {
-   "Levels 29-34 (3)": 36,
    "Levels 35-40": 35,
    "Levels 35-40 (3)": 36,
    "Levels 70-80": 75
@@ -1725,7 +1711,6 @@
   },
   "101": {
    "Levels 29-34 (2)": 32,
-   "Levels 29-34 (3)": 36,
    "Levels 35-40 (3)": 36,
    "Levels 70-80": 80
   },
@@ -1738,7 +1723,6 @@
    "Levels 70-80": 70
   },
   "103": {
-   "Levels 29-34 (3)": 32,
    "Levels 35-40": 32,
    "Levels 35-40 (3)": 32,
    "Levels 70-80": 80
@@ -1771,7 +1755,6 @@
   },
   "108": {
    "Levels 1-16": 33,
-   "Levels 1-16 (2)": 34,
    "Levels 17-28": 34,
    "Levels 17-28 (3)": 34,
    "Levels 49-59 (6)": 48,
@@ -1843,7 +1826,6 @@
    "Levels 70-80": 75
   },
   "117": {
-   "Levels 29-34 (3)": 40,
    "Levels 35-40": 40,
    "Levels 35-40 (3)": 40,
    "Levels 41-48 (2)": 52,
@@ -1882,7 +1864,6 @@
    "Levels 41-48": 47
   },
   "124": {
-   "Levels 29-34 (3)": 40,
    "Levels 35-40": 40,
    "Levels 35-40 (3)": 40,
    "Levels 41-48 (2)": 52,
@@ -1891,7 +1872,6 @@
    "Levels 70-80": 80
   },
   "124B": {
-   "Levels 29-34 (3)": 45,
    "Levels 35-40 (3)": 45,
    "Levels 49-59 (7)": 53,
    "Levels 70-80": 80
@@ -2005,7 +1985,7 @@
    "Levels 17-28 (3)": 18,
    "Levels 29-34": 30,
    "Levels 29-34 (2)": 30,
-   "Levels 29-34 (3)": 32,
+   "Levels 29-34 (3)": 34,
    "Levels 35-40": 25,
    "Levels 35-40 (2)": 35,
    "Levels 35-40 (3)": 32,
@@ -2269,10 +2249,10 @@
     30,
     55
    ],
-   "effigies": 9,
-   "fast_travel": 9,
-   "levels": 14.0,
-   "spawners": 605
+   "effigies": 5,
+   "fast_travel": 8,
+   "levels": 13.583333333333334,
+   "spawners": 558
   },
   "Levels 1-16 (3)": {
    "alphas": [],
@@ -2288,10 +2268,10 @@
     35,
     40
    ],
-   "effigies": 29,
+   "effigies": 32,
    "fast_travel": 13,
    "levels": 23.833333333333332,
-   "spawners": 461
+   "spawners": 477
   },
   "Levels 17-28 (2)": {
    "alphas": [],
@@ -2306,10 +2286,10 @@
     28,
     30
    ],
-   "effigies": 16,
-   "fast_travel": 8,
+   "effigies": 17,
+   "fast_travel": 9,
    "levels": 23.0,
-   "spawners": 384
+   "spawners": 415
   },
   "Levels 17-28 (4)": {
    "alphas": [
@@ -2345,9 +2325,9 @@
   "Levels 29-34 (3)": {
    "alphas": [],
    "effigies": 6,
-   "fast_travel": 2,
+   "fast_travel": 1,
    "levels": 34.785714285714285,
-   "spawners": 51
+   "spawners": 49
   },
   "Levels 29-34 (4)": {
    "alphas": [],
@@ -2384,9 +2364,9 @@
     46
    ],
    "effigies": 8,
-   "fast_travel": 2,
+   "fast_travel": 3,
    "levels": 40.5,
-   "spawners": 101
+   "spawners": 103
   },
   "Levels 35-40 (4)": {
    "alphas": [

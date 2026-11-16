@@ -8,6 +8,7 @@ Tests: none of its own; the APWorld's test_levels.py and the Lua harness check t
 """
 import collections
 from collections import deque
+from typing import List, NamedTuple, Tuple
 
 import numpy as np
 
@@ -237,14 +238,32 @@ def route_out(piece, reached, trip, labels, land, tier):
     return flight, True
 
 
+class Corridor(NamedTuple):
+    """A flying corridor's two mouths, as grid cells (row, column): where it leaves land the player already reaches
+    with its tier's pass, and where it enters the walled-in piece."""
+    tier: int
+    near: Tuple[int, int]
+    far: Tuple[int, int]
+
+
+class WaysOut(NamedTuple):
+    """open_walled_in_pieces' result."""
+    labels: np.ndarray            # every cell's lock, the ways now labelled with their pieces' tier
+    flying: np.ndarray            # the cells a player must fly to: each flown route with its piece
+    beneath: np.ndarray           # under a way, the tier its cells had before (0 elsewhere): a way only gets the
+                                  # player through, so its checks stay with that tier (lock_walls.check_pieces)
+    corridors: List[Corridor]
+
+
 def open_walled_in_pieces(labels, land, outside, start):
     """For each piece of a tier that only higher tiers' walls surround on the finished map (land and water labelled),
     a way of its own tier, TUNNEL_HALF_WIDTH wide, to what the player already reaches with its pass from the start's
     land: a lane through water, or a corridor over higher land (the Astral Mountains valley, and the low islands
-    north of the start, whose only lane by sea is a long way round). Returns the labels and the cells a player must
-    fly to: each flown route with its piece."""
+    north of the start, whose only lane by sea is a long way round). Returns WaysOut."""
     labels = labels.copy()
     flying = np.zeros((N, N), bool)
+    beneath = np.zeros((N, N), np.int16)
+    corridors = []
     open_sea = (labels == 0) & ~land & ~outside
     for tier in range(1, len(TIER_TOP_LEVELS) + 1):
         reached = reached_with(labels, open_sea, tier)
@@ -256,12 +275,20 @@ def open_walled_in_pieces(labels, land, outside, start):
             if route is None:
                 continue
             way = grow(route, TUNNEL_HALF_WIDTH) & ~outside & ((labels > tier) | piece) & (flown | ~land)
+            beneath[way & ~piece] = labels[way & ~piece]
             labels[way] = tier
             if flown:
                 flying |= piece | way
+                corridors.append(Corridor(tier, first_cell(route & reached), first_cell(route & piece)))
             print(f"{TIER_NAMES[tier - 1]}: a walled-in piece of {int(sizes[part])} cells gets a "
                   f"{'flying corridor' if flown else 'water lane'} of {int(route.sum())} cells ({int(way.sum())} wide)")
-    return labels, flying
+    return WaysOut(labels, flying, beneath, corridors)
+
+
+def first_cell(mask):
+    """The first cell (row, column) of a mask that holds one."""
+    rows, cols = np.nonzero(mask)
+    return int(rows[0]), int(cols[0])
 
 
 def label_land_by_level(refs, region_labels, land, region_index):

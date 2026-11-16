@@ -162,6 +162,22 @@ group("Lock Size: levels", function()
     expect(wallCount() < afterOne and ap.passes["Levels 29-34"]
            and liveWalls.passNeeded("Levels 35-40", ap.passes) == "3 Progressive Level Passes (2 so far)",
            "the second copy opens the tier after: " .. liveWalls.passNeeded("Levels 35-40", ap.passes))
+    do  -- Flying corridors: a fly-up icon at each near mouth while its tier is open, until the player flies through.
+        local corridors = liveWalls.corridors()
+        expect(#corridors == 2 and corridors[1].lock == 1 and corridors[2].lock == 3,
+               "the tiers' walls file lists the two flying corridors (the start's islands, the Astral valley)")
+        expect(table.concat(liveWalls.flyUpList(ap.passes), ",") == "1,2",
+               "both corridors' tiers are open and neither is flown: both get a fly-up icon")
+        local far = corridors[1]
+        pawnAt = { X = far.farX, Y = far.farY, Z = 0 }
+        runCycles(1)
+        local SAVE = require("save")
+        SAVE.write(true)
+        local saved = io.open(SAVE.path()):read("*a")
+        expect(ap.flown[1] and logged("flew through corridor 1")
+               and table.concat(liveWalls.flyUpList(ap.passes), ",") == "2" and saved:find("\nflown=1\n", 1, true),
+               "at a corridor's far mouth the player has flown through it: its icon goes, and the save keeps it")
+    end
     expect(liveWalls.pieceSkin(1, ap.passes, "regions"):match("^paws:") ~= nil,
            "the tiers have no wall tiles: the regions look wears the paws in the tier's colour")
     do  -- The server sends a hint line per copy; a copy already found never replaces one still to find.

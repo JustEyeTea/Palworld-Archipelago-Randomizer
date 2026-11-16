@@ -6,16 +6,16 @@
 --   (tools/lua_harness.sh, in CI).
 -- W, the table main.lua sees. Its fields:
 --   handed over by main.lua (W.install, from config.txt): keepAlive, keepInPlace, dir, radius, fade, tiling, scroll,
---     mapStyle, cppOff, testFogColour, chartOff, iconsOff, chartBordersOff, visited (main.lua's own set, again through
---     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
---     install. The harness sets them on its copies directly
---   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
---     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, passNeeded,
---     regionOf,
+--     mapStyle, cppOff, testFogColour, chartOff, iconsOff, chartBordersOff, visited and flown (main.lua's own sets,
+--     again through setVisited and setFlown for a new seed), and beyond (slot data, through setBeyond); each part sets
+--     its own defaults at install. The harness sets them on its copies directly
+--   called by main.lua and its other modules: install, setVisited, setFlown, corridors, update, updateMap, reset,
+--     setLayout, setBeyond, setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt,
+--     passName, passNeeded, regionOf,
 --     slugOf, mapShown, mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS, SPAWN_ALWAYS (glow_pieces.lua)
 --   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin,
---     REGION_COLOURS
+--     REGION_COLOURS, flyUpList
 local W = {}
 W.layout = "regions"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
@@ -29,7 +29,7 @@ end
 local HANDED_OVER = {
     keepAlive = true, keepInPlace = true, dir = true, visited = true, radius = true, fade = true, tiling = true,
     scroll = true, mapStyle = true, cppOff = true, testFogColour = true, chartOff = true, iconsOff = true,
-    chartBordersOff = true,
+    chartBordersOff = true, flown = true,
 }
 
 -- Takes what main.lua hands over, each as the field of its name that the parts read. A name not in the list is an
@@ -47,6 +47,10 @@ end
 function W.setVisited(set)
     W.visited = set
 end
+-- The flying corridors flown through: main.lua's own set (in its save), handed over again as setVisited's.
+function W.setFlown(set)
+    W.flown = set
+end
 
 local LOCKS = freshPart("locks")
 LOCKS.install(W)
@@ -55,6 +59,10 @@ local MAP_PICTURE = freshPart("map_picture")
 local MAP_ICONS = freshPart("map_icons")
 local MAP_FOG = freshPart("map_fog")
 local layout, isOpen = LOCKS.layout, LOCKS.isOpen
+-- The cut's flying corridors (*_walls.lua: near and far mouths, lock), numbered as the save's flown set.
+function W.corridors()
+    return layout.corridors
+end
 W.passName, W.lockAt, W.lockedAround, W.regionOf = LOCKS.passName, LOCKS.lockAt, LOCKS.lockedAround, LOCKS.regionOf
 W.passNeeded = LOCKS.passNeeded
 W.setBeyond, W.slugOf = LOCKS.setBeyond, LOCKS.slugOf
@@ -577,6 +585,7 @@ MAP_PICTURE.install({ W = W, locks = LOCKS, icons = MAP_ICONS, fog = MAP_FOG })
 MAP_FOG.install({ W = W, locks = LOCKS, icons = MAP_ICONS, picture = MAP_PICTURE })
 W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_FOG.mapShown, MAP_FOG.mapOff
 W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_ICONS.worldAt                              -- (for the harness)
+W.flyUpList = MAP_ICONS.flyUpList                                                               -- (for the harness)
 W.lockedStampArt = MAP_ICONS.lockedStampArt                                                    -- (for the harness)
 W.MASK_READ_GAP = MAP_FOG.MASK_READ_GAP                                                        -- (for the harness)
 

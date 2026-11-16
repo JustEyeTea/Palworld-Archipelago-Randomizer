@@ -21,6 +21,8 @@ local log, onceErr = UTIL.log, UTIL.onceErr
 local notify, playerState = PLAYER.notify, PLAYER.playerState
 local SENT_HOME_AFTER = 2       -- looks in a row (one per cycle) inside a lock still locked before going home
 local CM_PER_METRE = 100        -- config.txt gives the walls' distances in metres; the game measures in centimetres
+local FLOWN_RADIUS_CM = 8000    -- 80 m: a flying corridor is 160 m wide (tools/level_tiers.py), so a player passing
+                                -- its far mouth comes this close to the middle of it
 
 local wallsLogged = false     -- the first raising of walls was logged: forgotten never (once a session)
 local lockedTicks = 0         -- looks in a row inside a lock still locked: forgotten never (back to 0 outside one)
@@ -39,6 +41,7 @@ function AREA_LOCKS.configureWalls(dir)
     local settings = {
         keepAlive = keepAlive, keepInPlace = keepInPlace, dir = dir,
         visited = ap.visited,                 -- (the same table: the map reads it)
+        flown = ap.flown,                     -- (the same table: the map reads it)
         cppOff = cfg.map_cpp == "0",
         chartOff = cfg.map_chart == "0",
         iconsOff = cfg.map_icons == "0",
@@ -83,6 +86,19 @@ local function rememberVisited(pawn)
     if here == WALLS.start or ap.passes[here] then
         ap.visited[here] = true
         log("visited " .. here)
+    end
+end
+
+-- Flying corridors the player has flown through (within FLOWN_RADIUS_CM of a corridor's far mouth, which it must pass
+-- to get through), remembered so the map's fly-up icon at its near mouth goes.
+local function rememberFlown(pawn)
+    local x, y = PLAYER.pawnXY(pawn)
+    if not x then return end
+    for number, corridor in ipairs(WALLS.corridors()) do
+        if not ap.flown[number] and math.sqrt((x - corridor.farX) ^ 2 + (y - corridor.farY) ^ 2) < FLOWN_RADIUS_CM then
+            ap.flown[number] = true
+            log("flew through corridor " .. number)
+        end
     end
 end
 
@@ -155,6 +171,7 @@ end
 function AREA_LOCKS.phaseLocks(pawn)
     if not AREA_LOCKS.actOn(pawn) then return end
     rememberVisited(pawn)
+    rememberFlown(pawn)
     -- Not while Ctrl+7 holds the walls without collision or removed: a player could drift across a border then.
     if PERF.walls == "full" then
         sendHomeIfLocked(pawn)

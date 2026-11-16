@@ -951,4 +951,10 @@ return {
         { x = -815460, y = -326676, length = 17702, yaw = 131.6, lockA = 6, lockB = 7 },
         { x = -824867, y = -322367, length = 8814, yaw = -149.0, lockA = 6, lockB = 7 },
     },
+    -- Flying corridors: near (x, y: where one leaves land a player reaches with its lock's pass) and far
+    -- (where it enters the land it leads to), in game units; lock its lock's index.
+    corridors = {
+        { nearX = -286623, nearY = 121699, farX = -199695, farY = 121699, lock = 1 },
+        { nearX = -67854, nearY = 53606, farX = -25839, farY = 59401, lock = 3 },
+    },
 }

@@ -213,6 +213,9 @@ Every item and every location, each with its name and permanent id.
   and `levels`, Level Progression's tiers (copies of one Progressive Level Pass: `pass_counts` says how many each tier
   needs, and `in_order` keeps a seed's tiers without a gap). `flying` names the pieces a flying mount reaches: the
   Sky Islands, and with the tiers a piece only higher tiers surround (its walled corridor cut by `level_tiers.py`).
+  A corridor holds no checks: `lock_walls.check_pieces` gives its cells' spawn points and objects to the tier
+  beneath, and `lock_model.py` places every check by that grid. Its two mouths are in `level_walls.lua`'s
+  `corridors`, for the map's fly-up icon (`map_icons.lua`) and the save's `flown` set (`area_locks.lua`).
 - **Groups.** `ITEM_GROUPS` and `LOCATION_GROUPS` are the names players can use for hints and `start_inventory`.
 
 A few `assert`s at import time stop generation at once if two items or locations share a name or an id, or a

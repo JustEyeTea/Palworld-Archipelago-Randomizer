@@ -27,6 +27,11 @@ class TestLevelsLockSize(PalworldTestBase):
         self.assertEqual(len(PASS_TIERS), 7)
         self.assertFalse(any(n.startswith(("Region Pass: ", "Area Pass: ")) for n in names))
 
+    def test_a_corridor_holds_no_checks(self):
+        """A corridor only gets the player through (lock_walls.check_pieces): the fast-travel statue on the start
+        islands' corridor counts for the levels 17-28 land it stands in, whose pass takes the corridor's walls down."""
+        self.assertEqual(LEVEL_MODE["FAST_TRAVEL"]["FTPoint41"], "Levels 17-28 (3)")
+
     def test_tiers_open_in_order(self):
         self.assertTrue(self.can_reach_region(LEVEL_MODE["START"]))
         self.assertFalse(self.can_reach_region(PASS_TIERS[0]))

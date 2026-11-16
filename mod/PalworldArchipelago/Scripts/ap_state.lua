@@ -50,6 +50,8 @@ local ap = {
                           -- Forgotten on a new seed
     visited = {},         -- lock -> true: open locks the player has stood in (the map's open stamps; in the save
                           -- file). Forgotten on a new seed (a new table: main.lua hands it to the walls again)
+    flown = {},           -- corridor number -> true: flying corridors flown through, so the map's fly-up icon there
+                          -- goes (in the save file). Forgotten on a new seed, as visited
     goalSent = false,     -- sent on this connection (cleared on connecting, so a goal lost on the wire goes again).
                           -- Forgotten each connection and on a new seed
     goalShown = false,    -- the goal's banner and notice have been shown (once per seed; in the save file).
@@ -88,6 +90,7 @@ function STATE.forgetSeed()
     ap.world = nil
     ap.from, ap.forgiven = {}, 0
     ap.visited = {}
+    ap.flown = {}
 end
 
 return STATE

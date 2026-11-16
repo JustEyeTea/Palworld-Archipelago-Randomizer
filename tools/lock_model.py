@@ -63,6 +63,8 @@ class LockGrid:
                      "tools/lock_walls.py with the same LOCK_SIZE, or point LOCK_GRID at its grid")
         self.x_min, self.x_max, self.y_min, _ = (float(v) for v in grid["bounds"])
         self.pieces = grid["pieces"]
+        # where checks are placed: a corridor's or lane's cells go to the lock they lie in (lock_walls.check_pieces)
+        self.check_pieces = grid["check_pieces"] if "check_pieces" in grid.files else self.pieces
         self.size = self.pieces.shape[0]
         self.cell = (self.x_max - self.x_min) / self.size
         self.lock_names = [str(n) for n in grid["names"]]
@@ -85,8 +87,8 @@ class LockGrid:
         return names
 
     def piece_at(self, x, y):
-        """The piece under a spot, or the nearest land piece within LAND_SEARCH_CELLS of it (a spot on the water's
-        edge); off the main map, the World Tree's lock."""
+        """The piece a check at a spot is placed in (check_pieces): the piece under it, or the nearest land piece within
+        LAND_SEARCH_CELLS of it (a spot on the water's edge); off the main map, the World Tree's lock."""
         row, col = int((self.x_max - x) / self.cell), int((y - self.y_min) / self.cell)
         if not (0 <= row < self.size and 0 <= col < self.size):
             return self.off_map
@@ -94,14 +96,14 @@ class LockGrid:
             for piece in self.pieces_on_ring(row, col, radius):
                 if piece and self.piece_lock[piece] != 0:
                     return self.piece_name[piece]
-        return self.piece_name.get(int(self.pieces[row, col]), SEA)
+        return self.piece_name.get(int(self.check_pieces[row, col]), SEA)
 
     def pieces_on_ring(self, row, col, radius):
-        """The pieces of the cells on the square ring `radius` cells around (row, col), inside the grid."""
+        """The check pieces of the cells on the square ring `radius` cells around (row, col), inside the grid."""
         for i in range(-radius, radius + 1):
             for j in range(-radius, radius + 1):
                 if max(abs(i), abs(j)) == radius and 0 <= row + i < self.size and 0 <= col + j < self.size:
-                    yield int(self.pieces[row + i, col + j])
+                    yield int(self.check_pieces[row + i, col + j])
 
 
 def read_spawn_points(tables, spawner_pals):

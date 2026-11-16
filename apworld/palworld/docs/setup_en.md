@@ -87,7 +87,9 @@ with `[PalworldAP]`.
   the pak, a coloured wall with paw-shaped holes, slate grey beyond your goal. Press `H` at a wall to buy a hint for
   its pass (the `hint_key` setting).
 - The logic expects a mount that swims or flies to cross the open sea, and a flying one to reach the Sky Islands (and,
-  with Lock Size: levels, the Astral Mountains valley up its walled corridor).
+  with Lock Size: levels, the Astral Mountains valley and the Isles of Silence up their walled corridors). A wing icon
+  on the map marks where each corridor starts, until you have flown through it. A corridor only gets you through: the
+  Pals and statues inside it count for the tier around it.
 
 ## Not tested in game yet
 

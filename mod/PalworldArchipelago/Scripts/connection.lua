@@ -63,6 +63,7 @@ end
 local function resetSeed(seed, slot)
     STATE.forgetSeed()
     WALLS.setVisited(ap.visited)              -- (the new table: the map reads it)
+    WALLS.setFlown(ap.flown)                  -- (the same)
     CRATES.reset()
     RUN_STYLE.reset()
     MAIL.reset()

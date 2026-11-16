@@ -19,7 +19,8 @@ local SEA = "Open sea"
 -- index), start (the starting lock), map (*_map.lua: which lock each spot of the map is in), bounds (the map's xMin,
 -- xMax, yMin, yMax in world units), centres (*_centres.lua, by lock index: deepU, deepV its deepest point, stampU,
 -- stampV its stamp's place on the map square, room how far that is from the edge), shapes (*_shapes.lua, loaded when
--- first needed: only for a map drawn without the compositor) and prefix (of the cut's file names).
+-- first needed: only for a map drawn without the compositor), corridors (*_walls.lua: the flying corridors' mouths
+-- and lock) and prefix (of the cut's file names).
 -- Forgotten: layout and decoded are made again at a change of cut (useLayoutData); beyondNames when the set beyond the
 -- goal arrives; regionOfArea never (a data file, the same for every seed).
 local layout = {}
@@ -31,7 +32,7 @@ local function useLayoutData(name)
     local prefix = FILE_PREFIX[name]
     local walls = require(prefix .. "walls")
     layout.prefix, layout.walls, layout.locks, layout.start = prefix, walls.walls, walls.locks, walls.start
-    layout.thickness = walls.thickness
+    layout.thickness, layout.corridors = walls.thickness, walls.corridors or {}
     layout.map, layout.shapes = require(prefix .. "map"), nil
     layout.bounds = layout.map.bounds
     layout.centres = require(prefix .. "centres")    -- rows by name, as tools/lock_centres.py writes them (see above)
@@ -174,7 +175,7 @@ end
 -- Hands over walls.lua's public table, and loads the 15 regions' cut, the one in use until the seed says otherwise.
 function LOCKS.install(walls)
     W = walls
-    W.beyond, W.visited = {}, {}
+    W.beyond, W.visited, W.flown = {}, {}, {}
     W.REGION_COLOURS = REGION_COLOURS                                -- (for the harness's colour tests)
     useLayoutData("regions")
 end
