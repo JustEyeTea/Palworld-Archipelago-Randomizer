@@ -26,7 +26,7 @@ rules and old code is not made worse.
   it once was. Code that ships to players is never called `probe`, `test`, `old` or `tmp`.
 - **Single letters** are only for a short loop's index or a coordinate (`x`, `y`, `u`, `v`).
 - **Constants** are `UPPER_SNAKE_CASE`, with a comment giving the unit and the reason:
-  `FREE_LEVEL = 15  # levels anyone reaches in the starting zone`. A constant is written once and imported; it is
+  `FREE_LEVEL = 5  # levels anyone reaches in the starting zone`. A constant is written once and imported; it is
   not typed again in another file. Where a copy cannot be avoided (another language, text the player reads, a
   build script), the comment names every copy, and a test compares them where it can. A name in upper case is
   never assigned a second time: a value that changes while the game runs is state, and is written in lower case.

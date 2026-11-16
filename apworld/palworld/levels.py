@@ -14,7 +14,8 @@ from .data import (BREEDING_TECH, CATCHABLE, CAUGHT_KINDS, DIRECT, LAYOUTS, MAX_
 # Tuning, in player levels unless said. The options' descriptions (options.py) and the game page
 # (docs/en_Palworld.md) repeat TOWER_LEVELS, TOWER_MARGIN, PALDECK_MARGIN and RELIC_LEVEL, and the game page also
 # LEVELS_BELOW_PIECE and TECH_POINTS_PER_LEVEL; test_options.py's TestPlayerTextMatchesTheCode checks every copy.
-FREE_LEVEL = 15              # levels anyone reaches in the starting zone
+FREE_LEVEL = 5               # levels anyone reaches in the starting zone with no Pals or spheres: players of
+                             # another Palworld Archipelago found punching to about 4-5 fair, and 7 already too high
 LEVELS_PAST_PIECE = 8        # a piece lets a player level about this far past its typical Pal level
 LEVELS_BELOW_PIECE = 8       # and only a player at most this far below that level can start levelling there
 WORLD_TREE_BOSS_MARGIN = 4   # the World Tree boss asks for this much past its piece's Pal level (half a climb)
