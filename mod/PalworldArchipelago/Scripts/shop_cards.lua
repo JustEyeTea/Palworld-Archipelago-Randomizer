@@ -169,9 +169,10 @@ local function readStarterCategory(card, tech, key, full)
 end
 
 -- A card's picture, the first of these that loads: your own tech's icon; the crate's art; the Progressive Level Pass's
--- ticket (LEVEL_PASS_ART, one for every copy); an Area Pass's (Lock Size: areas) own ticket (art/area-passes/ap-area-pass-<area>.png); a Region Pass's own region's ticket
--- (art/ap-pass-<region>.png), which an Area Pass falls back to; else the small-pass ticket (an area's, though its file
--- is ap-pass-region.png); else the mod's icon for the item's kind. Returns it and its source.
+-- ticket (LEVEL_PASS_ART, one for every copy); an Area Pass's (Lock Size: areas) own ticket
+-- (art/area-passes/ap-area-pass-<area>.png); a Region Pass's own region's ticket (art/ap-pass-<region>.png), which an
+-- Area Pass falls back to; else the small-pass ticket (an area's, though its file is ap-pass-region.png); else the
+-- mod's icon for the item's kind. Returns it and its source.
 local AREA_PASS_ART = "area-passes\\ap-area-pass-"   -- an area's ticket: this, its slug (WALLS.slugOf), .png
 local LEVEL_PASS_ART = "ap-pass-progressive-level"    -- Level Progression's pass ticket
 local function cardPicture(mine, it, kind, card)
@@ -205,7 +206,8 @@ local function cardLabel(tech, card)
     local name = ((sent and not own) and "Sent: " or "") .. SHOP_CARDS.rewardText(tech)
     local clickable = not sent or mine ~= nil
     local it = own and DATA.items[scouted.id]
-    local kind = (it and (it.kind == "pass" or it.kind == "level_pass")) and "area-pass" or (scouted and iconKind(scouted.flags) or "filler")
+    local isPass = it and (it.kind == "pass" or it.kind == "level_pass")
+    local kind = isPass and "area-pass" or (scouted and iconKind(scouted.flags) or "filler")
     local tex, source = cardPicture(mine, it, kind, card)
     UTIL.took("cards: a card's picture", source)
     return { name = name, category = category, clickable = clickable, texture = tex }
