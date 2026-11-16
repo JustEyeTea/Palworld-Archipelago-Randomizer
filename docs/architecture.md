@@ -102,7 +102,8 @@ sequenceDiagram
 | **Area Locks** | The feature as a whole: the map is walled off in parts, and each part opens when its pass arrives. |
 | **Region** | One of the 15 large locked parts (Lock Size: regions, the default), opened by a **Region Pass**. Each is a group of areas. |
 | **Area** | One of the game's 75 named places (the game's `DT_WorldMapAreaData`), locked one by one with Lock Size: areas and opened by an **Area Pass**. |
-| **Lock** | Whichever locked part the seed uses: a region or an area, by Lock Size. Code that serves both sizes alike says lock: the APWorld's logic (`every_lock`, `locks_in_scope` and the routes in `map_plan.py`, the rules in `__init__.py`), `locks.lua` and the map's Lua, and the tools that build either size (`tools/lock_*.py`). Code that means one kind only says region or area. |
+| **Tier** | One of Level Progression's 8 locked parts (Lock Size: levels): the land whose wild Pals by day are in one band of levels (`Levels 1-16` to `Levels 70-80`), wherever it lies. Tiers open in order, each by one more copy of the **Progressive Level Pass**. `tools/level_tiers.py` labels the land by them. |
+| **Lock** | Whichever locked part the seed uses: a region, an area or a tier, by Lock Size. Code that serves every size alike says lock: the APWorld's logic (`every_lock`, `locks_in_scope` and the routes in `map_plan.py`, the rules in `__init__.py`), `locks.lua` and the map's Lua, and the tools that build any size (`tools/lock_*.py`). Code that means one kind only says region, area or tier. |
 | **Piece** | The logic's smallest part of the map: an Archipelago `Region` in `__init__.py`. Each piece belongs to one lock. |
 | **Archipelago Region** | Archipelago's own class for a node in the logic's map (`BaseClasses.Region`). This code makes one per piece. |
 | **The core** | In the Lua mod's comments: `main.lua` and its update loop, with the files split from it (listed under [The Lua mod](#the-lua-mod)), which hand the other modules their state and call them. |
@@ -118,7 +119,7 @@ sequenceDiagram
 | `mod/test/` | The Lua test harness: the mod run against stand-ins for UE4SS, the game and the APConnector. `harness.lua` (the kit and the order the test files run in), `fakes.lua`, `fakes_map.lua` and `fakes_menus.lua` (the stand-ins), `helpers.lua`, and `tests/` (the test groups, a file per topic) |
 | `logicmod/` | Python scripts the Modding Kit's editor runs to build the paks |
 | `tools/` | Generators, test runners and the server-side probe that dumps the game's tables |
-| `data/` | Facts derived from the game: each lock size's pieces, borders and levels (`region-model-1.0.5.json` for the 15 regions, `area-model-1.0.5.json` for the 75 areas), and where each Pal can be obtained (`region-pal-sources-1.0.5.json`, `area-pal-sources-1.0.5.json`) |
+| `data/` | Facts derived from the game: each lock size's pieces, borders and levels (`region-model-1.0.5.json` for the 15 regions, `area-model-1.0.5.json` for the 75 areas, `level-model-1.0.5.json` for the tiers), and where each Pal can be obtained (`region-pal-sources-1.0.5.json`, `area-pal-sources-1.0.5.json`, `level-pal-sources-1.0.5.json`) |
 | `docs/` | This guide, the style guide, and the options page (`docs/options/`) |
 | `art/` | The project's own artwork and the README graphics |
 
@@ -130,11 +131,11 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 
 | File | Made by | From |
 |---|---|---|
-| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py`, given the game version | the table dumps, and that version's `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` and their `area-` versions |
+| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py`, given the game version | the table dumps, and that version's `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` and their `area-` and `level-` versions |
 | `mod/.../Scripts/ap_data.lua` | `tools/gen_lua_data.py` | the APWorld's own tables (`data.py`), so the mod and the APWorld agree on every id |
-| `mod/.../Scripts/region_*.lua`, `area_*.lua`, and `region_labels.png`, `area_labels.png` beside them | `tools/lock_walls.py`, `tools/lock_centres.py` (each run once per size; `LOCK_SIZE=areas` for the 75 areas) | the game's world map, its map rows and `tools/lock_groups.py` |
+| `mod/.../Scripts/region_*.lua`, `area_*.lua`, `level_*.lua`, and `region_labels.png`, `area_labels.png`, `level_labels.png` beside them | `tools/lock_walls.py` (with `tools/level_tiers.py` for the tiers), `tools/lock_centres.py` (each run once per size; `LOCK_SIZE=areas` for the 75 areas, `LOCK_SIZE=levels` for the tiers) | the game's world map, its map rows, its spawn points' levels (the tiers) and `tools/lock_groups.py` |
 | `mod/.../Scripts/area_regions.lua` | `tools/area_regions.py` | `tools/lock_groups.py` |
-| `mod/.../region_field.png`, `area_field.png` | `tools/map_fields.py` | the label pictures |
+| `mod/.../region_field.png`, `area_field.png`, `level_field.png` | `tools/map_fields.py` | the label pictures |
 | `data/*-model-1.0.5.json`, `data/*-pal-sources-1.0.5.json` | `tools/lock_model.py` | the table dumps and `lock_walls.py`'s private grid |
 | `mod/.../Scripts/tech_icons.lua` | `tools/gen_tech_icons.py` | the table dumps |
 | `mod/.../Scripts/tech_gifts.lua` | `tools/gen_tech_gifts.py` | the table dumps |
@@ -154,11 +155,12 @@ flowchart LR
   end
   LG(["lock_groups.py"]) --> LW
   MAP --> LW(["lock_walls.py<br/>lock_centres.py"])
-  LW --> LOCKLUA["the region_ and area_ Lua tables<br/>and their label pictures"]
-  LOCKLUA --> MF(["map_fields.py"]) --> FIELDS["region_field.png<br/>area_field.png"]
+  LT(["level_tiers.py"]) --> LW
+  LW --> LOCKLUA["the region_, area_ and level_ Lua tables<br/>and their label pictures"]
+  LOCKLUA --> MF(["map_fields.py"]) --> FIELDS["region_field.png<br/>area_field.png<br/>level_field.png"]
   LG --> AR(["area_regions.py"]) --> ARL["Scripts/area_regions.lua"]
   LW -->|"private grid"| LM(["lock_model.py"])
-  DUMPS --> LM --> DATA["data/: region- and area-<br/>model and pal-sources JSON"]
+  DUMPS --> LM --> DATA["data/: region-, area- and level-<br/>model and pal-sources JSON"]
   DUMPS --> GA(["gen_apworld_data.py"])
   DATA --> GA --> GD["apworld/palworld/game_data.py"]
   GD --> DPY["data.py<br/>(items and locations)"]
@@ -206,9 +208,11 @@ Every item and every location, each with its name and permanent id.
     item).
 - **`ITEMS` and `LOCATIONS`.** These are made by `_items()` and `_locations()`; each entry is an `ItemDef` or
   `LocationDef`.
-- **`LAYOUTS`.** The two ways of cutting the map (the Lock Size option), in one shape (`Layout`) that the logic reads.
-  Its keys are Lock Size's values: `regions`, the 15 regions (Region Passes), and `areas`, the 75 areas (Area
-  Passes).
+- **`LAYOUTS`.** The three ways of cutting the map (the Lock Size option), in one shape (`Layout`) that the logic reads.
+  Its keys are Lock Size's values: `regions`, the 15 regions (Region Passes), `areas`, the 75 areas (Area Passes),
+  and `levels`, Level Progression's tiers (copies of one Progressive Level Pass: `pass_counts` says how many each tier
+  needs, and `in_order` keeps a seed's tiers without a gap). `flying` names the pieces a flying mount reaches: the
+  Sky Islands, and with the tiers a piece only higher tiers surround (its walled corridor cut by `level_tiers.py`).
 - **Groups.** `ITEM_GROUPS` and `LOCATION_GROUPS` are the names players can use for hints and `start_inventory`.
 
 A few `assert`s at import time stop generation at once if two items or locations share a name or an id, or a
@@ -552,6 +556,7 @@ stateDiagram-v2
   - `test_logic.py`: the level climb, mounts for the sea and the sky;
   - `test_progression.py`: each goal's plan (cap, passes, Regions Beyond the Goal, Gear Logic, the points budget);
   - `test_areas.py`: Lock Size: areas;
+  - `test_levels.py`: Lock Size: levels (passes in order, the flying pieces, a seed's tiers without a gap);
   - `test_options.py`: refused options, and what reaches the mod's slot data.
 - `tools/test_generate.sh N` builds the `.apworld` as players get it and generates N seeds, checking each is
   beatable.

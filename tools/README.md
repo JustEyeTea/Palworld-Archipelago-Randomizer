@@ -30,7 +30,7 @@ game files above.
 
 | Tool | Makes | Reads | Private files |
 |---|---|---|---|
-| `lock_walls.py` | `mod/.../Scripts/<size>_walls.lua`, `_shapes.lua`, `_map.lua`, `mod/.../<size>_labels.png`; a private grid (`.npz`) and overlay | `map/WorldMap-2000.webp`, `regions/regions.json`, `tables/` `DT_PalWildSpawner`, `DT_PalSpawnerPlacement`, `actors_PalLevelObjectUnlockableFastTravelPoint`; `lock_groups.py` | yes |
+| `lock_walls.py` | `mod/.../Scripts/<size>_walls.lua`, `_shapes.lua`, `_map.lua`, `mod/.../<size>_labels.png`; a private grid (`.npz`) and overlay | `map/WorldMap-2000.webp`, `regions/regions.json`, `tables/` `DT_PalWildSpawner`, `DT_PalSpawnerPlacement`, `actors_PalLevelObjectUnlockableFastTravelPoint`; `lock_groups.py`, `level_tiers.py` (`LOCK_SIZE=levels`) | yes |
 | `lock_centres.py` | `mod/.../Scripts/<size>_centres.lua` | `<size>_labels.png` | no |
 | `map_fields.py` | `mod/.../<size>_field.png` | `<size>_labels.png` | no |
 | `area_regions.py` | `mod/.../Scripts/area_regions.lua` | `lock_groups.py` | no |
@@ -45,8 +45,8 @@ game files above.
 | `make_ap_icons.py` | `mod/.../icons/{progression,useful,filler}.png` | Archipelago's `data/icon.png` | no |
 | `plot_world.py` | a private picture of the world's spawners, alphas, towers and fast-travel points | `tables/` | yes |
 
-`<size>` is `region` (the 15 regions) or `area` (the 75 areas, with `LOCK_SIZE=areas` in the environment); `<v>` is
-the game version's first three parts (`1.0.5`).
+`<size>` is `region` (the 15 regions), `area` (the 75 areas, with `LOCK_SIZE=areas` in the environment) or `level`
+(Level Progression's tiers, with `LOCK_SIZE=levels`); `<v>` is the game version's first three parts (`1.0.5`).
 
 **After a game update**, in this order (each step reads what the one before wrote):
 1. Dump the tables again with the probe, into a new `<refs>` folder.
@@ -81,7 +81,9 @@ The Archipelago tools take `AP_DIR`, your Archipelago folder with its venv in `.
 
 | Module | What it holds |
 |---|---|
-| `lock_groups.py` | the 15 regions and 75 areas as groups of the game's map rows; `LOCK_SIZE` picks the set the map tools build |
+| `lock_groups.py` | the 15 regions and 75 areas as groups of the game's map rows, and Level Progression's tier bands; `LOCK_SIZE` picks the set the map tools build |
+| `level_tiers.py` | Level Progression: the land labelled by its Pals' level, and the water lanes and flying corridors to walled-in tiers (used by `lock_walls.py`) |
+| `grid_cells.py` | the map tools' grid and the steps on it they share (`lock_walls.py`, `level_tiers.py`) |
 | `towers.py` | the game's 13 tower bosses: number, boss type, the lock model's place, the goal tower's name |
 | `table_dumps.py` | the reader of the table dumps, and the facts several tools read the same way from them |
 | `apworld_loader.py` | loading the APWorld's tables or Archipelago's modules without Archipelago's loader; the Archipelago folder and version |

@@ -80,16 +80,19 @@ with `[PalworldAP]`.
   does what you get from opening a Palworld Crate or from a Nomad tech. Gear and accessories don't show in the
   mailbox's chest: they go into your bag when you open the mailbox (with a full bag, they wait until you open it again).
 - With Area Locks on, a locked region is walled off and shown grey on the map until its Region Pass arrives (with
-  Lock Size: areas, each area and its Area Pass). Its walls wear the region's colour: with
+  Lock Size: areas, each area and its Area Pass; with Lock Size: levels, each tier, opened in order by Progressive
+  Level Passes, its walls cream paws over the tier's colour). Its walls wear the region's colour: with
   `PalworldArchipelagoArt.pak`, the region's own wall over it, and a bunker grille on a region beyond your goal (an
   older pak without the region walls shows cream paws over the colour instead, slate grey beyond your goal); without
   the pak, a coloured wall with paw-shaped holes, slate grey beyond your goal. Press `H` at a wall to buy a hint for
   its pass (the `hint_key` setting).
-- The logic expects a mount that swims or flies to cross the open sea, and a flying one to reach the Sky Islands.
+- The logic expects a mount that swims or flies to cross the open sea, and a flying one to reach the Sky Islands (and,
+  with Lock Size: levels, the Astral Mountains valley up its walled corridor).
 
 ## Not tested in game yet
 
 - The **World Tree** goal.
+- **Lock Size: levels** (Level Progression): its walls, passes and hints are new and not yet played.
 - **Alpha checks**: the key the game records a beaten alpha under is not confirmed yet. If beating an alpha sends
   nothing (the log says `alpha record key not mapped`), turn Alpha Checks off for your next game.
 
