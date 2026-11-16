@@ -1,9 +1,10 @@
-"""Locks (the 15 regions, or with LOCK_SIZE=areas the 75 areas: tools/lock_groups.py) and their walls, from the game's
-own map. Every spot of the world gets a lock:
+"""Locks (the 15 regions, with LOCK_SIZE=areas the 75 areas, with LOCK_SIZE=levels Level Progression's tiers:
+tools/lock_groups.py) and their walls, from the game's own map. Every spot of the world gets a lock:
   land   the lock of the nearest Pal spawn point reachable over land (each spawn point's lock is the group, in
          tools/lock_groups.py, of the map row whose region volume it stands in), so borders follow the ground; land
          with no Pals (oil rigs, rocks) takes the lock of the region volume around it;
   water  the lock of the coast within RING of it; open sea beyond belongs to no one and is never walled.
+For Level Progression the land is first labelled as the 15 regions', then relabelled by tier (tools/level_tiers.py).
 A lock is reached through its borders: from open sea, the starting lock, or a neighbouring lock already reached
 (the APWorld's logic follows the same borders, saved with the grid).
 Land and water come from the game's world map image (exported in game, see mod/.../mapexport.lua): water is the
@@ -15,7 +16,8 @@ private grid other tools look locks up in (tools/lock_model.py).
 Also writes, beside the walls file, region_map.lua: the locks at 29 m, for the mod to tell where the player stands,
 and a point in the starting lock to send a player found in a locked one; region_shapes.lua: each lock's outline,
 smoothed and cut into triangles, for the mod to grey locked ones on the world map; and ../region_labels.png, the same
-shapes as a picture. With LOCK_SIZE=areas they are area_map.lua, area_shapes.lua and area_labels.png.
+shapes as a picture. With LOCK_SIZE=areas they are area_map.lua, area_shapes.lua and area_labels.png; with
+LOCK_SIZE=levels, level_map.lua, level_shapes.lua and level_labels.png.
 Tests: none of its own; the Lua harness loads its files with the mod, and tests/map.lua and tests/walls.lua check
 the map and the walls made from them.
 """
@@ -31,12 +33,11 @@ import mapbox_earcut
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from lock_groups import INNER_ROWS, LOCKS, PREFIX, START
+from grid_cells import CELL, N, X0, X1, Y0, Y1, cell, components, grow, nearest_land, spread, world
+import level_tiers
+from lock_groups import INNER_ROWS, LOCK_SIZE, LOCKS, PREFIX, ROW_GROUPS, START
 from table_dumps import read_table, wild_spawner_pals, world_xyz
 
-X0, X1, Y0, Y1 = -1099400, 349400, -724400, 724400   # the map image's extent (DT_WorldMapUIData, MainMap)
-N = 1000                                              # grid cells per side: 14.5 m each
-CELL = (X1 - X0) / N
 RING = 10                                             # a lock claims the water within 10 cells (145 m) of its coast
 NARROW = 8                                            # open sea narrower than 2 x 8 cells (230 m), or cut off from the
                                                       # ocean, goes to the locks around it
@@ -45,6 +46,8 @@ MAX_PIECE = 30_000                                    # longest wall piece: 300 
 SEA = "Open sea"
 NAMES = [SEA] + list(LOCKS)                           # lock index -> name; 0 is open sea
 LOCK_INDEX = {name: i for i, name in enumerate(NAMES)}
+# The groups map rows are labelled with first (lock_groups.ROW_GROUPS): the locks, or Level Progression's 15 regions.
+ROW_INDEX = {name: i for i, name in enumerate([SEA] + list(ROW_GROUPS))}
 
 # Reading the map image.
 GAMMA = 2.2                     # the export is linear; this brightens it to the picture the game shows
@@ -55,7 +58,6 @@ WATER_GREEN_OVER_RED = 4        # levels of 255: and greener than red by at leas
 GREY_SPREAD = 8                 # levels of 255: beyond the map's border the image is flat grey, its channels this close
 GREY_DARKEST = 70               # levels of 255: and darker than this
 DEFAULT_VOLUME_RADIUS = 25_600  # cm: a sphere region volume with no radius of its own
-COAST_SEARCH = 6                # cells: a spawn point in the water takes the nearest land this far off
 NEAR = 30_000                   # cm: land with no Pals belongs to a region volume within this; farther is the glow of
                                 # the map's border in the image (400 m and more), so water
 LAND_SAMPLES = 40               # cells of a patch of land judged for its region volume (a long strip has no middle)
@@ -101,53 +103,21 @@ class WallPiece(NamedTuple):
     lock_b: int
 
 
+class LabelledMap(NamedTuple):
+    """The grid once every cell has its lock (label_the_map)."""
+    labels: np.ndarray          # each cell's lock index (0: open sea)
+    image: Image.Image          # the world map picture it was read from
+    land: np.ndarray            # masks: land, and beyond the map's border
+    outside: np.ndarray
+    flying: np.ndarray          # land a player must fly to (Level Progression only)
+    home_land: np.ndarray       # the land of the island every game starts on (the first row group)
+
+
 class Outline(NamedTuple):
     """One lock's outline loops, rounded: all of them, the outer ones, and the holes inside those."""
     loops: list
     outers: list
     holes: list
-
-
-def cell(x, y):
-    """The grid cell of a world spot: row (north at the top), column (east to the right)."""
-    return int((X1 - x) / CELL), int((y - Y0) / CELL)
-
-
-def world(r, c):
-    """The world spot of a grid point (row, column; fractions allowed)."""
-    return X1 - r * CELL, Y0 + c * CELL
-
-
-def neighbours(r, c, steps):
-    """The cells one step from (r, c) inside the grid."""
-    for dr, dc in steps:
-        if 0 <= r + dr < N and 0 <= c + dc < N:
-            yield r + dr, c + dc
-
-
-def components(mask, diagonal):
-    """Labels the connected True cells of mask: (labels, sizes), labels from 1, sizes[label] in cells."""
-    lab = np.zeros(mask.shape, np.int32)
-    sizes = [0]
-    steps = [(1, 0), (-1, 0), (0, 1), (0, -1)] + ([(1, 1), (1, -1), (-1, 1), (-1, -1)] if diagonal else [])
-    for r0, c0 in zip(*np.nonzero(mask)):
-        if not lab[r0, c0]:
-            sizes.append(fill_component(mask, lab, (r0, c0), len(sizes), steps))
-    return lab, sizes
-
-
-def fill_component(mask, lab, first, k, steps):
-    """Labels k every True cell of mask joined to `first` (by steps) that has no label yet; returns how many."""
-    lab[first] = k
-    stack, n = [first], 0
-    while stack:
-        r, c = stack.pop()
-        n += 1
-        for rr, cc in neighbours(r, c, steps):
-            if mask[rr, cc] and not lab[rr, cc]:
-                lab[rr, cc] = k
-                stack.append((rr, cc))
-    return n
 
 
 def read_land_and_water(refs):
@@ -183,7 +153,7 @@ def to_grid(mask):
 def read_region_volumes(refs):
     """The region volumes of the map rows the locks are made of (rows inside another's place left out)."""
     triggers = json.load(open(refs / "regions" / "regions.json"))["region_triggers"]
-    lock_of_row = {row: lock for lock, rows in LOCKS.items() for row in rows}
+    lock_of_row = {row: lock for lock, rows in ROW_GROUPS.items() for row in rows}
     volumes = []
     for trigger in triggers:
         if re.search(INNER_ROWS, trigger["area_name"]) or trigger["area_name"] not in lock_of_row:
@@ -241,17 +211,9 @@ def row_at(volumes, x, y):
     return min(volumes, key=lambda volume: distance(volume, x, y)).row
 
 
-def nearest_land(land, rr, cc):
-    """The land cell nearest (rr, cc) within COAST_SEARCH cells (by steps along the grid), or None."""
-    near = [(abs(i) + abs(j), rr + i, cc + j)
-            for i in range(-COAST_SEARCH, COAST_SEARCH + 1) for j in range(-COAST_SEARCH, COAST_SEARCH + 1)
-            if 0 <= rr + i < N and 0 <= cc + j < N and land[rr + i, cc + j]]
-    return min(near)[1:] if near else None
-
-
 def vote_spawn_points(refs, land, volumes):
     """Labels with the spawn points' locks: each cell holding spawn points takes the lock most of them vote for."""
-    lock_of_row = {row: lock for lock, rows in LOCKS.items() for row in rows}
+    lock_of_row = {row: lock for lock, rows in ROW_GROUPS.items() for row in rows}
     spawning = set(wild_spawner_pals(read_table(refs / "tables", "DT_PalWildSpawner.tsv")))
     votes = collections.defaultdict(collections.Counter)
     for row in read_table(refs / "tables", "DT_PalSpawnerPlacement.tsv"):
@@ -266,36 +228,17 @@ def vote_spawn_points(refs, land, volumes):
             if not spot:
                 continue
             rr, cc = spot
-        votes[(rr, cc)][LOCK_INDEX[lock_of_row[row_at(volumes, x, y)]]] += 1
+        votes[(rr, cc)][ROW_INDEX[lock_of_row[row_at(volumes, x, y)]]] += 1
     labels = np.zeros((N, N), np.int16)
     for (rr, cc), vote in votes.items():
         labels[rr, cc] = vote.most_common(1)[0][0]
     return labels
 
 
-def spread(labels, allowed, steps=None):
-    """Grows labels into unlabelled allowed cells, one cell per round (diagonals included)."""
-    rounds = 0
-    while steps is None or rounds < steps:
-        free = allowed & (labels == 0)
-        if not free.any():
-            break
-        grown = labels.copy()
-        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
-            src = np.roll(np.roll(labels, dr, 0), dc, 1)
-            take = free & (grown == 0) & (src > 0)
-            grown[take] = src[take]
-        if (grown == labels).all():
-            break
-        labels = grown
-        rounds += 1
-    return labels
-
-
 def place_land_without_pals(labels, land, ocean, volumes):
     """Land with no Pals takes the lock of the region volume it lies in or beside (oil rigs and islets sit 95-210 m
     from theirs); land farther than NEAR from any becomes water. Updates labels, land and ocean in place."""
-    lock_of_row = {row: lock for lock, rows in LOCKS.items() for row in rows}
+    lock_of_row = {row: lock for lock, rows in ROW_GROUPS.items() for row in rows}
     patches, _ = components(land, True)
     for k in np.unique(patches[land & (labels == 0)]):
         rows, cols = np.nonzero(patches == k)
@@ -308,7 +251,7 @@ def place_land_without_pals(labels, land, ocean, volumes):
                 near[volume.row] += 1
         row, n = near.most_common(1)[0] if near else (None, 0)
         if n * 2 >= len(rows[::step]):
-            labels[patches == k] = LOCK_INDEX[lock_of_row[row]]
+            labels[patches == k] = ROW_INDEX[lock_of_row[row]]
         else:
             land[patches == k] = False
             ocean[patches == k] = True
@@ -331,24 +274,17 @@ def footprint(corners):
 def place_locks_off_the_image(labels, land, ocean, volumes):
     """A lock with no land found on the main map (the World Tree: its island reads as water in the image, its Pals
     are on a map of their own) gets its region volume's footprint as land. Updates all three in place."""
-    for name in LOCKS:
-        if (labels == LOCK_INDEX[name]).any():
+    for name in ROW_GROUPS:
+        if (labels == ROW_INDEX[name]).any():
             continue
-        footprints = [volume for row in LOCKS[name] for volume in volumes
+        footprints = [volume for row in ROW_GROUPS[name] for volume in volumes
                       if volume.row == row and volume.kind == "poly"]
         for volume in footprints:
             foot = footprint(volume.geometry)
             land |= foot
             ocean &= ~foot
-            labels[foot] = LOCK_INDEX[name]
+            labels[foot] = ROW_INDEX[name]
             print(f"{name}: no land found on the map, using the {volume.row} volume ({int(foot.sum())} cells)")
-
-
-def grow(mask, k):
-    """The mask grown by k cells (no diagonals)."""
-    for _ in range(k):
-        mask = mask | np.roll(mask, 1, 0) | np.roll(mask, -1, 0) | np.roll(mask, 1, 1) | np.roll(mask, -1, 1)
-    return mask
 
 
 def split_open_sea(labels, ocean):
@@ -379,30 +315,47 @@ def smooth_borders(labels, land):
 
 
 def label_the_map(refs):
-    """Every cell's lock (0: open sea), with the image and the land and outside masks."""
+    """Every cell's lock (0: open sea), with the image, the land and outside masks, and the cells a player must fly
+    to (Level Progression only, tools/level_tiers.py: the other sets ask for a flying mount by lock, in the APWorld)."""
     image, land, ocean, outside = read_land_and_water(refs)
     volumes = read_region_volumes(refs)
     labels = spread(vote_spawn_points(refs, land, volumes), land)
     place_land_without_pals(labels, land, ocean, volumes)
     place_locks_off_the_image(labels, land, ocean, volumes)
+    flying = np.zeros((N, N), bool)
+    home_land = land & (labels == 1)                   # the first row group is where every game starts
+    if LOCK_SIZE == "levels":
+        labels, flying = level_tiers.label_land_by_level(refs, labels, land, ocean, ROW_INDEX)
     labels = spread(labels, ocean, RING)               # the coastal water ring; the rest stays open sea (0)
     labels = spread(labels, ocean & ~split_open_sea(labels, ocean))
-    return smooth_borders(labels, land), image, land, outside
+    labels = smooth_borders(labels, land)
+    flying |= water_beside(flying, labels, land)
+    return LabelledMap(labels, image, land, outside, flying, home_land)
 
 
-def cut_pieces(labels, outside):
+def water_beside(flying, labels, land):
+    """The water of a lock whose nearest land is land a player must fly to of that lock: its coast and the pockets
+    it encloses, so none of them is left as a speck of its own."""
+    nearest = spread(np.where(land, np.where(flying, 2, 1), 0).astype(np.int16), ~land & (labels > 0))
+    return ~land & (nearest == 2) & np.isin(labels, np.unique(labels[flying & land]))
+
+
+def cut_pieces(labels, outside, flying):
     """Pieces: each connected part of a lock is reached on its own, through the pieces it borders. The APWorld
-    makes each piece an Archipelago Region; entering one needs its lock's pass. Returns (grid of piece numbers, 0
-    beyond the map's border; each piece's lock; the pairs of pieces that share a border)."""
+    makes each piece an Archipelago Region; entering one needs its lock's pass. Land a player must fly to is cut
+    from the rest of its lock (the Sky Islands beside Feybreak's land of the same tier), so only it asks for a
+    flying mount. Returns (grid of piece numbers, 0 beyond the map's border; each piece's lock; the pairs of pieces
+    that share a border)."""
     pieces = np.zeros((N, N), np.int16)
     piece_lock = [0]
     for k in range(0, len(NAMES)):                     # open sea too: separate seas are separate pieces
-        parts, sizes = components((labels == k) & ~outside, False)
-        for j in range(1, len(sizes)):
-            if k == 0 and sizes[j] < SEA_SPECK:
-                continue
-            pieces[parts == j] = len(piece_lock)
-            piece_lock.append(k)
+        for part_of_lock in ((labels == k) & ~outside & ~flying, (labels == k) & ~outside & flying):
+            parts, sizes = components(part_of_lock, False)
+            for j in range(1, len(sizes)):
+                if k == 0 and sizes[j] < SEA_SPECK:
+                    continue
+                pieces[parts == j] = len(piece_lock)
+                piece_lock.append(k)
     borders = set()
     for side_a, side_b in ((pieces[:-1, :], pieces[1:, :]), (pieces[:, :-1], pieces[:, 1:])):
         differ = side_a != side_b
@@ -744,9 +697,10 @@ def run_lengths(labels):
     return rows
 
 
-def home_point(refs, labels, land):
-    """The return point: the fast-travel point in the starting lock nearest the middle of its land."""
-    start_rows, start_cols = np.nonzero((labels == LOCK_INDEX[START]) & land)
+def home_point(refs, labels, land, home_land):
+    """The return point: the fast-travel point in the starting lock nearest the middle of its land on the island
+    every game starts on (Level Progression's start tier spreads over several places)."""
+    start_rows, start_cols = np.nonzero((labels == LOCK_INDEX[START]) & land & home_land)
     mx, my = world(start_rows.mean(), start_cols.mean())
     spots = [FastTravelSpot(float(r["x"]), float(r["y"]), float(r["z"]), r["FastTravelPointID"])
              for r in read_table(refs / "tables", "actors_PalLevelObjectUnlockableFastTravelPoint.tsv")]
@@ -755,11 +709,11 @@ def home_point(refs, labels, land):
     return min(spots, key=lambda spot: (spot.x - mx) ** 2 + (spot.y - my) ** 2)
 
 
-def write_lock_map(walls_path, refs, labels, land):
+def write_lock_map(walls_path, refs, labels, land, home_land):
     """<prefix>_map.lua: which lock every 29 m of the main map is in, and where a player found in a closed lock
     goes."""
     rows = run_lengths(labels)
-    home = home_point(refs, labels, land)
+    home = home_point(refs, labels, land, home_land)
     lines = ["-- Generated by tools/lock_walls.py; do not edit by hand. Which lock every 29 m of the main map is in.",
              "-- rows run north to south, columns west to east; each row is \"lock,count;...\" (lock: index into the "
              "locks of",
@@ -777,11 +731,14 @@ def write_lock_map(walls_path, refs, labels, land):
     print(f"{PREFIX} map: {N // 2} x {N // 2}, {sum(row.count(';') + 1 for row in rows)} runs; home is {home.point_id}")
 
 
-def save_grid(path, labels, pieces, piece_lock, borders):
-    """The private grid tools/lock_model.py looks locks and pieces up in."""
+def save_grid(path, labels, pieces, piece_lock, borders, flying):
+    """The private grid tools/lock_model.py looks locks and pieces up in. piece_flying: whether most of each piece
+    is land a player must fly to (label_the_map)."""
+    piece_flying = [False] + [bool(flying[pieces == p].mean() > 0.5) for p in range(1, len(piece_lock))]
     np.savez_compressed(path, labels=labels, names=np.array(NAMES), bounds=np.array([X0, X1, Y0, Y1]),
                         pieces=pieces, piece_lock=np.array(piece_lock, dtype=np.int16),
-                        piece_borders=np.array(sorted(borders), dtype=np.int16))
+                        piece_borders=np.array(sorted(borders), dtype=np.int16),
+                        piece_flying=np.array(piece_flying))
 
 
 def draw_overlay(path, image, drawn, labels, land):
@@ -813,8 +770,9 @@ def main():
     if len(sys.argv) != 5:
         sys.exit(__doc__)
     refs, walls_path, grid_path, overlay_path = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
-    labels, image, land, outside = label_the_map(refs)
-    pieces, piece_lock, borders = cut_pieces(labels, outside)
+    labelled = label_the_map(refs)
+    labels, land, outside = labelled.labels, labelled.land, labelled.outside
+    pieces, piece_lock, borders = cut_pieces(labels, outside, labelled.flying)
     check_every_piece_reachable(pieces, piece_lock, borders)
     edges = border_edges(labels)
     walls, drawn = wall_pieces(edges)
@@ -823,9 +781,9 @@ def main():
     total_triangles = write_shapes(walls_path, labels, outlines)
     write_label_picture(walls_path, labels, outlines)
     print(f"{PREFIX} shapes: {total_triangles} triangles")
-    write_lock_map(walls_path, refs, labels, land)
-    save_grid(grid_path, labels, pieces, piece_lock, borders)
-    draw_overlay(overlay_path, image, drawn, labels, land)
+    write_lock_map(walls_path, refs, labels, land, labelled.home_land)
+    save_grid(grid_path, labels, pieces, piece_lock, borders, labelled.flying)
+    draw_overlay(overlay_path, labelled.image, drawn, labels, land)
     print(f"{len(NAMES) - 1} locks, {len(edges)} bordering pairs, {len(walls)} wall pieces, "
           f"{sum(wall.length for wall in walls) / 100_000:.1f} km of wall")
 

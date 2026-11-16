@@ -6,7 +6,8 @@ The game version is the build the tables were dumped from. It is written as GAME
 (1.0.5) name the four lock model files tools/lock_model.py wrote for it, all of which must be there:
 data/region-model-<v>.json and data/region-pal-sources-<v>.json for the 15 regions, and data/area-model-<v>.json and
 data/area-pal-sources-<v>.json for the 75 areas (AREA_MODE: the same locations placed in the game's 75 areas, for
-Lock Size: areas).
+Lock Size: areas), and data/level-model-<v>.json and data/level-pal-sources-<v>.json for Level Progression's tiers
+(LEVEL_MODE, Lock Size: levels).
 The text tables dir holds DT_PalFirstActivatedInfoText.tsv (which Pals fly or swim) when the tables dir does not.
 Item and location ids are row positions (apworld/palworld/data.py), so the rows of the game_data.py already there keep
 their places and new rows go at the end; a row that is gone stops the script, for a person to decide.
@@ -20,7 +21,7 @@ import runpy
 import sys
 from typing import NamedTuple, Optional
 
-from lock_groups import AREAS, REGIONS, START_AREA, START_REGION
+from lock_groups import AREAS, REGIONS, START_AREA, START_REGION, TIER_NAMES
 from table_dumps import is_paldeck_pal, paldeck_number, read_table
 from towers import GOAL_TOWER_BY_BOSS_TYPE, GOAL_TOWER_BY_PLACE
 
@@ -78,6 +79,7 @@ class GameTables(NamedTuple):
     mounts: dict
     towers: list
     area_mode: dict
+    level_mode: dict
 
 
 class GameTexts:
@@ -337,13 +339,17 @@ def areas_in(region):
     return [area for area, rows in AREAS.items() if set(rows) & set(REGIONS[region])]
 
 
+def alpha_pieces(lock_model, model, alphas):
+    """Alpha name -> the piece of another set's lock model it sits in, in the alphas' id order."""
+    alphas_in_model_order, alphas_in_id_order = alphas
+    piece_of_row = {alpha["row"]: alpha["piece"] for alpha in lock_model["alphas"]}
+    alpha_piece = {alpha.name: piece_of_row[row["row"]] for alpha, row in zip(alphas_in_model_order, model["alphas"])}
+    return {alpha.name: alpha_piece[alpha.name] for alpha in alphas_in_id_order}
+
+
 def build_area_mode(area_model, area_sources, region_levels, model, alphas, fast_travel):
     """The 75 areas' set (Lock Size: areas): every location keeps its name and id; only the piece it sits in, the
     pieces, their borders and levels, and where each Pal comes from are the areas' own."""
-    alphas_in_model_order, alphas_in_id_order = alphas
-    area_piece_of_row = {alpha["row"]: alpha["piece"] for alpha in area_model["alphas"]}
-    alpha_piece = {alpha.name: area_piece_of_row[row["row"]]
-                   for alpha, row in zip(alphas_in_model_order, model["alphas"])}
     return {
         "START": START_AREA,
         "AREA_LIST": list(AREAS),
@@ -351,11 +357,33 @@ def build_area_mode(area_model, area_sources, region_levels, model, alphas, fast
         "BORDERS": [tuple(border) for border in area_model["borders"]],
         "PIECE_LEVELS": area_levels(area_model, region_levels),
         "SOURCES": {entry: kept_sources(raw) for entry, raw in area_sources["sources"].items()},
-        "ALPHAS": {alpha.name: alpha_piece[alpha.name] for alpha in alphas_in_id_order},
+        "ALPHAS": alpha_pieces(area_model, model, alphas),
         "FAST_TRAVEL": {point.point_id: area_model["fast_travel"][point.point_id] for point in fast_travel},
         "TOWERS": goal_tower_pieces(area_model),
         "SKY": areas_in("Sky Islands"),                 # up there only with a flying mount
         "WORLD_TREE": areas_in("World Tree")[0],
+    }
+
+
+def build_level_mode(level_model, level_sources, model, alphas, fast_travel):
+    """Level Progression's set (Lock Size: levels): the tiers of wild Pal level, opened in order. As for the areas,
+    every location keeps its name and id. FLYING: the pieces a player flies to (the Sky Islands, and a piece only
+    higher tiers surround, with the flying route cut to it); a piece with no Pals of its own takes its tier's level
+    in the logic (levels.piece_level)."""
+    own_levels = {piece: stats["levels"] for piece, stats in level_model["piece_stats"].items()
+                  if stats["levels"] is not None}
+    return {
+        "START": TIER_NAMES[0],
+        "TIER_LIST": TIER_NAMES,
+        "PIECES": level_model["pieces"],
+        "BORDERS": [tuple(border) for border in level_model["borders"]],
+        "PIECE_LEVELS": dict(sorted(own_levels.items(), key=lambda item: (item[1], item[0]))),
+        "SOURCES": {entry: kept_sources(raw) for entry, raw in level_sources["sources"].items()},
+        "ALPHAS": alpha_pieces(level_model, model, alphas),
+        "FAST_TRAVEL": {point.point_id: level_model["fast_travel"][point.point_id] for point in fast_travel},
+        "TOWERS": goal_tower_pieces(level_model),
+        "FLYING": level_model["flying"],
+        "WORLD_TREE": TIER_NAMES[-1],
     }
 
 
@@ -380,6 +408,10 @@ def game_data_text(game_version, model, piece_levels, made):
         "and",
         "# the areas' own pieces, borders, levels and Pal sources (keys as above).",
         table("AREA_MODE", made.area_mode, sort_dicts=False),
+        "",
+        "# Lock Size: levels (Level Progression). Tiers of wild Pal level, opened in order by Progressive Level Passes",
+        "# (tools/level_tiers.py); the locations' pieces and the tiers' own pieces, borders, levels and Pal sources.",
+        table("LEVEL_MODE", made.level_mode, sort_dicts=False),
         "",
     ]
     return "\n".join(header + map_lines(model, piece_levels) + location_lines(made) + areas)
@@ -468,7 +500,10 @@ def main():
     area_mode = build_area_mode(lock_model_file("area-model", game_version),
                                 lock_model_file("area-pal-sources", game_version), piece_levels, model,
                                 (alphas_in_model_order, alphas), fast_travel)
-    made = GameTables(techs, paldeck, alphas, tribes, alpha_keys, fast_travel, mounts, towers, area_mode)
+    level_mode = build_level_mode(lock_model_file("level-model", game_version),
+                                  lock_model_file("level-pal-sources", game_version), model,
+                                  (alphas_in_model_order, alphas), fast_travel)
+    made = GameTables(techs, paldeck, alphas, tribes, alpha_keys, fast_travel, mounts, towers, area_mode, level_mode)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(game_data_text(game_version, model, piece_levels, made))
     print(f"wrote {OUT}: {len(techs)} techs, {len(paldeck)} Paldeck entries, {len(alphas)} alphas, "

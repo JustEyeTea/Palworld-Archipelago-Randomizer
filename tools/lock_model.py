@@ -68,6 +68,8 @@ class LockGrid:
         self.lock_names = [str(n) for n in grid["names"]]
         self.piece_lock = grid["piece_lock"].tolist()
         self.piece_borders = grid["piece_borders"].tolist()
+        # pieces a player must fly to by the map's shape (Level Progression; the other sets ask by lock, data.py)
+        self.piece_flying = grid["piece_flying"].tolist() if "piece_flying" in grid.files else []
         self.piece_name = self.name_pieces()
         self.off_map = next(lock for lock, rows in LOCKS.items() if "FootOfWorldTree" in rows)
 
@@ -319,7 +321,8 @@ def without_repeats(sources):
 
 def write_model(out, grid, stats, where, paldeck, fast_travel, alphas, towers):
     """The model gen_apworld_data.py reads: each piece's contents, where each Pal spawns, the fast-travel points,
-    alphas and towers by piece, every piece with its lock, the pieces that share a border, and the start."""
+    alphas and towers by piece, every piece with its lock, the pieces that share a border, the pieces a player must
+    fly to, and the start."""
     names = grid.piece_name
     model = {"piece_stats": {piece: {"levels": median(c["lv"]), "spawners": len(c["lv"]), "fast_travel": c["ft"],
                                      "effigies": c["eff"], "alphas": sorted(c["alpha"])}
@@ -329,6 +332,7 @@ def write_model(out, grid, stats, where, paldeck, fast_travel, alphas, towers):
              # every piece (an Archipelago Region in the logic) with its lock, and the pieces that share a border
              "pieces": {names[piece]: grid.lock_names[grid.piece_lock[piece]] for piece in names},
              "borders": sorted(sorted([names[a], names[b]]) for a, b in grid.piece_borders),
+             "flying": sorted(names[piece] for piece, flies in enumerate(grid.piece_flying) if flies),
              "start": START}
     with open(out, "w") as file:
         json.dump(model, file, indent=1, sort_keys=True)
