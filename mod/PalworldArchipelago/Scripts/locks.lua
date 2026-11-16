@@ -118,16 +118,16 @@ function LOCKS.lockedAround(x, y, passes)
     return name
 end
 
--- Each region's colour (its pass ticket's); an area wears its region's (regionOf). A level tier has its own, cool to
--- hot as its Pals' levels rise (the tiers have no art of their own: these colour their walls and map).
+-- Each region's colour (its pass ticket's); an area wears its region's (regionOf). A level tier has its own, on a
+-- hazard scale from green to deep purple as its Pals' levels rise, the World Tree's pale (its map stamps' colours).
 local REGION_COLOURS = {
     ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
     ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
     ["Mount Obsidian"] = "D2453F", ["Verdant Stream"] = "2FB3A0", ["Desiccated Dunes"] = "E3B860",
     ["Astral Mountains"] = "A8E0F0", ["Sakurajima"] = "F28FB5", ["Feybreak"] = "B266D9",
     ["Sky Islands"] = "5B9BF0", ["World Tree"] = "2E8B57",
-    ["Levels 1-16"] = "7FD15A", ["Levels 17-28"] = "C8D94A", ["Levels 29-34"] = "F2D04B", ["Levels 35-40"] = "F5A742",
-    ["Levels 41-48"] = "EE7A3A", ["Levels 49-59"] = "E04B4B", ["Levels 60-69"] = "C04BB8", ["Levels 70-80"] = "7B4FE0",
+    ["Levels 1-16"] = "00986C", ["Levels 17-28"] = "FBF163", ["Levels 29-34"] = "FDAF2D", ["Levels 35-40"] = "F37513",
+    ["Levels 41-48"] = "DE3D34", ["Levels 49-59"] = "AC1635", ["Levels 60-69"] = "6B1667", ["Levels 70-80"] = "F4EEDC",
 }
 -- The region (one of the 15) a lock belongs to: an area's region; with the regions' cut the region itself, and with
 -- the level tiers the tier (a tier is not inside one region).

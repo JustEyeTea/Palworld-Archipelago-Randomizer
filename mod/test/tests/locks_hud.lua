@@ -178,6 +178,18 @@ group("Lock Size: levels", function()
                and table.concat(liveWalls.flyUpList(ap.passes), ",") == "2" and saved:find("\nflown=1\n", 1, true),
                "at a corridor's far mouth the player has flown through it: its icon goes, and the save keeps it")
     end
+    expect(liveWalls.lockedStampArt("Levels 17-28") == "ap-map-stamp-levels-17-28",
+           "a tier wears its own map stamp (art/ap-map-stamp-levels-*): "
+           .. tostring(liveWalls.lockedStampArt("Levels 17-28")))
+    do  -- The Progressive Level Pass's card shows its one ticket for every copy.
+        pushScout({ location = D.shop.Special_PalSphere_Grade_02.loc, name = "Progressive Level Pass" })
+        local passCard = Card("Special_PalSphere_Grade_02")
+        cards[#cards + 1] = passCard
+        run(2)
+        expect(passCard.shown.icon == "ap-pass-progressive-level" and logged("the Progressive Level Pass ticket"),
+               "a Progressive Level Pass's card shows its ticket: " .. tostring(passCard.shown.icon))
+        table.remove(cards)
+    end
     expect(liveWalls.pieceSkin(1, ap.passes, "regions"):match("^paws:") ~= nil,
            "the tiers have no wall tiles: the regions look wears the paws in the tier's colour")
     do  -- The server sends a hint line per copy; a copy already found never replaces one still to find.

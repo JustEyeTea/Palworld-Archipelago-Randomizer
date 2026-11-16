@@ -11,7 +11,10 @@ With Level Progression the walls follow where wild Pals of each level live, not 
 can lie in several places, and its wall says how many passes it takes. Three places need a flying mount besides their
 passes: the Sky Islands; a levels 29-34 valley in the Astral Mountains that higher tiers surround, reached by flying
 up a walled corridor; and the low Isles of Silence, levels 1-16 but ringed by the 17-28 tier, reached by a walled
-corridor from the start (the Nitewing Saddle is a level 15 tech, and Nitewing live near the start).
+corridor from the start (the Nitewing Saddle is a level 15 tech, and Nitewing live near the start). A corridor only
+gets you through: the Pals and statues in it count for the tier around it.
+
+![Level Progression's tiers, each in its colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/level-map.png)
 
 ![The 15 regions, each in its pass ticket's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/region-map.png)
 
