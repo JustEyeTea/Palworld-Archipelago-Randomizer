@@ -325,10 +325,13 @@ def label_the_map(refs):
     flying = np.zeros((N, N), bool)
     home_land = land & (labels == 1)                   # the first row group is where every game starts
     if LOCK_SIZE == "levels":
-        labels, flying = level_tiers.label_land_by_level(refs, labels, land, ocean, ROW_INDEX)
+        labels, flying = level_tiers.label_land_by_level(refs, labels, land, ROW_INDEX)
     labels = spread(labels, ocean, RING)               # the coastal water ring; the rest stays open sea (0)
     labels = spread(labels, ocean & ~split_open_sea(labels, ocean))
     labels = smooth_borders(labels, land)
+    if LOCK_SIZE == "levels":
+        labels, routes_flown = level_tiers.open_walled_in_pieces(labels, land, outside)
+        flying |= routes_flown
     flying |= water_beside(flying, labels, land)
     return LabelledMap(labels, image, land, outside, flying, home_land)
 

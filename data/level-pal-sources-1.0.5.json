@@ -9499,6 +9499,11 @@
     "type": "wild"
    },
    {
+    "level": 37,
+    "piece": "Levels 29-34 (3)",
+    "type": "wild"
+   },
+   {
     "boss": true,
     "dungeon": "Snow001",
     "level": 42,
@@ -10179,6 +10184,11 @@
     "type": "wild"
    },
    {
+    "level": 36,
+    "piece": "Levels 29-34 (3)",
+    "type": "wild"
+   },
+   {
     "parents": [
      "098",
      "095"
@@ -10262,6 +10272,11 @@
    {
     "level": 80,
     "piece": "Levels 70-80",
+    "type": "wild"
+   },
+   {
+    "level": 36,
+    "piece": "Levels 29-34 (3)",
     "type": "wild"
    },
    {

@@ -80,16 +80,23 @@ class LockSize(Choice):
     Regions: 15 regions, each a group of the game's named areas, opened by Region Passes. The game starts in Windswept
     Island and its two nearby isles.
     Areas: every named area of the game on its own (75), opened by Area Passes. The game starts in the Windswept
-    Island area alone, where the first tower stands: a cramped start, and many small unlocks."""
+    Island area alone, where the first tower stands: a cramped start, and many small unlocks.
+    Levels: Level Progression. The walls follow where wild Pals of each level live, in 8 tiers (levels 1-16, 17-28,
+    29-34, 35-40, 41-48, 49-59, 60-69 and 70-80), not the game's named places. Each Progressive Level Pass opens the
+    next tier, 7 in all. The start is the levels 1-16 land, Windswept Island among it. The Sky Islands and one high
+    Astral Mountains valley of levels 29-34 need a flying mount: the valley sits inside higher tiers, so a corridor
+    with walls on both sides leads up to it from the coast."""
     display_name = "Lock Size"
     option_regions = 0
     option_areas = 1
+    option_levels = 2
     default = 0
 
 
 class BeyondGoal(Choice):
-    """Area Locks: what becomes of the regions (or areas) this goal never needs, the ones whose Pals are all above the
-    Check Level Cap. The ones on the way to the goal's towers always stay in.
+    """Area Locks: what becomes of the regions (or areas, or level tiers) this goal never needs, the ones whose Pals
+    are all above the Check Level Cap. The ones on the way to the goal's towers always stay in. Level tiers stay in
+    order: a tier the goal needs keeps every tier below it.
     Locked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.
     Passes: every one has its pass somewhere in the multiworld, as with no cap at all.
     Open: their walls are down from the start, but nothing in them is a check."""

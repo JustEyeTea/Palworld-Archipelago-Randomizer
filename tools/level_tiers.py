@@ -1,8 +1,8 @@
 """Level Progression's tiers on the map grid (LOCK_SIZE=levels): the land labelled by the level of the wild Pals that
-spawn on it by day, smoothed into pieces a player can follow, and a flying route cut to any piece that only
-higher tiers surround, so it opens with its own tier's pass. The land, its coasts and the World Tree's foot are the
-15 regions' (lock_walls.py labels them first). Called by lock_walls.py.
-The rules come from the user's Level Progression study (2026-11-09): tier bands lock_groups.TIER_TOP_LEVELS.
+spawn on it by day, smoothed into pieces a player can follow, and on the finished map a way of its own tier (a water
+lane, or a flying corridor) to any piece that only higher tiers' walls surround, so it opens with its own pass.
+The land, its coasts and the World Tree's foot are the 15 regions' (lock_walls.py labels them first). Called by
+lock_walls.py. The rules come from the user's Level Progression study: tier bands lock_groups.TIER_TOP_LEVELS.
 Tests: none of its own; the APWorld's test_levels.py and the Lua harness check the files made from it.
 """
 import collections
@@ -136,11 +136,11 @@ def merge_small_pieces(tiers, land):
     return tiers
 
 
-def reached_with(tiers, land, water, top_tier):
-    """The cells a player can reach holding the passes up to top_tier: land of that tier or lower joined to the
-    water (the sea is crossed without mounts, and the start is on the coast), and the water."""
-    parts, _ = components(((tiers >= 1) & (tiers <= top_tier) & land) | water, False)
-    wet = np.unique(parts[water])
+def reached_with(labels, open_sea, top_tier):
+    """The cells a player can reach holding the passes up to top_tier, on the finished map: the open sea (crossed
+    without mounts; the start is on its coast) and every cell of those tiers joined to it."""
+    parts, _ = components(((labels >= 1) & (labels <= top_tier)) | open_sea, False)
+    wet = np.unique(parts[open_sea])
     return np.isin(parts, wet[wet > 0])
 
 
@@ -174,35 +174,48 @@ def trace_route(came_from, end):
     return route
 
 
-def cut_flying_routes(tiers, land, water):
-    """For each piece that only higher tiers surround, a route of its own tier, TUNNEL_HALF_WIDTH wide, through the
-    higher land to land the player already reaches with its pass (or the sea). Returns the tiers and a mask of
-    each such piece with its route: a player flies there, so the logic asks for a flying mount."""
-    tiers = tiers.copy()
+def route_out(piece, reached, labels, land, tier):
+    """The way out of a walled-in piece of a tier: a lane through higher tiers' water when there is one (swum or
+    sailed), else a route over their land too (flown). Returns (route mask or None, whether it is flown)."""
+    higher = (labels > tier) & (labels > 0)
+    lane = route_to(piece, reached, higher & ~land)
+    if lane is not None:
+        return lane, False
+    return route_to(piece, reached, higher), True
+
+
+def open_walled_in_pieces(labels, land, outside):
+    """For each piece of a tier that only higher tiers' walls surround on the finished map (land and water labelled),
+    a way of its own tier, TUNNEL_HALF_WIDTH wide, to what the player already reaches with its pass: a lane through
+    water (the low Isles of Silence, whose narrow seas go to the higher shores around them), or a corridor over
+    higher land (the Astral Mountains valley). Returns the labels and the cells a player must fly to: each flown
+    route with its piece."""
+    labels = labels.copy()
     flying = np.zeros((N, N), bool)
-    for tier in range(2, len(TIER_TOP_LEVELS) + 1):
-        reached = reached_with(tiers, land, water, tier)
-        parts, sizes = components((tiers == tier) & land & ~reached, False)
+    open_sea = (labels == 0) & ~land & ~outside
+    for tier in range(1, len(TIER_TOP_LEVELS) + 1):
+        reached = reached_with(labels, open_sea, tier)
+        parts, sizes = components((labels == tier) & ~reached, False)
         for part in range(1, len(sizes)):
             piece = parts == part
-            route = route_to(piece, reached, land & (tiers > tier))
+            route, flown = route_out(piece, reached, labels, land, tier)
             if route is None:
                 continue
-            corridor = grow(route, TUNNEL_HALF_WIDTH) & land & ((tiers > tier) | piece)
-            tiers[corridor] = tier
-            flying |= piece | corridor
-            print(f"{TIER_NAMES[tier - 1]}: a piece of {int(sizes[part])} cells is enclosed; a flying route of "
-                  f"{int(route.sum())} cells ({int(corridor.sum())} wide) is cut to it")
-    return tiers, flying
+            way = grow(route, TUNNEL_HALF_WIDTH) & ~outside & ((labels > tier) | piece) & (flown | ~land)
+            labels[way] = tier
+            if flown:
+                flying |= piece | way
+            print(f"{TIER_NAMES[tier - 1]}: a walled-in piece of {int(sizes[part])} cells gets a "
+                  f"{'flying corridor' if flown else 'water lane'} of {int(route.sum())} cells ({int(way.sum())} wide)")
+    return labels, flying
 
 
-def label_land_by_level(refs, region_labels, land, ocean, region_index):
-    """The land's tiers (lock indexes 1..8, 0 elsewhere) from the 15 regions' labelled land and the open ocean, and
-    the cells a player must fly to: the Sky Islands and each flying route with its piece."""
+def label_land_by_level(refs, region_labels, land, region_index):
+    """The land's tiers (lock indexes 1..8, 0 elsewhere) from the 15 regions' labelled land, and the land a player
+    must fly to: the Sky Islands (walled-in pieces get their ways out later, open_walled_in_pieces)."""
     tiers = tiers_of(level_field(refs, land, region_labels, region_index), land)
     tiers = merge_small_pieces(smooth(tiers, land), land)
-    tiers, flying = cut_flying_routes(tiers, land, ocean)
-    flying |= land & (region_labels == region_index[SKY_REGION])
+    flying = land & (region_labels == region_index[SKY_REGION])
     counts = np.bincount(tiers[land], minlength=len(TIER_TOP_LEVELS) + 1)[1:]
     print("land per tier (cells): " + ", ".join(f"{TIER_NAMES[k - 1]} {n}" for k, n in enumerate(counts, 1)))
     return tiers, flying

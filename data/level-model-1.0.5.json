@@ -600,7 +600,23 @@
   ],
   [
    "Levels 1-16 (2)",
+   "Levels 35-40 (6)"
+  ],
+  [
+   "Levels 1-16 (2)",
    "Levels 41-48"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 41-48 (5)"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 41-48 (6)"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Open sea"
   ],
   [
    "Levels 1-16 (3)",
@@ -657,6 +673,10 @@
   [
    "Levels 17-28 (4)",
    "Levels 35-40"
+  ],
+  [
+   "Levels 17-28 (4)",
+   "Open sea"
   ],
   [
    "Levels 29-34",
@@ -716,7 +736,11 @@
   ],
   [
    "Levels 35-40 (2)",
-   "Levels 41-48"
+   "Levels 41-48 (5)"
+  ],
+  [
+   "Levels 35-40 (2)",
+   "Levels 41-48 (6)"
   ],
   [
    "Levels 35-40 (2)",
@@ -740,6 +764,14 @@
   ],
   [
    "Levels 35-40 (5)",
+   "Open sea"
+  ],
+  [
+   "Levels 35-40 (6)",
+   "Levels 41-48"
+  ],
+  [
+   "Levels 35-40 (6)",
    "Open sea"
   ],
   [
@@ -879,7 +911,7 @@
   "FTPoint112": "Levels 17-28",
   "FTPoint113": "Levels 35-40",
   "FTPoint114": "Levels 35-40 (3)",
-  "FTPoint115": "Levels 35-40 (3)",
+  "FTPoint115": "Levels 29-34 (3)",
   "FTPoint116": "Levels 41-48",
   "FTPoint117": "Levels 49-59",
   "FTPoint118": "Levels 49-59",
@@ -1569,6 +1601,7 @@
    "Levels 70-80": 80
   },
   "087B": {
+   "Levels 29-34 (3)": 37,
    "Levels 35-40": 36,
    "Levels 35-40 (3)": 37,
    "Levels 70-80": 80
@@ -1666,6 +1699,7 @@
    "Levels 60-69": 56
   },
   "098B": {
+   "Levels 29-34 (3)": 36,
    "Levels 35-40": 35,
    "Levels 35-40 (3)": 36,
    "Levels 70-80": 75
@@ -1685,6 +1719,7 @@
   },
   "101": {
    "Levels 29-34 (2)": 32,
+   "Levels 29-34 (3)": 36,
    "Levels 35-40 (3)": 36,
    "Levels 70-80": 80
   },
@@ -2292,9 +2327,9 @@
   "Levels 29-34 (3)": {
    "alphas": [],
    "effigies": 6,
-   "fast_travel": 1,
+   "fast_travel": 2,
    "levels": 34.785714285714285,
-   "spawners": 50
+   "spawners": 51
   },
   "Levels 29-34 (4)": {
    "alphas": [],
@@ -2331,9 +2366,9 @@
     46
    ],
    "effigies": 8,
-   "fast_travel": 3,
+   "fast_travel": 2,
    "levels": 40.5,
-   "spawners": 102
+   "spawners": 101
   },
   "Levels 35-40 (4)": {
    "alphas": [
@@ -2574,10 +2609,13 @@
   "Levels 35-40 (3)": "Levels 35-40",
   "Levels 35-40 (4)": "Levels 35-40",
   "Levels 35-40 (5)": "Levels 35-40",
+  "Levels 35-40 (6)": "Levels 35-40",
   "Levels 41-48": "Levels 41-48",
   "Levels 41-48 (2)": "Levels 41-48",
   "Levels 41-48 (3)": "Levels 41-48",
   "Levels 41-48 (4)": "Levels 41-48",
+  "Levels 41-48 (5)": "Levels 41-48",
+  "Levels 41-48 (6)": "Levels 41-48",
   "Levels 49-59": "Levels 49-59",
   "Levels 49-59 (2)": "Levels 49-59",
   "Levels 49-59 (3)": "Levels 49-59",

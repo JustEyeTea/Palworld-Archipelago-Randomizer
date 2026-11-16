@@ -2,7 +2,8 @@
 play and whether the sea and sky mounts count, and the route searches it rests on (locks_in_scope, corridor, reach).
 PalworldWorld takes these from MapPlan.
 Tests: test_progression.py (TestTwoTowers, TestBeyondGoalPasses, TestBeyondGoalOpen, TestAreasTwoTowers,
-TestWorldTreeKeepsEverything, TestNoGearLogicLeavesTheSeaOut, TestNoGearLogicPassesKeepsEveryPass), test_areas.py."""
+TestWorldTreeKeepsEverything, TestNoGearLogicLeavesTheSeaOut, TestNoGearLogicPassesKeepsEveryPass), test_areas.py,
+test_levels.py (TestLevelsKeptInOrder: with_lower_tiers)."""
 import heapq
 import logging
 from collections import defaultdict
@@ -42,7 +43,7 @@ class MapPlan:
         self.sea_needed = self.gear or any(p not in land for p in self.goal_pieces())
         if not self.sea_needed:
             self.leave_out_sea_only_pieces(land)
-        self.sky_needed = any(lock in self.layout.sky for p, lock in self.layout.pieces.items() if p in self.live)
+        self.sky_needed = any(piece in self.layout.flying for piece in self.live)
         self.prog_techs = self.progression_techs()
         # A Pal is a capture check only where this seed has checks: not in locks beyond the goal, open or not.
         checked = self.live & self.pieces_of(self.scope)
@@ -78,8 +79,10 @@ class MapPlan:
         return frozenset(p for p, lock in self.layout.pieces.items() if lock in locks)
 
     def start_pieces(self) -> List[str]:
-        """The pieces of the lock a game starts in, sorted."""
-        return sorted(p for p, lock in self.layout.pieces.items() if lock == self.layout.start)
+        """The piece a game starts in (the menu's Start entrance, __init__.py). The start lock's other pieces are
+        reached across borders like any other: Level Progression's start tier lies in several places, and a piece of
+        it walled in by higher tiers is not reached from the start."""
+        return [self.layout.start]
 
     def goal_pieces(self) -> List[str]:
         """The pieces the goal needs the player to reach: its towers', and the World Tree's for that goal."""
@@ -105,8 +108,17 @@ class MapPlan:
         scope = {lock for lock, level in low.items() if level <= need} | {layout.start, SEA}
         for target in self.goal_pieces():
             scope |= {layout.pieces[p] for p in self.corridor(target, scope, low)}
+        scope = self.with_lower_tiers(scope)
         reached = self.reach(scope)
         return frozenset(lock for lock in scope if any(layout.pieces[p] == lock for p in reached))
+
+    def with_lower_tiers(self, scope: set) -> set:
+        """For locks opened in order (Level Progression's tiers): every lock before the last one in scope too, since
+        its pass comes before."""
+        if not self.layout.in_order:
+            return scope
+        last = max(self.layout.pass_counts.get(lock, 0) for lock in scope)
+        return scope | {lock for lock, place in self.layout.pass_counts.items() if place <= last}
 
     def neighbours(self) -> Dict[str, List[str]]:
         """Each piece's neighbours across a border, sorted (so the route searches are the same in every run)."""
@@ -171,8 +183,7 @@ class MapPlan:
         return self.flood(lambda piece: self.layout.pieces[piece] in scope)
 
     def reach_by_land(self, live: FrozenSet[str]) -> FrozenSet[str]:
-        """The pieces in play (live) the start reaches without the open sea (and without going up to the sky)."""
+        """The pieces in play (live) the start reaches without the open sea (and without flying)."""
         def by_land(piece: str) -> bool:
-            lock = self.layout.pieces[piece]
-            return piece in live and lock != SEA and lock not in self.layout.sky
+            return piece in live and self.layout.pieces[piece] != SEA and piece not in self.layout.flying
         return self.flood(by_land)
