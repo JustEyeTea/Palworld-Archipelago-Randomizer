@@ -1,11 +1,14 @@
 """Pins Lock Size: levels (data.py's "levels" layout, Level Progression): one Progressive Level Pass per tier after the
 start, tiers opening in order (can_enter in __init__.py), a seed's tiers kept in order (with_lower_tiers in
-map_plan.py), and the flying mount for the Sky Islands and the walled-in Astral Mountains valley."""
+map_plan.py), and the flying mount for the Sky Islands, the walled-in Astral Mountains valley and the walled-in low
+islands north of the start."""
 from . import PalworldTestBase
 from ..data import LEVEL_MODE, LEVEL_PASS, PASS_TIERS
 
 ASTRAL_VALLEY_TIER = "Levels 29-34"        # the tier of the piece only higher tiers surround (tools/level_tiers.py)
 SKY_TIER = "Levels 60-69"                  # the Sky Islands' tier
+START_TIER = LEVEL_MODE["START"]           # its islands north of the start are flown to (tools/level_tiers.py)
+FLYING_TIERS = (START_TIER, ASTRAL_VALLEY_TIER, SKY_TIER)
 
 
 def flying_piece(tier: str) -> str:
@@ -35,18 +38,19 @@ class TestLevelsLockSize(PalworldTestBase):
 
 
 class TestLevelsFlying(PalworldTestBase):
-    """As TestAreasSky, for the tiers: the Sky Islands, and the Astral valley up its walled corridor, need a flying
-    mount as well as their tier's passes (the World Tree goal keeps every tier in the seed)."""
+    """As TestAreasSky, for the tiers: the Sky Islands, and the Astral valley and the start's northern islands up their
+    walled corridors, need a flying mount as well as their tier's passes (the World Tree goal keeps every tier in the
+    seed)."""
     options = {"lock_size": "levels", "goal": "world_tree", "gear_logic": True, "progressive_spheres": True}
 
     def test_the_flying_pieces_need_a_flying_mount(self):
         self.collect_n(LEVEL_PASS, len(PASS_TIERS))
         self.collect_n("Progressive Sphere", 2)
         self.collect_by_name(["Tech: Primitive Furnace", "Tech: Surfent Saddle"])
-        for tier in (ASTRAL_VALLEY_TIER, SKY_TIER):
+        for tier in FLYING_TIERS:
             self.assertFalse(self.can_reach_region(flying_piece(tier)), tier)
         self.collect_by_name("Tech: Nitewing Saddle")
-        for tier in (ASTRAL_VALLEY_TIER, SKY_TIER):
+        for tier in FLYING_TIERS:
             self.assertTrue(self.can_reach_region(flying_piece(tier)), tier)
 
     def test_the_valley_opens_with_its_own_tier(self):
@@ -55,6 +59,12 @@ class TestLevelsFlying(PalworldTestBase):
         self.collect_by_name(["Tech: Primitive Furnace", "Tech: Nitewing Saddle"])
         self.collect_n(LEVEL_PASS, PASS_TIERS.index(ASTRAL_VALLEY_TIER) + 1)
         self.assertTrue(self.can_reach_region(flying_piece(ASTRAL_VALLEY_TIER)))
+
+    def test_the_start_islands_need_no_pass(self):
+        """The start's northern islands sit inside the levels 17-28 tier; their corridor opens them with no pass."""
+        self.collect_n("Progressive Sphere", 2)
+        self.collect_by_name(["Tech: Primitive Furnace", "Tech: Nitewing Saddle"])
+        self.assertTrue(self.can_reach_region(flying_piece(START_TIER)))
 
 
 class TestLevelsKeptInOrder(PalworldTestBase):

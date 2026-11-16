@@ -43,6 +43,15 @@ NARROW = 8                                            # open sea narrower than 2
                                                       # ocean, goes to the locks around it
 TOLERANCE = 2.0                                       # border simplification, in cells
 MAX_PIECE = 30_000                                    # longest wall piece: 300 m
+WALL_THICKNESS = 400                                  # game units: 4 m thick, so nothing fast slips through (the mod
+                                                      # reads it from the walls file)
+JUNCTION_REACH = WALL_THICKNESS / 2                   # a border ending where others meet runs on half a thickness, so
+                                                      # the walls there fill the meeting point
+SHARPEST_BEND = math.pi / 2                           # radians: a sharper bend's mitred pieces would poke out past
+                                                      # each other, so its corner is cut into two gentler bends
+CORNER_CUT = CELL                                     # how far back along each side a sharp corner is cut (14.5 m)
+CORNER_CUT_SHARE = 0.4                                # at most this share of a side: two cuts on one short side
+                                                      # never cross
 SEA = "Open sea"
 NAMES = [SEA] + list(LOCKS)                           # lock index -> name; 0 is open sea
 LOCK_INDEX = {name: i for i, name in enumerate(NAMES)}
@@ -330,7 +339,8 @@ def label_the_map(refs):
     labels = spread(labels, ocean & ~split_open_sea(labels, ocean))
     labels = smooth_borders(labels, land)
     if LOCK_SIZE == "levels":
-        labels, routes_flown = level_tiers.open_walled_in_pieces(labels, land, outside)
+        start = home_land & (labels == LOCK_INDEX[START])
+        labels, routes_flown = level_tiers.open_walled_in_pieces(labels, land, outside, start)
         flying |= routes_flown
     flying |= water_beside(flying, labels, land)
     return LabelledMap(labels, image, land, outside, flying, home_land)
@@ -455,17 +465,75 @@ def wall_pieces(edges):
     walls, drawn = [], []
     for (a, b), segs in sorted(edges.items()):
         for line in chains(segs):
-            spots = [world(r, c) for r, c in simplify(line, TOLERANCE)]
+            spots = cut_sharp_corners([world(r, c) for r, c in simplify(line, TOLERANCE)])
             drawn.append(spots)
-            for start, end in zip(spots, spots[1:]):
-                walls += pieces_of_segment(start, end, a, b)
+            reach = joint_reaches(spots)
+            for k, (start, end) in enumerate(zip(spots, spots[1:])):
+                walls += pieces_of_segment(start, end, a, b, (reach[k], reach[k + 1]))
     return walls, drawn
 
 
-def pieces_of_segment(start, end, a, b):
-    """One straight stretch of border between locks a and b, cut into equal pieces of at most MAX_PIECE."""
+def turn_at(before, here, after):
+    """How far a border line turns at `here`, in radians (0: straight on)."""
+    heading_in = math.atan2(here[1] - before[1], here[0] - before[0])
+    heading_out = math.atan2(after[1] - here[1], after[0] - here[0])
+    return abs((heading_out - heading_in + math.pi) % (2 * math.pi) - math.pi)
+
+
+def cut_corner(before, here, after):
+    """The two points that cut the corner at `here`: CORNER_CUT back along each side (less on a short side)."""
+    cut = min(CORNER_CUT, CORNER_CUT_SHARE * math.dist(before, here), CORNER_CUT_SHARE * math.dist(here, after))
+    back, on = cut / math.dist(before, here), cut / math.dist(here, after)
+    return ((here[0] + (before[0] - here[0]) * back, here[1] + (before[1] - here[1]) * back),
+            (here[0] + (after[0] - here[0]) * on, here[1] + (after[1] - here[1]) * on))
+
+
+def cut_sharp_corners(spots):
+    """A border line with each bend sharper than SHARPEST_BEND cut into two half bends (a closed loop's ends too)."""
+    if len(spots) < 3 or len(set(spots)) < len(spots) - 1:
+        return spots                    # no bend, or a line through one point twice: no side to cut along there
+    closed = len(spots) > 3 and spots[0] == spots[-1]
+    out = [spots[0]]
+    for k in range(1, len(spots) - 1):
+        if turn_at(spots[k - 1], spots[k], spots[k + 1]) > SHARPEST_BEND:
+            out += cut_corner(spots[k - 1], spots[k], spots[k + 1])
+        else:
+            out.append(spots[k])
+    out.append(spots[-1])
+    if closed and turn_at(spots[-2], spots[0], spots[1]) > SHARPEST_BEND:
+        start, end = cut_corner(out[-2], spots[0], out[1])
+        out = [end] + out[1:-1] + [start, end]
+    return out
+
+
+def joint_reaches(spots):
+    """How far the walls run past each point of a border line, so the 4 m thick pieces meet cleanly: at a bend, a
+    mitre (the outer faces meet in a point, not a notch); at the ends, JUNCTION_REACH (a closed loop's ends are one
+    more bend)."""
+    reach = [JUNCTION_REACH] * len(spots)
+    for k in range(1, len(spots) - 1):
+        reach[k] = mitre_reach(spots[k - 1], spots[k], spots[k + 1])
+    if len(spots) > 3 and spots[0] == spots[-1]:
+        reach[0] = reach[-1] = mitre_reach(spots[-2], spots[0], spots[1])
+    return reach
+
+
+def mitre_reach(before, here, after):
+    """How far the pieces on each side of a bend at `here` must run past it for their outer faces to meet: half the
+    thickness times the tangent of half the turn (at most half the thickness, as no bend is sharper than a right
+    angle once cut_sharp_corners has run)."""
+    return WALL_THICKNESS / 2 * math.tan(turn_at(before, here, after) / 2)
+
+
+def pieces_of_segment(start, end, a, b, reach):
+    """One straight stretch of border between locks a and b, run on past each end by reach (its start's, its end's)
+    and cut into equal pieces of at most MAX_PIECE."""
     (sx, sy), (ex, ey) = start, end
     length = math.hypot(ex - sx, ey - sy)
+    if length > 0:
+        ux, uy = (ex - sx) / length, (ey - sy) / length
+        sx, sy, ex, ey = sx - ux * reach[0], sy - uy * reach[0], ex + ux * reach[1], ey + uy * reach[1]
+        length += reach[0] + reach[1]
     n = max(1, math.ceil(length / MAX_PIECE))
     pieces = []
     for k in range(n):
@@ -483,6 +551,7 @@ def write_walls(path, walls):
            "-- until both its locks are open; open sea (0) always is.",
            "return {",
            "    start = " + json.dumps(START) + ",",
+           f"    thickness = {WALL_THICKNESS},   -- every piece's, in game units",
            "    locks = { " + ", ".join(json.dumps(a) for a in NAMES) + " },",
            "    walls = {"]
     out += [f"        {{ x = {w.x}, y = {w.y}, length = {w.length}, yaw = {w.yaw}, lockA = {w.lock_a}, "

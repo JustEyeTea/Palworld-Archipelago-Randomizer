@@ -7,17 +7,17 @@ return {
     -- 207 px deep; 0 px from the start
     [1] = { deepU = 0.6630, deepV = 0.4725, stampU = 0.5233, stampV = 0.2970, room = 56 },
     -- 160 px deep; 56 px from the start
-    [2] = { deepU = 0.5375, deepV = 0.4208, stampU = 0.6056, stampV = 0.3492, room = 56 },
+    [2] = { deepU = 0.5372, deepV = 0.4208, stampU = 0.6049, stampV = 0.3495, room = 56 },
     -- 157 px deep; 56 px from the start
     [3] = { deepU = 0.4303, deepV = 0.5162, stampU = 0.7006, stampV = 0.3639, room = 56 },
     -- 233 px deep; 56 px from the start
-    [4] = { deepU = 0.7279, deepV = 0.2245, stampU = 0.7653, stampV = 0.3224, room = 56 },
+    [4] = { deepU = 0.7279, deepV = 0.2245, stampU = 0.7740, stampV = 0.3229, room = 56 },
     -- 101 px deep; 56 px from the start
-    [5] = { deepU = 0.5287, deepV = 0.1766, stampU = 0.4838, stampV = 0.2826, room = 56 },
+    [5] = { deepU = 0.5287, deepV = 0.1766, stampU = 0.4830, stampV = 0.2828, room = 56 },
     -- 214 px deep; 56 px from the start
     [6] = { deepU = 0.3646, deepV = 0.6412, stampU = 0.7333, stampV = 0.3351, room = 56 },
     -- 243 px deep; 447 px from the start
     [7] = { deepU = 0.2333, deepV = 0.7360, stampU = 0.5326, stampV = 0.7614, room = 56 },
-    -- 112 px deep; 718 px from the start
+    -- 112 px deep; 719 px from the start
     [8] = { deepU = 0.3588, deepV = 0.1276, stampU = 0.3507, stampV = 0.1471, room = 56 },
 }

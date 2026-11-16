@@ -82,7 +82,7 @@ The Archipelago tools take `AP_DIR`, your Archipelago folder with its venv in `.
 | Module | What it holds |
 |---|---|
 | `lock_groups.py` | the 15 regions and 75 areas as groups of the game's map rows, and Level Progression's tier bands; `LOCK_SIZE` picks the set the map tools build |
-| `level_tiers.py` | Level Progression: the land labelled by its Pals' level, and the water lanes and flying corridors to walled-in tiers (used by `lock_walls.py`) |
+| `level_tiers.py` | Level Progression: the land labelled by its Pals' level, and the water lanes and flying corridors to walled-in tiers (flown when the sea way round is far longer) (used by `lock_walls.py`) |
 | `grid_cells.py` | the map tools' grid and the steps on it they share (`lock_walls.py`, `level_tiers.py`) |
 | `towers.py` | the game's 13 tower bosses: number, boss type, the lock model's place, the goal tower's name |
 | `table_dumps.py` | the reader of the table dumps, and the facts several tools read the same way from them |

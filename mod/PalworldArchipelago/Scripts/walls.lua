@@ -75,7 +75,6 @@ local SPAWN_ALWAYS = 1        -- ESpawnActorCollisionHandlingMethod::AlwaysSpawn
 W.SPAWN_ALWAYS = SPAWN_ALWAYS   -- (glow_pieces.lua spawns its pieces with it too)
 local MIN_SCALE = 0.01        -- the height scale a shrinking piece ends at (never 0)
 local CUBE_CM = 100           -- the blocking cube's side at scale 1: a piece's scale is its size / CUBE_CM
-local THICK_CM = 400          -- 4 m thick, so nothing fast slips through
 local HEIGHT_CM = 300000      -- 3 km tall: from 1 km below sea level to 2 km above
 local MID_Z_CM = 50000        -- the piece's middle, 500 m above sea level: halfway between those two
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
@@ -201,15 +200,15 @@ local function segDist(i, x, y)
 end
 W.segDist = segDist
 
--- Raises piece i: the game's blocking cube, scaled to its length x 4 m x 3 km and turned by its yaw about the
--- vertical (as a quaternion: Z = sin(yaw/2), W = cos(yaw/2)), its middle 500 m above sea level. False when the spawn
--- gave no actor.
+-- Raises piece i: the game's blocking cube, scaled to its length x the layout's thickness x 3 km and turned by its yaw
+-- about the vertical (as a quaternion: Z = sin(yaw/2), W = cos(yaw/2)), its middle 500 m above sea level. False when
+-- the spawn gave no actor.
 local function raise(i, pawn)
     local wall = layout.walls[i]
     local x, y, length, yaw = wall.x, wall.y, wall.length, math.rad(wall.yaw)
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = x, Y = y, Z = MID_Z_CM },
-                Scale3D = { X = length / CUBE_CM, Y = THICK_CM / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
+                Scale3D = { X = length / CUBE_CM, Y = layout.thickness / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
     local actor = statics:BeginDeferredActorSpawnFromClass(pawn, cls, t, SPAWN_ALWAYS, nil)
     if not actor or not actor:IsValid() then return false end
     statics:FinishSpawningActor(actor, t)
@@ -321,9 +320,10 @@ local function startOpening(i, pawn)
         UTIL.took("walls: an opening piece's start", "0 s (the game's clock could not be read)")
         now = 0
     end
-    opening[#opening + 1] = { actor = actor, scaleX = layout.walls[i].length / CUBE_CM, scaleY = THICK_CM / CUBE_CM,
-                              startedAt = now, addr = addr, dissolving = m and true or nil,
-                              material = m and material or nil, collisionOff = nil, steps = 0 }
+    opening[#opening + 1] = { actor = actor, scaleX = layout.walls[i].length / CUBE_CM,
+                              scaleY = layout.thickness / CUBE_CM, startedAt = now, addr = addr,
+                              dissolving = m and true or nil, material = m and material or nil, collisionOff = nil,
+                              steps = 0 }
 end
 
 

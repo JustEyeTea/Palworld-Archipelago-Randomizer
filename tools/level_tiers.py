@@ -1,6 +1,7 @@
 """Level Progression's tiers on the map grid (LOCK_SIZE=levels): the land labelled by the level of the wild Pals that
 spawn on it by day, smoothed into pieces a player can follow, and on the finished map a way of its own tier (a water
-lane, or a flying corridor) to any piece that only higher tiers' walls surround, so it opens with its own pass.
+lane, or a flying corridor when there is none or the lane's trip from the start is far longer) to any piece that only
+higher tiers' walls surround, so it opens with its own pass.
 The land, its coasts and the World Tree's foot are the 15 regions' (lock_walls.py labels them first). Called by
 lock_walls.py. The rules come from the user's Level Progression study: tier bands lock_groups.TIER_TOP_LEVELS.
 Tests: none of its own; the APWorld's test_levels.py and the Lua harness check the files made from it.
@@ -10,7 +11,7 @@ from collections import deque
 
 import numpy as np
 
-from grid_cells import N, cell, components, grow, nearest_land, spread
+from grid_cells import N, cell, components, grow, nearest_land, neighbours, spread
 from lock_groups import TIER_NAMES, TIER_TOP_LEVELS
 from table_dumps import EMPTY_SLOT, SPAWNER_SLOTS, read_table, world_xyz
 
@@ -25,6 +26,9 @@ SMOOTH_RADIUS = 3         # cells: a cell takes the tier most land within this o
 MIN_PIECE_CELLS = 2000    # cells (0.42 km2): a smaller piece of a tier joins the tier it borders most
 MERGE_ROUNDS = 20         # merging small pieces can make others small; it stops once a round changes nothing
 TUNNEL_HALF_WIDTH = 5     # cells: a flying route is 11 cells (160 m) wide, room to fly up it on a mount
+FLIGHT_SHORTCUT = 5       # a water lane whose whole trip from the start is over 5 times the shortest flight's is
+                          # flown instead: the low islands north of the start (16 times: 1 km by air, 22 km by
+                          # sea) fly; a 78-cell tier-2 islet (4 times) keeps its lane, not 2.5 km of flight over land
 FOUR = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
@@ -164,6 +168,49 @@ def route_to(piece, reached, through):
     return None
 
 
+def trip_lengths(reached, start):
+    """Steps (no diagonals) over reached cells from the start's land to every reached cell; -1 where unreached."""
+    trip = np.full((N, N), -1, np.int32)
+    todo = deque()
+    for spot in zip(*np.nonzero(start & reached)):
+        trip[spot] = 0
+        todo.append(spot)
+    while todo:
+        here = todo.popleft()
+        for step in neighbours(*here, FOUR):
+            if reached[step] and trip[step] < 0:
+                trip[step] = trip[here] + 1
+                todo.append(step)
+    return trip
+
+
+def cheapest_route(piece, trip, through):
+    """The route (no diagonals) from a piece over `through` cells to a reached cell that makes the shortest whole trip
+    from the start: (mask of the cells it crosses, the trip's steps), or (None, None) when there is none."""
+    came_from, steps = {}, {}
+    todo = deque()
+    for spot in zip(*np.nonzero(piece)):
+        came_from[spot], steps[spot] = None, 0
+        todo.append(spot)
+    end, best = None, None
+    while todo:
+        here = todo.popleft()
+        if best is not None and steps[here] + 1 >= best:
+            break                                   # every route left is already longer
+        for step in neighbours(*here, FOUR):
+            if step in came_from:
+                continue
+            if trip[step] >= 0 and (best is None or steps[here] + 1 + trip[step] < best):
+                end, best = (step, here), steps[here] + 1 + int(trip[step])
+            elif trip[step] < 0 and through[step]:
+                came_from[step], steps[step] = here, steps[here] + 1
+                todo.append(step)
+    if end is None:
+        return None, None
+    came_from[end[0]] = end[1]
+    return trace_route(came_from, end[0]), best
+
+
 def trace_route(came_from, end):
     """The cells from a route's end back to where it left its piece, as a mask."""
     route = np.zeros((N, N), bool)
@@ -174,31 +221,38 @@ def trace_route(came_from, end):
     return route
 
 
-def route_out(piece, reached, labels, land, tier):
-    """The way out of a walled-in piece of a tier: a lane through higher tiers' water when there is one (swum or
-    sailed), else a route over their land too (flown). Returns (route mask or None, whether it is flown)."""
-    higher = (labels > tier) & (labels > 0)
+def route_out(piece, reached, trip, labels, land, tier):
+    """The way out of a walled-in piece of a tier: the nearest lane through higher tiers' water (swum or sailed), else
+    the nearest route over their land too (flown); but when the lane's whole trip from the start is over
+    FLIGHT_SHORTCUT times the shortest flown trip, that flight. Returns (route mask or None, whether it is flown)."""
+    higher = labels > tier
     lane = route_to(piece, reached, higher & ~land)
-    if lane is not None:
+    if lane is None:
+        return route_to(piece, reached, higher), True
+    lane_trip = int(lane.sum()) + int(trip[lane & reached].min())
+    flight, flight_trip = cheapest_route(piece, trip, higher)
+    if lane_trip <= FLIGHT_SHORTCUT * flight_trip:
         return lane, False
-    return route_to(piece, reached, higher), True
+    print(f"  the lane's trip from the start is {lane_trip} cells, a flight's {flight_trip}: flown instead")
+    return flight, True
 
 
-def open_walled_in_pieces(labels, land, outside):
+def open_walled_in_pieces(labels, land, outside, start):
     """For each piece of a tier that only higher tiers' walls surround on the finished map (land and water labelled),
-    a way of its own tier, TUNNEL_HALF_WIDTH wide, to what the player already reaches with its pass: a lane through
-    water (the low Isles of Silence, whose narrow seas go to the higher shores around them), or a corridor over
-    higher land (the Astral Mountains valley). Returns the labels and the cells a player must fly to: each flown
-    route with its piece."""
+    a way of its own tier, TUNNEL_HALF_WIDTH wide, to what the player already reaches with its pass from the start's
+    land: a lane through water, or a corridor over higher land (the Astral Mountains valley, and the low islands
+    north of the start, whose only lane by sea is a long way round). Returns the labels and the cells a player must
+    fly to: each flown route with its piece."""
     labels = labels.copy()
     flying = np.zeros((N, N), bool)
     open_sea = (labels == 0) & ~land & ~outside
     for tier in range(1, len(TIER_TOP_LEVELS) + 1):
         reached = reached_with(labels, open_sea, tier)
+        trip = trip_lengths(reached, start)
         parts, sizes = components((labels == tier) & ~reached, False)
         for part in range(1, len(sizes)):
             piece = parts == part
-            route, flown = route_out(piece, reached, labels, land, tier)
+            route, flown = route_out(piece, reached, trip, labels, land, tier)
             if route is None:
                 continue
             way = grow(route, TUNNEL_HALF_WIDTH) & ~outside & ((labels > tier) | piece) & (flown | ~land)

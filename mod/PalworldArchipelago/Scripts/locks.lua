@@ -14,7 +14,8 @@ local SEA = "Open sea"
 -- tiers of wild Pal level (Progressive Level Passes, one copy per tier in order; the level_*.lua files). A lock is a
 -- locked part of the cut in use: a region, an area or a tier. The 15 regions' cut is loaded at start.
 -- The seed's cut of the map, as data. Its fields change when the seed's Lock Size arrives (W.setLayout), so they are
--- read through this table, never kept elsewhere: walls (the border pieces, *_walls.lua), locks (the locks' names by
+-- read through this table, never kept elsewhere: walls (the border pieces, *_walls.lua), thickness (every piece's,
+-- in cm: the generator runs pieces on past bends by it, so it lives in the same file), locks (the locks' names by
 -- index), start (the starting lock), map (*_map.lua: which lock each spot of the map is in), bounds (the map's xMin,
 -- xMax, yMin, yMax in world units), centres (*_centres.lua, by lock index: deepU, deepV its deepest point, stampU,
 -- stampV its stamp's place on the map square, room how far that is from the edge), shapes (*_shapes.lua, loaded when
@@ -30,6 +31,7 @@ local function useLayoutData(name)
     local prefix = FILE_PREFIX[name]
     local walls = require(prefix .. "walls")
     layout.prefix, layout.walls, layout.locks, layout.start = prefix, walls.walls, walls.locks, walls.start
+    layout.thickness = walls.thickness
     layout.map, layout.shapes = require(prefix .. "map"), nil
     layout.bounds = layout.map.bounds
     layout.centres = require(prefix .. "centres")    -- rows by name, as tools/lock_centres.py writes them (see above)

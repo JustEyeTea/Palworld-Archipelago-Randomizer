@@ -8,9 +8,10 @@ points, levels and towers are further checks.
 
 With Level Progression the walls follow where wild Pals of each level live, not the game's named places: levels 1-16
 (the start, Windswept Island among it), 17-28, 29-34, 35-40, 41-48, 49-59, 60-69 and 70-80 (the World Tree). A tier
-can lie in several places, and its wall says how many passes it takes. Two places need a flying mount besides their
-passes: the Sky Islands, and a levels 29-34 valley in the Astral Mountains that higher tiers surround, reached by
-flying up a walled corridor. The low Isles of Silence are levels 1-16, reached by sea down a walled water lane.
+can lie in several places, and its wall says how many passes it takes. Three places need a flying mount besides their
+passes: the Sky Islands; a levels 29-34 valley in the Astral Mountains that higher tiers surround, reached by flying
+up a walled corridor; and the low Isles of Silence, levels 1-16 but ringed by the 17-28 tier, reached by a walled
+corridor from the start (the Nitewing Saddle is a level 15 tech, and Nitewing live near the start).
 
 ![The 15 regions, each in its pass ticket's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/region-map.png)
 
