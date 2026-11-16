@@ -700,20 +700,28 @@ def write_shapes(walls_path, labels, outlines):
 def write_label_picture(walls_path, labels, outlines):
     """The same rounded shapes as a picture for the C++ part to compose the world map from: <prefix>_labels.png,
     LABEL_SIZE px, each pixel's value the index of its lock (0: open sea and beyond the map). Our own data, shipped
-    with the mod. Holes in a lock show what is under them again."""
+    with the mod. Every loop is drawn biggest first, so a pocket of one lock inside another is drawn over the hole
+    around it, and a hole shows what most of the grid inside it holds (its first corner can be the lock's own cell,
+    which drew the Ancient Ritual Site pocket as open sea)."""
+    loops = []
+    for k in range(1, len(NAMES)):
+        loops += [(loop, k) for loop in outlines[k].outers]
+        loops += [(hole, label_inside(labels, hole, k)) for hole in outlines[k].holes]
+    loops.sort(key=lambda item: -abs(signed_area(item[0])))
     picture = Image.new("L", (LABEL_SIZE, LABEL_SIZE), 0)
     drawing = ImageDraw.Draw(picture)
-    for k in range(1, len(NAMES)):
-        for loop in outlines[k].outers:
-            drawing.polygon([(c / N * LABEL_SIZE, r / N * LABEL_SIZE) for r, c in loop], fill=k)
-    for k in range(1, len(NAMES)):
-        for hole in outlines[k].holes:
-            r0, c0 = hole[0]
-            under = int(labels[min(N - 1, max(0, int(r0))), min(N - 1, max(0, int(c0)))])
-            drawing.polygon([(c / N * LABEL_SIZE, r / N * LABEL_SIZE) for r, c in hole],
-                            fill=under if under != k else 0)
+    for loop, fill in loops:
+        drawing.polygon([(c / N * LABEL_SIZE, r / N * LABEL_SIZE) for r, c in loop], fill=fill)
     picture.save(pathlib.Path(walls_path).parent.parent / f"{PREFIX}_labels.png", optimize=True)
     print(f"{PREFIX} labels picture written")
+
+
+def label_inside(labels, hole, k):
+    """The label most of the grid inside a hole of lock k holds, other than k (0, open sea, when nothing else is)."""
+    mask = Image.new("1", (N, N), 0)
+    ImageDraw.Draw(mask).polygon([(c, r) for r, c in hole], fill=1)
+    inside = labels[np.asarray(mask) & (labels != k)]
+    return int(np.bincount(inside).argmax()) if inside.size else 0
 
 
 def run_lengths(labels):
