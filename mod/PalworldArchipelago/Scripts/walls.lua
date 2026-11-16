@@ -10,7 +10,8 @@
 --     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
 --     install. The harness sets them on its copies directly
 --   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
---     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, regionOf,
+--     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, passNeeded,
+--     regionOf,
 --     slugOf, mapShown, mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS, SPAWN_ALWAYS (glow_pieces.lua)
 --   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin,
@@ -55,6 +56,7 @@ local MAP_ICONS = freshPart("map_icons")
 local MAP_FOG = freshPart("map_fog")
 local layout, isOpen = LOCKS.layout, LOCKS.isOpen
 W.passName, W.lockAt, W.lockedAround, W.regionOf = LOCKS.passName, LOCKS.lockAt, LOCKS.lockedAround, LOCKS.regionOf
+W.passNeeded = LOCKS.passNeeded
 W.setBeyond, W.slugOf = LOCKS.setBeyond, LOCKS.slugOf
 W.start, W.home = layout.start, layout.map.home
 -- Where a player found in a closed lock (or hit by a Teleport Trap) is sent: the layout's home as a location in cm.
@@ -541,7 +543,7 @@ end
 -- A change takes every wall down at once (their piece numbers mean other pieces in the other cut) and forgets the map
 -- pictures made for the old one; the update raises the new cut's walls.
 function W.setLayout(name)
-    name = name == "areas" and "areas" or "regions"
+    name = (name == "areas" or name == "levels") and name or "regions"
     if name == W.layout then return false end
     for _, actor in pairs(raised) do pcall(function() if actor:IsValid() then actor:K2_DestroyActor() end end) end
     destroyOpening()

@@ -512,6 +512,9 @@ local function pieceSkin(i, passes, mode)
     local wall = layout.walls[i]
     local a1, a2 = layout.locks[wall.lockA + 1], layout.locks[wall.lockB + 1]
     local lock = wornLock(a1, a2, passes)
+    if mode == "regions" and W.layout == "levels" then
+        mode = "paws"               -- the tiers have no wall tiles in the art pak: the paws, in each tier's colour
+    end
     if mode == "regions" then return regionLookName(lock, lock == a1 and wall.lockA or wall.lockB) end
     local hex = REGION_COLOURS[W.regionOf(lock)]
     if mode == "paws" then

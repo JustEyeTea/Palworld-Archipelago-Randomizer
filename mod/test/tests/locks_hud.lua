@@ -1,5 +1,5 @@
--- Lock Size: areas, locks beyond the goal, the walls' region colours and the HUD pieces (the hint pop-up, the
--- debuff icons, the goal banner). Tests walls.lua, hint_popup.lua, debuffs.lua.
+-- Lock Size: areas and levels, locks beyond the goal, the walls' region colours and the HUD pieces (the hint pop-up,
+-- the debuff icons, the goal banner). Tests walls.lua, hint_popup.lua, debuffs.lua.
 
 group("Lock Size: areas", function()
     -- Slot data options.lock_size 1: every named area of the game on its own, opened by an Area Pass.
@@ -134,6 +134,65 @@ group("Lock Size: areas", function()
     run(80)
     expect(liveWalls.layout == "regions" and logged("area locks: 15 regions"),
            "back to a 15-regions seed: the regions' walls")
+end)
+
+group("Lock Size: levels", function()
+    -- Slot data options.lock_size 2: Level Progression's tiers of wild Pal level, opened in order by copies of one
+    -- item.
+    local LV = dofile(MOD .. "/Scripts/level_walls.lua")
+    local liveWalls, ap = require("walls"), require("ap_state").ap
+    slotData["options.lock_size"] = "2"
+    h.reconnect("Tester")
+    h.replayItems()
+    run(80)
+    expect(liveWalls.layout == "levels" and LV.start == "Levels 1-16"
+           and liveWalls.passName("Levels 29-34") == "Progressive Level Pass",
+           "a Level Progression seed: the tiers' walls, and one pass item for them all")
+    local up = wallCount()
+    expect(up > 800 and up <= #LV.walls, "the tiers' walls go up (the 15 regions' came down): " .. up)
+    expect(liveWalls.passNeeded("Levels 29-34", ap.passes) == "2 Progressive Level Passes (0 so far)",
+           "a tier's wall says how many passes it takes: " .. liveWalls.passNeeded("Levels 29-34", ap.passes))
+    pushItem({ name = "Progressive Level Pass", index = 9100 })
+    run(60)
+    local afterOne = wallCount()
+    expect(afterOne < up and ap.passes["Levels 17-28"] and not ap.passes["Levels 29-34"],
+           "the first copy opens the next tier alone: " .. up .. " -> " .. afterOne .. " walls")
+    pushItem({ name = "Progressive Level Pass", index = 9101 })
+    run(60)
+    expect(wallCount() < afterOne and ap.passes["Levels 29-34"]
+           and liveWalls.passNeeded("Levels 35-40", ap.passes) == "3 Progressive Level Passes (2 so far)",
+           "the second copy opens the tier after: " .. liveWalls.passNeeded("Levels 35-40", ap.passes))
+    expect(liveWalls.pieceSkin(1, ap.passes, "regions"):match("^paws:") ~= nil,
+           "the tiers have no wall tiles: the regions look wears the paws in the tier's colour")
+    do  -- The server sends a hint line per copy; a copy already found never replaces one still to find.
+        local mark, me = #announced, ap.slotName or require("config").cfg.slot      -- the slot an earlier group left
+        push("message", "[Hint]: " .. me .. "'s Progressive Level Pass is at Shop: Foo Stand in Friend's World. "
+             .. "(not found)", "Hint")
+        push("message", "[Hint]: " .. me .. "'s Progressive Level Pass is at Alpha: Bar in " .. me .. "'s World. "
+             .. "(found)", "Hint")
+        run(1)
+        shared.WD, shared.regionWalls = LV, shared.WD
+        local spot, tier = h.spotBesideStart(function(lock) return lock ~= "Open sea" and not ap.passes[lock] end)
+        shared.WD = shared.regionWalls
+        local told
+        if spot then
+            h.walkAwayAndBack(spot)
+            for i = mark + 1, #announced do
+                if announced[i]:find(tier .. " is sealed. " .. me .. "'s Progressive Level Pass is at Shop: Foo Stand",
+                                     1, true) then told = true end
+            end
+        end
+        expect(told, "a tier's wall says where a Progressive Level Pass still to find is: " .. tostring(tier))
+    end
+    slotData["options.lock_size"] = "7"                     -- a Lock Size from a newer APWorld
+    h.reconnect("Tester")
+    run(80)
+    expect(liveWalls.layout == "regions" and logged("Lock Size %(7%) is newer than this mod"),
+           "a Lock Size the mod does not know: the player is told, and the 15 regions' walls stand in")
+    slotData["options.lock_size"] = nil
+    h.reconnect("Tester")
+    run(80)
+    expect(liveWalls.layout == "regions", "back to a 15-regions seed")
 end)
 
 group("locks beyond the goal", function()

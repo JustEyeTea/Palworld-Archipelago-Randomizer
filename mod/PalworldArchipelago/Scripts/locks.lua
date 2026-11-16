@@ -4,12 +4,15 @@
 -- Tests: mod/test/tests/walls.lua, mod/test/tests/map.lua; groups "area locks", "the world map"
 --   (tools/lua_harness.sh, in CI).
 local LOCKS = {}
+local DATA = require("ap_data")
+local UTIL = require("util")
 local W = nil                 -- walls.lua's public table (install): settings and data main.lua sets there
 local SEA = "Open sea"
 
--- Two cuts, named as the seed's Lock Size (W.setLayout): "regions", the 15 regions (Region Passes, the region_*.lua
--- files), and "areas", the game's 75 named areas (Area Passes, the area_*.lua files). A lock is a locked part of the
--- cut in use, a region or an area. The 15 regions' cut is loaded at start.
+-- Three cuts, named as the seed's Lock Size (W.setLayout): "regions", the 15 regions (Region Passes, the region_*.lua
+-- files), "areas", the game's 75 named areas (Area Passes, the area_*.lua files), and "levels", Level Progression's
+-- tiers of wild Pal level (Progressive Level Passes, one copy per tier in order; the level_*.lua files). A lock is a
+-- locked part of the cut in use: a region, an area or a tier. The 15 regions' cut is loaded at start.
 -- The seed's cut of the map, as data. Its fields change when the seed's Lock Size arrives (W.setLayout), so they are
 -- read through this table, never kept elsewhere: walls (the border pieces, *_walls.lua), locks (the locks' names by
 -- index), start (the starting lock), map (*_map.lua: which lock each spot of the map is in), bounds (the map's xMin,
@@ -22,8 +25,9 @@ local layout = {}
 local regionOfArea = nil                                       -- area -> its region (areas cut only; loaded once)
 local beyondNames = ""         -- the locks beyond the goal, sorted and joined: changes when the set does (setBeyond)
 local decoded = {}             -- map row -> its runs, decoded when first used (lockIndexAt)
+local FILE_PREFIX = { regions = "region_", areas = "area_", levels = "level_" }   -- each cut's files: region_walls.lua
 local function useLayoutData(name)
-    local prefix = name == "areas" and "area_" or "region_"    -- each cut's files: region_walls.lua, area_walls.lua
+    local prefix = FILE_PREFIX[name]
     local walls = require(prefix .. "walls")
     layout.prefix, layout.walls, layout.locks, layout.start = prefix, walls.walls, walls.locks, walls.start
     layout.map, layout.shapes = require(prefix .. "map"), nil
@@ -32,9 +36,28 @@ local function useLayoutData(name)
     decoded = {}
 end
 
--- The item that opens a lock: a Region Pass for one of the 15 regions, an Area Pass for one of the 75 areas.
+-- The item that opens a lock: a Region Pass for one of the 15 regions, an Area Pass for one of the 75 areas, a
+-- Progressive Level Pass for a tier.
 function LOCKS.passName(lock)
+    if W.layout == "levels" then return DATA.levelPass end
     return (W.layout == "areas" and "Area Pass: " or "Region Pass: ") .. lock
+end
+-- A tier's place in the order its passes open it (1: the first tier after the start), or nil for any other lock.
+local function tierPlace(lock)
+    if W.layout ~= "levels" then return nil end
+    for place, tier in ipairs(DATA.levelTiers) do
+        if tier == lock then return place end
+    end
+end
+-- What a lock's wall says it needs: its pass; for a tier, how many Progressive Level Passes against how many came.
+function LOCKS.passNeeded(lock, passes)
+    local place = tierPlace(lock)
+    if not place then return LOCKS.passName(lock) end
+    local have = 0
+    for _, tier in ipairs(DATA.levelTiers) do
+        if passes[tier] then have = have + 1 end
+    end
+    return UTIL.counted(place, DATA.levelPass, DATA.levelPass .. "es") .. " (" .. have .. " so far)"
 end
 
 -- Open sea is never locked, so a lock is ringed from the sea as well.
@@ -92,15 +115,19 @@ function LOCKS.lockedAround(x, y, passes)
     return name
 end
 
--- Each region's colour (its pass ticket's); an area wears its region's (regionOf).
+-- Each region's colour (its pass ticket's); an area wears its region's (regionOf). A level tier has its own, cool to
+-- hot as its Pals' levels rise (the tiers have no art of their own: these colour their walls and map).
 local REGION_COLOURS = {
     ["Bamboo Groves"] = "8CCB3A", ["Sea Breeze Archipelago"] = "3FC1D9", ["Isles of Silence"] = "A3ADC9",
     ["Marsh Island"] = "8F9B4A", ["Crescent Moon Shore"] = "7A6FE0", ["Volcano Foothills"] = "F08A3C",
     ["Mount Obsidian"] = "D2453F", ["Verdant Stream"] = "2FB3A0", ["Desiccated Dunes"] = "E3B860",
     ["Astral Mountains"] = "A8E0F0", ["Sakurajima"] = "F28FB5", ["Feybreak"] = "B266D9",
     ["Sky Islands"] = "5B9BF0", ["World Tree"] = "2E8B57",
+    ["Levels 1-16"] = "7FD15A", ["Levels 17-28"] = "C8D94A", ["Levels 29-34"] = "F2D04B", ["Levels 35-40"] = "F5A742",
+    ["Levels 41-48"] = "EE7A3A", ["Levels 49-59"] = "E04B4B", ["Levels 60-69"] = "C04BB8", ["Levels 70-80"] = "7B4FE0",
 }
--- The region (one of the 15) a lock belongs to: an area's region, or with the regions' cut the region itself.
+-- The region (one of the 15) a lock belongs to: an area's region; with the regions' cut the region itself, and with
+-- the level tiers the tier (a tier is not inside one region).
 function LOCKS.regionOf(lock)
     if W.layout ~= "areas" then return lock end
     regionOfArea = regionOfArea or require("area_regions")
