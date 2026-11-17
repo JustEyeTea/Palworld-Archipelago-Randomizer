@@ -68,7 +68,7 @@ with `[PalworldAP]`.
 
 ## Playing
 
-![What the mod's pictures mean: item icons on shop cards, crates, traps, and pass tickets on the map and at walls](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/legend.png)
+![What the mod's pictures mean: item icons on shop cards, crates, traps, pass tickets and level tier stamps on the map and at walls, and the fly-up icon](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/legend.png)
 
 - The Technology tree (levels 2 and up) is the shop. Each card shows what buying it sends; buying spends the usual
   tech points. A tech itself unlocks only when its item arrives. If the connection drops while you play, you can
