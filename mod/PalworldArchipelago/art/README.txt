@@ -64,5 +64,14 @@ Round 7 (2026-11-12, the user's picks):
                               none), for its Area Pass on the Technology cards (shop_cards.lua; the area's region's
                               ticket when missing). <area> is the area's name in lower case, every run of other
                               characters a "-" (WALLS.slugOf).
+Round 8 (2026-11-16, the user's picks): Level Progression (Lock Size: levels).
+  ap-map-stamp-levels-<tier>.png       256x256, each locked level tier's stamp on the map, in its tier colour (locks.lua
+                                       has the colours). <tier> as for areas, e.g. levels-17-28. The starting tier has
+                                       none: it is never locked.
+  ap-map-stamp-open-levels-<tier>.png  the same with an open padlock, for a tier unlocked but not visited yet.
+  ap-pass-progressive-level.png        256x256, the Progressive Level Pass ticket on the Technology cards, one for
+                                       every copy (shop_cards.lua).
+  ap-map-fly-up.png                    256x256, a map icon at the near mouth of each flying corridor until the
+                                       player has flown through it (map_icons.lua; the user's pick B).
 Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).
