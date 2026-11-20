@@ -23,14 +23,14 @@ It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipe
 Why: the game's wall material (MI_AirBlock_v2) multiplies one tint by one channel of its texture, so a wall piece can
 only be one colour. M_APWall shows a full-colour RGBA texture, so the walls can be multicoloured.
 
-M_APWall: unlit, translucent, one-sided. Each wall piece is a box, so drawing both sides showed the pattern on its
-near face and again on its far face, a doubled pattern seen through the wall; one-sided, only the faces turned to the
-camera draw. M_APWallNearest also writes its depth to the custom depth buffer and hides itself wherever that buffer
-holds a nearer wall, so overlapping pieces at a bend show one pattern, not two (it needs the Lua mod to turn custom
-depth on for each piece; where the buffer is empty it draws like M_APWall). The pattern is laid on the wall
-itself (world space along the piece's length and up its height, so it recedes in perspective and doesn't stretch
-with the piece's scale), and fades out with distance from the camera like the game's walls. Parameters the Lua mod
-sets on its dynamic instances:
+M_APWall: unlit, translucent, two-sided. Each wall piece is a box, so the far face shows through the near one: the
+user's choice, as it reads as a wall with depth (one-sided hides it). M_APWallNearest is one-sided, writes its depth
+to the custom depth buffer and hides itself wherever that buffer holds a nearer wall, so overlapping pieces at a bend
+show one pattern (it needs the Lua mod to turn custom depth on for each piece; where the buffer is empty it draws like
+a one-sided M_APWall). It hides the far wall too, so it is for comparing, not the default.
+The pattern is laid on the wall itself (world space along the piece's length and up its height, so it recedes in
+perspective and doesn't stretch with the piece's scale), and fades out with distance from the camera like the game's
+walls. Parameters the Lua mod sets on its dynamic instances:
   Pattern (texture)     the RGBA tile; colour is the colour, alpha is how solid
   CellSize              centimetres per tile, both ways (300)
   ScrollU, ScrollV      tiles per second (0, 0)
@@ -109,8 +109,8 @@ def link(a, out, b, inp):
     raise RuntimeError(f"could not connect {a.get_name()}.{out or 'out'} -> {b.get_name()}.{inp or '(its input)'}")
 
 
-def new_material(name):
-    """An empty wall material called name: unlit, translucent and one-sided (the old one, if any, deleted)."""
+def new_material(name, two_sided):
+    """An empty wall material called name: unlit and translucent (the old one, if any, deleted)."""
     path = f"{ROOT}/{name}"
     if assets.does_asset_exist(path):
         assets.delete_asset(path)
@@ -118,7 +118,7 @@ def new_material(name):
     mat = tools.create_asset(name, ROOT, unreal.Material, unreal.MaterialFactoryNew())
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    mat.set_editor_property("two_sided", False)
+    mat.set_editor_property("two_sided", two_sided)
     return mat
 
 
@@ -511,7 +511,7 @@ def nearest_only(mat, opacity):
 def material(dissolve_pattern, name=NAME, nearest=False):
     """A wall material (M_APWall, or with nearest M_APWallNearest), built node by node in the order its parts feed
     each other, then laid out and compiled. dissolve_pattern is T_APWallDissolve, or None for the engine's noise."""
-    mat = new_material(name)
+    mat = new_material(name, two_sided=not nearest)
     wpos, u_face = wall_axes(mat)
     time, moving = moving_tiles(mat, wpos, u_face)
     final_uv = area_variant(mat, moving)
@@ -529,7 +529,8 @@ def material(dissolve_pattern, name=NAME, nearest=False):
     mel.recompile_material(mat)
     how = DISSOLVE_TEXTURE if dissolve_pattern else "the engine's noise"
     shown = "nearest wall only" if nearest else "every wall"
-    log(f"{name}: made (unlit, translucent, one-sided, {shown}; {mel.get_num_material_expressions(mat)} nodes; "
+    sides = "one-sided" if nearest else "two-sided"
+    log(f"{name}: made (unlit, translucent, {sides}, {shown}; {mel.get_num_material_expressions(mat)} nodes; "
         f"dissolve by {how})")
     return mat
 
