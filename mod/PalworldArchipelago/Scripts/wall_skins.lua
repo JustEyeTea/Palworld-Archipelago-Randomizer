@@ -42,6 +42,7 @@ local PALETTE, SEALED, TEAL = nil, nil, nil   -- locks.lua's palette, and its se
 -- pattern (T_DungeonGate02: linear, single channel); MainTexture02 is the engine's blue noise for the dither, left
 -- alone; Color, DayColor and NightColor are the tint (night = 0.42 of day); TilingU_01/TilingV_01 default to 5 and 3,
 -- ScrollingU_01/ScrollingV_01 to 0.
+local NEAREST_MATERIAL = "M_APWallNearest"   -- M_APWall drawn only where it is the nearest wall (the pak)
 local SKINS = { "red", "area", "paws", "regions" }
 local function onApWall(name) return name == "paws" or name == "regions" end    -- a skin on the pak's M_APWall
 local function byArea(name) return name == "area" or onApWall(name) end        -- a skin in each lock's colour
@@ -80,7 +81,10 @@ local skin = { now = "red", want = "red", base = nil, mids = {}, failed = {} }
 local dressedAs = {}           -- piece -> the material it wears with the area skin; forgotten with the piece (forget)
 local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
 local areaFile = nil           -- "pawholes" when walls/ap-wall-pattern-pawholes.png exists, else "a" (checked once)
-local apWall = nil             -- M_APWall once loaded
+local apWall = nil             -- M_APWall (or M_APWallNearest) once loaded
+-- State: the nearest-wall-only test switch (Ctrl+Shift+F3). Forgotten: never; it is a choice for the session, and
+-- nearestUsed stays true once it was on, so pieces dressed later have custom depth turned off again.
+local nearest, nearestUsed = false, false
 local apWallProbed = false     -- the wall material probe line was logged
 local pawLayer = nil           -- the cream-paw layer texture
 local regionTiles = {}         -- a region wall's texture name in the pak -> its texture
@@ -156,10 +160,19 @@ local function fadeOn(material)
     material:SetScalarParameterValue(FName("FadeStart"), W.fade[1])
     material:SetScalarParameterValue(FName("FadeEnd"), W.fade[2])
 end
+-- M_APWallNearest while the nearest-wall-only switch is on (logged each time it is loaded: after a switch or a new
+-- world), else nil: M_APWall then, also when the pak was built without it.
+local function nearestWallMaterial()
+    if not nearest then return nil end
+    local m = artPakAsset(NEAREST_MATERIAL, {})
+    log("wall material: " .. (m and (NEAREST_MATERIAL .. " (the nearest wall only)")
+        or (NEAREST_MATERIAL .. " is not in the pak; M_APWall instead")))
+    return m
+end
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
     local notes = {}
-    local m = artPakAsset("M_APWall", notes)
+    local m = nearestWallMaterial() or artPakAsset("M_APWall", notes)
     if not apWallProbed then
         apWallProbed = true
         local okA, actor = pcall(StaticFindObject, ART_PAK .. "ModActor.ModActor_C")
@@ -364,6 +377,14 @@ function WALL_SKINS.dropCaches()
     skin.now = "red"                                           -- so skinTick dresses the new world's pieces again
     dissolveMaterials, dissolveStarts, glowAt, apWall, pawLayer, regionTiles = {}, {}, nil, nil, nil, {}
 end
+-- Ctrl+Shift+F3: the walls on M_APWallNearest (each drawn only where it is the nearest wall, so pieces crossing at a
+-- bend show one pattern) or back on M_APWall. The materials are made again and every piece dressed again at the next
+-- update, as for a new world. True when now on.
+function WALL_SKINS.toggleNearest()
+    nearest, nearestUsed = not nearest, true
+    WALL_SKINS.dropCaches()
+    return nearest
+end
 -- The game instance and the rendering and material libraries a skin's material is made with, once the walls' own
 -- material is known; nil and what is missing while any of them is.
 local function skinLibraries()
@@ -472,6 +493,9 @@ local function dress(actor, material)
         W.keepAlive(skin.base)
     end
     m:SetMaterial(0, material or skin.base)
+    if nearestUsed then        -- M_APWallNearest hides behind what the pieces write to custom depth
+        pcall(function() m:SetRenderCustomDepth(nearest) end)
+    end
     return true
 end
 -- The lock whose colour a piece between a1 and a2 wears: the locked side when only one is locked; otherwise (both

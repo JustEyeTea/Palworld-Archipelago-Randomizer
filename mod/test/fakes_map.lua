@@ -127,7 +127,8 @@ local function WallActor(t)
     local address = FIRST_WALL_ADDRESS + spawned
     local a = { IsValid = function(self) return not self.gone end, t = t, GetAddress = function() return address end }
     a.Cube = { IsValid = function() return true end, GetMaterial = function(self) return self.mat or wallRed end,
-               SetMaterial = function(self, _, m) self.mat = m end }
+               SetMaterial = function(self, _, m) self.mat = m end,
+               SetRenderCustomDepth = function(self, on) self.customDepth = on end }
     function a:K2_DestroyActor()
         self.gone = true
         wallsUp[self] = nil

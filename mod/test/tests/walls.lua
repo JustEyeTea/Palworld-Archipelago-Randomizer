@@ -137,6 +137,16 @@ group("area locks", function()
         expect(known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
                and logged("wall skin paws: colours paws:"),
                "over each piece's region colour at 0.34, brightness 1.1 (" .. nBacks .. " colours)")
+        liveWalls.toggleNearest()                 -- what Ctrl+Shift+F3 does (test_tools)
+        run(1)
+        local nm = a.Cube.mat
+        expect(nm.parent and tostring(nm.parent.path):find("/M_APWallNearest", 1, true) and a.Cube.customDepth == true
+               and logged("wall material: M_APWallNearest %(the nearest wall only%)"),
+               "the nearest-wall switch: every piece dressed again on M_APWallNearest, writing custom depth")
+        liveWalls.toggleNearest()
+        run(1)
+        expect(tostring(a.Cube.mat.parent.path):find("/M_APWall%.") and a.Cube.customDepth == false,
+               "and switched back: on M_APWall, custom depth off: " .. tostring(a.Cube.mat.parent.path))
         local notes, badLoadsBefore = {}, #badLoads
         local fresh = liveWalls.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
         expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry"
