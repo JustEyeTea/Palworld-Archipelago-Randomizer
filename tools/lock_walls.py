@@ -17,7 +17,8 @@ Also writes, beside the walls file, region_map.lua: the locks at 29 m, for the m
 and a point in the starting lock to send a player found in a locked one; region_shapes.lua: each lock's outline,
 smoothed and cut into triangles, for the mod to grey locked ones on the world map; and ../region_labels.png, the same
 shapes as a picture. With LOCK_SIZE=areas they are area_map.lua, area_shapes.lua and area_labels.png; with
-LOCK_SIZE=levels, level_map.lua, level_shapes.lua and level_labels.png.
+LOCK_SIZE=levels, level_map.lua, level_shapes.lua and level_labels.png, and level_flying.png, the flying corridors
+(tools/flying_picture.py).
 Tests: none of its own; the Lua harness loads its files with the mod, and tests/map.lua and tests/walls.lua check
 the map and the walls made from them.
 """
@@ -35,6 +36,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from grid_cells import CELL, N, X0, X1, Y0, Y1, cell, components, grow, nearest_land, spread, world
 import level_tiers
+from flying_picture import write_flying_picture
 from lock_groups import INNER_ROWS, LOCK_SIZE, LOCKS, PREFIX, ROW_GROUPS, START
 from table_dumps import read_table, wild_spawner_pals, world_xyz
 
@@ -876,6 +878,8 @@ def main():
     outlines = {k: lock_outline(labels, outside, k) for k in range(1, len(NAMES))}
     total_triangles = write_shapes(walls_path, labels, outlines)
     write_label_picture(walls_path, labels, outlines)
+    corridors_only = labelled.flying & (labelled.beneath > 0)   # (not the land beyond: walked once reached)
+    write_flying_picture(pathlib.Path(walls_path).parent.parent, PREFIX, corridors_only, LABEL_SIZE)
     print(f"{PREFIX} shapes: {total_triangles} triangles")
     write_lock_map(walls_path, refs, labels, land, labelled.home_land)
     save_grid(grid_path, labels, pieces, piece_lock, borders, labelled.flying, labelled.beneath)

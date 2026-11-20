@@ -1,8 +1,8 @@
 // Linux check of the map pictures (image_tools.hpp): greyscale_png, compose_map and its job slot, a slot whose thread
 // cannot start, compose_chart, compose_fog (plain, as a BMP, with a stamp, with borders, dashed, kept to land),
-// sample_png,
-// compose_territories and compose_field (as the overlay, and as the map picture with its duotone fog picture), and
-// bad arguments refused. Each check prints "ok" or "FAIL" with what it saw; the first failure ends the run (exit 1).
+// sample_png, compose_territories and compose_field (as the overlay, as the map picture with its duotone fog picture,
+// and with flying corridors striped), and bad arguments refused. Each check prints "ok" or "FAIL" with what it saw;
+// the first failure ends the run (exit 1).
 // It writes its pictures to /tmp/*.png and reads them back. Run by CI ("The C++ part's image helper"); by hand, from
 // cppmod/APConnector:
 //   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/lua_text.cpp src/image_*.cpp
@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <string>
 #include <vector>
@@ -88,6 +89,50 @@ static bool check_fog_bmp(const unsigned char* png, int w, int h)
     }
     ok = ok && differ == 0;
     std::printf("%s fog as BMP: %zu bytes, %d pixel(s) unlike the PNG\n", ok ? "ok" : "FAIL", b.size(), differ);
+    return ok;
+}
+
+// compose_field with a flying corridor (after the field checks in main, which write /tmp/field.png and
+// /tmp/field_colour.png): a 64 px flying picture marks columns 40-55 above row 50, which at 1024 px is x 640-895 above
+// y 800, in area 2 (visited, green). There the map picture is striped across the diagonal: a sky band pale blue, the
+// lock's band green; everywhere else every byte is as without the flying picture. Returns whether it passed.
+static bool check_flying_stripes()
+{
+    constexpr int SIZE = 1024, MASK = 64;
+    std::vector<unsigned char> mask(MASK * MASK, 0);
+    for (int y = 0; y < 50; ++y)
+        for (int x = 40; x < 56; ++x) mask[y * MASK + x] = 255;
+    stbi_write_png("/tmp/field_flying.png", MASK, MASK, 1, mask.data(), MASK);
+    const char* locks = "1:l:FF0000,2:v:00FF00";
+    const char* style = "FFE9B0,0.35,FFF4DC,0.6,160,48,80";
+    const auto plain = compose_field("/tmp/field.png", locks, "", style, "/tmp/field_plain.png", "", "102030", SIZE,
+                                     "/tmp/field_colour.png", 1.0);
+    const auto striped = compose_field("/tmp/field.png", locks, "", style, "/tmp/field_striped.png", "", "102030", SIZE,
+                                       "/tmp/field_colour.png", 1.0, "/tmp/field_flying.png");
+    int w = 0, h = 0, n = 0;
+    unsigned char* a = plain.empty() ? stbi_load("/tmp/field_plain.png", &w, &h, &n, 4) : nullptr;
+    unsigned char* b = striped.empty() ? stbi_load("/tmp/field_striped.png", &w, &h, &n, 4) : nullptr;
+    if (!a || !b)
+    {
+        std::printf("FAIL flying stripes: %s / %s\n", plain.c_str(), striped.c_str());
+        return false;
+    }
+    auto at = [&](unsigned char* px, int x, int y) { return px + (static_cast<size_t>(y) * SIZE + x) * 4; };
+    // Bands are 12 px of the 4096 reference map: 3 px here, 4.24 along x + y. (700, 400): x + y 1100, a sky band;
+    // (696, 400): 1096, the lock's.
+    const unsigned char *sky = at(b, 700, 400), *lock = at(b, 696, 400);
+    const bool skyBlue = sky[2] > sky[0] + 40 && sky[2] > lock[2] + 60;
+    const bool lockGreen = lock[1] > lock[2] + 100 && lock[1] > at(a, 696, 400)[1];
+    int spilled = 0;
+    for (int y = 0; y < SIZE; ++y)
+        for (int x = 0; x < SIZE; ++x)
+        {
+            const bool corridor = x >= 630 && x < 905 && y < 810;     // (its soft edge reaches a few px out)
+            if (!corridor && std::memcmp(at(a, x, y), at(b, x, y), 4) != 0) ++spilled;
+        }
+    const bool ok = skyBlue && lockGreen && spilled == 0;
+    std::printf("%s flying stripes: sky %d,%d,%d, lock's band %d,%d,%d, %d pixel(s) changed outside the corridor\n",
+                ok ? "ok" : "FAIL", sky[0], sky[1], sky[2], lock[0], lock[1], lock[2], spilled);
     return ok;
 }
 
@@ -365,5 +410,6 @@ int main()
                 mg ? mp(127, 50)[2] : -1,
                 mf ? (std::to_string(fq(40, 100)[0]) + "," + std::to_string(fq(40, 100)[1]) + " / " + std::to_string(fq(220, 100)[1])
                       + " / " + std::to_string(fq(160, 250)[0]) + "," + std::to_string(fq(160, 250)[2])).c_str() : "none");
-    return mapOk ? 0 : 1;
+    if (!mapOk) return 1;
+    return check_flying_stripes() ? 0 : 1;
 }

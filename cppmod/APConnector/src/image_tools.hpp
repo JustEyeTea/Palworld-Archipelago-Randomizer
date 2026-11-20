@@ -86,10 +86,13 @@ auto compose_territories(const std::string& labels, const std::string& locks, co
 // closed side's colour, lighter (style fields 8, 9: their glow and core alpha, default 0.3, 0.5); and the fog picture
 // is the duotone: the open sea the map's brightness over the fog colour, each lock its colour from dark to light with
 // the map's brightness (dimmer locked or sealed), rims (no fills) and the cream walls. Without colour, out is the
-// overlay and the fog picture the fills and rims over the fog colour.
+// overlay and the fog picture the fills and rims over the fog colour. flying: the flying corridors' picture (one
+// channel at any size, over half on a corridor; "" for none), striped on both pictures in the corridor's colour and a
+// pale sky blue.
 auto compose_field(const std::string& field, const std::string& locks, const std::string& walls,
                    const std::string& style, const std::string& out, const std::string& fogart,
-                   const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0) -> std::string;
+                   const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0,
+                   const std::string& flying = "") -> std::string;
 
 // One background job at a time per slot (the map, the chart, the fog and the Territories each have their own).
 // start returns "" (started) or "busy". Every error, even a bad argument or a thread that could not start, comes

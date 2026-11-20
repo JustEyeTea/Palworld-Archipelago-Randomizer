@@ -410,6 +410,12 @@ local function haveColourMap(rendering, gameInstance)
     end
     return hasColour, colour
 end
+-- The flying corridors' picture (level_flying.png, tools/flying_picture.py: Level Progression only), striped on the
+-- map so it shows a player can only fly over them; "" when this lock set has none.
+local function flyingFile()
+    local path = W.dir .. "\\" .. layout.prefix .. "flying.png"
+    return UTIL.exists(path) and path or ""
+end
 -- Starts a Territories composition for `key` in the background. From the distance field when the DLL has it (smooth at
 -- 4096, where the 2048 label map gave stairs and octagons; *_field.png, made from the label maps by
 -- tools/map_fields.py), else from the label map at 2048.
@@ -422,9 +428,10 @@ local function startTerritories(rendering, gameInstance, passes, key)
         local colour
         whole, colour = haveColourMap(rendering, gameInstance)
         size = FIELD_SIZE
-        -- AP_ComposeField(field, locks, walls, style, out, fogart, fog colour, size, colour, gamma): dllmain.cpp's list
+        -- AP_ComposeField(field, locks, walls, style, out, fogart, fog colour, size, colour, gamma, flying):
+        -- dllmain.cpp's list
         err = AP_ComposeField(field, lockSpec(passes), wallSpec(passes), TERR_WALLS, W.dir .. "\\" .. TERR_OVERLAY,
-            W.dir .. "\\" .. TERR_FOG, PALETTE.fog, tostring(size), whole and colour or "", GAMMA)
+            W.dir .. "\\" .. TERR_FOG, PALETTE.fog, tostring(size), whole and colour or "", GAMMA, flyingFile())
     else
         size = TERR_SIZE
         -- AP_ComposeTerritories(labels, locks, walls, style, out, fogart, fog colour, size): dllmain.cpp's list

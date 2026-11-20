@@ -1,6 +1,6 @@
 -- The map update's own steps: icons only on a screen that is on screen, a fog picture made out of date while it was
--- made (not loaded, made again), and a long map update logged with each step's time. Tests map_picture.lua,
--- map_fog.lua and map_icons.lua on fresh copies of walls.lua.
+-- made (not loaded, made again), a long map update logged with each step's time, and the flying corridors' picture
+-- handed to the composer. Tests map_picture.lua, map_fog.lua and map_icons.lua on fresh copies of walls.lua.
 
 -- A screen listed but not on screen (closed) gets no icons; on screen it gets them, and the log says why.
 local function iconsOnlyOnScreen()
@@ -59,8 +59,8 @@ local function outdatedFogSkipped()
     fogBusy = false
     F.updateMap(true, { [AW.locks[4]] = true }, pawn)
     expect(started > 0 and fogPicsIn(calls) == pics and fogJobs == started + 1
-           and loggedSince(mark, "a fog picture not loaded, what it shows changed while it was made; made again %(1 this"
-                           .. " session %(the first 3 are logged%)%)"),
+           and loggedSince(mark, "a fog picture not loaded, what it shows changed while it was made; made again"
+                           .. " %(1 this session %(the first 3 are logged%)%)"),
            "a fog picture made out of date while it was made is not loaded, and the next is started at once")
     F.updateMap(true, { [AW.locks[4]] = true }, pawn)
     expect(fogPicsIn(calls) == pics + 1 and fogJobs == started + 1, "that next one is loaded")
@@ -88,8 +88,36 @@ local function longUpdateLogged()
            "a long one is logged with each step's time and the moment: " .. tostring(err))
 end
 
+-- Level Progression's flying corridors picture goes to the Territories composer; a lock set without one sends "".
+local function flyingCorridorsHandedOver()
+    local calls = {}
+    local unplug = plugInTerritories(calls)
+    local field = AP_ComposeField
+    local flyingSent = {}
+    AP_ComposeField = function(...)
+        flyingSent[#flyingSent + 1] = select(11, ...) or "(none)"
+        return field(...)
+    end
+    local function lastSent(layout)
+        local F = h.freshWalls()
+        F.setLayout(layout)
+        F.beyond, F.visited = {}, {}
+        local before = #flyingSent
+        for _ = 1, 3 do
+            F.updateMap(true, {}, pawn)
+        end
+        return #flyingSent > before and flyingSent[#flyingSent] or nil
+    end
+    local levels, regions = lastSent("levels"), lastSent("regions")
+    expect(levels and levels:find("level_flying%.png$") and regions == "",
+           "Level Progression hands its flying corridors' picture to the map: " .. tostring(levels) .. "; the regions "
+           .. "none: '" .. tostring(regions) .. "'")
+    unplug()
+end
+
 group("the map's steps: icons on screen only, an outdated fog picture, long updates", function()
     iconsOnlyOnScreen()
     outdatedFogSkipped()
     longUpdateLogged()
+    flyingCorridorsHandedOver()
 end)

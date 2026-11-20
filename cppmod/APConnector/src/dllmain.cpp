@@ -25,8 +25,9 @@
 //                                        locks' stamps; AP_FogStatus()
 //   AP_ComposeTerritories(labels, locks, walls, style, out, fogart, fog, size)   the Territories overlay and its fog
 //                                        picture from the lock label map; AP_TerritoriesStatus()
-//   AP_ComposeField(field, locks, walls, style, out, fogart, fog, size, colour, gamma)   the same from a distance field
-//                                        (smooth borders), in the Territories job slot; AP_TerritoriesStatus()
+//   AP_ComposeField(field, locks, walls, style, out, fogart, fog, size, colour, gamma, flying)   the same from a
+//                                        distance field (smooth borders), the flying corridors striped, in the
+//                                        Territories job slot; AP_TerritoriesStatus()
 // register_png_tools (image_tools.hpp), which run at once:
 //   AP_SamplePNG(path, u, v) -> string   a PNG's colour at (u, v) in 0..1: "r,g,b,a", or "error: ..."
 //   AP_GreyscalePNG(in, out, gamma) -> string   writes a greyscale copy of a PNG ("" on success, else the error)
@@ -405,8 +406,9 @@ namespace
         const int size = int_or(next_text_arg(call), DEFAULT_FIELD_SIZE);
         const auto colour = next_text_arg(call);
         const double gamma = double_or(next_text_arg(call), GAMMA_UNCHANGED);
+        const auto flying = next_text_arg(call);
         return territory_jobs().start(
-            [=] { return compose_field(field, locks, walls, style, out, fogart, fog, size, colour, gamma); });
+            [=] { return compose_field(field, locks, walls, style, out, fogart, fog, size, colour, gamma, flying); });
     }
 
     auto ap_compose_status(const LuaMadeSimple::Lua&) -> std::string
