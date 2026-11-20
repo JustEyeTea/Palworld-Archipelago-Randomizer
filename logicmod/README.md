@@ -151,7 +151,7 @@ independent of the mailbox window: it needs only Part 1's setup, not Parts 2 and
 
 ```mermaid
 flowchart LR
-  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png, art/walls/*.png)"] -->|"the editor runs it"| AS["M_APWall, T_APWallPaws, T_APWallRegion_*, T_APWallSealed, T_APWallDissolve, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
+  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png, art/walls/*.png)"] -->|"the editor runs it"| AS["M_APWall, M_APWallNearest, T_APWallPaws, T_APWallRegion_*, T_APWallSealed, T_APWallDissolve, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
   GY["make_glow_assets.py<br/>(and art/glow/*.fbx, *.png)"] -->|"the editor runs it"| AS
   AS -->|"package: Use Pak File, Generate Chunks,<br/>shaders kept in the pak"| PK["pakchunk2-Windows.pak"]
   PK -->|"renamed"| ART["PalworldArchipelagoArt.pak<br/>in Pal/Content/Paks/LogicMods"]
@@ -168,8 +168,8 @@ flowchart LR
      -run=pythonscript -script="<repo>\logicmod\make_glow_assets.py"
    ```
 
-   `make_wall_material.py` builds `M_APWall`, `ModActor` and the chunk label (chunk 2), which takes everything in
-   the folder. `make_glow_assets.py` imports the six glow meshes and six textures from `logicmod\art\glow\` and
+   `make_wall_material.py` builds `M_APWall`, `M_APWallNearest` (an experiment: if it fails, the Output Log says
+   so and the pak goes without it), `ModActor` and the chunk label (chunk 2), which takes everything in the folder. `make_glow_assets.py` imports the six glow meshes and six textures from `logicmod\art\glow\` and
    builds `M_APGlow`; a file missing there is skipped with a log line. Nothing is by hand. Every Output Log line
    starts with `[PalworldArchipelagoArt]`; check for `LogPython: Error`.
 2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and `M_APGlow` and look for a compile error

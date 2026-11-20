@@ -5,6 +5,8 @@ Run it inside the kit's editor (Tools > Execute Python Script...), or without op
 
 It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipelagoArt):
   M_APWall                    the area walls' material, built node by node here (nothing by hand)
+  M_APWallNearest             the same, drawn only where it is the nearest wall to the camera (an experiment the
+                              Lua mod switches to; its build may fail, which leaves M_APWall as it is)
   T_APWallPaws                the paws skin's cream-paw layer (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png in
                               this repo), cooked with mips so its navy rims don't shimmer far off
   T_APWallRegion_<region>_<v>  the regions skin's walls, from logicmod/art/walls/ap-wall-region-<region>-<v>.png (each
@@ -21,9 +23,14 @@ It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipe
 Why: the game's wall material (MI_AirBlock_v2) multiplies one tint by one channel of its texture, so a wall piece can
 only be one colour. M_APWall shows a full-colour RGBA texture, so the walls can be multicoloured.
 
-M_APWall: unlit, translucent, two-sided. The pattern is laid on the wall itself (world space along the piece's length
-and up its height, so it recedes in perspective and doesn't stretch with the piece's scale), and fades out with
-distance from the camera like the game's walls. Parameters the Lua mod sets on its dynamic instances:
+M_APWall: unlit, translucent, one-sided. Each wall piece is a box, so drawing both sides showed the pattern on its
+near face and again on its far face, a doubled pattern seen through the wall; one-sided, only the faces turned to the
+camera draw. M_APWallNearest also writes its depth to the custom depth buffer and hides itself wherever that buffer
+holds a nearer wall, so overlapping pieces at a bend show one pattern, not two (it needs the Lua mod to turn custom
+depth on for each piece; where the buffer is empty it draws like M_APWall). The pattern is laid on the wall
+itself (world space along the piece's length and up its height, so it recedes in perspective and doesn't stretch
+with the piece's scale), and fades out with distance from the camera like the game's walls. Parameters the Lua mod
+sets on its dynamic instances:
   Pattern (texture)     the RGBA tile; colour is the colour, alpha is how solid
   CellSize              centimetres per tile, both ways (300)
   ScrollU, ScrollV      tiles per second (0, 0)
@@ -54,6 +61,9 @@ import unreal
 
 ROOT = "/Game/Mods/PalworldArchipelagoArt"
 NAME = "M_APWall"
+NEAREST_NAME = "M_APWallNearest"
+NEAREST_BIAS_CM = 5.0            # how far behind the nearest wall a pixel may be and still draw (depth rounding)
+NEAREST_SOFT_CM = 2.0            # over how many cm behind that it fades out, so the cut-off doesn't shimmer
 CHUNK_ID = 2
 DISSOLVE_EDGE = 0.08             # how wide the dissolve's glowing edge is, in the noise's 0..1
 DISSOLVE_FILE = "ap-wall-dissolve-embers"  # logicmod/art/walls/ap-wall-dissolve-embers.png (the user's pick, A)
@@ -99,16 +109,16 @@ def link(a, out, b, inp):
     raise RuntimeError(f"could not connect {a.get_name()}.{out or 'out'} -> {b.get_name()}.{inp or '(its input)'}")
 
 
-def new_material():
-    """An empty M_APWall: unlit, translucent and two-sided (the old one, if any, deleted)."""
-    path = f"{ROOT}/{NAME}"
+def new_material(name):
+    """An empty wall material called name: unlit, translucent and one-sided (the old one, if any, deleted)."""
+    path = f"{ROOT}/{name}"
     if assets.does_asset_exist(path):
         assets.delete_asset(path)
-        log(f"{NAME}: replacing the old one")
-    mat = tools.create_asset(NAME, ROOT, unreal.Material, unreal.MaterialFactoryNew())
+        log(f"{name}: replacing the old one")
+    mat = tools.create_asset(name, ROOT, unreal.Material, unreal.MaterialFactoryNew())
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    mat.set_editor_property("two_sided", True)
+    mat.set_editor_property("two_sided", False)
     return mat
 
 
@@ -471,13 +481,37 @@ def opacity_output(mat, o1, react, left, rim, fade):
     link(fade, "", faded, "B")
     o2 = node(mat, unreal.MaterialExpressionSaturate, 3350, 700)
     link(faded, "", o2, "")
-    mel.connect_material_property(o2, "", unreal.MaterialProperty.MP_OPACITY)
+    return o2
 
 
-def material(dissolve_pattern):
-    """M_APWall, built node by node in the order its parts feed each other, then laid out and compiled.
-    dissolve_pattern is T_APWallDissolve, or None for the engine's noise."""
-    mat = new_material()
+def nearest_only(mat, opacity):
+    """opacity, kept where this pixel is the nearest wall's (its depth within NEAREST_BIAS_CM of the custom depth
+    buffer) and faded to 0 behind it. An empty buffer reads far away, so then nothing is hidden."""
+    here = node(mat, unreal.MaterialExpressionPixelDepth, 3200, 900)
+    buffer = node(mat, unreal.MaterialExpressionSceneTexture, 3200, 1000,
+                  scene_texture_id=unreal.SceneTextureId.PPI_CUSTOM_DEPTH)
+    nearest = node(mat, unreal.MaterialExpressionComponentMask, 3350, 1000, r=True, g=False, b=False, a=False)
+    link(buffer, "Color", nearest, "")
+    behind = node(mat, unreal.MaterialExpressionSubtract, 3500, 950)
+    link(here, "", behind, "A")
+    link(nearest, "", behind, "B")
+    room = node(mat, unreal.MaterialExpressionSubtract, 3650, 950, const_a=NEAREST_BIAS_CM)
+    link(behind, "", room, "B")
+    steep = node(mat, unreal.MaterialExpressionMultiply, 3800, 950, const_b=1.0 / NEAREST_SOFT_CM)
+    link(room, "", steep, "A")
+    kept = node(mat, unreal.MaterialExpressionSaturate, 3950, 950)
+    link(steep, "", kept, "")
+    shown = node(mat, unreal.MaterialExpressionMultiply, 4100, 800)
+    link(opacity, "", shown, "A")
+    link(kept, "", shown, "B")
+    mat.set_editor_property("allow_translucent_custom_depth_writes", True)
+    return shown
+
+
+def material(dissolve_pattern, name=NAME, nearest=False):
+    """A wall material (M_APWall, or with nearest M_APWallNearest), built node by node in the order its parts feed
+    each other, then laid out and compiled. dissolve_pattern is T_APWallDissolve, or None for the engine's noise."""
+    mat = new_material(name)
     wpos, u_face = wall_axes(mat)
     time, moving = moving_tiles(mat, wpos, u_face)
     final_uv = area_variant(mat, moving)
@@ -487,13 +521,29 @@ def material(dissolve_pattern):
     react = player_glow(mat, wpos, time)
     left, rim = dissolve(mat, wpos, time, final_uv, dissolve_pattern)
     emissive_output(mat, c1, c2, react, rim)
-    opacity_output(mat, o1, react, left, rim, fade)
+    opacity = opacity_output(mat, o1, react, left, rim, fade)
+    if nearest:
+        opacity = nearest_only(mat, opacity)
+    mel.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
     mel.layout_material_expressions(mat)
     mel.recompile_material(mat)
     how = DISSOLVE_TEXTURE if dissolve_pattern else "the engine's noise"
-    log(f"{NAME}: made (unlit, translucent, two-sided; {mel.get_num_material_expressions(mat)} nodes; "
+    shown = "nearest wall only" if nearest else "every wall"
+    log(f"{name}: made (unlit, translucent, one-sided, {shown}; {mel.get_num_material_expressions(mat)} nodes; "
         f"dissolve by {how})")
     return mat
+
+
+def nearest_material(dissolve_pattern):
+    """M_APWallNearest, or None if the editor can't build it (logged): an experiment must not stop M_APWall."""
+    try:
+        return material(dissolve_pattern, NEAREST_NAME, nearest=True)
+    except Exception as err:            # any failure here is the experiment's, and M_APWall is already saved
+        path = f"{ROOT}/{NEAREST_NAME}"
+        if assets.does_asset_exist(path):       # a half-built one would be cooked into the pak with the folder
+            assets.delete_asset(path)
+        log(f"{NEAREST_NAME}: could not be made ({err}); the pak goes without it")
+        return None
 
 
 def label():
@@ -668,9 +718,13 @@ def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
     pattern = dissolve_pattern()
-    for a in [material(pattern), pattern, paw_layer(), *region_walls(), mod_actor(), label()]:
+    for a in [material(pattern), pattern, paw_layer(), *region_walls(), mod_actor()]:
         if a:
             assets.save_loaded_asset(a, only_if_is_dirty=False)
+    nearest = nearest_material(pattern)
+    if nearest:
+        assets.save_loaded_asset(nearest, only_if_is_dirty=False)
+    assets.save_loaded_asset(label(), only_if_is_dirty=False)
     log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as "
         "PalworldArchipelagoArt.pak")
 
