@@ -1,5 +1,6 @@
 // Linux check of the map pictures (image_tools.hpp): greyscale_png, compose_map and its job slot, a slot whose thread
-// cannot start, compose_chart, compose_fog (plain, with a stamp, with borders, dashed, kept to land), sample_png,
+// cannot start, compose_chart, compose_fog (plain, as a BMP, with a stamp, with borders, dashed, kept to land),
+// sample_png,
 // compose_territories and compose_field (as the overlay, and as the map picture with its duotone fog picture), and
 // bad arguments refused. Each check prints "ok" or "FAIL" with what it saw; the first failure ends the run (exit 1).
 // It writes its pictures to /tmp/*.png and reads them back. Run by CI ("The C++ part's image helper"); by hand, from
@@ -48,6 +49,45 @@ static bool check_job_without_thread()
     const bool ok = started == "" && first.rfind("error: ", 0) == 0 && after == "";
     std::printf("%s job without a thread: start '%s', status '%s', then '%s'\n", ok ? "ok" : "FAIL", started.c_str(),
                 first.c_str(), after.c_str());
+    return ok;
+}
+
+// A little-endian field of a file read into memory: n bytes (2 or 4) at offset at.
+static unsigned long le(const std::vector<unsigned char>& b, size_t at, int n)
+{
+    unsigned long v = 0;
+    for (int i = n - 1; i >= 0; --i) v = (v << 8) | b[at + i];
+    return v;
+}
+
+// The fog picture written as a BMP (write_picture, for an out path ending in ".bmp") holds the same pixels as the PNG,
+// alpha included: a 32-bit BMP with a V4 header whose masks put red, green, blue and alpha where the game's reader
+// looks for them, its rows bottom to top. png is that picture as RGBA (w x h). Returns whether it passed.
+static bool check_fog_bmp(const unsigned char* png, int w, int h)
+{
+    constexpr size_t FILE_HEADER = 14, V4_HEADER = 108;   // the BMP file header, then the BITMAPV4HEADER
+    constexpr unsigned long BI_BITFIELDS = 3, ALPHA_MASK = 0xff000000ul, RED_MASK = 0x00ff0000ul;
+    std::FILE* in = std::fopen("/tmp/fog_out.bmp", "rb");
+    std::vector<unsigned char> b;
+    for (int c; in && (c = std::fgetc(in)) != EOF;) b.push_back(static_cast<unsigned char>(c));
+    if (in) std::fclose(in);
+    const size_t pixels = FILE_HEADER + V4_HEADER;
+    bool ok = png && b.size() == pixels + static_cast<size_t>(w) * h * 4 && b[0] == 'B' && b[1] == 'M'
+              && le(b, 10, 4) == pixels && le(b, 14, 4) == V4_HEADER && le(b, 18, 4) == static_cast<unsigned long>(w)
+              && le(b, 22, 4) == static_cast<unsigned long>(h) && le(b, 28, 2) == 32 && le(b, 30, 4) == BI_BITFIELDS
+              && le(b, 54, 4) == RED_MASK && le(b, 66, 4) == ALPHA_MASK;
+    int differ = 0;
+    for (int y = 0; ok && y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const unsigned char* p = png + (static_cast<size_t>(y) * w + x) * 4;               // R G B A, top row first
+            const unsigned char* q = b.data() + pixels + (static_cast<size_t>(h - 1 - y) * w + x) * 4;   // B G R A
+            if (q[0] != p[2] || q[1] != p[1] || q[2] != p[0] || q[3] != p[3]) ++differ;
+        }
+    }
+    ok = ok && differ == 0;
+    std::printf("%s fog as BMP: %zu bytes, %d pixel(s) unlike the PNG\n", ok ? "ok" : "FAIL", b.size(), differ);
     return ok;
 }
 
@@ -142,6 +182,9 @@ int main()
     std::printf("%s fog: %s, alpha unexplored %d, explored %d, edge %d\n", fogOk ? "ok" : "FAIL", fst.c_str(),
                 fa(20, 128), fa(240, 128), fa(128, 128));
     if (!fogOk) return 1;
+    const bool bmpOk = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_out.bmp", 256) == ""
+                       && check_fog_bmp(f, 256, 256);
+    if (!bmpOk) return 1;
 
     // sample_png: the mask above reads 255 red on its right half, 0 on its left; a missing file is an error.
     const auto right = sample_png("/tmp/fog_mask.png", 0.9, 0.5), left = sample_png("/tmp/fog_mask.png", 0.1, 0.5);

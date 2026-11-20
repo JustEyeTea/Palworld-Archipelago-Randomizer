@@ -179,7 +179,7 @@ group("the world map", function()
             sampled[#sampled + 1] = u .. "," .. v
             return u == "0.02" and "0,0,0,255" or "0,0,0,40"         -- explored where alpha is LOW (the made-up mask)
         end
-        os.remove(MOD .. "/map-fog.png")
+        os.remove(MOD .. "/map-fog.bmp")
         mapBody.MaskTextureMaterial = maskMaterial("MaterialInstanceDynamic_2")
         local W6 = h.freshWalls()
         W6.iconsOff = true                                           -- (the stamps drawn on the fog: map_icons=0)
@@ -508,10 +508,10 @@ group("the world map: the Territories look", function()
     T.beyond = { [sealedRegion] = true }
     T.visited = {}
     local passes = { [region4] = true }
-    local stale = io.open(MOD .. "/map-fog.png", "w")   -- (a chart fog left from a last session)
+    local stale = io.open(MOD .. "/map-fog.bmp", "w")   -- (a chart fog left from a last session)
     stale:write("png")
     stale:close()
-    os.remove(MOD .. "/map-fog-territories.png")
+    os.remove(MOD .. "/map-fog-territories.bmp")
     game.mapOpen, drawLog = false, {}
     for _ = 1, 3 do
         T.updateMap(true, passes, pawn)
@@ -698,6 +698,6 @@ group("the world map: the Territories look", function()
     AP_ComposeTerritories, AP_TerritoriesStatus, AP_MapScreen, AP_ComposeFog, AP_FogStatus = nil, nil, nil, nil, nil
     AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil
     mapBody.MaskTextureMaterial = nil
-    os.remove(MOD .. "/map-fog.png")
-    os.remove(MOD .. "/map-fog-territories.png")
+    os.remove(MOD .. "/map-fog.bmp")
+    os.remove(MOD .. "/map-fog-territories.bmp")
 end)

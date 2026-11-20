@@ -808,7 +808,7 @@ function plugInTerritories(calls)
         AP_ComposeTerritories, AP_TerritoriesStatus, AP_ComposeField, AP_MapScreen = nil, nil, nil, nil
         AP_ComposeFog, AP_FogStatus, AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil, nil, nil
         mapBody.MaskTextureMaterial = nil
-        os.remove(MOD .. "/map-fog-territories.png")
+        os.remove(MOD .. "/map-fog-territories.bmp")
     end
 end
 -- The connector's Pal gift (pal_gift.cpp), answering as its report does: lines of "step: detail", the last one the

@@ -635,7 +635,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(opens == 0, "the chart look's idle map update opens no file: " .. opens .. " opens in 20 updates")
         game.mapOpen = false
         os.remove(MOD .. "/map-chart.png")
-        os.remove(MOD .. "/map-fog.png")
+        os.remove(MOD .. "/map-fog.bmp")
         takeAway()
         putBack()
     end
@@ -860,7 +860,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         local calls = {}
         local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(game.mapArt)
-        writeFile(MOD .. "/map-fog-territories.png", "an earlier session's")
+        writeFile(MOD .. "/map-fog-territories.bmp", "an earlier session's")
         local fogBusy = true
         AP_FogStatus = function() return fogBusy and "busy" or "done" end
         local mapData = { IsValid = function() return true end }
@@ -910,7 +910,8 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "a minute after the player explored, the fog picture is made again and handed over: "
                .. fogJobs - jobsBefore .. " made, " .. fogPicturesSent() .. " handed over")
         expect(loggedSince(mark, "read with the map closed in %d+ ms: changed, the fog picture is made again")
-               and loggedSince(mark, "the fog picture is ready %(%d+ this session, loaded in %d+ ms"),
+               and loggedSince(mark, "the fog picture is ready %(%d+ this session %(the first 3 are logged%), loaded"
+                                  .. " in %d+ ms"),
                "the log says the mask changed, and how long the new picture took to load")
         W.reset()                                                  -- a new world: C++ forgets the fog picture
         local jobsInOldWorld = fogJobs

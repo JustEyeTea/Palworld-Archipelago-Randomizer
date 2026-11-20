@@ -50,6 +50,14 @@ auto write_png_fast(const std::string& path, int w, int h, int channels, const u
     return stbi_write_png(path.c_str(), w, h, channels, pixels, w * channels) != 0;
 }
 
+auto write_picture(const std::string& path, int w, int h, int channels, const unsigned char* pixels) -> bool
+{
+    const std::string bmp = ".bmp";
+    const bool asBmp = path.size() > bmp.size() && path.compare(path.size() - bmp.size(), bmp.size(), bmp) == 0;
+    if (asBmp) return stbi_write_bmp(path.c_str(), w, h, channels, pixels) != 0;
+    return write_png_fast(path, w, h, channels, pixels);
+}
+
 auto gamma_table(double gamma) -> GammaTable
 {
     GammaTable table{};

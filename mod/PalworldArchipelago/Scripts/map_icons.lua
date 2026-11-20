@@ -172,6 +172,7 @@ local function placeIcons(screen, passes, key)
     if icons and iconsStillShown(icons, key) then
         return
     end
+    local why = not icons and "a new screen" or (icons.key ~= key and "the look changed" or "the game dropped them")
     if icons then
         clearIcons(icons)
     end
@@ -203,12 +204,14 @@ local function placeIcons(screen, passes, key)
     local okw, parent = pcall(function() return icons.list[1] and icons.list[1]:GetParent():GetFName():ToString() end)
     if okw and parent then where = " on " .. parent end
     log("map icons: " .. added .. " locked area(s) added" .. where .. " (" .. shown .. " said visible), " .. opened
-        .. " open not yet visited, " .. flyUp .. " fly-up")
+        .. " open not yet visited, " .. flyUp .. " fly-up; " .. why)
 end
 
--- Each map update with a live main-map screen: the icons on every such screen, for this look (key). If they cannot be
--- added, they are taken off and the stamps are drawn into the picture instead, for the session.
-function MAP_ICONS.show(screens, passes, key)
+-- Each map update with a live main-map screen: the icons on every such screen that is on screen (onScreen), for this
+-- look (key). A closed one gets them when it opens again: a screen the game is tearing down as it closes can still be
+-- listed for an update or two, and icons put on it are lost work. If they cannot be added, they are taken off and
+-- the stamps are drawn into the picture instead, for the session.
+function MAP_ICONS.show(screens, passes, key, onScreen)
     if not iconsActive() then
         return
     end
@@ -217,7 +220,9 @@ function MAP_ICONS.show(screens, passes, key)
         .. table.concat(flyUpList(passes), ",")
     local oki, erri = pcall(function()
         for _, b in ipairs(screens) do
-            placeIcons(b, passes, iconKey)
+            if onScreen(b) then
+                placeIcons(b, passes, iconKey)
+            end
         end
     end)
     if not oki then

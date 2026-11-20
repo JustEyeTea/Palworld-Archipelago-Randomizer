@@ -43,6 +43,11 @@ inline auto luminance(float r, float g, float b) -> float
 // speed matters more than size. False if it could not be written.
 auto write_png_fast(const std::string& path, int w, int h, int channels, const unsigned char* pixels) -> bool;
 
+// Writes an uncompressed BMP when path ends in ".bmp" (32-bit with an alpha mask for 4 channels), else a PNG
+// (write_png_fast). The game loads a picture with ImportFileAsTexture2D, which decodes it on its game thread in one
+// frame: a 2048 px PNG took about 200 ms there, and a BMP needs no inflating. False if it could not be written.
+auto write_picture(const std::string& path, int w, int h, int channels, const unsigned char* pixels) -> bool;
+
 // A value 0..1 as a byte 0..255, rounded; outside 0..1 it is clamped.
 inline auto to_byte(float v) -> unsigned char
 {

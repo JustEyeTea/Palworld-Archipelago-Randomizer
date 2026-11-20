@@ -15,6 +15,7 @@
 --   tests/shop.lua           the shop's cards, their tooltips, which slots can be bought
 --   tests/walls.lua          area locks: the walls, sent home, the notice and hint at a wall, wall skins
 --   tests/map.lua            the world map: the picture, the fog, the stamps and icons, the Territories look
+--   tests/map_steps.lua      the map update's steps: icons on screen only, an outdated fog picture, long updates
 --   tests/walls_fresh.lua    walls and the map on fresh copies of walls.lua
 --   tests/world.lua          a new world, another world, Death Link
 --   tests/core_loop.lua      the core update's bookkeeping: frames, reconnecting, buying, the save file
@@ -73,10 +74,10 @@ do
 end
 
 -- The test files, in the order they run.
-local TEST_FILES = { "core.lua", "shop.lua", "walls.lua", "map.lua", "walls_fresh.lua", "world.lua", "core_loop.lua",
-                     "mailbox.lua", "inventory_page.lua", "traps.lua", "test_tools.lua", "title_menu.lua", "goals.lua",
-                     "tools_probe.lua", "locks_hud.lua", "crates_run_style.lua", "glow.lua", "core_logs.lua",
-                     "util.lua", "rules.lua" }
+local TEST_FILES = { "core.lua", "shop.lua", "walls.lua", "map.lua", "map_steps.lua", "walls_fresh.lua", "world.lua",
+                     "core_loop.lua", "mailbox.lua", "inventory_page.lua", "traps.lua", "test_tools.lua",
+                     "title_menu.lua", "goals.lua", "tools_probe.lua", "locks_hud.lua", "crates_run_style.lua",
+                     "glow.lua", "core_logs.lua", "util.lua", "rules.lua" }
 
 local failures = 0
 local groupTitle = "(before the first group)"    -- the group that is running, named in every FAIL line

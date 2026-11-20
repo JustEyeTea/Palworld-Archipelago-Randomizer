@@ -32,7 +32,8 @@ local GREY_FILE = "map-grey-1.png"
 local COLOUR_FILE = "map-colour-1.png"
 local TEMP_COLOUR_FILE = "map-colour.png"
 local COMPOSED_FILE = "map-composed.png"
-local TERR_OVERLAY, TERR_FOG = "map-territories.png", "map-territories-fog.png"
+-- The overlay is a BMP, as the fog picture is (map_fog.lua, FOG_FILE); the fog art stays a PNG: C++ reads it back.
+local TERR_OVERLAY, TERR_FOG = "map-territories.bmp", "map-territories-fog.png"
 -- The lock labels of the cut in use (region_labels.png or area_labels.png, shipped: which lock each pixel is in).
 local function labelsFile() return W.dir .. "\\" .. layout.prefix .. "labels.png" end
 local RT_SIZE = 4096
@@ -677,25 +678,71 @@ local function putPictureBack(images, redrawn)
     end
 end
 
+-- A map update this long is logged with each step's time: the map screen's openings and closings gave 390 to 400 ms
+-- frames, 122 to 154 ms of them the mod's, with no step named. 40 ms is more than two frames at 60 fps; a quiet map
+-- update takes a few ms. Only the first SLOW_LOGGED of a session are logged; the rest are counted.
+local SLOW_MAP_UPDATE_MS = 40
+local SLOW_LOGGED = 10
+local slowMapUpdates = 0       -- map updates over SLOW_MAP_UPDATE_MS this session (never forgotten: a session count)
+
+-- Times one update's steps: mark(name) ends the step running since the last mark; parts lists "name ms" for each.
+local function stepTimer()
+    local started = os.clock()
+    local timer = { last = started, parts = {} }
+    function timer.mark(name)
+        local now = os.clock()
+        timer.parts[#timer.parts + 1] = string.format("%s %.0f", name, UTIL.msBetween(timer.last, now))
+        timer.last = now
+    end
+    function timer.total() return UTIL.msBetween(started) end
+    return timer
+end
+-- Logs an update that took SLOW_MAP_UPDATE_MS or more, with its steps; `moment` says what the map was doing.
+local function logIfSlow(timer, moment)
+    local ms = timer.total()
+    if ms < SLOW_MAP_UPDATE_MS then return end
+    slowMapUpdates = slowMapUpdates + 1
+    if slowMapUpdates > SLOW_LOGGED then return end
+    log(string.format("map: a long update, %.0f ms at %s: %s (%d this session; the first %d are logged)", ms, moment,
+        table.concat(timer.parts, ", "), slowMapUpdates, SLOW_LOGGED))
+end
+-- What the map was doing at this update, from whether it was on screen at the last one and is now.
+local function mapMoment(wasShown, shown)
+    if shown and not wasShown then return "the map's opening" end
+    if wasShown and not shown then return "the map's closing" end
+    return shown and "the map open" or "the map closed"
+end
+-- One map update's steps, each marked on the timer.
+local function mapSteps(passes, pawn, timer, wasShown)
+    local images, screens = mainMapScreens()
+    local opening = MAP_FOG.noteShown(screens) > 0 and not wasShown
+    local key, nLocked = pictureKey(passes)
+    timer.mark("screens")
+    MAP_FOG.step(pawn, screens, opening, passes, key)
+    timer.mark("fog")
+    local made, redrawn = makePicture(passes, key, #images > 0, nLocked)
+    timer.mark("picture")
+    if not made or not mapRT or not mapRT:IsValid() then return end
+    local okc, errc = pcall(MAP_FOG.tellCpp)
+    if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
+    if #images == 0 then return end
+    MAP_ICONS.show(screens, passes, key, MAP_FOG.onScreen)
+    timer.mark("icons")
+    putPictureBack(images, redrawn)
+    timer.mark("picture put back")
+end
 -- Each update (main.lua): the map picture, the C++ map screen, the fog and the icons brought in line with the passes
--- held. With Area Locks off (enabled false) C++ is switched off and nothing else is done.
+-- held, and a long update logged with its steps. With Area Locks off (enabled false) C++ is switched off and nothing
+-- else is done.
 function MAP_PICTURE.updateMap(enabled, passes, pawn)
     local wasShown = MAP_FOG.forgetShown()        -- whether the map was on screen at the last update
     if not enabled then
         MAP_FOG.mapOff()
         return
     end
-    local images, screens = mainMapScreens()
-    local opening = MAP_FOG.noteShown(screens) > 0 and not wasShown
-    local key, nLocked = pictureKey(passes)
-    MAP_FOG.step(pawn, screens, opening, passes, key)
-    local made, redrawn = makePicture(passes, key, #images > 0, nLocked)
-    if not made or not mapRT or not mapRT:IsValid() then return end
-    local okc, errc = pcall(MAP_FOG.tellCpp)
-    if not okc then once("cpperr", "map screen (C++): " .. tostring(errc)) end
-    if #images == 0 then return end
-    MAP_ICONS.show(screens, passes, key)
-    putPictureBack(images, redrawn)
+    local timer = stepTimer()
+    mapSteps(passes, pawn, timer, wasShown)
+    logIfSlow(timer, mapMoment(wasShown, MAP_FOG.mapShown()))
 end
 
 

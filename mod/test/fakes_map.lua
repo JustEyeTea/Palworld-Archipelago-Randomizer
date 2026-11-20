@@ -98,7 +98,11 @@ exportedPixels = "png"                                     -- what an export wri
 renderLib = { IsValid = function() return true end,
               ReadRenderTargetPixel = function() return { R = game.mapArt, G = 90, B = 60, A = 255 } end,
               EndDrawCanvasToRenderTarget = function() end }
-function renderLib.ImportFileAsTexture2D(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end
+-- (the game reads a picture by its content: PNG and BMP are the ones the mod writes)
+function renderLib.ImportFileAsTexture2D(_, _, path)
+    local name = path:match("([%w_%-]+)%.png$") or path:match("([%w_%-]+)%.bmp$")
+    return Texture(name)
+end
 function renderLib.CreateRenderTarget2D(_, owner)
     rtOwners[#rtOwners + 1] = owner
     return { IsValid = function() return true end, rt = true, GetAddress = function() return 555 end,

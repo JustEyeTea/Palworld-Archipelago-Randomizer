@@ -335,7 +335,7 @@ auto write_overlay(const Overlay& img, int size, const TerritoryLook& look, cons
     {
         overlay[i] = to_byte(img[i]);
     }
-    if (!write_png_fast(out, size, size, 4, overlay.data())) return "could not write " + out;
+    if (!write_picture(out, size, size, 4, overlay.data())) return "could not write " + out;
     if (fogart.empty()) return "";
     std::vector<unsigned char> fogPicture(count * 3);
     for (size_t i = 0; i < count; ++i)
@@ -721,7 +721,7 @@ auto compose_field(const std::string& field, const std::string& locks, const std
     distances.px.reset();      // the inputs freed before the PNGs are compressed
     map.px.reset();
     near = PieceDistances{};
-    if (!write_png_fast(out, size, size, 4, picture.data())) return "could not write " + out;
+    if (!write_picture(out, size, size, 4, picture.data())) return "could not write " + out;
     if (fogPicture.empty()) return "";
     return write_png_fast(fogart, size, size, 3, fogPicture.data()) ? "" : "could not write " + fogart;
 }

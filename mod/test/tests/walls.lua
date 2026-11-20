@@ -141,8 +141,19 @@ group("area locks", function()
         run(1)
         local nm = a.Cube.mat
         expect(nm.parent and tostring(nm.parent.path):find("/M_APWallNearest", 1, true) and a.Cube.customDepth == true
-               and logged("wall material: M_APWallNearest %(the nearest wall only%)"),
-               "the nearest-wall switch: every piece dressed again on M_APWallNearest, writing custom depth")
+               and logged("wall material: M_APWallNearest %(the nearest wall only%)")
+               and logged("material made on M_APWallNearest"),
+               "the nearest-wall switch: every piece dressed again on M_APWallNearest, writing custom depth, and the"
+               .. " log names that material")
+        local setDepth = a.Cube.SetRenderCustomDepth
+        a.Cube.SetRenderCustomDepth = function() error("no custom depth here") end
+        liveWalls.toggleNearest()
+        run(1)
+        expect(logged("custom depth could not be set: .*no custom depth here"),
+               "a piece whose custom depth can't be set says so in the log")
+        a.Cube.SetRenderCustomDepth = setDepth
+        liveWalls.toggleNearest()
+        run(1)
         liveWalls.toggleNearest()
         run(1)
         expect(tostring(a.Cube.mat.parent.path):find("/M_APWall%.") and a.Cube.customDepth == false,
@@ -358,7 +369,8 @@ group("area locks", function()
             end
         end
         expect(seen.open and seen.open >= 0.8 and seen.open < 1.2 and seen.gone and seen.gone >= 4.0 and seen.gone < 4.4
-               and logged("an opened wall went 4%.%d+ s after it began dissolving")
+               and logged("an opened wall was removed 4%.%d+ s after it began dissolving %(the game's clock; due at"
+                      .. " 4%.0 s: the 1%.6 s dissolve and a 2%.4 s tail%)")
                and fading.shrunkTo == nil,
                "by the game's clock it stops blocking halfway and goes well after the dissolve is through (4 s), " ..
                "never shrunk: "

@@ -262,8 +262,10 @@ local function stepOne(s, now)
         return true
     end
     if s.dissolving then
-        once("dissolved", string.format("wall skins: an opened wall went %.2f s after it began dissolving"
-            .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s.startedAt, DISSOLVE_S, s.steps))
+        once("dissolved", string.format("wall skins: an opened wall was removed %.2f s after it began dissolving"
+            .. " (the game's clock; due at %.1f s: the %.1f s dissolve and a %.1f s tail), %d update(s); the first"
+            .. " wall of the session only", now - s.startedAt, DISSOLVE_S + DISSOLVE_TAIL, DISSOLVE_S, DISSOLVE_TAIL,
+            s.steps))
     end
     pcall(function() actor:K2_DestroyActor() end)
     return false

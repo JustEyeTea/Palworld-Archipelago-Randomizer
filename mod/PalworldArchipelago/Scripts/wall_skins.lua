@@ -82,6 +82,7 @@ local dressedAs = {}           -- piece -> the material it wears with the area s
 local sealedFile = nil         -- "sealed" when walls/ap-wall-pattern-sealed.png exists, else "a" (checked once)
 local areaFile = nil           -- "pawholes" when walls/ap-wall-pattern-pawholes.png exists, else "a" (checked once)
 local apWall = nil             -- M_APWall (or M_APWallNearest) once loaded
+local apWallName = "M_APWall"  -- which of the two apWall is, for the log
 -- State: the nearest-wall-only test switch (Ctrl+Shift+F3). Forgotten: never; it is a choice for the session, and
 -- nearestUsed stays true once it was on, so pieces dressed later have custom depth turned off again.
 local nearest, nearestUsed = false, false
@@ -172,7 +173,9 @@ end
 local function apWallMaterial()
     if apWall and apWall:IsValid() then return apWall end
     local notes = {}
-    local m = nearestWallMaterial() or artPakAsset("M_APWall", notes)
+    local nearestOne = nearestWallMaterial()
+    local m = nearestOne or artPakAsset("M_APWall", notes)
+    apWallName = nearestOne and NEAREST_MATERIAL or "M_APWall"
     if not apWallProbed then
         apWallProbed = true
         local okA, actor = pcall(StaticFindObject, ART_PAK .. "ModActor.ModActor_C")
@@ -303,7 +306,7 @@ local function apWallSkinMaterial(name, gameInstance, rendering, materials)
     local material = makeApWallMaterial(name, gameInstance, rendering, materials, "material " .. name)
     if not material then return nil end
     skin.mids[name], skin.failed[name] = material, nil
-    log("wall skin " .. name .. ": material made on M_APWall")
+    log("wall skin " .. name .. ": material made on " .. apWallName)
     return material
 end
 -- An opening piece's material: its M_APWall look (paws or a region wall), dissolving from now over DISSOLVE_S by the
@@ -328,7 +331,7 @@ function WALL_SKINS.dissolving(name, pawn)
     if glowAt then material:SetVectorParameterValue(FName("PlayerPos"), glowAt) end
     dissolveMaterials[key], dissolveStarts[key] = material, now
     once("dissolve", "wall skins: an opened wall dissolves (" .. name .. " from " .. string.format("%.1f", now)
-        .. " s)")
+        .. " s); the first of the session only")
     return material, now
 end
 -- The glow near the player (M_APWall's PlayerPos; keyed to the camera, it sat off to the side of the character): the
@@ -494,7 +497,10 @@ local function dress(actor, material)
     end
     m:SetMaterial(0, material or skin.base)
     if nearestUsed then        -- M_APWallNearest hides behind what the pieces write to custom depth
-        pcall(function() m:SetRenderCustomDepth(nearest) end)
+        local ok, err = pcall(function() m:SetRenderCustomDepth(nearest) end)
+        if not ok then
+            UTIL.onceErr("customdepth", err, "wall skins: custom depth could not be set: " .. tostring(err))
+        end
     end
     return true
 end
