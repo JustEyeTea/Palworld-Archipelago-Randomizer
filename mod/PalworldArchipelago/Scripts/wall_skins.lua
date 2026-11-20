@@ -338,6 +338,8 @@ end
 -- player's position on the M_APWall materials of pieces shown, each core update (300 ms; a faster loop of our own
 -- corrupted Lua's state, see walls.lua's opening pieces), only when the player has moved. The pawn is the core's,
 -- handed to W.update; checked each time.
+-- Where the walls' glow last told the player stood (M_APWall's PlayerPos), or nil: the corner posts glow there too.
+function WALL_SKINS.glowSpot() return glowAt end
 function WALL_SKINS.glowing()
     if pieces.count() == 0 or not apWall then return false end
     return onApWall(skin.now)
@@ -560,6 +562,15 @@ local function pieceSkin(i, passes, mode)
     return hex and ("area:" .. hex) or "a"
 end
 WALL_SKINS.pieceSkin = pieceSkin
+-- The colour (hex) a corner post standing on piece i wears (wall_posts.lua): the lock colour piece i's wall wears in
+-- the skin worn now, under its layer; nil while the skin is not on M_APWall (the posts go with the pak's walls).
+function WALL_SKINS.backOf(i, passes)
+    if not onApWall(skin.now) then return nil end
+    local name = pieceSkin(i, passes, skin.now)
+    if name == "region:sealed" then return PALETTE.wallBunker end
+    if name == "paws:sealed" then return PALETTE.wallSealed end
+    return name:match(":(%x%x%x%x%x%x)") or PALETTE.teal
+end
 -- With a skin by area: that piece's own material (made on first use; the teal lattice if it can't be made).
 local function areaDress(actor, i, passes, mode)
     local name = pieceSkin(i, passes or {}, mode)

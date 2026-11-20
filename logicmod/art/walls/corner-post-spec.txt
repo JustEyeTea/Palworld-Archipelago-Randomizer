@@ -1,0 +1,32 @@
+Corner post for the area-lock walls (paw post), made by Claude (Opus 5.5), an AI model by Anthropic, at
+JustEyeTea's direction. Stands at each bend of a lock's wall and hides where the two pieces cross.
+
+SM_APWallPost.fbx
+  An octagonal prism, 550 cm across its flats (the flats face +X, -X, +Y, -Y), 100 cm tall,
+  pivot at the base centre, Z up, cm (UnitScaleFactor 1). 16 vertices, 28 triangles (8 sides, both ends capped),
+  hard edges. One material slot, M_APWallPost.
+  Scale: X and Y 1 (the tile is drawn for 550 cm); Z as the walls' cube (height / 100 cm).
+  Yaw: any; turning it to halve the bend keeps a flat face square to the player inside the bend.
+  UV0: U 0-1 across each face (one tile per face), V 0-1 up the 100 cm; the material ignores V.
+
+ap-wall-post-paws-layer.png
+  512x512 RGBA, sRGB, straight alpha, seamless both ways. One face across (U) by 300 cm up (V), so
+  the paw keeps its shape on a 550 cm post: a navy wash (alpha 0.45) that deepens the lock
+  colour, cream trim down each corner and one cream paw with a navy rim per face per tile.
+  Lay it the same way up as the walls' layer: the paw's toes point up, as the walls' paws do.
+
+M_APWallPost (the material)
+  Unlit, blend mode Masked (writes depth), two-sided off.
+  UV: U from UV0; V from world Z / CellSize (300), as M_APWall's V, so the post's rows line up
+      with the walls' rows.
+  Colour: the layer over Back at alpha 1 (M_APWall's formula with BackAlpha 1):
+      RGB = layer.rgb x layer.a + Back x (1 - layer.a). Back = the same colour the lock's walls get (the region or
+      tier colour; slate grey or the bunker's red-grey for a lock beyond the goal).
+  Emissive: that colour x Brightness (1.1, as the walls), plus the glow near the player.
+  Glow: as M_APWall's, from PlayerPos within ReactRadius (600 cm), in ReactColor, at 0.5 x ReactStrength,
+      with no ripples: (1 - saturate(d / ReactRadius))^2 x 0.75 x 0.5 x ReactStrength. Emissive only;
+      the post stays solid.
+  Opacity mask: the distance fade, 1 within FadeStart (1500 cm) of the camera to 0 at FadeEnd
+      (2500 cm), through DitherTemporalAA, clip at 0.5.
+  When the lock opens: the post goes with its wall. If the mask can take M_APWall's dissolve (the same noise and
+      DissolveStart / DissolveTime), it dissolves with the pieces; otherwise hide it when they have gone.

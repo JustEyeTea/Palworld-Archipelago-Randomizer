@@ -20,7 +20,7 @@ local SEA = "Open sea"
 -- xMax, yMin, yMax in world units), centres (*_centres.lua, by lock index: deepU, deepV its deepest point, stampU,
 -- stampV its stamp's place on the map square, room how far that is from the edge), shapes (*_shapes.lua, loaded when
 -- first needed: only for a map drawn without the compositor), corridors (*_walls.lua: the flying corridors' mouths
--- and lock) and prefix (of the cut's file names).
+-- and lock), posts (*_walls.lua: the corner posts, wall_posts.lua) and prefix (of the cut's file names).
 -- Forgotten: layout and decoded are made again at a change of cut (useLayoutData); beyondNames when the set beyond the
 -- goal arrives; regionOfArea never (a data file, the same for every seed).
 local layout = {}
@@ -32,7 +32,7 @@ local function useLayoutData(name)
     local prefix = FILE_PREFIX[name]
     local walls = require(prefix .. "walls")
     layout.prefix, layout.walls, layout.locks, layout.start = prefix, walls.walls, walls.locks, walls.start
-    layout.thickness, layout.corridors = walls.thickness, walls.corridors or {}
+    layout.thickness, layout.corridors, layout.posts = walls.thickness, walls.corridors or {}, walls.posts or {}
     layout.map, layout.shapes = require(prefix .. "map"), nil
     layout.bounds = layout.map.bounds
     layout.centres = require(prefix .. "centres")    -- rows by name, as tools/lock_centres.py writes them (see above)

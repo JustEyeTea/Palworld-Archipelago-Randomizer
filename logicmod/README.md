@@ -153,20 +153,27 @@ independent of the mailbox window: it needs only Part 1's setup, not Parts 2 and
 flowchart LR
   PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png, art/walls/*.png)"] -->|"the editor runs it"| AS["M_APWall, M_APWallNearest, T_APWallPaws, T_APWallRegion_*, T_APWallSealed, T_APWallDissolve, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
   GY["make_glow_assets.py<br/>(and art/glow/*.fbx, *.png)"] -->|"the editor runs it"| AS
+  WP["make_wall_post.py<br/>(and art/walls/SM_APWallPost.fbx, ap-wall-post-paws-layer.png)"] -->|"the editor runs it"| AS
   AS -->|"package: Use Pak File, Generate Chunks,<br/>shaders kept in the pak"| PK["pakchunk2-Windows.pak"]
   PK -->|"renamed"| ART["PalworldArchipelagoArt.pak<br/>in Pal/Content/Paks/LogicMods"]
   ART -->|"attached by hand"| REL["each release"]
 ```
 
-1. Run both scripts, one after the other, the same way as Part 2 (Tools > Execute Python Script..., or with the
-   editor closed, from a Command Prompt):
+1. Run the three scripts, one after the other, the same way as Part 2 (Tools > Execute Python Script..., or with
+   the editor closed, from a Command Prompt):
 
    ```
    "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
      -run=pythonscript -script="<repo>\logicmod\make_wall_material.py"
    "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
      -run=pythonscript -script="<repo>\logicmod\make_glow_assets.py"
+   "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
+     -run=pythonscript -script="<repo>\logicmod\make_wall_post.py"
    ```
+
+   `make_wall_post.py` imports the corner post (`SM_APWallPost`, the Art lane's paw post) and its layer
+   (`T_APWallPostPaws`) from `logicmod\art\walls\` and builds `M_APWallPost` (masked, so it writes depth). It uses
+   `kit_helpers.py` beside it; run it after `make_wall_material.py`, whose label takes it in.
 
    `make_wall_material.py` builds `M_APWall`, `M_APWallNearest` (an experiment: if it fails, the Output Log says
    so and the pak goes without it), `ModActor` and the chunk label (chunk 2), which takes everything in the folder. `make_glow_assets.py` imports the six glow meshes and six textures from `logicmod\art\glow\` and
@@ -187,7 +194,9 @@ flowchart LR
    (`wall skin paws:<colour>: material made on M_APWall`). Without the pak it also says `wall skin paws: needs the
    PalworldArchipelagoArt pak` and the walls wear the area colours instead.
    For the glows it says `glow: the pak's glow meshes, textures and M_APGlow found`, or without them
-   `glow: off for this session: the PalworldArchipelagoArt pak has no ...`.
+   `glow: off for this session: the PalworldArchipelagoArt pak has no ...`. For the corner posts it says
+   `wall posts: SM_APWallPost and M_APWallPost found`, or without them `wall posts: none this session: the
+   PalworldArchipelagoArt pak has no ...`.
 5. For a release: attach the same files to the draft release CI made from the version tag, before publishing it
    (the drafted notes remind you; the setup guide sends players there for the pak).
 

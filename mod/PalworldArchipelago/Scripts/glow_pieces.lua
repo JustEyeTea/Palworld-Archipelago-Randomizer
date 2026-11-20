@@ -1,6 +1,6 @@
 -- Glow pieces: what the check glow (glow_checks.lua) and the item-arrival burst (glow_burst.lua) are made of. The
 -- PalworldArchipelagoArt pak's glow meshes and textures and its M_APGlow material (logicmod/make_glow_assets.py), the
--- looks made from that material, and plain engine StaticMeshActors wearing them (movable, no collision, no shadow).
+-- looks made from that material, and plain engine StaticMeshActors wearing them (mesh_actors.lua spawns them).
 -- Also the switch in config.txt (glow=0 turns both glows off) and forgetting every piece at a world change. The
 -- glows are visual only: nothing here changes the game.
 -- Tests: mod/test/tests/glow.lua; groups "the item-arrival burst", "the check glow" (tools/lua_harness.sh, in CI).
@@ -9,7 +9,7 @@ local CONFIG = require("config")
 local PLAYER = require("player")
 local UTIL = require("util")
 local WALL_SKINS = require("wall_skins")    -- (modAsset: how a pak asset is loaded; MID_FLAGS)
-local WALLS = require("walls")              -- (SPAWN_ALWAYS)
+local MESH_ACTORS = require("mesh_actors")
 local log = UTIL.log
 local once = UTIL.onceIn("glow")
 
@@ -33,11 +33,8 @@ local SCALARS = {
     nearFadeStart = "NearFadeStart",    -- cm from the camera where the piece starts to show...
     nearFadeEnd = "NearFadeEnd",        -- ...and where it is fully there (the pillar hides up close)
 }
-local MOVABLE = 2                   -- EComponentMobility::Movable: a spawned StaticMeshActor starts Static
-local NO_COLLISION = 0              -- ECollisionEnabled::NoCollision
 local STANDING = { X = 0, Y = 0, Z = 0, W = 1 }   -- a spawn's turn as a quaternion: none
 local DEGREES = 180 / math.pi
-local STATIC_MESH_ACTOR = "StaticMeshActor"       -- the pieces' class by the short name FindAllOf takes
 
 -- State: what the pieces are made of. Forgotten: assets and looks at a world change (forgetWorld; looked up or made
 -- again when next needed); pakMissing never (the pak is mounted at start-up or not at all); keptPlaces never (each
@@ -49,8 +46,9 @@ local keptPlaces = {}         -- what is kept ("asset SM_APGlowRing", "look ring
 -- State: the pieces standing. Forgotten: at a world change (forgetWorld), and each when it is removed.
 local alive = {}              -- a piece's address -> the piece { actor, addr }
 local madeFor = nil           -- the player controller's address the pieces were spawned under
--- The game's libraries and the actor class. Forgotten: never; each is checked with IsValid before use.
-local statics, actorClass, materialLibrary = nil, nil, nil
+-- The game's material library (the spawning one is mesh_actors.lua's). Forgotten: never; checked with IsValid before
+-- use.
+local materialLibrary = nil
 
 -- Keeps obj alive in the place kept for `key`, in place of what was kept there before.
 local function keepAs(key, obj)
@@ -68,16 +66,10 @@ end
 
 -- The game's spawning and material libraries and the StaticMeshActor class; false while any is missing.
 local function librariesReady()
-    if not UTIL.isValid(statics) then
-        statics = StaticFindObject("/Script/Engine.Default__GameplayStatics")
-    end
-    if not UTIL.isValid(actorClass) then
-        actorClass = StaticFindObject("/Script/Engine.StaticMeshActor")
-    end
     if not UTIL.isValid(materialLibrary) then
         materialLibrary = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
     end
-    local ready = UTIL.isValid(statics) and UTIL.isValid(actorClass) and UTIL.isValid(materialLibrary)
+    local ready = MESH_ACTORS.ready() and UTIL.isValid(materialLibrary)
     if not ready then
         once("libraries", "glow: waiting: GameplayStatics, StaticMeshActor or KismetMaterialLibrary not found yet")
     end
@@ -164,35 +156,11 @@ function GLOW_PIECES.look(name, params)
     return material
 end
 
--- Dresses a piece between its spawn and its finish: movable (it turns and grows), the part's mesh and the look, no
--- collision and no shadow.
-local function dressNew(actor, part, material)
-    local mesh = actor.StaticMeshComponent
-    mesh:SetMobility(MOVABLE)
-    mesh:SetStaticMesh(assets.meshes[part])
-    mesh:SetMaterial(0, material)
-    mesh:SetCollisionEnabled(NO_COLLISION)
-    mesh:SetCastShadow(false)
-    actor:SetActorEnableCollision(false)
-end
-
--- A StaticMeshActor spawned, dressed (dressNew) and finished, or nil and why not. One that could not be dressed is
--- destroyed again.
-local function spawnDressed(pawn, part, material, t)
-    local actor = statics:BeginDeferredActorSpawnFromClass(pawn, actorClass, t, WALLS.SPAWN_ALWAYS, nil)
-    if not UTIL.isValid(actor) then return nil, "the spawn gave no actor" end
-    local ok, err = pcall(dressNew, actor, part, material)
-    statics:FinishSpawningActor(actor, t)
-    if ok then return actor end
-    pcall(function() actor:K2_DestroyActor() end)
-    return nil, "it could not be dressed: " .. tostring(err)
-end
-
 -- A new piece: a StaticMeshActor showing `part`'s mesh in `material`, at `at` (a location), scaled by `scale`
 -- (X, Y, Z), not turned. Returns the piece { actor, addr }, or nil (logged once for each kind of failure).
 function GLOW_PIECES.spawn(pawn, part, material, at, scale)
     local t = { Rotation = STANDING, Translation = at, Scale3D = scale }
-    local ok, actor, why = pcall(spawnDressed, pawn, part, material, t)
+    local ok, actor, why = pcall(MESH_ACTORS.spawn, pawn, assets.meshes[part], material, t)
     if not (ok and actor) then
         why = ok and why or tostring(actor)
         UTIL.onceErr("glow spawn", why, "glow: a " .. part .. " piece did not go up: " .. why)
@@ -254,11 +222,7 @@ function GLOW_PIECES.camera()
 end
 
 -- The game's clock in seconds (GetTimeSeconds, the clock M_APGlow's Time node runs on), or nil.
-function GLOW_PIECES.gameSeconds(pawn)
-    local ok, now = pcall(function() return statics:GetTimeSeconds(pawn) end)
-    if ok and type(now) == "number" then return now end
-    return nil
-end
+GLOW_PIECES.gameSeconds = MESH_ACTORS.gameSeconds
 
 -- An actor's bounds: { centre, half = half its size along each axis }, both in cm, or nil when they can't be read.
 -- GetActorBounds' two FVector out-parameters come back filled into the Lua tables passed in.
@@ -269,18 +233,6 @@ function GLOW_PIECES.bounds(actor)
     return nil
 end
 
--- The addresses of the StaticMeshActors the game still has (FindAllOf lists live objects only).
-local function liveAddresses()
-    local live = {}
-    for _, actor in ipairs(FindAllOf(STATIC_MESH_ACTOR) or {}) do
-        local addr = UTIL.addr(actor)
-        if addr then
-            live[addr] = true
-        end
-    end
-    return live
-end
-
 -- A world change (the pawn changed): the pieces still standing under the same controller (a faint: the same world)
 -- are taken down; under another controller or none (another world, the title) they went with their world and are
 -- only forgotten, never called. The looks and assets are let go too, and found or made again when next needed.
@@ -288,7 +240,7 @@ function GLOW_PIECES.forgetWorld()
     local frame = PLAYER.frame()
     local sameController = frame ~= nil and frame.controllerKey ~= nil and frame.controllerKey == madeFor
     if sameController and next(alive) then
-        local live = liveAddresses()
+        local live = MESH_ACTORS.liveAddresses()
         for addr, piece in pairs(alive) do
             if live[addr] then
                 pcall(function() piece.actor:K2_DestroyActor() end)
