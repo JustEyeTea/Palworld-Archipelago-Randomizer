@@ -83,9 +83,11 @@ local function postsGoUp()
     W.setSkin("paws")
     local mark = logMark()
     runWalls(W, 80, {})
-    expect(loggedSince(mark, "wall posts: ") and loggedSince(mark, " up, ")
-           and loggedSince(mark, "hidden by distance; the nearest, post ") and loggedSince(mark, "drawn lately"),
-           "the posts' report after the 4th full walk: how many are up, and the nearest as the game has it")
+    expect(loggedSince(mark, "wall posts: try post: %d+ of 691 up, ")
+           and loggedSince(mark, "hidden by distance; the nearest, post ") and loggedSince(mark, "its mesh component: ")
+           and loggedSince(mark, "; the nearest wall piece, %d+, %d+ m away: drawn lately yes"),
+           "the posts' report after the 4th full walk: how many are up, the nearest as the game has it, and the"
+           .. " nearest wall piece as a control")
     local data = dofile(MOD .. "/Scripts/region_walls.lua")
     local spots, posts = {}, postActors()
     for _, post in ipairs(data.posts) do spots[post.x .. "," .. post.y] = post end
@@ -132,6 +134,36 @@ local function postGoesWithItsPieces(W, data)
     expect(whileOpening and not postUp(), "its region's pass: kept while its pieces dissolve, taken down after")
 end
 
+-- Whether every post standing wears a material whose path (its parent's, for an instance) has `name`.
+local function allWear(name)
+    local posts = postActors()
+    for _, a in ipairs(posts) do
+        local m = a.material
+        if not (m and tostring((m.parent or m).path):find(name, 1, true)) then return false end
+    end
+    return #posts > 0
+end
+
+-- The test key's tries: "grid" raises every post again in the engine's grid material, "short" in it 10 m tall from
+-- just under the player's feet, and the next press goes back to the post as made.
+local function triesGoUpAgain(W)
+    local first = W.nextPostTry()
+    runWalls(W, 60, {})
+    expect(first == "grid" and allWear("WorldGridMaterial"), "Ctrl+Shift+F4: the posts go up again in the engine's"
+           .. " grid material")
+    local second = W.nextPostTry()
+    runWalls(W, 60, {})
+    local short = #postActors() > 0
+    for _, a in ipairs(postActors()) do
+        if not (a.scale.Z == 10 and a.at.Z == pawnAt.Z - 200) then short = false end
+    end
+    expect(second == "short" and short and allWear("WorldGridMaterial"), "again: 10 m tall, from 2 m under the"
+           .. " player's middle")
+    local third = W.nextPostTry()
+    runWalls(W, 60, {})
+    expect(third == "post" and allWear("M_APWallPost"), "again: back to the posts as made")
+end
+
 group("the walls' corner posts", function()
     for _, file in ipairs({ "region_walls.lua", "area_walls.lua", "level_walls.lua" }) do
         postsTouchTheirPieces(file)
@@ -144,6 +176,7 @@ group("the walls' corner posts", function()
     expect(W.postCount() == 0 and #postActors() == 0, "the game's red walls: no posts")
     W.setSkin("paws")
     runWalls(W, 60, {})
+    triesGoUpAgain(W)
     local before = W.postCount()
     do  -- a faint (the pawn changes, the world stays): the same posts stand, each put in a look made anew
         local spawned, oldLook = glowSpawned, postActors()[1].material

@@ -140,6 +140,7 @@ local function WallActor(t)
     end
     function a:SetActorEnableCollision(on) self.collision = on end
     function a:SetActorHiddenInGame(on) self.hidden = on end
+    function a:WasRecentlyRendered() return not self.hidden end
     function a:K2_SetActorLocation()
         error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS")
     end

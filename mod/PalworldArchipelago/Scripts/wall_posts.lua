@@ -27,6 +27,13 @@ local REPORT_EVERY_WALKS = 10
 local REPORTS_LOGGED = 12
 local DRAWN_WITHIN_S = 0.5    -- WasRecentlyRendered's tolerance: drawn in the last half second counts as drawn
 local CM_PER_M = 100
+-- The test key's tries (Ctrl+Shift+F4, test_tools.lua), to find what keeps the posts from being drawn: "post" as made;
+-- "grid", the engine's grid material in place of M_APWallPost (is it the material?); "short", the grid material and
+-- SHORT_CM tall from the player's feet (is it their 3 km height, their foot 1 km down?).
+local TRIES = { "post", "grid", "short" }
+local GRID_MATERIAL = "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"
+local SHORT_CM = 1000             -- the "short" try's height: 10 m, well above the player
+local FEET_BELOW_MIDDLE_CM = 200  -- its foot this far below the player's middle: just under the ground they stand on
 
 -- Handed over by install: W (radius, fade, keepInPlace), the cut's layout, walls.lua's pieces (raised, opening),
 -- WALL_SKINS (backOf, glowSpot, modAsset, MID_FLAGS) and walls.lua's sizes (HEIGHT_CM, MID_Z_CM, HIDE_MARGIN).
@@ -40,6 +47,7 @@ local hidden = {}             -- post index -> true while hidden by distance
 local walkAt = 0              -- the post the walk looks at next (wraps round)
 local walks = 0               -- full walks over the posts in this world (reset), for the report's schedule
 local reports = 0             -- reports logged this session
+local try = "post"            -- the test key's try (TRIES); "post" but for a test
 -- State: what the posts are made of. Forgotten: looks and their spot told at a world change (reset: a dead material
 -- called crashed the game, as wall_skins.lua says); assets never once found, or once found missing (the pak is
 -- mounted at start-up or not at all).
@@ -95,20 +103,36 @@ local function wanted(post, openingNow)
     return false
 end
 
+-- The look a post goes up in: its M_APWallPost look in colour hex, or the engine's grid material for the test key's
+-- tries; or nil and why not.
+local function raiseLook(hex)
+    if try == "post" then return lookIn(hex) end
+    local grid = StaticFindObject(GRID_MATERIAL)
+    if UTIL.isValid(grid) then return grid end
+    return nil, "no " .. GRID_MATERIAL
+end
+
+-- Where a post's foot stands and how tall it is (cm): at the walls' foot, as tall as they are; for the "short" try,
+-- SHORT_CM from just under the player's feet.
+local function postSpan(ctx)
+    if try == "short" and ctx.pz then return ctx.pz - FEET_BELOW_MIDDLE_CM, SHORT_CM end
+    return sizes.MID_Z_CM - sizes.HEIGHT_CM / 2, sizes.HEIGHT_CM
+end
+
 -- Raises post k in colour hex: the pak's post, turned by its yaw, its base at the walls' foot, as tall as they are.
 -- True when it went up.
-local function raise(k, hex, pawn)
+local function raise(k, hex, ctx)
     local post = layout.posts[k]
-    local look, lookWhy = lookIn(hex)
+    local look, lookWhy = raiseLook(hex)
     if not look then
         UTIL.onceErr("wall posts look", lookWhy, "wall posts: could not raise post " .. k .. ": " .. tostring(lookWhy))
         return false
     end
-    local yaw = math.rad(post.yaw)
+    local yaw, foot, tall = math.rad(post.yaw), postSpan(ctx)
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
-                Translation = { X = post.x, Y = post.y, Z = sizes.MID_Z_CM - sizes.HEIGHT_CM / 2 },
-                Scale3D = { X = 1, Y = 1, Z = sizes.HEIGHT_CM / POST_CM } }
-    local actor, why = MESH_ACTORS.spawn(pawn, assets.mesh, look, t)
+                Translation = { X = post.x, Y = post.y, Z = foot },
+                Scale3D = { X = 1, Y = 1, Z = tall / POST_CM } }
+    local actor, why = MESH_ACTORS.spawn(ctx.pawn, assets.mesh, look, t)
     if not actor then
         UTIL.onceErr("wall posts raise", why, "wall posts: could not raise post " .. k .. ": " .. tostring(why))
         return false
@@ -161,13 +185,13 @@ local function lookAt(k, ctx)
     local post = layout.posts[k]
     local hex = wanted(post, ctx.opening) and WALL_SKINS.backOf(post.pieces[1], ctx.passes) or nil
     if not up[k] then
-        return (hex and ctx.spawns > 0 and raise(k, hex, ctx.pawn)) and 1 or 0
+        return (hex and ctx.spawns > 0 and raise(k, hex, ctx)) and 1 or 0
     end
     if not hex then
         takeDown(k)
         return 0
     end
-    if hex ~= wears[k] then redress(k, hex) end
+    if hex ~= wears[k] and try == "post" then redress(k, hex) end
     showOrHide(k, ctx.px, ctx.py)
     return 0
 end
@@ -199,21 +223,51 @@ local function asText(fn)
     return (ok and text ~= nil) and tostring(text) or "?"
 end
 
--- What the game says of post k's actor: where it stands, its scale, its mesh's size, its material, whether it is
+-- A vector as "x, y, z" in whole units, for the report.
+local function xyz(v) return string.format("%.0f, %.0f, %.0f", v.X, v.Y, v.Z) end
+
+-- Whether the engine drew an actor in the last DRAWN_WITHIN_S: "yes", "no" or "?".
+local function drawnLately(actor)
+    return asText(function() return actor:WasRecentlyRendered(DRAWN_WITHIN_S) and "yes" or "no" end)
+end
+
+-- What the game says of post k's actor: where it stands, its scale, its mesh's corners, its material, whether it is
 -- hidden and whether the engine drew it lately.
 local function actorFacts(k)
     local actor = up[k]
-    local function xyz(v) return string.format("%.0f, %.0f, %.0f", v.X, v.Y, v.Z) end
     local at = asText(function() return xyz(actor:K2_GetActorLocation()) end)
     local scale = asText(function() return xyz(actor:GetActorScale3D()) end)
-    local size = asText(function()
-        local box = assets.mesh:GetBoundingBox()
-        return xyz({ X = box.Max.X - box.Min.X, Y = box.Max.Y - box.Min.Y, Z = box.Max.Z - box.Min.Z })
+    local box = asText(function()
+        local b = assets.mesh:GetBoundingBox()
+        return xyz(b.Min) .. " to " .. xyz(b.Max)
     end)
     local material = asText(function() return UTIL.objectPath(actor.StaticMeshComponent:GetMaterial(0)) end)
-    local drawn = asText(function() return actor:WasRecentlyRendered(DRAWN_WITHIN_S) and "yes" or "no" end)
-    return string.format("up in %s, at (%s) cm, scale (%s), mesh (%s) cm, material %s, hidden %s, drawn lately %s",
-        tostring(wears[k]), at, scale, size, material, hidden[k] and "yes" or "no", drawn)
+    return string.format("up in %s, at (%s) cm, scale (%s), mesh (%s) cm, material %s, hidden %s (the game's %s), drawn"
+        .. " lately %s", tostring(wears[k]), at, scale, box, material, hidden[k] and "yes" or "no",
+        asText(function() return actor.bHidden end), drawnLately(actor))
+end
+
+-- What the game says of post k's mesh component: shown or not, and the draw distances that could cull it.
+local function componentFacts(k)
+    local c = up[k].StaticMeshComponent
+    local function field(name) return asText(function() return c[name] end) end
+    return string.format("its mesh component: visible %s, hidden in game %s, max draw distance %s (cached %s), min"
+        .. " draw distance %s, bounds scale %s", field("bVisible"), field("bHiddenInGame"), field("LDMaxDrawDistance"),
+        field("CachedMaxDrawDistance"), field("MinDrawDistance"), field("BoundsScale"))
+end
+
+-- The wall piece standing nearest (px, py), and whether the engine drew it lately: the report's control, a piece
+-- the player can see.
+local function nearestPieceFacts(px, py)
+    local best, bestD2 = nil, math.huge
+    for i, actor in pairs(pieces.raised()) do
+        local wall = layout.walls[i]
+        local d2 = (wall.x - px) ^ 2 + (wall.y - py) ^ 2
+        if d2 < bestD2 and actor then best, bestD2 = i, d2 end
+    end
+    if not best then return "no wall piece standing" end
+    return string.format("the nearest wall piece, %d, %.0f m away: drawn lately %s", best,
+        math.sqrt(bestD2) / CM_PER_M, drawnLately(pieces.raised()[best]))
 end
 
 -- Logs the posts' report: how many are up and hidden by distance, and the nearest post as the game has it.
@@ -228,12 +282,13 @@ local function report(ctx)
     local k, metres = nearestPost(ctx.px, ctx.py)
     local nearest = "no player position"
     if k then
-        local state = up[k] and actorFacts(k)
+        local state = up[k] and (actorFacts(k) .. "; " .. componentFacts(k))
             or ("not up (" .. (wanted(layout.posts[k], ctx.opening) and "wanted" or "not wanted") .. ")")
-        nearest = string.format("the nearest, post %d, %.0f m away: %s", k, metres, state)
+        nearest = string.format("the nearest, post %d, %.0f m away: %s; %s", k, metres, state,
+            nearestPieceFacts(ctx.px, ctx.py))
     end
-    log(string.format("wall posts: %d of %d up, %d hidden by distance; %s (report %d; the first %d are logged)",
-        upN, #layout.posts, hiddenN, nearest, reports, REPORTS_LOGGED))
+    log(string.format("wall posts: try %s: %d of %d up, %d hidden by distance; %s (report %d; the first %d are"
+        .. " logged)", try, upN, #layout.posts, hiddenN, nearest, reports, REPORTS_LOGGED))
 end
 
 -- One update's share of the walk: WALK_PER_TICK posts looked at; the report after each full walk that is due.
@@ -264,7 +319,8 @@ function WALL_POSTS.update(passes, pawn)
     end
     local okL, loc = pcall(function() return pawn:K2_GetActorLocation() end)
     local ctx = { passes = passes or {}, pawn = pawn, opening = openingNow, spawns = SPAWNS_PER_TICK,
-                  px = okL and loc and loc.X or nil, py = okL and loc and loc.Y or nil }
+                  px = okL and loc and loc.X or nil, py = okL and loc and loc.Y or nil,
+                  pz = okL and loc and loc.Z or nil }
     walk(ctx)
     tellSpot()
 end
@@ -286,6 +342,19 @@ end
 function WALL_POSTS.takeAllDown()
     for k in pairs(up) do takeDown(k) end
     walkAt = 0
+end
+
+-- The test key (Ctrl+Shift+F4): the next of TRIES, every post taken down to go up again in it (within about 15 s for
+-- the 75 areas' posts), and a report FIRST_REPORT_WALK walks later, once they are up. Returns the try's name.
+function WALL_POSTS.nextTry()
+    local at = 1
+    for i, name in ipairs(TRIES) do
+        if name == try then at = i end
+    end
+    try = TRIES[at % #TRIES + 1]
+    WALL_POSTS.takeAllDown()
+    walks, reports = 0, math.min(reports, REPORTS_LOGGED - 1)    -- (each press gets its report)
+    return try
 end
 
 -- The perf probe's test states (walls.lua's W.perfMode): "none" takes every post down, "hidden" hides them, any other

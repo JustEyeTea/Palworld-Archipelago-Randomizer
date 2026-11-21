@@ -11,8 +11,8 @@
 --     again through setVisited and setFlown for a new seed), and beyond (slot data, through setBeyond); each part sets
 --     its own defaults at install. The harness sets them on its copies directly
 --   called by main.lua and its other modules: install, setVisited, setFlown, corridors, update, updateMap, reset,
---     setLayout, setBeyond, setSkin, cycleSkin, toggleNearest, perfMode, count, lockedNear, distanceToLock,
---     lockedAround, lockAt, passName, passNeeded, regionOf,
+--     setLayout, setBeyond, setSkin, cycleSkin, toggleNearest, nextPostTry, perfMode, count, lockedNear,
+--     distanceToLock, lockedAround, lockAt, passName, passNeeded, regionOf,
 --     slugOf, mapShown, mapOff, oldSweep;
 --     read: layout (the cut's name), start, home, SKINS
 --   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin,
@@ -590,6 +590,7 @@ W.toggleNearest = WALL_SKINS.toggleNearest
 W.linearOf, W.modAsset, W.pieceSkin = WALL_SKINS.linearOf, WALL_SKINS.modAsset, WALL_SKINS.pieceSkin  -- (the harness)
 WALL_POSTS.install({ W = W, locks = LOCKS, pieces = pieces, skins = WALL_SKINS,
                      sizes = { HEIGHT_CM = HEIGHT_CM, MID_Z_CM = MID_Z_CM, HIDE_MARGIN = HIDE_MARGIN } })
+W.nextPostTry = WALL_POSTS.nextTry
 W.postCount = WALL_POSTS.count                                                                  -- (for the harness)
 MAP_ICONS.install({ W = W, locks = LOCKS })
 MAP_PICTURE.install({ W = W, locks = LOCKS, icons = MAP_ICONS, fog = MAP_FOG })

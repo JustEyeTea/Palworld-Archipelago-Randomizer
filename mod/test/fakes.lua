@@ -644,6 +644,7 @@ StaticFindObject = function(path)
     end
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
+    if path:find("^/Engine/EngineMaterials/") then return Texture(path) end      -- the engine's own, always there
     if path:find("WidgetBlueprintLibrary") then return wbl end
     -- The text boxes (palEditOk / umgEditOk false: the class is not there, as the fallback test needs).
     if path == "/Script/Pal.PalEditableTextBox" then
