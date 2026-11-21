@@ -6,12 +6,23 @@ local UTIL = require("util")
 local log = UTIL.log
 local once = UTIL.onceIn("player")
 
--- The first valid player state, found by a walk of every object (FindAllOf).
+PLAYER.TITLE_LEVEL = "PL_Title"   -- the title screen's level, as the game names it (BPModLoader logs "(PL_Title)")
+-- State. Forgotten: at a new controller (each world, and the title, has its own).
+local levelOf = { key = nil, name = nil }   -- the last controller looked at and the level it is in
+
+-- Whether an object is its class's default object (Default__PalPlayerState and the like): FindAllOf hands it back
+-- with the live ones, valid but in no world, so it has no pawn.
+local function isClassDefault(obj)
+    local okn, n = pcall(function() return obj:GetFullName() end)
+    return okn and tostring(n):find("Default__", 1, true) ~= nil
+end
+
+-- The first valid player state that is not the class's default object, found by a walk of every object (FindAllOf).
 function PLAYER.findPlayerState()
     local all = FindAllOf("PalPlayerState")
     if not all then return nil end
     for _, ps in ipairs(all) do
-        if ps:IsValid() then return ps end
+        if ps:IsValid() and not isClassDefault(ps) then return ps end
     end
 end
 -- The player for this update. Each FindAllOf walks the whole object array (UE4SS has no class index; an estimated
@@ -21,18 +32,30 @@ end
 -- state.
 -- It lives for one update only (frame is cleared after it), so nothing kept goes stale across a world change.
 local frame = nil
+-- The level a controller is in (GameplayStatics' GetCurrentLevelName: "PL_Title" at the title screen), read once per
+-- controller; nil when it can't be read.
+local function levelName(pc, key)
+    if levelOf.key == key then return levelOf.name end
+    local ok, name = pcall(function()
+        local statics = StaticFindObject("/Script/Engine.Default__GameplayStatics")
+        local s = statics:GetCurrentLevelName(pc, true)
+        return type(s) == "string" and s or s:ToString()
+    end)
+    levelOf.key, levelOf.name = key, ok and name or nil
+    log("player: the level is " .. tostring(levelOf.name) .. (ok and "" or (" (not read: " .. tostring(name) .. ")")))
+    return levelOf.name
+end
 -- A controller's address, or nil for one that is not valid or is the class's default object.
 local function liveControllerKey(pc)
-    if not pc:IsValid() then return nil end
-    local okn, n = pcall(function() return pc:GetFullName() end)
-    if okn and tostring(n):find("Default__", 1, true) then return nil end
+    if not pc:IsValid() or isClassDefault(pc) then return nil end
     return UTIL.addr(pc)
 end
 -- Looks up this update's player: the frame record every part of the update reads. Its fields:
 --   pc              the first live, non-default player controller, or nil (at the title screen)
 --   controllerKey   that controller's address, or nil (the mailbox and the perf probe tell controllers apart by it)
---   hasPawn         whether its K2_GetPawn answered with an object (UE4SS hands one back, valid or not: menu.lua's
---                   test for "in a world")
+--   hasPawn         whether its K2_GetPawn answered with an object (UE4SS hands one back, valid or not; the title
+--                   screen's controller answers too)
+--   level           the level that controller is in (PLAYER.TITLE_LEVEL at the title screen), or nil
 --   pawn            that pawn when it is valid, or nil
 --   playerState()   the first valid player state, looked up the first time it is asked for, or nil
 function PLAYER.lookUpFrame()
@@ -45,6 +68,7 @@ function PLAYER.lookUpFrame()
         end
     end
     if newFrame.pc then
+        newFrame.level = levelName(newFrame.pc, newFrame.controllerKey)
         local ok, pawn = pcall(function() return newFrame.pc:K2_GetPawn() end)
         newFrame.hasPawn = ok and pawn ~= nil
         local okv, valid = pcall(function() return pawn:IsValid() end)
@@ -72,7 +96,8 @@ function PLAYER.pawnXY(pawn)
     return at.X, at.Y
 end
 
--- The pawn of this update's player state, or nil (no player state, or none read).
+-- The pawn of this update's player state, or nil (no player state, or none read). Outside an update (a key press) the
+-- player state is looked up afresh (findPlayerState, which passes over the class's default object: it has no pawn).
 function PLAYER.playerPawn()
     local ps = PLAYER.playerState()
     return ps and UTIL.safe(function() return ps:GetPawn() end)

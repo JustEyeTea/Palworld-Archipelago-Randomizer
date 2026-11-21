@@ -59,12 +59,7 @@ group("buying a slot", function()
     expect(req.v:ToString() == "Workbench", "level-1 research left alone")
     -- After a world change, until the records phase has looked whether this world is the seed's, nothing is bought.
     local WORLD, STATE = require("world"), require("ap_state")
-    local slot
-    for tech, s in pairs(D.shop) do
-        if not slot and not STATE.ap.bought[s.loc] and s.cost <= 1 then
-            slot = tech
-        end
-    end
+    local slot = h.firstShopSlot(function(s) return not STATE.ap.bought[s.loc] and s.cost <= 1 end)
     local pointsWere = td.TechnologyPoint
     td.TechnologyPoint = 12
     inWorld(true)
@@ -123,13 +118,9 @@ group("a bought slot's check is sent again on every connection, and kept in the 
     -- The connection drops in the seed's world (the seed known): a purchase still goes through, is saved, and its
     -- check is sent once the connection is back.
     local STATE = require("ap_state")
-    local slot
-    for tech, s in pairs(D.shop) do
-        local free = not STATE.ap.checked[s.loc] and not STATE.ap.bought[s.loc]
-        if not slot and free and s.cost <= 1 and not s.ancient then
-            slot = tech
-        end
-    end
+    local slot = h.firstShopSlot(function(s)
+        return not STATE.ap.checked[s.loc] and not STATE.ap.bought[s.loc] and s.cost <= 1 and not s.ancient
+    end)
     local offLoc = D.shop[slot].loc
     local pointsWere = td.TechnologyPoint
     td.TechnologyPoint = 12

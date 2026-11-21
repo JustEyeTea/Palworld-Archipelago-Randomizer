@@ -2,8 +2,19 @@
 
 Palworld's Technology tree (levels 2 and up) becomes a shop: each card shows what buying it sends to the multiworld,
 and every tech is an item that arrives from Archipelago. The map is locked: its 15 regions open with Region Passes
-(or, with Lock Size: areas, the game's 75 named areas open with Area Passes). Captures, alphas, fast-travel points,
-levels and towers are further checks.
+(or, with Lock Size: areas, the game's 75 named areas open with Area Passes; or, with Lock Size: levels, Level
+Progression's 8 tiers of wild Pal level open in order, one Progressive Level Pass each). Captures, alphas, fast-travel
+points, levels and towers are further checks.
+
+With Level Progression the walls follow where wild Pals of each level live, not the game's named places: levels 1-16
+(the start, Windswept Island among it), 17-28, 29-34, 35-40, 41-48, 49-59, 60-69 and 70-80 (the World Tree). A tier
+can lie in several places, and its wall says how many passes it takes. Three places need a flying mount besides their
+passes: the Sky Islands; a levels 29-34 valley in the Astral Mountains that higher tiers surround, reached by flying
+up a walled corridor; and the low Isles of Silence, levels 1-16 but ringed by the 17-28 tier, reached by a walled
+corridor from the start (the Nitewing Saddle is a level 15 tech, and Nitewing live near the start). A corridor only
+gets you through: the Pals and statues in it count for the tier around it.
+
+![Level Progression's tiers, each in its colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/level-map.png)
 
 ![The 15 regions, each in its pass ticket's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/region-map.png)
 
@@ -41,7 +52,8 @@ game has about 180):
 With Area Locks on, a short goal keeps a small map: regions whose Pals are all above the cap have no pass and no
 checks, and their walls stay up (Regions Beyond the Goal: locked, the default). A two-tower game has passes for the
 regions up to level 28 only. Regions Beyond the Goal can instead open them from the start (still with no checks in
-them), or keep a pass for every region as before. With Lock Size: areas, the same goes for areas.
+them), or keep a pass for every region as before. With Lock Size: areas, the same goes for areas. With Lock Size:
+levels, a tier the goal needs keeps every tier below it, since each pass opens the next one.
 
 Shop slots cost their usual tech points. Long goals ask for more points than levelling gives: Technical Manuals from
 dungeons, treasure chests and the Bounty shop make up the rest.

@@ -16,9 +16,12 @@ from .data import (BREEDING_TECH, BUNDLES, CAUGHT_KINDS, CRATE, DIRECT, FLYING_M
 from .game_data import GAME_VERSION
 from .levels import LEVELS_BY_LAYOUT, PALDECK_MARGIN, RELIC_LEVEL, TOWER_MARGIN, LevelModel
 from .map_plan import MapPlan
-from .options import Goal, PalworldOptions, option_groups, options_presets
+from .options import Goal, LockSize, PalworldOptions, option_groups, options_presets
 
 WORLD_TREE_EVENT = "World Tree Boss Defeated"
+# The Lock Size option's values -> the cut of the map in data.LAYOUTS (an unknown value fails loudly, never a default).
+LOCK_SIZE_LAYOUT = {LockSize.option_regions: "regions", LockSize.option_areas: "areas",
+                    LockSize.option_levels: "levels"}
 # Early spots for the first sphere: the shop slots of the first level that has any (level 2), and the level checks
 # a new player reaches within minutes (vanilla gives the Pal Sphere at level 2).
 EARLY_SPHERE_LEVELS = (2, 3)
@@ -110,7 +113,7 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
         """The seed's plan, before anything is built: which cut of the map, the level cap, which locks are in the seed,
         and whether the options leave enough checks. Bad options stop here with an OptionError."""
         o = self.options
-        cut = "areas" if o.lock_size == o.lock_size.option_areas else "regions"
+        cut = LOCK_SIZE_LAYOUT[o.lock_size.value]
         self.layout = LAYOUTS[cut]
         self.levels = LEVELS_BY_LAYOUT[cut]
         # Gear Logic off: only passes and levels (and the first sphere) gate anything; bred-only Pals aren't checks.
@@ -181,19 +184,20 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
         raise ValueError(towers)
 
     # --- logic helpers: what the player has and where they can go ----------------------------------------------------
-    # tests: test_logic.py (TestMounts), test_areas.py (TestAreasSky, TestAreasLockSize)
+    # tests: test_logic.py (TestMounts), test_areas.py (TestAreasSky, TestAreasLockSize), test_levels.py
     def can_enter(self, state: CollectionState, piece: str) -> bool:
-        """Crossing a border into a piece needs its lock's pass (the start and open sea need none), a mount that crosses
-        water to go out on the open sea, and one that flies to go up to the Sky Islands."""
+        """Crossing a border into a piece needs its lock's pass (the start and open sea need none; a level tier needs as
+        many Progressive Level Passes as its place after the start), a mount that crosses water to go out on the open
+        sea, and one that flies to go up to the Sky Islands or a piece walled in from below."""
         lock = self.layout.pieces[piece]
         if lock == SEA:
             return not self.sea_needed or self.can_ride(state, SEA_MOUNTS)
-        if lock in self.layout.sky and not self.can_ride(state, FLYING_MOUNTS):
+        if piece in self.layout.flying and not self.can_ride(state, FLYING_MOUNTS):
             return False
         if lock not in self.scope:              # beyond the goal: open from the start, or no pass at all
             return self.options.beyond_goal == self.options.beyond_goal.option_open
         return (lock == self.layout.start or not self.options.area_locks
-                or state.has(self.layout.passes[lock], self.player))
+                or state.has(self.layout.passes[lock], self.player, self.layout.pass_counts[lock]))
 
     def can_ride(self, state: CollectionState, mounts: Dict[str, str]) -> bool:
         """One of these mounts: its saddle tech and its Pal."""
@@ -304,9 +308,8 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
                     self.recheck_everywhere(entrance, regions)
 
     def needs_mount(self, piece: str) -> bool:
-        """Entering this piece takes a mount: it is on the open sea or up in the sky."""
-        lock = self.layout.pieces[piece]
-        return lock == SEA or lock in self.layout.sky
+        """Entering this piece takes a mount: it is on the open sea, or flown to."""
+        return self.layout.pieces[piece] == SEA or piece in self.layout.flying
 
     def recheck_everywhere(self, entrance, regions: Dict[str, Region]) -> None:
         """A mount rule depends on Pals and levels anywhere, so Archipelago must re-check it as any region opens."""
@@ -354,7 +357,7 @@ class PalworldWorld(LevelModel, MapPlan, CheckPlan, World):
         """An item by name, classified: passes, Progressive Spheres and relics are progression; a tech is progression
         when the logic counts on it in this seed, else useful; traps are traps; the rest filler."""
         kind = next(i.kind for i in ITEMS if i.name == name)
-        if kind in ("pass", "progressive", "relic"):
+        if kind in ("pass", "level_pass", "progressive", "relic"):
             cls = ItemClassification.progression
         elif kind == "trap":
             cls = ItemClassification.trap

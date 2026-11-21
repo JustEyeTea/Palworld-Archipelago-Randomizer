@@ -6,6 +6,9 @@ M.base = 1352728576
 M.starters = { Workbench = true, Product_Axe_Grade_01 = true, Product_Pickaxe_Grade_01 = true, HandTorch = true, Battle_MeleeWeapon_Bat = true }
 -- Progressive Sphere unlocks these in order.
 M.spheres = { "Special_PalSphere_Grade_01", "Special_PalSphere_Grade_02", "Special_PalSphere_Grade_03", "Special_PalSphere_Grade_04", "Special_PalSphere_Grade_05", "Special_PalSphere_Grade_06", "Special_PalSphere_Grade_07" }
+-- Level Progression's pass item opens these tiers in order, one per copy.
+M.levelPass = "Progressive Level Pass"
+M.levelTiers = { "Levels 17-28", "Levels 29-34", "Levels 35-40", "Levels 41-48", "Levels 49-59", "Levels 60-69", "Levels 70-80" }
 -- tech id -> its shop slot (location id), vanilla level and cost, and its gates (prereq, tower, research)
 M.shop = {
     PalBox = { loc = 1352729581, name = "Palbox", level = 2, cost = 1, ancient = false },
@@ -1192,6 +1195,7 @@ M.items = {
     [1352730162] = { kind = "tech", tech = "FurnitureSet_12", name = "Tech: Road Sign Set" },
     [1352730163] = { kind = "tech", tech = "FurnitureSet_10", name = "Tech: Barricade Set" },
     [1352729476] = { kind = "progressive", name = "Progressive Sphere" },
+    [1352729477] = { kind = "level_pass", name = "Progressive Level Pass" },
     [1352729516] = { kind = "relic", name = "Palpagos Relic" },
     [1352729526] = { kind = "filler", name = "Tech Points +2" },
     [1352729527] = { kind = "filler", name = "Ancient Tech Points +1" },

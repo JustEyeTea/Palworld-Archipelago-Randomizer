@@ -12,10 +12,10 @@ with `[PalworldAP]`.
 - The mod package, `PalworldArchipelago-v<version>.zip`, from the project's
   [Releases](https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases) page. It holds
   `ue4ss\Mods\APConnector` and `ue4ss\Mods\PalworldArchipelago`.
-- Optional: `PalworldArchipelagoArt.pak`, the walls' own material (paws in each region's colour, a glow near you, a
-  dissolve when a region opens), among the same release's downloads. It is built by hand in the Palworld Modding Kit
-  and added to each release separately, so an early release may not have it yet. Without it the walls use the game's
-  own wall material in your region colours.
+- Optional: `PalworldArchipelagoArt.pak`, the walls' own material (each region's own wall over its colour, a glow
+  near you, a dissolve when a region opens), among the same release's downloads. It is built by hand in the Palworld
+  Modding Kit and added to each release separately, so an early release may not have it yet. Without it the walls use
+  the game's own wall material in your region colours.
 
 ## Installing
 
@@ -33,6 +33,9 @@ with `[PalworldAP]`.
    `ue4ss\Mods\mods.txt`. (Lines there for them are fine too.) To turn the mod off, delete the two `enabled.txt`
    files and any lines for them in `mods.txt`. Without APConnector the log says `APConnector is not installed` and
    the mod stays off.
+   While you are in `mods.txt`, set `Keybinds : 0`. UE4SS ships its Keybinds mod on, and its Ctrl+H dumps the
+   game's files: pressing the hint key (H) while crouched (Ctrl) sets it off, and the game can crash soon after. The
+   mod warns in chat while Keybinds is on.
 5. Optional: copy `PalworldArchipelagoArt.pak` to `Pal\Content\Paks\LogicMods` (make the folder if it isn't there).
    `BPModLoaderMod` must stay on in `mods.txt`; UE4SS ships it on. (A second pak, `PalworldArchipelagoUI.pak`, would
    give the Archipelago Mailbox its own window; it isn't released yet, and the mailbox works in the game's chest
@@ -65,7 +68,7 @@ with `[PalworldAP]`.
 
 ## Playing
 
-![What the mod's pictures mean: item icons on shop cards, crates, traps, and pass tickets on the map and at walls](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/legend.png)
+![What the mod's pictures mean: item icons on shop cards, crates, traps, pass tickets and level tier stamps on the map and at walls, and the fly-up icon](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/legend.png)
 
 - The Technology tree (levels 2 and up) is the shop. Each card shows what buying it sends; buying spends the usual
   tech points. A tech itself unlocks only when its item arrives. If the connection drops while you play, you can
@@ -77,14 +80,21 @@ with `[PalworldAP]`.
   does what you get from opening a Palworld Crate or from a Nomad tech. Gear and accessories don't show in the
   mailbox's chest: they go into your bag when you open the mailbox (with a full bag, they wait until you open it again).
 - With Area Locks on, a locked region is walled off and shown grey on the map until its Region Pass arrives (with
-  Lock Size: areas, each area and its Area Pass). Its walls wear the region's colour: cream paws over it with
-  `PalworldArchipelagoArt.pak`, a coloured wall with paw-shaped holes without it, and slate grey for a region beyond
-  your goal. Press `H` at a wall to buy a hint for its pass (the `hint_key` setting).
-- The logic expects a mount that swims or flies to cross the open sea, and a flying one to reach the Sky Islands.
+  Lock Size: areas, each area and its Area Pass; with Lock Size: levels, each tier, opened in order by Progressive
+  Level Passes, its walls cream paws over the tier's colour). Its walls wear the region's colour: with
+  `PalworldArchipelagoArt.pak`, the region's own wall over it, and a bunker grille on a region beyond your goal (an
+  older pak without the region walls shows cream paws over the colour instead, slate grey beyond your goal); without
+  the pak, a coloured wall with paw-shaped holes, slate grey beyond your goal. Press `H` at a wall to buy a hint for
+  its pass (the `hint_key` setting).
+- The logic expects a mount that swims or flies to cross the open sea, and a flying one to reach the Sky Islands (and,
+  with Lock Size: levels, the Astral Mountains valley and the Isles of Silence up their walled corridors). A wing icon
+  on the map marks where each corridor starts, until you have flown through it. A corridor only gets you through: the
+  Pals and statues inside it count for the tier around it.
 
 ## Not tested in game yet
 
 - The **World Tree** goal.
+- **Lock Size: levels** (Level Progression): its walls, passes and hints are new and not yet played.
 - **Alpha checks**: the key the game records a beaten alpha under is not confirmed yet. If beating an alpha sends
   nothing (the log says `alpha record key not mapped`), turn Alpha Checks off for your next game.
 

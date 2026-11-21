@@ -64,6 +64,7 @@ local CONFIG_KEYS = {
     "test_tools", "perf_log", "perf_no_bp_hooks",
     "wall_skin", "wall_tiling", "wall_scroll", "wall_radius", "wall_fade",
     "map_cpp", "map_chart", "map_icons", "map_regions", "map_style",
+    "glow",
 }
 -- Writes config.txt with every key of CONFIG_KEYS that cfg holds (the title menu's connect).
 function CONFIG.write()

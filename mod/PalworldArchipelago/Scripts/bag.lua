@@ -3,6 +3,7 @@
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local BAG = {}
 local UTIL = require("util")
+local PLAYER = require("player")    -- (findPlayerState: the player state, outside an update)
 local log = UTIL.log
 local onceSession = UTIL.onceIn("mailbox")   -- once a session: how the game answers does not change by world
 
@@ -11,16 +12,19 @@ local BAG_GAME = {
     uiUtility = "/Script/Pal.Default__PalUIUtility",     -- item names in the player's language
     itemUtility = "/Script/Pal.Default__PalItemUtility", -- counts what is in the bag
     playerController = "PalPlayerController",
-    playerState = "PalPlayerState",
 }
 -- Game functions called: GetItemIDManager, GetStaticItemData, GetMaxStackCount, GetItemName, GetInventoryData,
--- AddItem_ServerInternal, CountLocalPlayerInventoryItemNum64, IsEquip, K2_GetPawn.
+-- AddItem_ServerInternal, CountLocalPlayerInventoryItemNum64, IsEquip, IsEquipForWeapon, K2_GetPawn,
+-- GetItemContainerManager, GetContainer.
 local STACK_WHEN_UNKNOWN = 9999                  -- items per stack when the game can't say: its largest stack size
 local OK_RESULTS = { [0] = true, [1] = true }    -- EPalItemOperationResult Success, SuccessNoOperation
 -- The game puts gear it is given straight into an empty equipment slot (an accessory into an empty accessory slot),
--- where the bag's count does not see it. These are EPalPlayerEquipItemSlotType's slots, Head (0) to
--- CaptureItemModifier (8): armour, accessories, shield, glider and the sphere modifier. Weapons have their own
--- loadout, not among them. Untested in game: whether a weapon handed out lands in an empty weapon slot, out of sight.
+-- where the bag's count does not see it, and only after AddItem returns: in game, right after the call neither the bag
+-- nor the slot held it yet, so where gear went is read a moment later (mailbox_gear.lua). These are
+-- EPalPlayerEquipItemSlotType's slots, Head (0) to CaptureItemModifier (8): armour, accessories, shield, glider and
+-- the sphere modifier. Weapons have their own loadout, not among them, and land in an empty weapon slot just the same
+-- (an Old Bow did, in game), so the loadout is asked too (IsEquipForWeapon: whether a weapon slot holds the item; one
+-- counted however many hold it).
 local FIRST_EQUIP_SLOT, LAST_EQUIP_SLOT = 0, 8
 
 -- State. Forgotten: never (item names and stack sizes do not change in a session).
@@ -45,14 +49,7 @@ function BAG.player()
     if frame then return frame.pawn, frame.playerState() end
     local controller = FindFirstOf(BAG_GAME.playerController)
     local pawn = controller and controller:IsValid() and controller:K2_GetPawn() or nil
-    local playerState
-    for _, candidate in ipairs(FindAllOf(BAG_GAME.playerState) or {}) do
-        if candidate:IsValid() then
-            playerState = candidate
-            break
-        end
-    end
-    return pawn and pawn:IsValid() and pawn or nil, playerState
+    return pawn and pawn:IsValid() and pawn or nil, PLAYER.findPlayerState()
 end
 
 -- The most of an item one stack holds.
@@ -111,6 +108,9 @@ local function wornCount(inventory, id)
                 worn = worn + 1
             end
         end
+        if inventory:IsEquipForWeapon(FName(id)) then
+            worn = worn + 1
+        end
         return worn
     end)
     return ok and count or nil
@@ -129,10 +129,11 @@ local function heldNow(inventory, playerState, id)
 end
 
 -- One stack into the bag; true when the game took it, else false and why: "full" when the game refused it, "error"
--- when the call failed. The third value is how many went straight into an equipment slot. The bag and the equipment
--- slots are counted before and after, and a gain that does not match the game's answer is logged: what a full bag
--- does with AddItem is untested in game.
-local function giveStack(inventory, playerState, id, count)
+-- when the call failed. The bag and the equipment slots are counted before and after, and a gain that does not match
+-- the game's answer is logged: what a full bag does with AddItem is untested in game. Not for gear (`placedLater`):
+-- the game puts it in an equipment slot only after this call returns, so its gain is checked later, by the caller
+-- (mailbox_gear.lua).
+local function giveStack(inventory, playerState, id, count, placedLater)
     local before = heldNow(inventory, playerState, id)
     local ok, answer = pcall(function()
         return inventory:AddItem_ServerInternal(FName(id), count, false, 0.0, true)
@@ -140,13 +141,12 @@ local function giveStack(inventory, playerState, id, count)
     local result = ok and tonumber(answer) or nil
     local accepted = ok and (result == nil or OK_RESULTS[result]) or false
     local after = before and heldNow(inventory, playerState, id)
-    local wornGain = after and math.max(0, after.worn - before.worn) or 0
     local gain = after and (after.bag + after.worn) - (before.bag + before.worn)
-    if gain and gain ~= (accepted and count or 0) then
+    if gain and gain ~= (accepted and count or 0) and not placedLater then
         onceSession("bag" .. tostring(result), "mailbox: adding " .. count .. " " .. id .. " answered "
             .. tostring(result) .. " but the bag and equipment slots gained " .. gain)
     end
-    if accepted then return true, nil, wornGain end
+    if accepted then return true end
     if not ok then
         log("mailbox: could not give " .. id .. ": " .. tostring(answer))
         return false, "error"
@@ -157,24 +157,41 @@ local function giveStack(inventory, playerState, id, count)
 end
 
 -- Into the player's bag, a stack at a time. Returns how many went in and, when that is not all, why: "full" (the game
--- refused it), "error" (the game's call failed) or "no bag" (the player has no inventory data, as while loading). The
--- third value is how many of those the game put straight into an equipment slot instead of the bag.
-function BAG.give(id, count)
+-- refused it), "error" (the game's call failed) or "no bag" (the player has no inventory data, as while loading).
+-- Gear (`isGear`) may go straight into an empty equipment slot instead of the bag, a moment later: the caller reads
+-- where it went (mailbox_gear.lua).
+function BAG.give(id, count, isGear)
     local _, playerState = BAG.player()
     local inventory = playerState and playerState:GetInventoryData()
     if not inventory then
         onceSession("nobag", "mailbox: the player has no inventory data (no player state, or still loading); " .. id
             .. " not given")
-        return 0, "no bag", 0
+        return 0, "no bag"
     end
-    local perStack, given, worn = BAG.maxStack(id), 0, 0
+    local perStack, given = BAG.maxStack(id), 0
     while given < count do
         local stack = math.min(perStack, count - given)
-        local took, why, wornNow = giveStack(inventory, playerState, id, stack)
-        if not took then return given, why, worn end
-        given, worn = given + stack, worn + wornNow
+        local took, why = giveStack(inventory, playerState, id, stack, isGear)
+        if not took then return given, why end
+        given = given + stack
     end
-    return given, nil, worn
+    return given
+end
+
+-- What the player holds of an item now: { bag = in the bag, worn = in equipment slots }, or nil when the bag can't be
+-- counted (no player state, or still loading).
+function BAG.held(id)
+    local _, playerState = BAG.player()
+    local inventory = playerState and playerState:GetInventoryData()
+    if not inventory then return nil end
+    return heldNow(inventory, playerState, id)
+end
+
+-- The player's bag: its item container (UPalItemContainer: Num, Get, GetLastNotEmptyIndex).
+function BAG.bagContainer()
+    local pawn, playerState = BAG.player()
+    local bagId = playerState:GetInventoryData().MyInventoryInfo.CommonContainerId
+    return BAG.palUtility():GetItemContainerManager(pawn):GetContainer(bagId)
 end
 
 -- The live player controller's address (FindFirstOf can return the class default object, which never changes).

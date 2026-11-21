@@ -8,6 +8,7 @@ local ITEMS = {}
 local BAG = require("bag")
 local CRATES = require("crates")
 local DATA = require("ap_data")
+local GLOW_BURST = require("glow_burst")
 local MAIL = require("mailbox")
 local PLAYER = require("player")
 local RECORDS = require("records")
@@ -198,11 +199,24 @@ function ITEMS.applyItems(ps)
     end
 end
 
+-- How many copies of an item have arrived (a progressive item does more with each).
+local function copiesReceived(id)
+    local n = 0
+    for _, v in pairs(ap.items) do
+        if v == id then n = n + 1 end
+    end
+    return n
+end
+
 -- item <index> <item id> <location id> <player slot> <flags> <item name> <player name>
-function ITEMS.onItem(indexText, itemText, _locationText, playerText, _flagsText, name, from)
+-- A new item (past those already given; never one sent again on reconnecting) also brings the arrival burst.
+function ITEMS.onItem(indexText, itemText, _locationText, playerText, flagsText, name, from)
     local index, id, player = tonumber(indexText), tonumber(itemText), tonumber(playerText)
     if ap.items[index] == id then return end
     ap.items[index] = id
+    if index > ap.given then
+        GLOW_BURST.noteArrival(tonumber(flagsText) or 0)
+    end
     TECH_LOCK.techsChanged()
     local it = DATA.items[id]
     if not it then
@@ -212,17 +226,15 @@ function ITEMS.onItem(indexText, itemText, _locationText, playerText, _flagsText
     if it.kind == "tech" then
         ap.techs[it.tech] = true
     elseif it.kind == "progressive" then
-        local n = 0
-        for _, v in pairs(ap.items) do
-            if v == id then
-                n = n + 1
-            end
-        end
-        for k = 1, math.min(n, #DATA.spheres) do
+        for k = 1, math.min(copiesReceived(id), #DATA.spheres) do
             ap.techs[DATA.spheres[k]] = true
         end
     elseif it.kind == "pass" then
         ap.passes[it.lock] = true
+    elseif it.kind == "level_pass" then              -- Level Progression: each copy opens the next tier
+        for k = 1, math.min(copiesReceived(id), #DATA.levelTiers) do
+            ap.passes[DATA.levelTiers[k]] = true
+        end
     elseif it.kind == "trap" then
         -- No "Received" line: the trap names itself when it fires (and a Fool Trap must not give itself away).
         ap.from[index] = player ~= ap.me and from or nil

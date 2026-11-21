@@ -37,6 +37,7 @@ end
 --   goal=shown                the goal's banner and notice have been shown
 --   bought=123,456            checks the mod sent itself (ap.bought): sent again on connecting
 --   visited=Lock|Lock         open locks the player has stood in (the map's open stamps)
+--   flown=1|2                 flying corridors flown through, by their number in *_walls.lua (the map's fly-up icons)
 --   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
 --   mail=id:n,... and mailgear=id:n,...    mailbox.lua: the mailbox's items, and its gear (an older mod's save has
 --                             cratebag= in place of mailgear=, which mailbox.lua reads as gear)
@@ -76,6 +77,7 @@ local function loadLine(path, line)
     local w = line:match("^world=(.+)$")
     local d = line:match("^deaths=(%d+)")
     local v = line:match("^visited=(.*)$")
+    local f = line:match("^flown=(.*)$")
     local b = line:match("^bought=(.*)$")
     if line == "goal=shown" then
         ap.goalShown = true
@@ -88,6 +90,10 @@ local function loadLine(path, line)
     elseif v then
         for lock in v:gmatch("[^|]+") do
             ap.visited[lock] = true
+        end
+    elseif f then
+        for number in f:gmatch("%d+") do
+            ap.flown[tonumber(number)] = true
         end
     elseif b then
         for loc in b:gmatch("%d+") do
@@ -158,6 +164,11 @@ local function saveText()
         been[#been + 1] = lock
     end
     table.sort(been)
+    local flown = {}
+    for number in pairs(ap.flown) do
+        flown[#flown + 1] = number
+    end
+    table.sort(flown)
     local bought = {}
     for loc in pairs(ap.bought) do
         bought[#bought + 1] = loc
@@ -169,6 +180,7 @@ local function saveText()
         "deaths=" .. ap.forgiven .. "\n",
         ap.goalShown and "goal=shown\n" or "",
         #been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "",
+        #flown > 0 and ("flown=" .. table.concat(flown, "|") .. "\n") or "",
         #bought > 0 and ("bought=" .. table.concat(bought, ",") .. "\n") or "",
         TRAPS.serialize(), MAIL.serialize(), CRATES.serialize(), RUN_STYLE.serialize(),
         "end\n",

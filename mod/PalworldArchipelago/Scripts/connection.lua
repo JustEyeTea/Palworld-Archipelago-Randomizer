@@ -12,6 +12,7 @@ local CONFIG = require("config")
 local CRATES = require("crates")
 local DATA = require("ap_data")
 local DEATH_LINK = require("death_link")
+local GLOW_CHECKS = require("glow_checks")
 local ITEMS = require("items")
 local MAIL = require("mailbox")
 local PERF = require("perf")
@@ -62,6 +63,7 @@ end
 local function resetSeed(seed, slot)
     STATE.forgetSeed()
     WALLS.setVisited(ap.visited)              -- (the new table: the map reads it)
+    WALLS.setFlown(ap.flown)                  -- (the same)
     CRATES.reset()
     RUN_STYLE.reset()
     MAIL.reset()
@@ -75,19 +77,28 @@ local function resetSeed(seed, slot)
         .. tostring(seed) .. ", slot " .. tostring(slot) .. "): progress of the last one forgotten")
 end
 
--- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas). Seeds made before the option was
--- renamed send options.area_size, with the same numbers (its values were "areas" for the 15 and "regions" for the 75);
--- older seeds send neither. WALLS names each cut as Lock Size does.
+-- The seed's cut of the map (options.lock_size: 0 the 15 regions, 1 the 75 areas, 2 Level Progression's tiers),
+-- named as Lock Size names it. Seeds made before the option was renamed send options.area_size, with the same numbers
+-- (its values were "areas" for the 15 and "regions" for the 75); older seeds send neither.
+local LOCK_SIZES = { ["0"] = "regions", ["1"] = "areas", ["2"] = "levels",
+                     regions = "regions", areas = "areas", levels = "levels" }
+local OLD_AREA_SIZES = { ["0"] = "regions", ["1"] = "areas", areas = "regions", regions = "areas" }
+-- A Lock Size this mod does not know comes from a newer APWorld: the player is told, and the 15 regions' walls (the
+-- first cut) are the nearest it can show.
 local function applyLockSize()
     local size = SLOT.text("options.lock_size")
-    local useAreas                                  -- true: the 75 areas; false: the 15 regions
+    local name
     if size ~= nil and size ~= "" then
-        useAreas = size == "1" or size == "areas"
+        name = LOCK_SIZES[size]
     else                                            -- a seed made before the rename
-        local old = SLOT.text("options.area_size")
-        useAreas = old == "1" or old == "regions"
+        name = OLD_AREA_SIZES[SLOT.text("options.area_size")] or "regions"
     end
-    WALLS.setLayout(useAreas and "areas" or "regions")
+    if not name then
+        notify("This seed's Lock Size (" .. size .. ") is newer than this mod: update the Palworld Archipelago mod. "
+            .. "Until then the walls are the 15 regions', which won't match the seed.")
+        name = "regions"
+    end
+    WALLS.setLayout(name)
 end
 
 -- Locks beyond the goal (options.beyond_goal: 0 locked, 1 passes, 2 open; beyond_goal_areas): their passes are not in
@@ -126,13 +137,14 @@ local function logRunOptions()
     end
 end
 
--- The seed's options that shape this session: Area Locks and their cut of the map, the locks beyond the goal, and
--- Death Link; the run style and traps are logged.
+-- The seed's options that shape this session: Area Locks and their cut of the map, the locks beyond the goal, Death
+-- Link, and whether fast-travel statues are checks (their glow); the run style and traps are logged.
 local function applySeedOptions()
     AREA_LOCKS.setOn(SLOT.flag("options.area_locks"))
     applyLockSize()
     applyBeyondGoal()
     DEATH_LINK.applyOption()
+    GLOW_CHECKS.setFastTravelChecks(SLOT.text("options.fast_travel_checks"))
     CHECKS.logSeedGoal()
     logRunOptions()
 end

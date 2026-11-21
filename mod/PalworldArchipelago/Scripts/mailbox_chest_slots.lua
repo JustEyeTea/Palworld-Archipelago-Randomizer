@@ -32,8 +32,22 @@ function SLOTS.plainId(itemId)
     return perItem.A == 0 and perItem.B == 0 and perItem.C == 0 and perItem.D == 0
 end
 
+-- A piece of gear's own id, "A-B-C-D" (its per-item id: two pieces of one item differ), or nil for a plain item.
+function SLOTS.pieceKey(itemId)
+    if SLOTS.plainId(itemId) then return nil end
+    local perItem = itemId.DynamicId.LocalIdInCreatedWorld
+    return perItem.A .. "-" .. perItem.B .. "-" .. perItem.C .. "-" .. perItem.D
+end
+
 function SLOTS.getItemId(slot)
     return slot:GetItemId()
+end
+
+-- The last slot index of a container in use (-1 when it is empty); every slot when the game can't say.
+function SLOTS.lastUsedIndex(container)
+    local ok, last = pcall(function() return container:GetLastNotEmptyIndex() end)
+    if ok and type(last) == "number" then return last end
+    return container:Num() - 1
 end
 
 local function isPlain(slot)
@@ -83,7 +97,11 @@ function SLOTS.emptyThenFillChest(chest)
         waiting[#waiting + 1] = { id = entry.id, n = entry.n }
     end
     local slots, placed = container:Num(), 0
+    -- Past the last slot in use every slot is empty: the walk stops there once nothing waits (a full walk of a 300-slot
+    -- chest is a large part of what opening costs).
+    local lastUsed = SLOTS.lastUsedIndex(container)
     for index = 0, slots - 1 do
+        if index > lastUsed and #waiting == 0 then break end
         local slot = container:Get(index)
         if slot and slot:IsValid() then
             if not slot:IsEmpty() and isPlain(slot) then

@@ -635,7 +635,7 @@ group("walls and the map, on fresh copies of walls.lua", function()
         expect(opens == 0, "the chart look's idle map update opens no file: " .. opens .. " opens in 20 updates")
         game.mapOpen = false
         os.remove(MOD .. "/map-chart.png")
-        os.remove(MOD .. "/map-fog.png")
+        os.remove(MOD .. "/map-fog.bmp")
         takeAway()
         putBack()
     end
@@ -817,13 +817,50 @@ group("walls and the map, on fresh copies of walls.lua", function()
                "five pawn changes keep nothing new alive: kept " .. keptFirst .. " then " .. keptAfter
                .. "; pattern files loaded " .. importsFirst .. " then " .. importsAfter)
     end
+    do  -- The default skin: the region walls with a pak that has them; with a pak built before them, the paws, said
+        -- once
+        local hadPak, hadRegionWalls = game.logicMod, game.regionWalls
+        game.logicMod = true
+        -- How many pieces of a fresh copy of walls.lua, in the default skin, wear a layer whose name has `layer`, of
+        -- how many; and how many times the regions skin said it fell back to the paws.
+        local function defaultSkinWears(layer)
+            local saidBefore = countLogged("wall skin regions: the PalworldArchipelagoArt pak has no region walls")
+            local W, mine = h.freshWalls()
+            W.setSkin("")
+            for _ = 1, SETTLE_UPDATES do
+                W.update(true, {}, offMap)
+            end
+            local pieces, wearing = mine(), 0
+            for _, a in ipairs(pieces) do
+                local pattern = a.Cube.mat and a.Cube.mat.textures and a.Cube.mat.textures.Pattern
+                if pattern and tostring(pattern.path):find(layer, 1, true) then
+                    wearing = wearing + 1
+                end
+            end
+            h.wallsGo(pieces)
+            local said = countLogged("wall skin regions: the PalworldArchipelagoArt pak has no region walls")
+            return wearing, #pieces, said - saidBefore
+        end
+        game.regionWalls = true
+        local regionTiles, n1, said1 = defaultSkinWears(".T_APWallRegion_")
+        expect(n1 > 100 and regionTiles == n1 and said1 == 0,
+               "with the pak's region walls, the default skin is regions: " .. regionTiles .. " of " .. n1
+               .. " pieces wear a region's own wall")
+        game.regionWalls = false
+        local paws, n2, said2 = defaultSkinWears(".T_APWallPaws")
+        expect(n2 > 100 and paws == n2 and said2 == 1,
+               "with a pak built before the region walls, the default falls back to the paws and says so once: "
+               .. paws .. " of " .. n2 .. " pieces in paws, said " .. said2 .. " time(s)")
+        game.logicMod, game.regionWalls = hadPak, hadRegionWalls
+    end
     do  -- A fog picture left by an earlier session is never shown: until this session's is made, C++ is given none
         -- (the game's own fog shows). Then, with the map closed, the explored mask is read again from the world's map
-        -- data every MASK_READ_GAP and the picture made again, so places explored since show at the next opening.
+        -- data every MASK_READ_GAP and, if it changed, the picture made again, so places explored since show at the
+        -- next opening. An unchanged mask makes no picture: loading one decodes it on the game thread, a hitch.
         local calls = {}
         local takeAway = plugInTerritories(calls)
         local putBack = savedColourMap(game.mapArt)
-        writeFile(MOD .. "/map-fog-territories.png", "an earlier session's")
+        writeFile(MOD .. "/map-fog-territories.bmp", "an earlier session's")
         local fogBusy = true
         AP_FogStatus = function() return fogBusy and "busy" or "done" end
         local mapData = { IsValid = function() return true end }
@@ -852,15 +889,41 @@ group("walls and the map, on fresh copies of walls.lua", function()
         fogBusy = false
         W.updateMap(true, {}, pawn)
         expect(fogPicturesSent() == 1, "this session's picture is handed over once made: " .. fogPicturesSent())
-        local mark = logMark()
-        for _ = 1, W.MASK_READ_GAP do
+        local function aMinuteClosed()
+            for _ = 1, W.MASK_READ_GAP do
+                W.updateMap(true, {}, pawn)
+            end
             W.updateMap(true, {}, pawn)
         end
-        W.updateMap(true, {}, pawn)
-        expect(fogJobs == jobsBefore + 2 and fogPicturesSent() == 2
-               and loggedSince(mark, "the fog picture is made again every 60 s while the map is closed"),
-               "with the map closed, the fog picture is made again from the explored mask a minute later: "
+        local mark = logMark()
+        aMinuteClosed()
+        expect(fogJobs == jobsBefore + 1 and fogPicturesSent() == 1,
+               "a minute later with nothing new explored, no fog picture is made or loaded: "
                .. fogJobs - jobsBefore .. " made, " .. fogPicturesSent() .. " handed over")
+        expect(loggedSince(mark, "while the map is closed, the explored mask is read every 60 s")
+               and loggedSince(mark, "read with the map closed in %d+ ms: unchanged, the fog picture is kept"),
+               "the log says the mask was read and found unchanged, with how long the read took")
+        mark = logMark()
+        exportedPixels = "png, explored further"
+        aMinuteClosed()
+        expect(fogJobs == jobsBefore + 2 and fogPicturesSent() == 2,
+               "a minute after the player explored, the fog picture is made again and handed over: "
+               .. fogJobs - jobsBefore .. " made, " .. fogPicturesSent() .. " handed over")
+        expect(loggedSince(mark, "read with the map closed in %d+ ms: changed, the fog picture is made again")
+               and loggedSince(mark, "the fog picture is ready %(%d+ this session %(the first 3 are logged%), loaded"
+                                  .. " in %d+ ms"),
+               "the log says the mask changed, and how long the new picture took to load")
+        W.reset()                                                  -- a new world: C++ forgets the fog picture
+        local jobsInOldWorld = fogJobs
+        for _ = 1, W.MASK_READ_GAP do
+            W.updateMap(true, {}, pawn)
+            if fogJobs > jobsInOldWorld then break end
+        end
+        W.updateMap(true, {}, pawn)
+        expect(fogJobs == jobsInOldWorld + 1 and fogPicturesSent() == 3,
+               "in a new world the first mask read makes a fog picture even if the mask is the same: "
+               .. fogJobs - jobsInOldWorld .. " made, " .. fogPicturesSent() .. " handed over")
+        exportedPixels = "png"
         util.GetLocalWorldMapData = nil
         takeAway()
         putBack()

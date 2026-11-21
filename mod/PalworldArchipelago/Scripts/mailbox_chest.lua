@@ -1,8 +1,9 @@
 -- The mailbox's hidden chest: without the LogicMod, the mailbox is the game's own chest window on a chest of its own,
 -- made once per world far outside the map and deep underground (mailbox_slots, default 300 slots) and kept from
 -- decaying; its window opened on it and followed until the player closes it. Its parts, each in its own file: the
--- slots filled and emptied (mailbox_chest_slots.lua), the sweep while the window is open (mailbox_chest_sweep.lua) and
--- the window's heading (mailbox_chest_heading.lua). Wired by mailbox.lua.
+-- slots filled and emptied (mailbox_chest_slots.lua), the sweep while the window is open (mailbox_chest_sweep.lua),
+-- the gear moved in from the bag (mailbox_chest_gear.lua) and the window's heading (mailbox_chest_heading.lua). Wired
+-- by mailbox.lua.
 -- Tests: mod/test/tests/mailbox.lua; group "the mailbox" (tools/lua_harness.sh, in CI).
 local CHEST = {}
 local UTIL = require("util")
@@ -13,6 +14,7 @@ local log = UTIL.log
 local SLOTS = require("mailbox_chest_slots")
 local SWEEP = require("mailbox_chest_sweep")
 local HEADING = require("mailbox_chest_heading")
+local CGEAR = require("mailbox_chest_gear")
 
 -- What mailbox.lua hands over (CHEST.install), here and to the parts.
 --   list                  the mailbox module: its queue, addCount, removeCount, tellStays and TITLE
@@ -27,6 +29,7 @@ function CHEST.install(handedOver)
     SLOTS.install(handedOver)
     SWEEP.install(handedOver)
     HEADING.install(handedOver)
+    CGEAR.install(handedOver)
 end
 
 local CHEST_GAME = {
@@ -63,6 +66,11 @@ local view = nil
 -- { updates = updates since it was asked for, templates = list of { component, slotsBefore }: the chest templates
 -- whose size was raised while it is made, put back by stopSpawning() }
 local spawning = nil
+-- State: whether the hidden chest's deposits are refused. Forgotten: on a new world or a new seed (CHEST.forget()).
+-- Refusing them sets every one of its slots: once a world, not at every open (a 300-slot walk each time).
+local lockedChest = nil       -- the address of the chest whose deposits are refused
+-- State: how long the last CHEST.find took, in os.clock seconds, for the opening's cost line. Forgotten: never.
+local findSeconds = 0
 
 -- A new chest view's record, with every field it has.
 local function newView(id, hud, chest, held, inChest)
@@ -74,6 +82,8 @@ local function newView(id, hud, chest, held, inChest)
         inChest = inChest,      -- item id -> how many the mailbox put in the chest that the player has not taken
         depositUpdates = {},    -- item id -> updates a deposit of it has waited for the game's move to the bag
         gearUpdates = {},       -- a piece of gear's key ("slot:id") -> updates it has waited for the game's move
+        gearMoving = {},        -- the mailbox's gear being moved in from the bag: { id, key, slot, updates }
+        gearMine = {},          -- a piece of gear's own id -> "moving" or "shown": the mailbox's, not a deposit
         told = false,           -- the player was told that deposits go back to the bag
         emblem = false,         -- the emblem was tried beside the heading (once a view)
         updatesOpen = 0,        -- updates since it opened
@@ -82,7 +92,7 @@ local function newView(id, hud, chest, held, inChest)
 end
 
 -- The hidden chest, if the world has it: the chest at the hidden spot.
-function CHEST.find()
+local function findHiddenChest()
     for _, model in ipairs(FindAllOf(CHEST_GAME.chestModelClass) or {}) do
         local ok, at = pcall(function() return model:GetTransform().Translation end)
         if ok and at and model:IsValid() then
@@ -90,6 +100,14 @@ function CHEST.find()
             if distanceSquared < CHEST_NEAR_CM ^ 2 then return model end
         end
     end
+end
+
+-- The hidden chest, if the world has it (findHiddenChest), timed: it walks every chest in the world.
+function CHEST.find()
+    local started = os.clock()
+    local chest = findHiddenChest()
+    findSeconds = os.clock() - started
+    return chest
 end
 
 -- The chest's size is its Blueprint's item-chest component's SlotNum (54 on ItemChest_04, in the template
@@ -206,16 +224,36 @@ local function harden(chest, pawn)
     end)
 end
 
--- Opens the game's chest window on the hidden chest, emptied of copies and filled from the list.
+-- Deposits refused on the chest, once a world: the permission is set on its container and slots, and untested in game
+-- is only whether the game keeps it between opens (a deposit that gets through is returned by the sweep all the same).
+local function refuseDeposits(chest)
+    local address = UTIL.addr(chest)
+    if address and address == lockedChest then return end
+    if pcall(SWEEP.lockPermission, SLOTS.containerOf(chest)) then
+        lockedChest = address
+    end
+end
+
+-- Opens the game's chest window on the hidden chest, emptied of copies and filled from the list. How long each part
+-- took is logged once a world: the opening was a ~300 ms frame in game.
 function CHEST.open(chest, pawn)
+    local started = os.clock()
     harden(chest, pawn)
-    pcall(SWEEP.lockPermission, SLOTS.containerOf(chest))
+    local afterHiding = os.clock()
+    refuseDeposits(chest)
+    local afterRule = os.clock()
     local held, slots, placed, inChest = SLOTS.emptyThenFillChest(chest)
+    local afterFill = os.clock()
     local hud = BAG.palUtility():GetHUDService(pawn)
     local parameter = hud:CreateDispatchParameterForK2Node(pawn, StaticFindObject(CHEST_GAME.mapObjectParameter))
     parameter.MapObjectConcreteModel = chest
     local id = hud:ShowCommonUI(ITEM_CHEST_WINDOW, parameter)
     view = newView(id, hud, chest, held, inChest)
+    local finished, findMs = os.clock(), UTIL.msBetween(0, findSeconds)
+    env.once("opencost", string.format("mailbox: opening took %.0f ms (finding the chest %.0f, hiding it %.0f, deposit "
+        .. "rule %.0f, filling %.0f, window %.0f)", UTIL.msBetween(started, finished) + findMs, findMs,
+        UTIL.msBetween(started, afterHiding), UTIL.msBetween(afterHiding, afterRule),
+        UTIL.msBetween(afterRule, afterFill), UTIL.msBetween(afterFill, finished)))
     log("mailbox: chest view open (" .. slots .. " slots, " .. placed .. " filled, " .. #held
         .. " kind(s) waiting behind)")
     if #held > 0 then
@@ -244,9 +282,14 @@ local function chestWindowShown()
     return false
 end
 
--- Empties the chest back into the list and forgets the view. When the chest can't be read, the view is forgotten all
--- the same, and the next open's SLOTS.emptyThenFillChest removes the copies left in it.
+-- Sends the gear left in it to the bag, empties the chest back into the list and forgets the view. When the chest
+-- can't be read, the view is forgotten all the same, and the next open's SLOTS.emptyThenFillChest removes the copies
+-- left in it.
 function CHEST.close()
+    local okGear, errGear = pcall(CGEAR.sendLeftToBag, view, (BAG.player()))
+    if not okGear then
+        log("mailbox: could not send the gear left in the chest to the bag: " .. tostring(errGear))
+    end
     local ok, err = pcall(SLOTS.absorb, view)
     if not ok then
         log("mailbox: could not empty the chest (" .. tostring(err) .. "); it is emptied on the next open")
@@ -279,6 +322,10 @@ function CHEST.followView()
     if not view then return end
     view.updatesOpen = view.updatesOpen + 1
     if view.chest:IsValid() then
+        local okGear, errGear = pcall(CGEAR.follow, view)
+        if not okGear then
+            UTIL.onceErr("mailbox gear", errGear, "mailbox: gear move error: " .. tostring(errGear))
+        end
         local ok, err = pcall(SWEEP.run, view, (BAG.player()))
         if not ok then
             UTIL.onceErr("mailbox sweep", err, "mailbox: sweep error: " .. tostring(err))
@@ -326,6 +373,13 @@ function CHEST.received(id, count)
     end
 end
 
+-- A piece of gear in the bag (item `id`, in `bagSlot`) moved on into the open chest view, where the player sees it.
+-- Whether the move was asked: when not (no view that can be followed, or no empty slot), the piece stays in the bag.
+function CHEST.showGear(bagSlot, id)
+    if not CHEST.followable() or not view.chest:IsValid() then return false end
+    return CGEAR.moveIn(view, (BAG.player()), bagSlot, id)
+end
+
 -- The chest window the mailbox has open (crate_window.lua draws over it), or nil.
 function CHEST.widget()
     if not view then return nil end
@@ -337,7 +391,7 @@ end
 -- settled leaves copies in the chest, which the next open removes.
 function CHEST.forget()
     stopSpawning()
-    view = nil
+    view, lockedChest = nil, nil
 end
 
 return CHEST

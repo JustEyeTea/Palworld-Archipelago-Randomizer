@@ -2,7 +2,9 @@
 BP_PalRegionTrigger volumes): the 15 regions (REGIONS, one Region Pass each), drawn by hand over the game's world
 map, and the 75 areas (AREAS, one Area Pass each). The first of each is where a game starts. Caves, dungeons and
 towers inside a row's place belong to it and are not listed; rows with no Pals (oil rigs, the King Whale islet) still
-place their land in a lock. LOCKS is the set the tools build (LOCK_SIZE, below).
+place their land in a lock. The third set, Level Progression (LEVEL_TIERS), is not made of map rows: its locks are
+bands of wild Pal level (tools/level_tiers.py labels the land by them), opened in order by Progressive Level Passes.
+LOCKS is the set the tools build (LOCK_SIZE, below).
 """
 import os
 import sys
@@ -115,15 +117,29 @@ AREAS = {
 }
 START_AREA = "Windswept Island"
 
+# Level Progression's tiers: the highest wild Pal level (by day) of each, lowest tier first. Chosen by the user from a
+# study of where Pals of each level spawn: levels form plateaus with empty ranges at 27-30, 39-40, 58-60 and 68-75,
+# and the 29-40 band is split at 34/35 so no tier covers a third of the land.
+TIER_TOP_LEVELS = [16, 28, 34, 40, 48, 59, 69, 80]
+TIER_NAMES = [f"Levels {low}-{high}" for low, high in zip([1] + [top + 1 for top in TIER_TOP_LEVELS[:-1]],
+                                                          TIER_TOP_LEVELS)]
+# A tier's map rows: only the World Tree's foot, placed in the top tier wholesale (its Pals are on a map of their own,
+# tools/lock_model.py); the rest of the land is labelled by level.
+LEVEL_TIERS = {name: (["FootOfWorldTree"] if name == TIER_NAMES[-1] else []) for name in TIER_NAMES}
+
 # The set the tools build, named as the Lock Size option's values: LOCK_SIZE=areas in the environment for the 75 areas,
-# else the 15 regions. PREFIX starts the names of the mod's files for that set (region_walls.lua, area_walls.lua).
+# LOCK_SIZE=levels for Level Progression, else the 15 regions. PREFIX starts the names of the mod's files for that set
+# (region_walls.lua, area_walls.lua, level_walls.lua). ROW_GROUPS is the set the map rows are first labelled with:
+# the set itself, or for Level Progression the 15 regions, whose land, coasts and World Tree it keeps.
 LOCK_SIZE = os.environ.get("LOCK_SIZE", "regions")
 if LOCK_SIZE == "regions":
-    LOCKS, START, PREFIX = REGIONS, START_REGION, "region"
+    LOCKS, START, PREFIX, ROW_GROUPS = REGIONS, START_REGION, "region", REGIONS
 elif LOCK_SIZE == "areas":
-    LOCKS, START, PREFIX = AREAS, START_AREA, "area"
+    LOCKS, START, PREFIX, ROW_GROUPS = AREAS, START_AREA, "area", AREAS
+elif LOCK_SIZE == "levels":
+    LOCKS, START, PREFIX, ROW_GROUPS = LEVEL_TIERS, TIER_NAMES[0], "level", REGIONS
 else:
-    sys.exit(f"LOCK_SIZE={LOCK_SIZE}: want regions or areas")
+    sys.exit(f"LOCK_SIZE={LOCK_SIZE}: want regions, areas or levels")
 
 # Map rows inside another's place (caves, dungeons, towers, church ruins): their land goes with the row around them.
 INNER_ROWS = r"FixedDungeon|UnderGroundCave|UndergroundCave|^Tower_|_Crunch|^Arena$"

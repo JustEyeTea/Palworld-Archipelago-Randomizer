@@ -335,7 +335,7 @@ auto write_overlay(const Overlay& img, int size, const TerritoryLook& look, cons
     {
         overlay[i] = to_byte(img[i]);
     }
-    if (!write_png_fast(out, size, size, 4, overlay.data())) return "could not write " + out;
+    if (!write_picture(out, size, size, 4, overlay.data())) return "could not write " + out;
     if (fogart.empty()) return "";
     std::vector<unsigned char> fogPicture(count * 3);
     for (size_t i = 0; i < count; ++i)
@@ -380,6 +380,14 @@ constexpr float DUOTONE_DARKEST = 0.12f, DUOTONE_RANGE = 0.60f, DUOTONE_CURVE = 
 // The dark end: mostly the fog colour with a little of the lock's; the light end: the lock's colour lightened.
 constexpr float DUOTONE_DARK_FOG = 0.70f, DUOTONE_DARK_LOCK = 0.22f;
 constexpr float DUOTONE_LIGHT_LOCK = 0.80f, DUOTONE_LIGHT_LIFT = 0.20f;
+// A flying corridor (compose_field's `flying` picture): diagonal stripes, alternating the lock's own colour and a pale
+// sky blue, so the map shows that a player can only fly over it. Each band is FLYING_BAND_PX of the reference map
+// across the diagonal, wide enough to read on the zoomed-out map; laid over the look at FLYING_ALPHA, so the map
+// still shows through. A flying picture's value over half is a corridor; its soft edge fades the stripes in.
+constexpr float FLYING_BAND_PX = 12.f;
+constexpr float FLYING_SKY[3] = {0.706f, 0.863f, 0.973f};    // #B4DCF8
+constexpr float FLYING_ALPHA = 0.55f;
+constexpr float SQRT2 = 1.41421356f;
 
 // The distance field, read: R the pixel's own lock, G the lock across the nearest border (for the open sea: the
 // nearest lock), B that distance.
@@ -388,6 +396,16 @@ struct Field
     StbPixels px = no_pixels();
     int w = 0, h = 0;
     float to_reference = 1.f;                 // field px to px of the reference map
+    StbPixels flying = no_pixels();           // the flying corridors' picture (one channel), or none
+    int flying_w = 0, flying_h = 0;
+    // How much (x, y) of a `size` picture is on a flying corridor, 0..1 (0 without a flying picture).
+    auto flying_at(int x, int y, int size) const -> float
+    {
+        if (!flying) return 0.f;
+        const size_t at = static_cast<size_t>(nearest_pixel(y, size, flying_h)) * flying_w
+                          + nearest_pixel(x, size, flying_w);
+        return flying.get()[at] / 255.f;
+    }
     // The field's distance (px of the reference map) nearest to (x, y) in px of a `size` picture.
     auto distance_at(float x, float y, int size) const -> float
     {
@@ -467,7 +485,21 @@ struct FieldPixel
     bool closed;                   // its own lock is locked or sealed
     float wall;                    // how strongly the walls show here (0..1): near a standing piece
     float free_d;                  // the distance to a free piece (NO_PIECE if none)
+    float flying;                  // how much it is on a flying corridor, 0..1
+    float sky;                     // how much it is in a sky band of the corridor's stripes, 0..1
 };
+
+// How much pixel (x, y) of a `size` picture is in a sky band of the flying stripes (0: the lock's band, 1: sky):
+// bands FLYING_BAND_PX wide across the diagonal x + y, alternating, with a one-pixel soft edge between.
+auto sky_band(int x, int y, int size) -> float
+{
+    const float band = FLYING_BAND_PX * size / REFERENCE_MAP_PX * SQRT2;   // a band's width along x + y
+    const float t = (x + y) / band;
+    const float g = t - 2.f * std::floor(t / 2.f);                          // 0..2: [0, 1) the lock's, [1, 2) sky
+    const float edge = SQRT2 / band;                                        // one pixel, in bands along x + y
+    const float inSky = std::min(unit((g - 1.f) / edge + 0.5f), unit((2.f - g) / edge + 0.5f));
+    return std::max(inSky, unit(0.5f - g / edge));                          // (the edge where g wraps to 0)
+}
 
 // The field's pixel at (x, y) of a `size` picture.
 auto field_pixel(const Field& field, const TerritoryLook& look, const PieceDistances& pieces, int size, int x, int y)
@@ -485,6 +517,8 @@ auto field_pixel(const Field& field, const TerritoryLook& look, const PieceDista
     p.closed = p.own && look.state[p.own] && look.state[p.own]->closed;
     p.wall = unit(1.f - std::max(pieces.near_border[p.i] - p.d - WALL_FADE_PX, 0.f) / WALL_FADE_PX);
     p.free_d = pieces.free.empty() ? NO_PIECE : pieces.free[p.i];
+    p.flying = field.flying_at(x, y, size);
+    p.sky = p.flying > 0.f ? sky_band(x, y, size) : 0.f;
     return p;
 }
 
@@ -512,6 +546,15 @@ void paint_field(const FieldPaint& how, const FieldPixel& p, float* c, float& a)
         const float rim = how.duotone ? p.state->duotone_rim : p.state->rim;
         const float cover = p.own ? 1.f : unit(1.f - p.d);
         blend_over(c, a, look.colour[p.lock_shown], unit(fill + rim_strength(p.d) * rim) * cover);
+    }
+    if (p.flying > 0.f)
+    {
+        float stripe[3];
+        for (int k = 0; k < 3; ++k)
+        {
+            stripe[k] = look.colour[p.lock_shown][k] + (FLYING_SKY[k] - look.colour[p.lock_shown][k]) * p.sky;
+        }
+        blend_over(c, a, stripe, FLYING_ALPHA * unit(2.f * p.flying - 1.f));
     }
     const int wallLock = p.closed ? p.own : p.across;
     float mapGlow[3], mapCore[3];
@@ -620,6 +663,13 @@ auto read_field(const std::string& path, Field& field) -> std::string
     field.to_reference = static_cast<float>(REFERENCE_MAP_PX) / field.w;
     return "";
 }
+// Reads the flying corridors' picture into `field` ("" for none); "" or what went wrong.
+auto read_flying(const std::string& path, Field& field) -> std::string
+{
+    if (path.empty()) return "";
+    field.flying = read_png(path, 1, field.flying_w, field.flying_h);
+    return field.flying ? "" : read_failure(path);
+}
 // The player's saved map, if compose_field was given it: RGBA bytes, and the gamma to apply.
 struct PlayerMap
 {
@@ -690,7 +740,8 @@ auto compose_territories(const std::string& labels, const std::string& locks, co
 
 auto compose_field(const std::string& field, const std::string& locks, const std::string& walls,
                    const std::string& style, const std::string& out, const std::string& fogart,
-                   const std::string& fog, int size, const std::string& colour, double gamma) -> std::string
+                   const std::string& fog, int size, const std::string& colour, double gamma,
+                   const std::string& flying) -> std::string
 {
     if (size < MIN_PICTURE_PX || size > MAX_TERRITORIES_PX) return "field size " + std::to_string(size);
     TerritoryLook look;
@@ -698,6 +749,7 @@ auto compose_field(const std::string& field, const std::string& locks, const std
     if (!err.empty()) return err;
     Field distances;
     err = read_field(field, distances);
+    if (err.empty()) err = read_flying(flying, distances);
     if (!err.empty()) return err;
     PlayerMap map;
     if (!colour.empty())
@@ -719,9 +771,10 @@ auto compose_field(const std::string& field, const std::string& locks, const std
     std::vector<unsigned char> picture(count * 4), fogPicture(fogart.empty() ? 0 : count * 3);
     field_pictures(distances, map, near, onMap, onFog, size, picture, fogPicture);
     distances.px.reset();      // the inputs freed before the PNGs are compressed
+    distances.flying.reset();
     map.px.reset();
     near = PieceDistances{};
-    if (!write_png_fast(out, size, size, 4, picture.data())) return "could not write " + out;
+    if (!write_picture(out, size, size, 4, picture.data())) return "could not write " + out;
     if (fogPicture.empty()) return "";
     return write_png_fast(fogart, size, size, 3, fogPicture.data()) ? "" : "could not write " + fogart;
 }

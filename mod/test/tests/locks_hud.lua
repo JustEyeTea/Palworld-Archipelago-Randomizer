@@ -1,5 +1,5 @@
--- Lock Size: areas, locks beyond the goal, the walls' region colours and the HUD pieces (the hint pop-up, the
--- debuff icons, the goal banner). Tests walls.lua, hint_popup.lua, debuffs.lua.
+-- Lock Size: areas and levels, locks beyond the goal, the walls' region colours and the HUD pieces (the hint pop-up,
+-- the debuff icons, the goal banner). Tests walls.lua, hint_popup.lua, debuffs.lua.
 
 group("Lock Size: areas", function()
     -- Slot data options.lock_size 1: every named area of the game on its own, opened by an Area Pass.
@@ -58,6 +58,73 @@ group("Lock Size: areas", function()
     expect(sisters >= 5,
            "75 Areas, paws: sister Areas wear their Region's colour, each its own variant (paws:<colour>:<area>): "
            .. sisters .. " regions with several")
+    do  -- 75 areas, regions skin: each area its region's own wall in the version wall_region_variants.lua gives it
+        local variants = dofile(MOD .. "/Scripts/wall_region_variants.lua")
+        local function openNow(lock) return lock == liveWalls.start or lock == "Open sea" end
+        local wrongRow = {}
+        for _, area in ipairs(RD.locks) do
+            local row = variants[area]
+            if area ~= "Open sea" and not (row and row.region == liveWalls.slugOf(liveWalls.regionOf(area))) then
+                wrongRow[#wrongRow + 1] = area
+            end
+        end
+        expect(#wrongRow == 0, "wall_region_variants.lua has every area, each with its region as area_regions.lua "
+               .. "says: " .. table.concat(wrongRow, ", "))
+        local wanted = { ["beyond the goal"] = "logicmod/art/walls/ap-wall-sealed-bunker.png" }   -- (from the root)
+        for area, row in pairs(variants) do
+            wanted[area] = "logicmod/art/walls/ap-wall-region-" .. row.region .. "-" .. row.version .. ".png"
+        end
+        local noFile = {}
+        for what, file in pairs(wanted) do
+            local f = io.open(file, "rb")
+            if f then
+                f:close()
+            else
+                noFile[#noFile + 1] = what .. ": " .. file
+            end
+        end
+        expect(#noFile == 0, "every area's region wall and the bunker grille are in logicmod/art/walls, for the pak: "
+               .. table.concat(noFile, ", "))
+        -- What each standing piece wears, with no passes: the look of its locked side (lockA's when both are).
+        local wrongLook, versionsOf = {}, {}
+        for i, wall in ipairs(RD.walls) do
+            local nameA, nameB = h.lockNamesOf(wall, RD)
+            local worn = openNow(nameA) and nameB or nameA
+            local slug, version = liveWalls.pieceSkin(i, {}, "regions"):match("^region:([%w%-]+)%-(%d+):")
+            local row = not openNow(worn) and variants[worn]
+            if row and not (slug == row.region and tonumber(version) == row.version) then
+                wrongLook[#wrongLook + 1] = worn
+            end
+            if row and slug then
+                versionsOf[slug] = versionsOf[slug] or {}
+                versionsOf[slug][version] = true
+            end
+        end
+        local varied = 0                       -- regions whose areas wear more than one version
+        for _, versions in pairs(versionsOf) do
+            local n = 0
+            for _ in pairs(versions) do
+                n = n + 1
+            end
+            if n > 1 then
+                varied = varied + 1
+            end
+        end
+        expect(#wrongLook == 0 and varied >= 8,
+               "75 Areas, regions: each area wears its region's own wall in its own version from the table ("
+               .. varied .. " regions in several versions): " .. table.concat(wrongLook, ", "))
+        local clashes = {}
+        for _, wall in ipairs(RD.walls) do
+            local nameA, nameB = h.lockNamesOf(wall, RD)
+            local rowA, rowB = variants[nameA], variants[nameB]
+            local sisters = rowA and rowB and nameA ~= nameB and rowA.region == rowB.region
+            if sisters and rowA.version == rowB.version then
+                clashes[#clashes + 1] = nameA .. " / " .. nameB
+            end
+        end
+        expect(#clashes == 0, "no two touching areas of one region wear the same version: "
+               .. table.concat(clashes, ", "))
+    end
     slotData["options.lock_size"], slotData["options.area_size"] = nil, "1"   -- a seed made before the rename
     h.reconnect("Tester")
     run(80)
@@ -67,6 +134,93 @@ group("Lock Size: areas", function()
     run(80)
     expect(liveWalls.layout == "regions" and logged("area locks: 15 regions"),
            "back to a 15-regions seed: the regions' walls")
+end)
+
+group("Lock Size: levels", function()
+    -- Slot data options.lock_size 2: Level Progression's tiers of wild Pal level, opened in order by copies of one
+    -- item.
+    local LV = dofile(MOD .. "/Scripts/level_walls.lua")
+    local liveWalls, ap = require("walls"), require("ap_state").ap
+    slotData["options.lock_size"] = "2"
+    h.reconnect("Tester")
+    h.replayItems()
+    run(80)
+    expect(liveWalls.layout == "levels" and LV.start == "Levels 1-16"
+           and liveWalls.passName("Levels 29-34") == "Progressive Level Pass",
+           "a Level Progression seed: the tiers' walls, and one pass item for them all")
+    local up = wallCount()
+    expect(up > 800 and up <= #LV.walls, "the tiers' walls go up (the 15 regions' came down): " .. up)
+    expect(liveWalls.passNeeded("Levels 29-34", ap.passes) == "2 Progressive Level Passes (0 so far)",
+           "a tier's wall says how many passes it takes: " .. liveWalls.passNeeded("Levels 29-34", ap.passes))
+    pushItem({ name = "Progressive Level Pass", index = 9100 })
+    run(60)
+    local afterOne = wallCount()
+    expect(afterOne < up and ap.passes["Levels 17-28"] and not ap.passes["Levels 29-34"],
+           "the first copy opens the next tier alone: " .. up .. " -> " .. afterOne .. " walls")
+    pushItem({ name = "Progressive Level Pass", index = 9101 })
+    run(60)
+    expect(wallCount() < afterOne and ap.passes["Levels 29-34"]
+           and liveWalls.passNeeded("Levels 35-40", ap.passes) == "3 Progressive Level Passes (2 so far)",
+           "the second copy opens the tier after: " .. liveWalls.passNeeded("Levels 35-40", ap.passes))
+    do  -- Flying corridors: a fly-up icon at each near mouth while its tier is open, until the player flies through.
+        local corridors = liveWalls.corridors()
+        expect(#corridors == 2 and corridors[1].lock == 1 and corridors[2].lock == 3,
+               "the tiers' walls file lists the two flying corridors (the start's islands, the Astral valley)")
+        expect(table.concat(liveWalls.flyUpList(ap.passes), ",") == "1,2",
+               "both corridors' tiers are open and neither is flown: both get a fly-up icon")
+        local far = corridors[1]
+        pawnAt = { X = far.farX, Y = far.farY, Z = 0 }
+        runCycles(1)
+        local SAVE = require("save")
+        SAVE.write(true)
+        local saved = io.open(SAVE.path()):read("*a")
+        expect(ap.flown[1] and logged("flew through corridor 1")
+               and table.concat(liveWalls.flyUpList(ap.passes), ",") == "2" and saved:find("\nflown=1\n", 1, true),
+               "at a corridor's far mouth the player has flown through it: its icon goes, and the save keeps it")
+    end
+    expect(liveWalls.lockedStampArt("Levels 17-28") == "ap-map-stamp-levels-17-28",
+           "a tier wears its own map stamp (art/ap-map-stamp-levels-*): "
+           .. tostring(liveWalls.lockedStampArt("Levels 17-28")))
+    do  -- The Progressive Level Pass's card shows its one ticket for every copy.
+        pushScout({ location = D.shop.Special_PalSphere_Grade_02.loc, name = "Progressive Level Pass" })
+        local passCard = Card("Special_PalSphere_Grade_02")
+        cards[#cards + 1] = passCard
+        run(2)
+        expect(passCard.shown.icon == "ap-pass-progressive-level" and logged("the Progressive Level Pass ticket"),
+               "a Progressive Level Pass's card shows its ticket: " .. tostring(passCard.shown.icon))
+        table.remove(cards)
+    end
+    expect(liveWalls.pieceSkin(1, ap.passes, "regions"):match("^paws:") ~= nil,
+           "the tiers have no wall tiles: the regions look wears the paws in the tier's colour")
+    do  -- The server sends a hint line per copy; a copy already found never replaces one still to find.
+        local mark, me = #announced, ap.slotName or require("config").cfg.slot      -- the slot an earlier group left
+        push("message", "[Hint]: " .. me .. "'s Progressive Level Pass is at Shop: Foo Stand in Friend's World. "
+             .. "(not found)", "Hint")
+        push("message", "[Hint]: " .. me .. "'s Progressive Level Pass is at Alpha: Bar in " .. me .. "'s World. "
+             .. "(found)", "Hint")
+        run(1)
+        shared.WD, shared.regionWalls = LV, shared.WD
+        local spot, tier = h.spotBesideStart(function(lock) return lock ~= "Open sea" and not ap.passes[lock] end)
+        shared.WD = shared.regionWalls
+        local told
+        if spot then
+            h.walkAwayAndBack(spot)
+            for i = mark + 1, #announced do
+                if announced[i]:find(tier .. " is sealed. " .. me .. "'s Progressive Level Pass is at Shop: Foo Stand",
+                                     1, true) then told = true end
+            end
+        end
+        expect(told, "a tier's wall says where a Progressive Level Pass still to find is: " .. tostring(tier))
+    end
+    slotData["options.lock_size"] = "7"                     -- a Lock Size from a newer APWorld
+    h.reconnect("Tester")
+    run(80)
+    expect(liveWalls.layout == "regions" and logged("Lock Size %(7%) is newer than this mod"),
+           "a Lock Size the mod does not know: the player is told, and the 15 regions' walls stand in")
+    slotData["options.lock_size"] = nil
+    h.reconnect("Tester")
+    run(80)
+    expect(liveWalls.layout == "regions", "back to a 15-regions seed")
 end)
 
 group("locks beyond the goal", function()

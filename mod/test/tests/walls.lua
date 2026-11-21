@@ -23,7 +23,51 @@ group("area locks", function()
     run(15)
     expect(wallCount() == expected(open),
            "a piece the game removed is noticed (a share checked each update) and raised again")
-    do  -- wall skins (wall_skin / Ctrl+F3): red, the area colours and the paws
+    -- The regions skin (with the pak on): each piece its region's own wall from the pak, over the region's colour at
+    -- 0.34, and the pieces of a lock beyond the goal the bunker grille over its dark red-grey at 0.55.
+    local function regionsSkinWorn()
+        local REGION_BACK_ALPHA, BUNKER_BACK_ALPHA = 0.34, 0.55    -- wall_skins.lua's BACK_ALPHA, BUNKER_BACK_ALPHA
+        local beyondLock = nil     -- a locked region beside the start, put beyond the goal: its pieces wear the bunker
+        for _, wall in ipairs(WD.walls) do
+            local other = h.otherSideOfStart(wall)
+            if other and other ~= "Open sea" and not open[other] then
+                beyondLock = other
+                break
+            end
+        end
+        local colourOfTile = {}    -- a region's slug in the tiles' names -> its colour, sRGB "RRGGBB"
+        for region, hex in pairs(liveWalls.REGION_COLOURS) do
+            colourOfTile[(liveWalls.slugOf(region):gsub("%-", "_"))] = hex
+        end
+        local bunkerBack = liveWalls.linearOf(require("locks").PALETTE.wallBunker)
+        liveWalls.setBeyond({ [beyondLock] = true })
+        liveWalls.setSkin("regions")
+        run(3)
+        local tiles, bunkers, wrong = 0, 0, {}
+        for wa in pairs(wallsUp) do
+            local m = wa.Cube.mat
+            local path = tostring(m.textures and m.textures.Pattern and m.textures.Pattern.path)
+            local slug = path:match("%.T_APWallRegion_([%w_]+)_0$")
+            local hex = slug and colourOfTile[slug]
+            local alpha, back = m.scalars and m.scalars.BackAlpha, m.vectors and m.vectors.Back
+            if hex and alpha == REGION_BACK_ALPHA and h.sameColour(back, liveWalls.linearOf(hex)) then
+                tiles = tiles + 1
+            elseif path:find("%.T_APWallSealed$") and alpha == BUNKER_BACK_ALPHA
+                   and h.sameColour(back, bunkerBack) then
+                bunkers = bunkers + 1
+            else
+                wrong[#wrong + 1] = path
+            end
+        end
+        expect(tiles > 0 and bunkers > 0 and #wrong == 0 and logged("wall skin regions: colours region:"),
+               "the regions skin: each piece its region's own wall from the pak over the region's colour at 0.34 ("
+               .. tiles .. "), and " .. tostring(beyondLock) .. ", beyond the goal, the bunker grille at 0.55 ("
+               .. bunkers .. "); " .. #wrong .. " other: " .. tostring(wrong[1]))
+        liveWalls.setBeyond({})
+        liveWalls.setSkin("paws")
+        run(3)
+    end
+    do  -- wall skins (wall_skin / Ctrl+F3): red, the area colours, the paws and the region walls
         local a = next(wallsUp)
         liveWalls.setSkin("red")
         run(1)
@@ -54,7 +98,8 @@ group("area locks", function()
         local unknownAt = logMark()
         liveWalls.setSkin("a3d")
         run(1)
-        expect(loggedSince(unknownAt, "wall skin a3d: unknown %(red, area, paws%); the default, paws, instead")
+        expect(loggedSince(unknownAt, "wall skin a3d: unknown %(red, area, paws, regions%); the default, regions, "
+                           .. "instead")
                and countLogged("wall skin a3d: unknown") == 1 and a.Cube.mat ~= wallRed,
                "a wall_skin the mod no longer has is logged once and the default worn instead (area without the pak)")
         -- paws: the cream-paw layer (cooked in the pak) over each piece's region colour at 0.34, on M_APWall
@@ -92,12 +137,34 @@ group("area locks", function()
         expect(known and pm.scalars.BackAlpha == 0.34 and pm.scalars.Brightness == 1.1 and nBacks >= 2
                and logged("wall skin paws: colours paws:"),
                "over each piece's region colour at 0.34, brightness 1.1 (" .. nBacks .. " colours)")
+        liveWalls.toggleNearest()                 -- what Ctrl+Shift+F3 does (test_tools)
+        run(1)
+        local nm = a.Cube.mat
+        expect(nm.parent and tostring(nm.parent.path):find("/M_APWallNearest", 1, true) and a.Cube.customDepth == true
+               and logged("wall material: M_APWallNearest %(the nearest wall only%)")
+               and logged("material made on M_APWallNearest"),
+               "the nearest-wall switch: every piece dressed again on M_APWallNearest, writing custom depth, and the"
+               .. " log names that material")
+        local setDepth = a.Cube.SetRenderCustomDepth
+        a.Cube.SetRenderCustomDepth = function() error("no custom depth here") end
+        liveWalls.toggleNearest()
+        run(1)
+        expect(logged("custom depth could not be set: .*no custom depth here"),
+               "a piece whose custom depth can't be set says so in the log")
+        a.Cube.SetRenderCustomDepth = setDepth
+        liveWalls.toggleNearest()
+        run(1)
+        liveWalls.toggleNearest()
+        run(1)
+        expect(tostring(a.Cube.mat.parent.path):find("/M_APWall%.") and a.Cube.customDepth == false,
+               "and switched back: on M_APWall, custom depth off: " .. tostring(a.Cube.mat.parent.path))
         local notes, badLoadsBefore = {}, #badLoads
         local fresh = liveWalls.modAsset("/Game/Mods/PalworldArchipelagoArt/T_Fresh", "T_Fresh", notes)
         expect(fresh and fresh:IsValid() and notes[1] == "T_Fresh from the asset registry"
                and #badLoads == badLoadsBefore,
                "a pak asset LoadAsset can't find (dev.39 playtest) comes through the asset registry, as "
                .. "BPModLoader's ModActor does")
+        regionsSkinWorn()
         pm.parent.IsValid = function() return false end            -- now without the pak
         game.logicMod = hadPak
         liveWalls.setSkin("red")
@@ -223,6 +290,22 @@ group("area locks", function()
     pawnAt = wasAt
     expect(#said == saidBefore and #plates == platesBefore + 1 and loggedSince(awayMark, "no locked wall within reach"),
            "away from any locked wall, the hint key shows nothing and asks nothing")
+    do
+        -- Standing against a wall on the start's side, where the map's cell reads as the locked lock across it (the
+        -- cells are coarser than the distance to the wall, as in game): the hint key still finds that wall.
+        local at, region = h.spotAtWallReadAsLocked(function(other)
+            return other ~= "Open sea" and other ~= "Bamboo Groves" and other ~= hintRegion
+        end)
+        pawnAt = at
+        runCycles(2)
+        local platesAt, saidAt = #plates, #announced
+        keyBinds["key:H"]()
+        pawnAt = wasAt
+        expect(at and #plates == platesAt + 1 and plates[#plates].title == region .. " is sealed"
+               and #announced > saidAt and announced[#announced]:find("Not enough hint points", 1, true),
+               "against a wall whose map cell reads as the locked side, the hint key finds that wall: "
+               .. tostring(region) .. ", " .. tostring(announced[#announced]))
+    end
     POPUP.show = realShow
     expect(lastGone and lastGone.collision == false and lastGone.shrunkTo and lastGone.shrunkTo < 1,
            "an opened wall shrinks to nothing (no K2_SetActorLocation: its FHitResult crashed UE4SS), stops "
@@ -286,7 +369,8 @@ group("area locks", function()
             end
         end
         expect(seen.open and seen.open >= 0.8 and seen.open < 1.2 and seen.gone and seen.gone >= 4.0 and seen.gone < 4.4
-               and logged("an opened wall went 4%.%d+ s after it began dissolving")
+               and logged("an opened wall was removed 4%.%d+ s after it began dissolving %(the game's clock; due at"
+                      .. " 4%.0 s: the 1%.6 s dissolve and a 2%.4 s tail%)")
                and fading.shrunkTo == nil,
                "by the game's clock it stops blocking halfway and goes well after the dissolve is through (4 s), " ..
                "never shrunk: "
@@ -302,20 +386,27 @@ group("area locks", function()
         expect(wallCount() == expected(open), "(the core's own passes put that region's walls back up: "
                .. wallCount() .. ")")
     end
-    do  -- More pieces open at once than the opener takes an update (30), so the recolour pass (40 an update) reaches
-        -- some first. It must not repaint them: an orange wall dissolved green in game, in the colour of the lock on
-        -- its other side, opened earlier.
+    -- More pieces open at once than the opener takes an update (30), so the recolour pass (40 an update) reaches some
+    -- first. It must not repaint them: an orange wall dissolved green in game, in the colour of the lock on its other
+    -- side, opened earlier. Checked for each skin on M_APWall; `layer` begins the name of the texture its pieces wear.
+    local function dissolvesAsWorn(skinName, layer)
         local hadPak = game.logicMod
         game.logicMod = true
-        liveWalls.setSkin("paws")
+        liveWalls.setSkin(skinName)
         run(2)
-        local function backOf(wa)
-            local back = wa.Cube.mat and wa.Cube.mat.vectors and wa.Cube.mat.vectors.Back
-            return back and string.format("%.4f,%.4f,%.4f", back.R, back.G, back.B)
+        local function lookOf(wa)
+            local m = wa.Cube.mat
+            local back = m and m.vectors and m.vectors.Back
+            local pattern = m and m.textures and m.textures.Pattern
+            local layerPath = tostring(pattern and pattern.path)
+            return back and string.format("%.4f,%.4f,%.4f %s", back.R, back.G, back.B, layerPath)
         end
-        local before, n = {}, 0
+        local before, n, wearing = {}, 0, 0
         for wa in pairs(wallsUp) do
-            before[wa], n = backOf(wa), n + 1
+            before[wa], n = lookOf(wa), n + 1
+            if tostring(before[wa]):find(" /Game/Mods/PalworldArchipelagoArt/" .. layer, 1, true) then
+                wearing = wearing + 1
+            end
         end
         local everyLock = {}
         for _, lock in ipairs(WD.locks) do
@@ -330,19 +421,23 @@ group("area locks", function()
             local m = wa.Cube.mat
             if m and m.scalars and m.scalars.DissolveStart then
                 dissolved = dissolved + 1
-                if backOf(wa) ~= was then
-                    changed[#changed + 1] = tostring(was) .. " -> " .. tostring(backOf(wa))
+                if lookOf(wa) ~= was then
+                    changed[#changed + 1] = tostring(was) .. " -> " .. tostring(lookOf(wa))
                 end
             end
         end
-        expect(n > 30 and dissolved == n and #changed == 0,
-               "every opened wall dissolves in the colour it wore while locked (" .. dissolved .. " of " .. n
-               .. ", " .. #changed .. " changed): " .. table.concat(changed, "; ", 1, math.min(#changed, 3)))
+        expect(n > 30 and wearing == n and dissolved == n and #changed == 0,
+               "with the " .. skinName .. " skin (" .. wearing .. " of " .. n .. " pieces wearing " .. layer
+               .. "), every opened wall dissolves in the colour and layer it wore while locked (" .. dissolved
+               .. " of " .. n .. ", " .. #changed .. " changed): "
+               .. table.concat(changed, "; ", 1, math.min(#changed, 3)))
         game.logicMod = hadPak
         liveWalls.setSkin("red")
         run(40)
         expect(wallCount() == expected(open), "(the core's own passes put the walls back up: " .. wallCount() .. ")")
     end
+    dissolvesAsWorn("paws", "T_APWallPaws")
+    dissolvesAsWorn("regions", "T_APWallRegion_")
     do  -- a dead object called at a wall crashed the game after Return to title and a new world: after a world
         -- change no material of the world before is called again, by the glow or anything else
         local hadPak = game.logicMod

@@ -6,15 +6,16 @@
 --   (tools/lua_harness.sh, in CI).
 -- W, the table main.lua sees. Its fields:
 --   handed over by main.lua (W.install, from config.txt): keepAlive, keepInPlace, dir, radius, fade, tiling, scroll,
---     mapStyle, cppOff, testFogColour, chartOff, iconsOff, chartBordersOff, visited (main.lua's own set, again through
---     setVisited for a new seed), and beyond (slot data, through setBeyond); each part sets its own defaults at
---     install. The harness sets them on its copies directly
---   called by main.lua and its other modules: install, setVisited, update, updateMap, reset, setLayout, setBeyond,
---     setSkin, cycleSkin, perfMode, count, lockedNear, distanceToLock, lockedAround, lockAt, passName, regionOf,
+--     mapStyle, cppOff, testFogColour, chartOff, iconsOff, chartBordersOff, visited and flown (main.lua's own sets,
+--     again through setVisited and setFlown for a new seed), and beyond (slot data, through setBeyond); each part sets
+--     its own defaults at install. The harness sets them on its copies directly
+--   called by main.lua and its other modules: install, setVisited, setFlown, corridors, update, updateMap, reset,
+--     setLayout, setBeyond, setSkin, cycleSkin, toggleNearest, perfMode, count, lockedNear, distanceToLock,
+--     lockedAround, lockAt, passName, passNeeded, regionOf,
 --     slugOf, mapShown, mapOff, oldSweep;
---     read: layout (the cut's name), start, home, SKINS
+--     read: layout (the cut's name), start, home, SKINS, SPAWN_ALWAYS (glow_pieces.lua)
 --   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin,
---     REGION_COLOURS
+--     REGION_COLOURS, flyUpList
 local W = {}
 W.layout = "regions"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
@@ -28,7 +29,7 @@ end
 local HANDED_OVER = {
     keepAlive = true, keepInPlace = true, dir = true, visited = true, radius = true, fade = true, tiling = true,
     scroll = true, mapStyle = true, cppOff = true, testFogColour = true, chartOff = true, iconsOff = true,
-    chartBordersOff = true,
+    chartBordersOff = true, flown = true,
 }
 
 -- Takes what main.lua hands over, each as the field of its name that the parts read. A name not in the list is an
@@ -46,6 +47,10 @@ end
 function W.setVisited(set)
     W.visited = set
 end
+-- The flying corridors flown through: main.lua's own set (in its save), handed over again as setVisited's.
+function W.setFlown(set)
+    W.flown = set
+end
 
 local LOCKS = freshPart("locks")
 LOCKS.install(W)
@@ -54,7 +59,12 @@ local MAP_PICTURE = freshPart("map_picture")
 local MAP_ICONS = freshPart("map_icons")
 local MAP_FOG = freshPart("map_fog")
 local layout, isOpen = LOCKS.layout, LOCKS.isOpen
+-- The cut's flying corridors (*_walls.lua: near and far mouths, lock), numbered as the save's flown set.
+function W.corridors()
+    return layout.corridors
+end
 W.passName, W.lockAt, W.lockedAround, W.regionOf = LOCKS.passName, LOCKS.lockAt, LOCKS.lockedAround, LOCKS.regionOf
+W.passNeeded = LOCKS.passNeeded
 W.setBeyond, W.slugOf = LOCKS.setBeyond, LOCKS.slugOf
 W.start, W.home = layout.start, layout.map.home
 -- Where a player found in a closed lock (or hit by a Teleport Trap) is sent: the layout's home as a location in cm.
@@ -70,9 +80,9 @@ local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlock
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
 -- Sizes of one wall piece, all in centimetres (the game's unit).
 local SPAWN_ALWAYS = 1        -- ESpawnActorCollisionHandlingMethod::AlwaysSpawn: a piece goes up wherever it stands
+W.SPAWN_ALWAYS = SPAWN_ALWAYS   -- (glow_pieces.lua spawns its pieces with it too)
 local MIN_SCALE = 0.01        -- the height scale a shrinking piece ends at (never 0)
 local CUBE_CM = 100           -- the blocking cube's side at scale 1: a piece's scale is its size / CUBE_CM
-local THICK_CM = 400          -- 4 m thick, so nothing fast slips through
 local HEIGHT_CM = 300000      -- 3 km tall: from 1 km below sea level to 2 km above
 local MID_Z_CM = 50000        -- the piece's middle, 500 m above sea level: halfway between those two
 local PER_TICK = 30           -- pieces raised or taken down per update, to spread the work
@@ -198,15 +208,15 @@ local function segDist(i, x, y)
 end
 W.segDist = segDist
 
--- Raises piece i: the game's blocking cube, scaled to its length x 4 m x 3 km and turned by its yaw about the
--- vertical (as a quaternion: Z = sin(yaw/2), W = cos(yaw/2)), its middle 500 m above sea level. False when the spawn
--- gave no actor.
+-- Raises piece i: the game's blocking cube, scaled to its length x the layout's thickness x 3 km and turned by its yaw
+-- about the vertical (as a quaternion: Z = sin(yaw/2), W = cos(yaw/2)), its middle 500 m above sea level. False when
+-- the spawn gave no actor.
 local function raise(i, pawn)
     local wall = layout.walls[i]
     local x, y, length, yaw = wall.x, wall.y, wall.length, math.rad(wall.yaw)
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = x, Y = y, Z = MID_Z_CM },
-                Scale3D = { X = length / CUBE_CM, Y = THICK_CM / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
+                Scale3D = { X = length / CUBE_CM, Y = layout.thickness / CUBE_CM, Z = HEIGHT_CM / CUBE_CM } }
     local actor = statics:BeginDeferredActorSpawnFromClass(pawn, cls, t, SPAWN_ALWAYS, nil)
     if not actor or not actor:IsValid() then return false end
     statics:FinishSpawningActor(actor, t)
@@ -252,8 +262,10 @@ local function stepOne(s, now)
         return true
     end
     if s.dissolving then
-        once("dissolved", string.format("wall skin paws: an opened wall went %.2f s after it began dissolving"
-            .. " (the game's clock; the dissolve is %.1f s), %d update(s)", now - s.startedAt, DISSOLVE_S, s.steps))
+        once("dissolved", string.format("wall skins: an opened wall was removed %.2f s after it began dissolving"
+            .. " (the game's clock; due at %.1f s: the %.1f s dissolve and a %.1f s tail), %d update(s); the first"
+            .. " wall of the session only", now - s.startedAt, DISSOLVE_S + DISSOLVE_TAIL, DISSOLVE_S, DISSOLVE_TAIL,
+            s.steps))
     end
     pcall(function() actor:K2_DestroyActor() end)
     return false
@@ -302,9 +314,9 @@ local function stepOpeningAndGlow()
     local ok, err = pcall(WALL_SKINS.glowTick)
     if not ok then once("glow", "wall glow error: " .. tostring(err)) end
 end
--- Starts opening piece i: with the paws skin it dissolves (wall_skins.lua's dissolving: its material eats it away
--- over DISSOLVE_S by the game's clock, an edge glowing); otherwise it shrinks. Either way it stops blocking halfway
--- and then goes.
+-- Starts opening piece i: with a skin on M_APWall (regions, paws) it dissolves (wall_skins.lua's dissolving: its
+-- material eats it away over DISSOLVE_S by the game's clock, an edge glowing); otherwise it shrinks. Either way it
+-- stops blocking halfway and then goes.
 local function startOpening(i, pawn)
     local actor, wore, addr = raised[i], WALL_SKINS.wornBy(i), raisedAt[i]
     forget(i)
@@ -318,9 +330,10 @@ local function startOpening(i, pawn)
         UTIL.took("walls: an opening piece's start", "0 s (the game's clock could not be read)")
         now = 0
     end
-    opening[#opening + 1] = { actor = actor, scaleX = layout.walls[i].length / CUBE_CM, scaleY = THICK_CM / CUBE_CM,
-                              startedAt = now, addr = addr, dissolving = m and true or nil,
-                              material = m and material or nil, collisionOff = nil, steps = 0 }
+    opening[#opening + 1] = { actor = actor, scaleX = layout.walls[i].length / CUBE_CM,
+                              scaleY = layout.thickness / CUBE_CM, startedAt = now, addr = addr,
+                              dissolving = m and true or nil, material = m and material or nil, collisionOff = nil,
+                              steps = 0 }
 end
 
 
@@ -493,9 +506,13 @@ local function lockedAndNotHere(k, here, passes)
     if name ~= here and not isOpen(name, passes) then return name end
     return nil
 end
--- The locked side of a wall piece other than `here`, or nil; with both sides locked, side B.
+-- The locked side of a wall piece, or nil: the side other than `here` (with both locked, side B), else `here` itself
+-- when it is a locked side. The map's cells (area_map.lua: about 29 m across) are as coarse as NEAR, so a player
+-- standing at a wall on its open side can read as inside the locked lock across it; the player is never really in
+-- there (the walls and AREA_LOCKS's sending home keep them out), so that lock is the one across the wall.
 local function lockedSide(wall, here, passes)
     return lockedAndNotHere(wall.lockB, here, passes) or lockedAndNotHere(wall.lockA, here, passes)
+        or lockedAndNotHere(wall.lockB, nil, passes) or lockedAndNotHere(wall.lockA, nil, passes)
 end
 -- The lock across a wall within NEAR of a spot (a player walking up to it) while it is locked, or nil. A wall locked
 -- on both sides names the lock the player is not in.
@@ -536,7 +553,7 @@ end
 -- A change takes every wall down at once (their piece numbers mean other pieces in the other cut) and forgets the map
 -- pictures made for the old one; the update raises the new cut's walls.
 function W.setLayout(name)
-    name = name == "areas" and "areas" or "regions"
+    name = (name == "areas" or name == "levels") and name or "regions"
     if name == W.layout then return false end
     for _, actor in pairs(raised) do pcall(function() if actor:IsValid() then actor:K2_DestroyActor() end end) end
     destroyOpening()
@@ -564,12 +581,14 @@ local pieces = {
 }
 WALL_SKINS.install({ W = W, locks = LOCKS, pieces = pieces, DISSOLVE_S = DISSOLVE_S })
 W.SKINS, W.setSkin, W.cycleSkin = WALL_SKINS.SKINS, WALL_SKINS.setSkin, WALL_SKINS.cycleSkin
+W.toggleNearest = WALL_SKINS.toggleNearest
 W.linearOf, W.modAsset, W.pieceSkin = WALL_SKINS.linearOf, WALL_SKINS.modAsset, WALL_SKINS.pieceSkin  -- (the harness)
 MAP_ICONS.install({ W = W, locks = LOCKS })
 MAP_PICTURE.install({ W = W, locks = LOCKS, icons = MAP_ICONS, fog = MAP_FOG })
 MAP_FOG.install({ W = W, locks = LOCKS, icons = MAP_ICONS, picture = MAP_PICTURE })
 W.updateMap, W.mapShown, W.mapOff = MAP_PICTURE.updateMap, MAP_FOG.mapShown, MAP_FOG.mapOff
 W.stampSize, W.worldAt = MAP_PICTURE.stampSize, MAP_ICONS.worldAt                              -- (for the harness)
+W.flyUpList = MAP_ICONS.flyUpList                                                               -- (for the harness)
 W.lockedStampArt = MAP_ICONS.lockedStampArt                                                    -- (for the harness)
 W.MASK_READ_GAP = MAP_FOG.MASK_READ_GAP                                                        -- (for the harness)
 

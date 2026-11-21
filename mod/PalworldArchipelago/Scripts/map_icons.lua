@@ -1,11 +1,13 @@
 -- The locks still locked as icons on the map screen: a stamp at each, an open stamp at each lock unlocked but not
--- yet stood in, added with the screen's own Add Icon By Location so they keep one size at every zoom. A part of
+-- yet stood in, and a fly-up icon where each flying corridor starts until it is flown, added with the screen's own Add
+-- Icon By Location so they keep one size at every zoom. A part of
 -- walls.lua (with map_picture.lua, which calls it each map update), loaded fresh for each copy of walls.lua.
 -- Tests: mod/test/tests/map.lua; group "the world map" (tools/lua_harness.sh, in CI).
 local MAP_ICONS = {}
 local UTIL = require("util")
 local ART = require("art")
 local log = UTIL.log
+local FLY_UP_ART = "ap-map-fly-up"      -- art/<name>.png: the icon at a flying corridor's near mouth
 local HIT_TEST_INVISIBLE = 3  -- ESlateVisibility::HitTestInvisible: hovering would open the game's empty info box
 
 -- State: the icons. Forgotten: iconsFailed never (after a failure the stamps are drawn for the session).
@@ -17,8 +19,9 @@ local iconsFailed = false
 -- once the icons fail. A screen is known by its address and its owning player's, since the engine reuses addresses:
 -- a new world's screen at the old one's address has a new owner, and a screen gone is never called again.
 local mapIcons = {}
--- Handed over by install: W (settings: iconsOff; data: beyond, visited), and the locks part's layout and lists.
-local W, layout, slugOf, lockedList, openList = nil, nil, nil, nil, nil
+-- Handed over by install: W (settings: iconsOff; data: beyond, visited, flown), and the locks part's layout, lists
+-- and isOpen.
+local W, layout, slugOf, lockedList, openList, isOpen = nil, nil, nil, nil, nil, nil
 
 local function iconsActive() return not W.iconsOff and not iconsFailed end
 -- The art a lock still locked wears on the map (art/<name>.png), or nil when there is no stamp file at all: the sealed
@@ -124,26 +127,52 @@ local function iconClass()
     if not (class and class:IsValid()) then error("no icon class " .. ICON_ASSET .. "_C") end
     return class
 end
--- Adds an icon showing `tex` at a lock's centre to the screen and to icons.list; true when the
+-- Adds an icon showing `tex` at a world location to the screen and to icons.list; true when the
 -- screen says it is shown. Raises an error when the icon cannot be made.
-local function addIcon(screen, icons, class, widgetLibrary, centre, tex)
+local function addIcon(screen, icons, class, widgetLibrary, location, tex)
     local icon = widgetLibrary:Create(screen, class, nil)
     if not (icon and icon:IsValid()) then error("could not make a map icon") end
     icon:ChangeTexture(tex)
     local out = {}
-    screen["Add Icon By Location"](screen, icon, worldAt(centre.deepU, centre.deepV), true, false, out)
+    screen["Add Icon By Location"](screen, icon, location, true, false, out)
     pcall(function() icon:SetVisibility(HIT_TEST_INVISIBLE) end)
     icons.list[#icons.list + 1] = icon
     return out.Added
 end
+-- The flying corridors whose fly-up icon shows, by number (layout.corridors): their lock open (else its stamp says
+-- what opens it) and not yet flown through (W.flown, the core's set, in its save).
+local function flyUpList(passes)
+    local out = {}
+    for number, corridor in ipairs(layout.corridors) do
+        if isOpen(layout.locks[corridor.lock + 1], passes) and not W.flown[number] then
+            out[#out + 1] = number
+        end
+    end
+    return out
+end
+MAP_ICONS.flyUpList = flyUpList                                   -- (for the harness)
+-- A fly-up icon (art/ap-map-fly-up.png, none until the mod has it) at the near mouth of each corridor in flyUpList,
+-- where a player leaves land they reach to fly up it. Returns how many were added.
+local function placeFlyUpIcons(screen, icons, class, widgetLibrary, passes)
+    if ART.file(FLY_UP_ART) == "" then return 0 end
+    local tex, added = ART.texture(FLY_UP_ART), 0
+    for _, number in ipairs(flyUpList(passes)) do
+        local corridor = layout.corridors[number]
+        addIcon(screen, icons, class, widgetLibrary, { X = corridor.nearX, Y = corridor.nearY, Z = 0 }, tex)
+        added = added + 1
+    end
+    return added
+end
 -- Puts this look's icons on one screen, unless they are there already: a locked stamp at each lock still locked, an
--- open stamp at each lock unlocked but not stood in. Raises an error when an icon cannot be made.
+-- open stamp at each lock unlocked but not stood in, a fly-up icon at each flying corridor still to fly. Raises an
+-- error when an icon cannot be made.
 local function placeIcons(screen, passes, key)
     local addr = screenKey(screen)
     local icons = mapIcons[addr]
     if icons and iconsStillShown(icons, key) then
         return
     end
+    local why = not icons and "a new screen" or (icons.key ~= key and "the look changed" or "the game dropped them")
     if icons then
         clearIcons(icons)
     end
@@ -155,7 +184,9 @@ local function placeIcons(screen, passes, key)
     for _, k in ipairs(lockedList(passes)) do
         local centre, tex = layout.centres[k], stampTexture(k)
         if centre and tex then
-            if addIcon(screen, icons, class, widgetLibrary, centre, tex) then shown = shown + 1 end
+            if addIcon(screen, icons, class, widgetLibrary, worldAt(centre.deepU, centre.deepV), tex) then
+                shown = shown + 1
+            end
             added = added + 1
         end
     end
@@ -163,29 +194,35 @@ local function placeIcons(screen, passes, key)
     for _, k in ipairs(openList(passes)) do
         local centre, tex = layout.centres[k], openTexture(k)
         if centre and tex then
-            addIcon(screen, icons, class, widgetLibrary, centre, tex)
+            addIcon(screen, icons, class, widgetLibrary, worldAt(centre.deepU, centre.deepV), tex)
             opened = opened + 1
         end
     end
+    local flyUp = placeFlyUpIcons(screen, icons, class, widgetLibrary, passes)
     screen["Update Map Icons"](screen)   -- each icon's scale for the current zoom (the game does it on scroll and zoom)
     local where = ""
     local okw, parent = pcall(function() return icons.list[1] and icons.list[1]:GetParent():GetFName():ToString() end)
     if okw and parent then where = " on " .. parent end
     log("map icons: " .. added .. " locked area(s) added" .. where .. " (" .. shown .. " said visible), " .. opened
-        .. " open not yet visited")
+        .. " open not yet visited, " .. flyUp .. " fly-up; " .. why)
 end
 
--- Each map update with a live main-map screen: the icons on every such screen, for this look (key). If they cannot be
--- added, they are taken off and the stamps are drawn into the picture instead, for the session.
-function MAP_ICONS.show(screens, passes, key)
+-- Each map update with a live main-map screen: the icons on every such screen that is on screen (onScreen), for this
+-- look (key). A closed one gets them when it opens again: a screen the game is tearing down as it closes can still be
+-- listed for an update or two, and icons put on it are lost work. If they cannot be added, they are taken off and
+-- the stamps are drawn into the picture instead, for the session.
+function MAP_ICONS.show(screens, passes, key, onScreen)
     if not iconsActive() then
         return
     end
     forgetIconsOfGoneScreens(screens)
-    local iconKey = key .. "#open:" .. table.concat(openList(passes), ",")
+    local iconKey = key .. "#open:" .. table.concat(openList(passes), ",") .. "#fly:"
+        .. table.concat(flyUpList(passes), ",")
     local oki, erri = pcall(function()
         for _, b in ipairs(screens) do
-            placeIcons(b, passes, iconKey)
+            if onScreen(b) then
+                placeIcons(b, passes, iconKey)
+            end
         end
     end)
     if not oki then
@@ -203,6 +240,7 @@ function MAP_ICONS.install(env)
     W = env.W
     local locks = env.locks
     layout, slugOf, lockedList, openList = locks.layout, locks.slugOf, locks.lockedList, locks.openList
+    isOpen = locks.isOpen
 end
 
 MAP_ICONS.active, MAP_ICONS.stampTexture, MAP_ICONS.lockedStampArt = iconsActive, stampTexture, lockedStampArt

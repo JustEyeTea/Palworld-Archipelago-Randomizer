@@ -76,13 +76,10 @@ function SHOP_CARDS.techIcon(tech)
     return t
 end
 
--- Archipelago's item flags, bit masks on a scouted item's flags (a trap's bit is not shown on a card).
-local FLAG_PROGRESSION = 1
-local FLAG_USEFUL = 2
--- The icon a card shows for another item: by its most important flag.
+-- The icon a card shows for another item: by its most important flag (a trap's bit is not shown on a card).
 local function iconKind(flags)
-    if flags & FLAG_PROGRESSION ~= 0 then return "progression" end
-    if flags & FLAG_USEFUL ~= 0 then return "useful" end
+    if flags & STATE.ITEM_FLAGS.progression ~= 0 then return "progression" end
+    if flags & STATE.ITEM_FLAGS.useful ~= 0 then return "useful" end
     return "filler"
 end
 
@@ -171,18 +168,23 @@ local function readStarterCategory(card, tech, key, full)
     end
 end
 
--- A card's picture, the first of these that loads: your own tech's icon; the crate's art; an Area Pass's (Lock Size:
--- areas) own ticket (art/area-passes/ap-area-pass-<area>.png); a Region Pass's own region's ticket
--- (art/ap-pass-<region>.png), which an Area Pass falls back to; else the small-pass ticket (an area's, though its file
--- is ap-pass-region.png); else the mod's icon for the item's kind. Returns it and its source.
+-- A card's picture, the first of these that loads: your own tech's icon; the crate's art; the Progressive Level Pass's
+-- ticket (LEVEL_PASS_ART, one for every copy); an Area Pass's (Lock Size: areas) own ticket
+-- (art/area-passes/ap-area-pass-<area>.png); a Region Pass's own region's ticket (art/ap-pass-<region>.png), which an
+-- Area Pass falls back to; else the small-pass ticket (an area's, though its file is ap-pass-region.png); else the
+-- mod's icon for the item's kind. Returns it and its source.
 local AREA_PASS_ART = "area-passes\\ap-area-pass-"   -- an area's ticket: this, its slug (WALLS.slugOf), .png
+local LEVEL_PASS_ART = "ap-pass-progressive-level"    -- Level Progression's pass ticket
 local function cardPicture(mine, it, kind, card)
     local ART = require("art")
     local tex = mine and SHOP_CARDS.techIcon(mine)
     if tex then return tex, "the tech's own icon" end
     tex = it and it.name == "Palworld Crate" and ART.texture("ap-crate-palworld")
     if tex then return tex, "the crate's art" end
-    if kind == "area-pass" then
+    if kind == "area-pass" and it.kind == "level_pass" then      -- (no lock: one item opens each tier in turn)
+        tex = ART.texture(LEVEL_PASS_ART)
+        if tex then return tex, "the Progressive Level Pass ticket" end
+    elseif kind == "area-pass" then
         tex = it.name:find("^Area Pass") and ART.texture(AREA_PASS_ART .. WALLS.slugOf(it.lock))
         if tex then return tex, "its area's own pass ticket" end
         tex = ART.texture("ap-pass-" .. WALLS.slugOf(WALLS.regionOf(it.lock)))
@@ -204,7 +206,8 @@ local function cardLabel(tech, card)
     local name = ((sent and not own) and "Sent: " or "") .. SHOP_CARDS.rewardText(tech)
     local clickable = not sent or mine ~= nil
     local it = own and DATA.items[scouted.id]
-    local kind = (it and it.kind == "pass") and "area-pass" or (scouted and iconKind(scouted.flags) or "filler")
+    local isPass = it and (it.kind == "pass" or it.kind == "level_pass")
+    local kind = isPass and "area-pass" or (scouted and iconKind(scouted.flags) or "filler")
     local tex, source = cardPicture(mine, it, kind, card)
     UTIL.took("cards: a card's picture", source)
     return { name = name, category = category, clickable = clickable, texture = tex }

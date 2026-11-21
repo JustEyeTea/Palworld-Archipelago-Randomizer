@@ -5,7 +5,8 @@ each block and never moves one; test/test_ids.py holds every id to test/frozen_i
 from collections import Counter
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .game_data import ALPHA_KEYS, AREA_MODE, BORDERS, PALDECK, PIECE_LEVELS, PIECES, REGION_LIST, START_REGION
+from .game_data import (ALPHA_KEYS, AREA_MODE, BORDERS, LEVEL_MODE, PALDECK, PIECE_LEVELS, PIECES, REGION_LIST,
+                        START_REGION)
 from .game_data import ALPHAS as ALPHA_ROWS
 from .game_data import FAST_TRAVEL as FAST_TRAVEL_ROWS
 from .game_data import MOUNTS as MOUNT_ROWS
@@ -13,8 +14,9 @@ from .game_data import TECHS as TECH_ROWS
 from .game_data import TOWERS as TOWER_ROWS
 
 # Every id is BASE plus an offset in its kind's block (docs/architecture.md, "Ids never move"):
-#   items:      +0 Region Passes, +900 Progressive Sphere, +940 Palpagos Relic, +950 filler (+958 Palworld Crate;
-#               up to +969 kept for filler), +970 traps, +1000 techs, +7000 Area Passes
+#   items:      +0 Region Passes, +900 Progressive Sphere, +901 Progressive Level Pass, +940 Palpagos Relic,
+#               +950 filler (+958 Palworld Crate; up to +969 kept for filler), +970 traps, +1000 techs,
+#               +7000 Area Passes
 #   locations:  +1000 tech shop slots, +2000 captures, +3000 alphas, +4000 fast-travel points,
 #               +5000 levels (+5000 + the level), +6000 towers
 # Items and locations are separate id spaces, so a tech item and its shop slot may share an offset.
@@ -218,6 +220,12 @@ def area_pass(area: str) -> str:
     return f"Area Pass: {area}"
 
 
+# Level Progression (Lock Size: levels): tiers of wild Pal level, opened in order by copies of one item, the tier after
+# the start by the first copy and so on.
+LEVEL_PASS = "Progressive Level Pass"
+PASS_TIERS = [t for t in LEVEL_MODE["TIER_LIST"] if t != LEVEL_MODE["START"]]
+
+
 TOWER_EVENTS = {tower.name: f"{tower.name} Defeated" for tower in TOWERS}
 CHECK_LEVELS = list(range(STARTER_LEVEL + 1, MAX_LEVEL + 1))     # the player levels that can be checks
 
@@ -243,7 +251,7 @@ class ItemDef(NamedTuple):
     """An item of this world, with its id."""
     name: str
     id: int
-    kind: str                      # "pass", "tech", "progressive", "relic", "filler", "trap"
+    kind: str                      # "pass", "level_pass", "tech", "progressive", "relic", "filler", "trap"
 
 
 def _items() -> List[ItemDef]:
@@ -251,6 +259,7 @@ def _items() -> List[ItemDef]:
     out = [ItemDef(region_pass(r), BASE + i, "pass") for i, r in enumerate(PASS_REGIONS)]
     out += [ItemDef(tech_item(t.id), BASE + 1000 + i, "tech") for i, t in enumerate(TECHS) if t.level > STARTER_LEVEL]
     out.append(ItemDef(PROGRESSIVE_SPHERE, BASE + 900, "progressive"))
+    out.append(ItemDef(LEVEL_PASS, BASE + 901, "level_pass"))
     out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
     out.append(ItemDef(CRATE, BASE + 958, "filler"))
@@ -264,7 +273,7 @@ ITEM_NAME_TO_ID: Dict[str, int] = {i.name: i.id for i in ITEMS}
 
 
 # The kinds of check. Code that treats them differently names every kind and raises ValueError for any other:
-# checks.py's loc_level and wanted, __init__.py's check_rule, and _area_location_piece below.
+# checks.py's loc_level and wanted, __init__.py's check_rule, and _mode_location_piece below.
 CHECK_KINDS = ("shop", "capture", "alpha", "fast_travel", "level", "tower")
 
 
@@ -313,20 +322,23 @@ class Layout(NamedTuple):
     sources: Dict[str, Tuple[PalSource, ...]]  # Paldeck entry -> its sources
     location_piece: Dict[str, Optional[str]]   # location name -> the piece it sits in (None: anywhere)
     towers: Dict[str, str]         # tower name -> its piece
-    sky: frozenset                 # locks up in the sky: a flying mount to get there
+    flying: frozenset              # pieces up high or walled in from below: a flying mount to get there
     world_tree: str                # the World Tree's piece
+    pass_counts: Dict[str, int]    # lock -> how many of its pass item it needs (1, or a tier's place in order)
+    in_order: bool                 # its locks open in order, by copies of one item (Level Progression)
 
 
-def _area_location_piece() -> Dict[str, Optional[str]]:
-    """For the 75 areas: each location's piece (alphas, fast-travel points and towers sit in one; the rest anywhere)."""
+def _mode_location_piece(mode: dict) -> Dict[str, Optional[str]]:
+    """For the 75 areas or the level tiers (AREA_MODE, LEVEL_MODE): each location's piece (alphas, fast-travel points
+    and towers sit in one; the rest anywhere)."""
     out = {}
     for loc in LOCATIONS:
         if loc.kind == "alpha":
-            out[loc.name] = AREA_MODE["ALPHAS"][loc.name]
+            out[loc.name] = mode["ALPHAS"][loc.name]
         elif loc.kind == "fast_travel":
-            out[loc.name] = AREA_MODE["FAST_TRAVEL"][loc.key]
+            out[loc.name] = mode["FAST_TRAVEL"][loc.key]
         elif loc.kind == "tower":
-            out[loc.name] = AREA_MODE["TOWERS"][loc.key]
+            out[loc.name] = mode["TOWERS"][loc.key]
         elif loc.kind in ("shop", "capture", "level"):
             out[loc.name] = None
         else:
@@ -334,19 +346,33 @@ def _area_location_piece() -> Dict[str, Optional[str]]:
     return out
 
 
-# Keyed by the Lock Size option's values: "regions" (the 15) and "areas" (the 75).
+def _pieces_of(pieces: Dict[str, str], locks) -> frozenset:
+    """The pieces of these locks."""
+    return frozenset(piece for piece, lock in pieces.items() if lock in locks)
+
+
+# Keyed by the Lock Size option's values: "regions" (the 15), "areas" (the 75) and "levels" (Level Progression).
 LAYOUTS = {
     "regions": Layout(start=START_REGION, passes={r: region_pass(r) for r in PASS_REGIONS}, pieces=PIECES,
                       borders=BORDERS, piece_levels=PIECE_LEVELS,
                       sources={e: pal.sources for e, pal in PALDECK_ENTRIES.items()},
                       location_piece={l.name: l.piece for l in LOCATIONS},
                       towers={tower.name: tower.piece for tower in TOWERS},
-                      sky=frozenset({"Sky Islands"}), world_tree="World Tree"),
+                      flying=_pieces_of(PIECES, {"Sky Islands"}), world_tree="World Tree",
+                      pass_counts={r: 1 for r in PASS_REGIONS}, in_order=False),
     "areas": Layout(start=AREA_MODE["START"], passes={a: area_pass(a) for a in PASS_AREAS},
                     pieces=AREA_MODE["PIECES"], borders=AREA_MODE["BORDERS"], piece_levels=AREA_MODE["PIECE_LEVELS"],
                     sources={e: pal_sources(rows) for e, rows in AREA_MODE["SOURCES"].items()},
-                    location_piece=_area_location_piece(), towers=AREA_MODE["TOWERS"],
-                    sky=frozenset(AREA_MODE["SKY"]), world_tree=AREA_MODE["WORLD_TREE"]),
+                    location_piece=_mode_location_piece(AREA_MODE), towers=AREA_MODE["TOWERS"],
+                    flying=_pieces_of(AREA_MODE["PIECES"], set(AREA_MODE["SKY"])),
+                    world_tree=AREA_MODE["WORLD_TREE"], pass_counts={a: 1 for a in PASS_AREAS}, in_order=False),
+    "levels": Layout(start=LEVEL_MODE["START"], passes={t: LEVEL_PASS for t in PASS_TIERS},
+                     pieces=LEVEL_MODE["PIECES"], borders=LEVEL_MODE["BORDERS"],
+                     piece_levels=LEVEL_MODE["PIECE_LEVELS"],
+                     sources={e: pal_sources(rows) for e, rows in LEVEL_MODE["SOURCES"].items()},
+                     location_piece=_mode_location_piece(LEVEL_MODE), towers=LEVEL_MODE["TOWERS"],
+                     flying=frozenset(LEVEL_MODE["FLYING"]), world_tree=LEVEL_MODE["WORLD_TREE"],
+                     pass_counts={t: place for place, t in enumerate(PASS_TIERS, 1)}, in_order=True),
 }
 
 
@@ -371,12 +397,14 @@ assert not _unknown_kinds, f"location kinds missing from CHECK_KINDS: {_unknown_
 assert sorted(TRAP_WEIGHT_OPTION) == sorted(TRAPS), "every trap needs its weight option in TRAP_WEIGHT_OPTION"
 assert REGION_LIST[0] == START_REGION and AREA_MODE["AREA_LIST"][0] == AREA_MODE["START"], \
     "pass ids count from the second row: the start must stay the first row of REGION_LIST and AREA_MODE's AREA_LIST"
+assert LEVEL_MODE["TIER_LIST"][0] == LEVEL_MODE["START"], "the levels' pass counts start from the second tier"
 
 
 # --- groups (for hints, start_inventory and the like) -----------------------------------------------------------
 ITEM_GROUPS = {
     "Area Passes": {area_pass(a) for a in PASS_AREAS},
     "Region Passes": {region_pass(r) for r in PASS_REGIONS},
+    "Level Passes": {LEVEL_PASS},
     "Techs": {i.name for i in ITEMS if i.kind == "tech"},
     "Spheres": {tech_item(t.id) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
     "Bundles": set(BUNDLES),

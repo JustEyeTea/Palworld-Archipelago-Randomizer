@@ -12,6 +12,7 @@
 -- an error, read or set, so a mistyped switch fails at its line.
 local GAME_START = {
     titleOpen = false,         -- the title screen's menu is up (FindAllOf lists it)
+    level = "PL_MainWorld5",   -- the level loaded (GameplayStatics' GetCurrentLevelName): "PL_Title" at the title
     mapOpen = false,           -- the world map's screen is built (FindAllOf lists it)
     treeOpen = false,          -- the World Tree's map screen is built beside it
     staleBody = false,         -- a map screen of the last world, not yet collected (a screen, or false)
@@ -19,6 +20,7 @@ local GAME_START = {
     escNoMain = false,         -- a client where the main menu is not found by its class while the Esc menu is up
     mainMenuOpen = false,      -- the in-game main menu (mainMenu) is up
     overlayAnswerWrong = false, -- the HUD service says no overlay UI is up even while the main menu is
+    noHudService = false,      -- the pawn has no HUD service yet (the title screen): GetHUDService gives a null object
     inputSubsystems = false,   -- the CommonInputSubsystem objects FindAllOf lists (false: none)
     noPlayer = false,          -- no player state (the title, a load)
     pawnGone = false,          -- the player state has no pawn for a moment, in the same world
@@ -27,8 +29,14 @@ local GAME_START = {
     playerLevel = 4,           -- the player's level
     bagFull = false,           -- the bag refuses every item
     equipsFreeSlot = false,    -- the game puts an item it is given into an empty equipment slot, not the bag
-    movesWork = true,          -- false: the game's move from the hidden chest to the bag does nothing
+    givesWeapons = false,      -- with equipsFreeSlot, the item is a weapon: it goes into an empty weapon slot
+    equipsLater = false,       -- with equipsFreeSlot, the slot is filled only at the next update, not in AddItem (as
+                               -- in game: right after the call neither the bag nor the slot held it)
+    gearPieces = false,        -- items given to the bag are made as pieces of gear: a bag slot each, with its own id
+    movesWork = true,          -- false: the game's moves between the hidden chest and the bag do nothing
     logicMod = false,          -- the mod's LogicMod paks are loaded (its assets and window classes exist)
+    regionWalls = true,        -- with logicMod: the PalworldArchipelagoArt pak has the region walls (false: one
+                               -- built before them, without T_APWallRegion_* and T_APWallSealed)
     composeFails = false,      -- the map picture's compositor fails every job, as when its file is locked
     palEditOk = true,          -- the game's PalEditableTextBox class exists
     umgEditOk = true,          -- UMG's EditableTextBox class exists
@@ -131,20 +139,98 @@ bagHas = {}                                                -- item id -> how man
 local BAG_FULL = 16                                        -- EPalItemOperationResult FailedNotEnoughSlotSpace
 inv = { MyInventoryInfo = { CommonContainerId = { ID = { A = 5, B = 5, C = 5, D = 5 } } } }
 wornIn = {}                                                -- equipment slot type -> the item id worn there
+weaponSlots = {}                                           -- the weapon loadout's item ids, in slot order
 local ACCESSORY_SLOTS = { 2, 3, 6, 7 }                     -- EPalPlayerEquipItemSlotType Accessory1 to Accessory4
+local WEAPON_SLOTS = 4                                     -- the loadout's slots at the start of a game
+bagPieces = {}                                             -- bag slot index -> the piece of gear in it: { id, own }
+equipLanding = {}                                          -- accessory slot type -> the item id it gets next update
+local BAG_SLOTS = 42                                       -- the bag's slots at the start of a game
+local piecesMade = 0                                       -- every piece made has an own id of its own
+-- A piece of gear's own id (FPalItemId's DynamicId.LocalIdInCreatedWorld), new each time.
+function newPieceId()
+    piecesMade = piecesMade + 1
+    return { A = 7, B = 7, C = 7, D = piecesMade }
+end
+-- Puts a piece of gear into the first empty bag slot.
+function putPieceInBag(id, own)
+    for index = 0, BAG_SLOTS - 1 do
+        if not bagPieces[index] then
+            bagPieces[index] = { id = id, own = own }
+            return
+        end
+    end
+end
+-- Whether an accessory slot is free: nothing worn in it, and nothing on its way there.
+local function accessorySlotFree(slotType)
+    return not wornIn[slotType] and not equipLanding[slotType]
+end
+-- game.equipsFreeSlot: the game puts gear straight into an empty slot (an accessory slot, or with game.givesWeapons
+-- a weapon slot, as an Old Bow went in game) instead of the bag; with game.equipsLater only at the next update.
 function inv.AddItem_ServerInternal(_, name, n)
     if game.bagFull then return BAG_FULL end
-    given[#given + 1] = name:ToString() .. " x" .. n
+    local id = name:ToString()
+    given[#given + 1] = id .. " x" .. n
+    if game.equipsFreeSlot and game.givesWeapons and #weaponSlots < WEAPON_SLOTS then
+        weaponSlots[#weaponSlots + 1] = id
+        return 0
+    end
     for _, slotType in ipairs(ACCESSORY_SLOTS) do
-        if game.equipsFreeSlot and not wornIn[slotType] then
-            wornIn[slotType] = name:ToString()
+        if game.equipsFreeSlot and accessorySlotFree(slotType) then
+            if game.equipsLater then
+                equipLanding[slotType] = id
+            else
+                wornIn[slotType] = id
+            end
             return 0
         end
     end
-    bagHas[name:ToString()] = (bagHas[name:ToString()] or 0) + n
+    bagHas[id] = (bagHas[id] or 0) + n
+    if game.gearPieces then
+        for _ = 1, n do
+            putPieceInBag(id, newPieceId())
+        end
+    end
     return 0
 end
+-- The game's own work between two updates (run() calls it): gear given with game.equipsLater reaches its slot.
+function gameTick()
+    for slotType, id in pairs(equipLanding) do
+        wornIn[slotType] = id
+    end
+    equipLanding = {}
+end
+-- One slot of the bag, as its container hands it out: the piece of gear at that index, or empty.
+local function bagSlot(index)
+    local slot = {}
+    function slot:IsValid() return true end
+    function slot:IsEmpty() return bagPieces[index] == nil end
+    function slot:GetItemId()
+        local piece = bagPieces[index]
+        return { StaticId = FNameOf(piece and piece.id or "None"),
+                 DynamicId = { LocalIdInCreatedWorld = piece and piece.own or { A = 0, B = 0, C = 0, D = 0 } } }
+    end
+    function slot:GetStackCount() return bagPieces[index] and 1 or 0 end
+    function slot:GetSlotId()
+        return { ContainerId = { ID = inv.MyInventoryInfo.CommonContainerId.ID }, SlotIndex = index }
+    end
+    return slot
+end
+-- The bag's container (only its pieces of gear: plain items are counted in bagHas).
+bagContainer = { Num = function() return BAG_SLOTS end, Get = function(_, index) return bagSlot(index) end }
+function bagContainer.GetLastNotEmptyIndex()
+    local last = -1
+    for index in pairs(bagPieces) do
+        last = math.max(last, index)
+    end
+    return last
+end
 function inv.IsEquip(_, slotType, name) return wornIn[slotType] == name:ToString() end
+function inv.IsEquipForWeapon(_, name)
+    for _, id in ipairs(weaponSlots) do
+        if id == name:ToString() then return true end
+    end
+    return false
+end
 -- The player's records: captures, the Paldeck, towers, alphas, fast-travel points.
 record = {
     PalCaptureCount = FastArray({ { "ChickenPal", 2 }, { "SheepBall", 0 } }),
@@ -157,8 +243,10 @@ record = {
 pawnAt = { X = -342035, Y = 236885, Z = -1700 }            -- the starting region (FTPoint21)
 teleported = nil                                           -- where the last teleport sent the pawn
 pawnAddress = 4096
+local CAPSULE_HALF_HEIGHT_CM = 88                          -- the player's feet are this far below its middle
 pawn = { IsValid = function() return true end, GetAddress = function() return pawnAddress end,
-         K2_GetActorLocation = function() return pawnAt end }
+         K2_GetActorLocation = function() return pawnAt end,
+         CapsuleComponent = { GetScaledCapsuleHalfHeight = function() return CAPSULE_HALF_HEIGHT_CM end } }
 function pawn.K2_TeleportTo(_, loc)
     teleported = loc
     pawnAt = { X = loc.X, Y = loc.Y, Z = loc.Z }
@@ -224,6 +312,10 @@ function playerController.SelfKillPlayer()
     game.playerDead = true
 end
 playerController.GetControlPalCharacter = function() return pawn end
+-- The camera: behind the player and above.
+cameraAt = { X = pawnAt.X - 300, Y = pawnAt.Y, Z = pawnAt.Z + 150 }
+playerController.PlayerCameraManager = { IsValid = function() return true end,
+                                         GetCameraLocation = function() return cameraAt end }
 ps = {
     IsValid = function() return true end,
     IsPlayerDead = function() return game.playerDead end,
@@ -282,12 +374,29 @@ offMap = { IsValid = function() return true end,
            K2_GetActorLocation = function() return { X = 2000000, Y = 2000000, Z = 0 } end }
 ftActor = { IsValid = function() return true end, FastTravelPointID = FNameOf("FTPoint101"), bUnlocked = false,
             LevelObjectInstanceId = { A = 0x6E03F846, B = 0x4BAD9E45, C = 0x8B843AA3, D = 0x0BE1CC8F } }
+-- More fast-travel statues the game has loaded, listed after ftActor (a test adds them with FastTravelStatue).
+statues = {}
+-- A fast-travel statue `id` standing `dx`, `dy` cm from the player, locked unless `unlocked`, `size` cm across and
+-- up ({ across, up, off }; its bounds, which GetActorBounds fills in as the game does, their centre `off` cm east of
+-- its place when given, as a statue's were in game).
+function FastTravelStatue(id, dx, dy, size, unlocked)
+    local at = { X = pawnAt.X + dx, Y = pawnAt.Y + dy, Z = pawnAt.Z }
+    local a = { IsValid = function() return true end, FastTravelPointID = FNameOf(id), bUnlocked = unlocked == true }
+    a.IsUnlocked = function() return a.bUnlocked end
+    a.K2_GetActorLocation = function() return at end
+    function a.GetActorBounds(_, _, centre, half)
+        centre.X, centre.Y, centre.Z = at.X + (size.off or 0), at.Y, at.Z + size.up / 2
+        half.X, half.Y, half.Z = size.across / 2, size.across / 2, size.up / 2
+    end
+    return a
+end
 -- PalUtility: notices in chat, the player's objects, the party, the world's clock.
 announced = {}                                             -- every notice shown in chat
 util = { IsValid = function() return true end }
 function util.SendSystemAnnounce(_, _, text) announced[#announced + 1] = text end
 util.GetLocalPlayerController = function() return playerController end
 util.GetLocalPlayerState = function() return ps end
+util.GetItemContainerManager = function() return { GetContainer = function() return bagContainer end } end
 partySize = 3
 function util.GetOtomoHolderComponent(_, who)
     assert(who == pawn, "the party of the player's pawn")
@@ -417,16 +526,23 @@ LoadAsset = function(path)
     if pkg:find("^/Game/Mods/PalworldArchipelagoArt/") then return end
     loaded[pkg] = true
 end
+-- Whether a mounted LogicMod pak holds the package at pkg: every one but the region walls of a pak built before them.
+local function inLogicMod(pkg)
+    if not (game.logicMod and pkg:find("^/Game/Mods/")) then return false end
+    local name = pkg:match("([^/]+)$")
+    local regionWall = name:find("^T_APWallRegion_") or name == "T_APWallSealed"
+    return game.regionWalls or not regionWall
+end
 assetRegistryHelpers = { IsValid = function() return true end }
 function assetRegistryHelpers.GetAsset(_, data)
     local pkg, name = data.PackageName:ToString(), data.AssetName:ToString()
-    if not (game.logicMod and pkg:find("^/Game/Mods/") and pkg:match("([^/]+)$") == name) then
+    if not (inLogicMod(pkg) and pkg:match("([^/]+)$") == name) then
         return { IsValid = function() return false end }
     end
     loaded[pkg] = true
     return Texture(pkg .. "." .. name)
 end
-lookups = {}                                               -- class -> FindAllOf calls, "first:" .. class -> FindFirstOf
+lookups = {}                -- class -> the mod's FindAllOf calls, "first:" .. class -> FindFirstOf (countModLookups)
 -- The game's map screens: its template first (it has no map image), then the live ones.
 local function mapScreens()
     if not game.mapOpen then return {} end
@@ -439,6 +555,9 @@ local function mapScreens()
     end
     return list
 end
+-- The player state's class default object: FindAllOf lists it before the live one; valid, in no world, no pawn.
+defaultPlayerState = { IsValid = function() return true end, GetPawn = function() return nil end,
+                       GetFullName = function() return "PalPlayerState /Script/Pal.Default__PalPlayerState" end }
 -- The player controllers: the class default object first, as in the game.
 local function controllers()
     return { { IsValid = function() return true end, GetAddress = function() return 1 end,
@@ -461,16 +580,17 @@ local function liveWalls()
 end
 local CHEST_PACKAGE = "/Game/Pal/Blueprint/MapObject/BuildObject/BP_BuildObject_ItemChest_04"
 FindAllOf = function(class)
-    lookups[class] = (lookups[class] or 0) + 1
     if class == "BP_PalBlockingVolume_C" then return liveWalls() end   -- live walls only, as FindAllOf lists
     if class == "WBP_MainMenu_Technology_Content_C" then return cards end
     -- (the template the title screen's asset keeps comes first, as FindAllOf can give it)
     if class == "WBP_TitleMenu_C" then return game.titleOpen and { titleTemplate, titleMenu } or {} end
     if class == "WBP_Title_MenuButton_C" then return game.titleOpen and { gameTitleButton } or {} end
     if class == "WBP_Map_Body_C" then return mapScreens() end
-    if class == "PalPlayerState" then return game.noPlayer and {} or { ps } end   -- (noPlayer: the title, a load)
+    -- (noPlayer: the title, a load; the class default object first, valid and with no pawn, as in the game)
+    if class == "PalPlayerState" then return game.noPlayer and { defaultPlayerState } or { defaultPlayerState, ps } end
     if class == "PalPlayerController" then return controllers() end
-    if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor } end
+    if class == "PalLevelObjectUnlockableFastTravelPoint" then return { ftActor, table.unpack(statues) } end
+    if class == "StaticMeshActor" then return glowList() end   -- (only the glows' pieces: no level here)
     if class == "PalMapObjectItemChestModel" then return chests end
     if class == "PalMapObjectItemChestParameterComponent" then return loaded[CHEST_PACKAGE] and chestTemplates or {} end
     if class == "WBP_MenuESC_C" then return game.escOpen and { escMenu } or {} end
@@ -480,12 +600,26 @@ FindAllOf = function(class)
     return nil
 end
 FindFirstOf = function(class)
-    lookups["first:" .. class] = (lookups["first:" .. class] or 0) + 1
     if class == "PalGameInstance" then return gameInstance end
     if class == "PalMasterDataTables" then return { technologyDataSet = { recipeUnlockDataTable = techTable } } end
     if class == "PalPlayerController" then return playerController end
     if class == "WBP_Map_Body_C" then return game.mapOpen and mapBody or nil end
     return nil
+end
+-- Counts the mod's lookups in `lookups` from now on; core.lua calls it once the mod is loaded. Put on top then, the
+-- counters sit above the probe's wrappers (perf_log=1), and the probe's own walks go to the lookups it kept at
+-- install, below them, as its 30s line leaves them out too. Counted, the notify check's walk (one class every 100
+-- updates) would fall inside a test's few updates or not by how many updates all the groups before it took.
+function countModLookups()
+    local findAll, findFirst = FindAllOf, FindFirstOf
+    FindAllOf = function(class, ...)
+        lookups[class] = (lookups[class] or 0) + 1
+        return findAll(class, ...)
+    end
+    FindFirstOf = function(class, ...)
+        lookups["first:" .. class] = (lookups["first:" .. class] or 0) + 1
+        return findFirst(class, ...)
+    end
 end
 -- A class or object the mod finds by its path: the game's libraries, the mod's own pak's assets, UMG's classes.
 StaticFindObject = function(path)
@@ -495,7 +629,10 @@ StaticFindObject = function(path)
         return { CountLocalPlayerInventoryItemNum64 = function(_, _, id) return bagHas[id:ToString()] or 0 end }
     end
     if path == "/Script/AssetRegistry.Default__AssetRegistryHelpers" then return assetRegistryHelpers end
-    if path:find("^/Game/Mods/") then return game.logicMod and loaded[path:match("^[^.]+")] and Texture(path) or nil end
+    if path:find("^/Game/Mods/") then
+        local pkg = path:match("^[^.]+")
+        return inLogicMod(pkg) and loaded[pkg] and Texture(path) or nil
+    end
     if path:find("WBP_WorldMap_IconBase_OnlyIcon", 1, true) then
         return loaded[path:match("^[^.]+")] and Texture(path) or nil
     end
@@ -516,6 +653,7 @@ StaticFindObject = function(path)
         return Widget({ WidgetStyle = { look = "world-name" } })
     end
     if path:find("KismetMaterialLibrary") then return materialLib end
+    if path == "/Script/Engine.StaticMeshActor" then return staticMeshActorClass end
     if path:find("KismetRenderingLibrary") then return renderLib end
     if path:find("KismetSystemLibrary") then return systemLib end
     if path:find("^/Game/") then return Texture(path) end
@@ -671,7 +809,7 @@ function plugInTerritories(calls)
         AP_ComposeTerritories, AP_TerritoriesStatus, AP_ComposeField, AP_MapScreen = nil, nil, nil, nil
         AP_ComposeFog, AP_FogStatus, AP_ComposeChart, AP_ChartStatus, AP_SamplePNG = nil, nil, nil, nil, nil
         mapBody.MaskTextureMaterial = nil
-        os.remove(MOD .. "/map-fog-territories.png")
+        os.remove(MOD .. "/map-fog-territories.bmp")
     end
 end
 -- The connector's Pal gift (pal_gift.cpp), answering as its report does: lines of "step: detail", the last one the

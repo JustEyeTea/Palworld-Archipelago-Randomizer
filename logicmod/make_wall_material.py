@@ -5,23 +5,38 @@ Run it inside the kit's editor (Tools > Execute Python Script...), or without op
 
 It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipelagoArt):
   M_APWall                    the area walls' material, built node by node here (nothing by hand)
+  M_APWallNearest             the same, drawn only where it is the nearest wall to the camera (an experiment the
+                              Lua mod switches to; its build may fail, which leaves M_APWall as it is)
   T_APWallPaws                the paws skin's cream-paw layer (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png in
                               this repo), cooked with mips so its navy rims don't shimmer far off
+  T_APWallRegion_<region>_<v>  the regions skin's walls, from logicmod/art/walls/ap-wall-region-<region>-<v>.png (each
+                              of the 15 regions in versions 0 to 3; <region> is its name in lower case, words joined
+                              by _ here and by - in the file), cooked with mips
+  T_APWallSealed              the regions skin's bunker grille for locks beyond the goal
+                              (logicmod/art/walls/ap-wall-sealed-bunker.png), cooked with mips
+  T_APWallDissolve            the unlock's dissolve pattern, embers (logicmod/art/walls/ap-wall-dissolve-embers.png):
+                              greyscale data, not colour, so imported with sRGB off; without it the material uses
+                              the engine's noise
   ModActor                    an empty Actor Blueprint, so BPModLoader's log shows the pak loaded
   PalworldArchipelagoArt_Label  Primary Asset Label: chunk 2, always cooked, everything in the folder
 
 Why: the game's wall material (MI_AirBlock_v2) multiplies one tint by one channel of its texture, so a wall piece can
 only be one colour. M_APWall shows a full-colour RGBA texture, so the walls can be multicoloured.
 
-M_APWall: unlit, translucent, two-sided. The pattern is laid on the wall itself (world space along the piece's length
-and up its height, so it recedes in perspective and doesn't stretch with the piece's scale), and fades out with
-distance from the camera like the game's walls. Parameters the Lua mod sets on its dynamic instances:
+M_APWall: unlit, translucent, two-sided. Each wall piece is a box, so the far face shows through the near one: the
+user's choice, as it reads as a wall with depth (one-sided hides it). M_APWallNearest is one-sided, writes its depth
+to the custom depth buffer and hides itself wherever that buffer holds a nearer wall, so overlapping pieces at a bend
+show one pattern (it needs the Lua mod to turn custom depth on for each piece; where the buffer is empty it draws like
+a one-sided M_APWall). It hides the far wall too, so it is for comparing, not the default.
+The pattern is laid on the wall itself (world space along the piece's length and up its height, so it recedes in
+perspective and doesn't stretch with the piece's scale), and fades out with distance from the camera like the game's
+walls. Parameters the Lua mod sets on its dynamic instances:
   Pattern (texture)     the RGBA tile; colour is the colour, alpha is how solid
   CellSize              centimetres per tile, both ways (300)
   ScrollU, ScrollV      tiles per second (0, 0)
   Tint (colour)         multiplies the colour (white)
-  Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws skin
-                        puts each region's colour at 0.34 under the cream-paw layer
+  Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws and
+                        regions skins put each region's colour at 0.34 under their layer
                         (A = a + BackAlpha*(1 - a), colour = (rgb*a + Back*BackAlpha*(1 - a)) / A)
   Brightness            emissive strength (1.5); NightDim multiplies it (1). The Lua mod does not set NightDim,
                         so the walls are as bright by night as by day; it is there for dimming them at night.
@@ -34,7 +49,9 @@ distance from the camera like the game's walls. Parameters the Lua mod sets on i
                         set by the Lua mod each update, 300 ms): within ReactRadius cm (600), rings RippleSize cm
                         apart (60) moving RippleSpeed a second
   DissolveStart, DissolveTime, EdgeColor  the wall dissolves from DissolveStart (game seconds, the Time node's clock;
-                        1e8: never) over DissolveTime s (1.6), a glowing EdgeColor edge eating it away (an unlock)
+                        1e8: never) over DissolveTime s (1.6), a glowing EdgeColor edge eating it away (an unlock).
+                        Where it opens first is T_APWallDissolve's grey (dark first), one texture tile per pattern
+                        tile, so the holes keep their place on the pattern
 The material is replaced as a whole if it already exists, so it is safe to run again after changing this script.
 Tests: none; it runs only in the Modding Kit on Windows, and the pak is checked in game (logicmod/README.md).
 """
@@ -44,14 +61,23 @@ import unreal
 
 ROOT = "/Game/Mods/PalworldArchipelagoArt"
 NAME = "M_APWall"
+NEAREST_NAME = "M_APWallNearest"
+NEAREST_BIAS_CM = 5.0            # how far behind the nearest wall a pixel may be and still draw (depth rounding)
+NEAREST_SOFT_CM = 2.0            # over how many cm behind that it fades out, so the cut-off doesn't shimmer
 CHUNK_ID = 2
 DISSOLVE_EDGE = 0.08             # how wide the dissolve's glowing edge is, in the noise's 0..1
+DISSOLVE_FILE = "ap-wall-dissolve-embers"  # logicmod/art/walls/ap-wall-dissolve-embers.png (the user's pick, A)
+DISSOLVE_TEXTURE = "T_APWallDissolve"
+REGION_WALL_PREFIX = "ap-wall-region-"    # logicmod/art/walls/ap-wall-region-<region>-<version>.png
+BUNKER_FILE = "ap-wall-sealed-bunker"     # logicmod/art/walls/ap-wall-sealed-bunker.png
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 mel = unreal.MaterialEditingLibrary
 
 
+# log, node, scalar, link, import_task and imported_texture have copies in make_glow_assets.py (which says why): a fix
+# to one is made to the other.
 def log(msg):
     """One line of the Output Log, under this pak's prefix."""
     unreal.log("[PalworldArchipelagoArt] " + msg)
@@ -83,16 +109,16 @@ def link(a, out, b, inp):
     raise RuntimeError(f"could not connect {a.get_name()}.{out or 'out'} -> {b.get_name()}.{inp or '(its input)'}")
 
 
-def new_material():
-    """An empty M_APWall: unlit, translucent and two-sided (the old one, if any, deleted)."""
-    path = f"{ROOT}/{NAME}"
+def new_material(name, two_sided):
+    """An empty wall material called name: unlit and translucent (the old one, if any, deleted)."""
+    path = f"{ROOT}/{name}"
     if assets.does_asset_exist(path):
         assets.delete_asset(path)
-        log(f"{NAME}: replacing the old one")
-    mat = tools.create_asset(NAME, ROOT, unreal.Material, unreal.MaterialFactoryNew())
+        log(f"{name}: replacing the old one")
+    mat = tools.create_asset(name, ROOT, unreal.Material, unreal.MaterialFactoryNew())
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    mat.set_editor_property("two_sided", True)
+    mat.set_editor_property("two_sided", two_sided)
     return mat
 
 
@@ -363,16 +389,28 @@ def dissolve_progress(mat, time):
     return prog
 
 
-def dissolve(mat, wpos, time):
+def dissolve_order(mat, wpos, final_uv, pattern):
+    """Where the wall opens first, 0 to 1 (low first): the dissolve pattern's grey on the wall pattern's tiles, or,
+    without the pattern, the engine's noise in world space."""
+    if pattern:
+        grey = node(mat, unreal.MaterialExpressionTextureSample, 1250, 1550, texture=pattern,
+                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)
+        link(final_uv, "", grey, "UVs")
+        return grey
+    noise = node(mat, unreal.MaterialExpressionNoise, 1250, 1550, scale=0.006, levels=3, output_min=0.0, output_max=1.0)
+    link(wpos, "", noise, "Position")
+    return noise
+
+
+def dissolve(mat, wpos, time, final_uv, pattern):
     """The unlock's dissolve by the game's clock (DissolveStart, DissolveTime). Returns (what is left, the
     glowing edge)."""
     prog = dissolve_progress(mat, time)
-    noise = node(mat, unreal.MaterialExpressionNoise, 1250, 1550, scale=0.006, levels=3, output_min=0.0, output_max=1.0)
-    link(wpos, "", noise, "Position")
+    order = dissolve_order(mat, wpos, final_uv, pattern)
     # Clamped: layered noise overshoots its 0..1, and bits above 1 + e would never dissolve; the piece would go with
     # them still there.
     noise01 = node(mat, unreal.MaterialExpressionSaturate, 1400, 1600)
-    link(noise, "", noise01, "")
+    link(order, "", noise01, "")
     edge = DISSOLVE_EDGE
     thr = node(mat, unreal.MaterialExpressionMultiply, 1700, 1400, const_b=1.0 + edge)
     link(prog, "", thr, "A")
@@ -443,12 +481,37 @@ def opacity_output(mat, o1, react, left, rim, fade):
     link(fade, "", faded, "B")
     o2 = node(mat, unreal.MaterialExpressionSaturate, 3350, 700)
     link(faded, "", o2, "")
-    mel.connect_material_property(o2, "", unreal.MaterialProperty.MP_OPACITY)
+    return o2
 
 
-def material():
-    """M_APWall, built node by node in the order its parts feed each other, then laid out and compiled."""
-    mat = new_material()
+def nearest_only(mat, opacity):
+    """opacity, kept where this pixel is the nearest wall's (its depth within NEAREST_BIAS_CM of the custom depth
+    buffer) and faded to 0 behind it. An empty buffer reads far away, so then nothing is hidden."""
+    here = node(mat, unreal.MaterialExpressionPixelDepth, 3200, 900)
+    buffer = node(mat, unreal.MaterialExpressionSceneTexture, 3200, 1000,
+                  scene_texture_id=unreal.SceneTextureId.PPI_CUSTOM_DEPTH)
+    nearest = node(mat, unreal.MaterialExpressionComponentMask, 3350, 1000, r=True, g=False, b=False, a=False)
+    link(buffer, "Color", nearest, "")
+    behind = node(mat, unreal.MaterialExpressionSubtract, 3500, 950)
+    link(here, "", behind, "A")
+    link(nearest, "", behind, "B")
+    room = node(mat, unreal.MaterialExpressionSubtract, 3650, 950, const_a=NEAREST_BIAS_CM)
+    link(behind, "", room, "B")
+    steep = node(mat, unreal.MaterialExpressionMultiply, 3800, 950, const_b=1.0 / NEAREST_SOFT_CM)
+    link(room, "", steep, "A")
+    kept = node(mat, unreal.MaterialExpressionSaturate, 3950, 950)
+    link(steep, "", kept, "")
+    shown = node(mat, unreal.MaterialExpressionMultiply, 4100, 800)
+    link(opacity, "", shown, "A")
+    link(kept, "", shown, "B")
+    mat.set_editor_property("allow_translucent_custom_depth_writes", True)
+    return shown
+
+
+def material(dissolve_pattern, name=NAME, nearest=False):
+    """A wall material (M_APWall, or with nearest M_APWallNearest), built node by node in the order its parts feed
+    each other, then laid out and compiled. dissolve_pattern is T_APWallDissolve, or None for the engine's noise."""
+    mat = new_material(name, two_sided=not nearest)
     wpos, u_face = wall_axes(mat)
     time, moving = moving_tiles(mat, wpos, u_face)
     final_uv = area_variant(mat, moving)
@@ -456,13 +519,32 @@ def material():
     c1, c2 = tinted(mat, seen)
     fade, o1 = faded_opacity(mat, wpos, solid)
     react = player_glow(mat, wpos, time)
-    left, rim = dissolve(mat, wpos, time)
+    left, rim = dissolve(mat, wpos, time, final_uv, dissolve_pattern)
     emissive_output(mat, c1, c2, react, rim)
-    opacity_output(mat, o1, react, left, rim, fade)
+    opacity = opacity_output(mat, o1, react, left, rim, fade)
+    if nearest:
+        opacity = nearest_only(mat, opacity)
+    mel.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
     mel.layout_material_expressions(mat)
     mel.recompile_material(mat)
-    log(f"{NAME}: made (unlit, translucent, two-sided; {mel.get_num_material_expressions(mat)} nodes)")
+    how = DISSOLVE_TEXTURE if dissolve_pattern else "the engine's noise"
+    shown = "nearest wall only" if nearest else "every wall"
+    sides = "one-sided" if nearest else "two-sided"
+    log(f"{name}: made (unlit, translucent, {sides}, {shown}; {mel.get_num_material_expressions(mat)} nodes; "
+        f"dissolve by {how})")
     return mat
+
+
+def nearest_material(dissolve_pattern):
+    """M_APWallNearest, or None if the editor can't build it (logged): an experiment must not stop M_APWall."""
+    try:
+        return material(dissolve_pattern, NEAREST_NAME, nearest=True)
+    except Exception as err:            # any failure here is the experiment's, and M_APWall is already saved
+        path = f"{ROOT}/{NEAREST_NAME}"
+        if assets.does_asset_exist(path):       # a half-built one would be cooked into the pak with the folder
+            assets.delete_asset(path)
+        log(f"{NEAREST_NAME}: could not be made ({err}); the pak goes without it")
+        return None
 
 
 def label():
@@ -483,13 +565,18 @@ def label():
     return lab
 
 
-def paw_layer_source():
-    """The paws layer's PNG in this repo (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png). Run as a script
-    file this one's folder finds it; run some other way, AP_REPO_LOGICMOD names this folder."""
+def logicmod_folder():
+    """This repo's logicmod folder. Run as a script file this one's folder is it; run some other way,
+    AP_REPO_LOGICMOD names it."""
     try:
-        here = os.path.dirname(os.path.abspath(__file__))
+        return os.path.dirname(os.path.abspath(__file__))
     except NameError:
-        here = os.environ.get("AP_REPO_LOGICMOD", "")
+        return os.environ.get("AP_REPO_LOGICMOD", "")
+
+
+def paw_layer_source():
+    """The paws layer's PNG in this repo (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png)."""
+    here = logicmod_folder()
     return os.path.normpath(os.path.join(here, "..", "mod", "PalworldArchipelago", "walls", "ap-wall-paws-layer.png"))
 
 
@@ -530,19 +617,17 @@ def imported_texture(task, name):
     return None, None
 
 
-def paw_layer():
-    """T_APWallPaws: the paws skin's layer, cooked into the pak with mips (a file imported at run time has none, and
-    its navy rims shimmer at a distance). The Lua mod loads the PNG itself if this is missing."""
-    name = "T_APWallPaws"
-    src = paw_layer_source()
+def import_layer(src, name, without):
+    """Imports src as the wall layer texture <name>: sRGB, with mips, in the world texture group. None, logged with
+    `without` (what the Lua mod does without it), when the file is missing or the import fails."""
     if not os.path.isfile(src):
-        log(f"{name}: skipped, no {src} (the Lua mod will load the PNG at run time, without mips)")
+        log(f"{name}: skipped, no {src} ({without})")
         return None
     task = import_task(src, name)
     tools.import_asset_tasks([task])
     tex, found_by = imported_texture(task, name)
     if not tex:
-        log(f"{name}: the import of {src} failed (the Lua mod will load the PNG at run time, without mips)")
+        log(f"{name}: the import of {src} failed ({without})")
         return None
     tex.set_editor_property("srgb", True)
     tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)
@@ -553,6 +638,65 @@ def paw_layer():
     except Exception:  # noqa: BLE001 - the size is only for the log line
         size = "size unknown"
     log(f"{name}: imported from {src} ({size}, sRGB, with mips), found by {found_by}")
+    return tex
+
+
+def paw_layer():
+    """T_APWallPaws: the paws skin's layer, cooked into the pak with mips (a file imported at run time has none, and
+    its navy rims shimmer at a distance)."""
+    return import_layer(paw_layer_source(), "T_APWallPaws", "the Lua mod will load the PNG at run time, without mips")
+
+
+def region_wall_name(stem):
+    """The texture name the Lua mod asks for (wall_skins.lua's regionTileName, BUNKER_TILE) for a file in
+    logicmod/art/walls, by its name without .png; None for a file that is not a region wall."""
+    if stem == BUNKER_FILE:
+        return "T_APWallSealed"
+    if stem.startswith(REGION_WALL_PREFIX):
+        return "T_APWallRegion_" + stem[len(REGION_WALL_PREFIX):].replace("-", "_")
+    return None
+
+
+def region_walls():
+    """The regions skin's layers, every logicmod/art/walls/*.png that is a region wall, cooked into the pak with mips:
+    T_APWallRegion_<region>_<version> and T_APWallSealed. The Lua mod has no copy of them, so without them it wears
+    the paws."""
+    folder = os.path.join(logicmod_folder(), "art", "walls")
+    if not os.path.isdir(folder):
+        log(f"region walls: skipped, no {folder} (the Lua mod will wear the paws)")
+        return []
+    made = []
+    for file in sorted(os.listdir(folder)):
+        stem, ext = os.path.splitext(file)
+        name = region_wall_name(stem) if ext.lower() == ".png" else None
+        if not name:
+            continue
+        tex = import_layer(os.path.join(folder, file), name, "the Lua mod's regions skin cannot wear it")
+        if tex:
+            made.append(tex)
+    log(f"region walls: {len(made)} textures imported from {folder}")
+    return made
+
+
+def dissolve_pattern():
+    """T_APWallDissolve: the dissolve's greyscale pattern, imported as data (sRGB off, 8-bit grey, so the threshold
+    keeps all 256 steps), with mips. None when the file is missing or the import fails."""
+    src = os.path.join(logicmod_folder(), "art", "walls", DISSOLVE_FILE + ".png")
+    without = "M_APWall dissolves by the engine's noise"
+    if not os.path.isfile(src):
+        log(f"{DISSOLVE_TEXTURE}: skipped, no {src} ({without})")
+        return None
+    task = import_task(src, DISSOLVE_TEXTURE)
+    tools.import_asset_tasks([task])
+    tex, found_by = imported_texture(task, DISSOLVE_TEXTURE)
+    if not tex:
+        log(f"{DISSOLVE_TEXTURE}: the import of {src} failed ({without})")
+        return None
+    tex.set_editor_property("srgb", False)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE)
+    tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP)
+    tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
+    log(f"{DISSOLVE_TEXTURE}: imported from {src} (greyscale data, sRGB off, with mips), found by {found_by}")
     return tex
 
 
@@ -574,9 +718,14 @@ def mod_actor():
 def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
-    for a in (material(), paw_layer(), mod_actor(), label()):
+    pattern = dissolve_pattern()
+    for a in [material(pattern), pattern, paw_layer(), *region_walls(), mod_actor()]:
         if a:
             assets.save_loaded_asset(a, only_if_is_dirty=False)
+    nearest = nearest_material(pattern)
+    if nearest:
+        assets.save_loaded_asset(nearest, only_if_is_dirty=False)
+    assets.save_loaded_asset(label(), only_if_is_dirty=False)
     log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as "
         "PalworldArchipelagoArt.pak")
 

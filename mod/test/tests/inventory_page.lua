@@ -12,12 +12,9 @@ group("the Inventory page's mailbox button", function()
     local SAFETY_LOOK = require("menu_names").EVERY.mainMenuSafetyLook
     local CLOSED_UPDATES = 2 * SAFETY_LOOK
     local escScans, mainScans = lookups.WBP_MenuESC_C or 0, lookups.WBP_InGameMainMenu_C or 0
-    -- (with the probe on, its notify check walks the Esc menu's class once every 100 updates: the probe's walk, not
-    -- the menu's, and whether it falls in these updates depends on how many updates the groups before took)
-    local probeWalks = PERF and 1 or 0
     run(CLOSED_UPDATES)
     local mainLooks = (lookups.WBP_InGameMainMenu_C or 0) - mainScans
-    expect((lookups.WBP_MenuESC_C or 0) - escScans <= probeWalks and mainLooks == CLOSED_UPDATES / SAFETY_LOOK,
+    expect((lookups.WBP_MenuESC_C or 0) == escScans and mainLooks == CLOSED_UPDATES / SAFETY_LOOK,
            "with the menus closed, only the main menu's safety look scans: " .. mainLooks .. " main menu and "
            .. (lookups.WBP_MenuESC_C or 0) - escScans .. " Esc scans in " .. CLOSED_UPDATES .. " updates")
     -- Each tab widget the main menu shows is logged once, with the tab, so a missing button has a reason in the log.
@@ -277,6 +274,21 @@ group("the Inventory page's mailbox button", function()
         inWorld(false)
         noController()
     end
+end)
+
+group("a pawn with no HUD service yet is no error", function()
+    -- At the title screen the game has a pawn but no HUD service: the menus are looked for as before, and nothing
+    -- is logged as a failure (dev.3 logged a nullptr traceback there).
+    controllerAgain()
+    inWorld(true)
+    game.noHudService = true
+    local mark = logMark()
+    run(5)
+    expect(not loggedSince(mark, "HUD service can't say") and not loggedSince(mark, "nullptr"),
+           "no HUD service yet: nothing logged as a failure")
+    game.noHudService = false
+    inWorld(false)
+    noController()
 end)
 
 group("a HUD that says no menu is up while the main menu is", function()

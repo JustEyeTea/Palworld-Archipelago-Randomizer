@@ -33,27 +33,42 @@ end
 
 local GUID_LIBRARY = "/Script/Engine.Default__KismetGuidLibrary"   -- a new id for each move to the bag
 -- Game functions called: GetLastNotEmptyIndex, OnRep_Permission, GetNetworkTransmitter,
--- RequestMoveToContainer_ToServer, NewGuid.
-local GAME_MOVE_WAIT = UTIL.updates(0.9)   -- a deposit is given this long to go back by the game's move
+-- RequestMoveToContainer_ToServer, RequestMove_ToServer, NewGuid.
+-- A deposit is given this long to go back by the game's move (and the mailbox's own gear this long to come in:
+-- mailbox_chest_gear.lua).
+local GAME_MOVE_WAIT = UTIL.updates(0.9)
+SWEEP.GAME_MOVE_WAIT = GAME_MOVE_WAIT
 local NO_DEPOSITS = "AP_MailboxGivesOnly"   -- the one item id the chest accepts: no item has it
 local RANDOM_MAX = 0x7FFFFFFF        -- the largest part of a made-up guid (a positive 32-bit number)
 
+-- A permission (FPalItemPermission) set to accept NO_DEPOSITS and the item ids `ids` only.
+local function setAccepted(permission, ids)
+    permission.PermissionTypeA:Empty()
+    permission.PermissionTypeB:Empty()
+    permission.PermissionItemStaticIds:Empty()
+    permission.PermissionItemStaticIds[1] = FName(NO_DEPOSITS)
+    for i, id in ipairs(ids) do
+        permission.PermissionItemStaticIds[i + 1] = FName(id)
+    end
+end
+
+-- What the chest's container, or one of its slots, accepts: only the item ids `ids` (those the mailbox moves in
+-- itself, mailbox_chest_gear.lua), or nothing at all when `ids` is empty. Whether it was set.
+function SWEEP.accept(target, ids)
+    local ok = pcall(function() setAccepted(target.Permission, ids) end)
+    pcall(function() target:OnRep_Permission() end)
+    return ok
+end
+
 -- The container and each of its slots accept only NO_DEPOSITS, an id no item has: the game refuses deposits.
 function SWEEP.lockPermission(container)
-    local function lock(permission)
-        permission.PermissionTypeA:Empty()
-        permission.PermissionTypeB:Empty()
-        permission.PermissionItemStaticIds:Empty()
-        permission.PermissionItemStaticIds[1] = FName(NO_DEPOSITS)
-    end
-    local okContainer, errContainer = pcall(function() lock(container.Permission) end)
+    local okContainer, errContainer = pcall(function() setAccepted(container.Permission, {}) end)
     pcall(function() container:OnRep_Permission() end)
     local locked = 0
     for index = 0, container:Num() - 1 do
         local slot = container:Get(index)
-        if slot and pcall(function() lock(slot.Permission) end) then
+        if slot and SWEEP.accept(slot, {}) then
             locked = locked + 1
-            pcall(function() slot:OnRep_Permission() end)
         end
     end
     local containerSaid = okContainer and "set" or ("not set (" .. tostring(errContainer) .. ")")
@@ -74,22 +89,37 @@ local function newGuid()
              D = math.random(1, RANDOM_MAX) }
 end
 
--- Asks the game to move `count` from a chest slot to the player's bag (the game's own move keeps the item's data).
-local function moveToBag(pawn, slot, count)
-    local _, playerState = BAG.player()
-    local bag = guidOf(playerState:GetInventoryData().MyInventoryInfo.CommonContainerId.ID)
-    local slotId = slot:GetSlotId()
-    local from = { SlotId = { ContainerId = { ID = guidOf(slotId.ContainerId.ID) }, SlotIndex = slotId.SlotIndex },
-                   Num = count }
+-- The player's network transmitter's item part: what asks the game for item moves.
+local function itemRequests(pawn)
     local transmitter = BAG.palUtility():GetNetworkTransmitter(pawn)
     local item = transmitter.Item
     if item and item:IsValid() then
         UTIL.took("mailbox: the network transmitter's item part", "its Item field")
-    else
-        UTIL.took("mailbox: the network transmitter's item part", "GetItem()")
-        item = transmitter:GetItem()
+        return item
     end
-    item:RequestMoveToContainer_ToServer(newGuid(), { ID = bag }, { from })
+    UTIL.took("mailbox: the network transmitter's item part", "GetItem()")
+    return transmitter:GetItem()
+end
+
+-- A slot's id as a move request names it (FPalItemSlotId).
+local function slotIdOf(slot)
+    local slotId = slot:GetSlotId()
+    return { ContainerId = { ID = guidOf(slotId.ContainerId.ID) }, SlotIndex = slotId.SlotIndex }
+end
+
+-- Asks the game to move `count` from a chest slot to the player's bag (the game's own move keeps the item's data).
+local function moveToBag(pawn, slot, count)
+    local _, playerState = BAG.player()
+    local bag = guidOf(playerState:GetInventoryData().MyInventoryInfo.CommonContainerId.ID)
+    itemRequests(pawn):RequestMoveToContainer_ToServer(newGuid(), { ID = bag }, { { SlotId = slotIdOf(slot),
+                                                                                     Num = count } })
+end
+SWEEP.moveToBag = moveToBag
+
+-- Asks the game to move all of one slot (a piece of gear in the bag) into another slot (an empty one of the chest).
+function SWEEP.moveToSlot(pawn, fromSlot, toSlot)
+    itemRequests(pawn):RequestMove_ToServer(newGuid(), slotIdOf(toSlot), { { SlotId = slotIdOf(fromSlot),
+                                                                               Num = fromSlot:GetStackCount() } })
 end
 
 local function tellDepositReturnedOnce(view, what)
@@ -120,18 +150,15 @@ local function readSlot(chest, slot, index)
     -- Gear is returned piece by piece: its key is its slot and its own id.
     local okKey, ownId = false, nil
     if okId then
-        okKey, ownId = pcall(function()
-            local perItem = itemId.DynamicId.LocalIdInCreatedWorld
-            return perItem.A .. "-" .. perItem.B .. "-" .. perItem.C .. "-" .. perItem.D
-        end)
+        okKey, ownId = pcall(SLOTS.pieceKey, itemId)
     end
-    chest.gear[#chest.gear + 1] = { slot = slot, index = index, key = index .. ":" .. (okKey and ownId or "?") }
+    ownId = okKey and ownId or nil
+    chest.gear[#chest.gear + 1] = { slot = slot, index = index, key = index .. ":" .. (ownId or "?"), own = ownId }
 end
 
 -- What the chest holds now, read once per slot up to the last one in use.
 local function readChest(container)
-    local okLast, last = pcall(function() return container:GetLastNotEmptyIndex() end)
-    last = (okLast and type(last) == "number") and last or (container:Num() - 1)
+    local last = SLOTS.lastUsedIndex(container)
     local chest = {
         plainCount = {},        -- item id -> how many of it the chest holds (plain items only)
         plainSlots = {},        -- item id -> its slots, in slot order (the newest stacks last)
@@ -243,6 +270,25 @@ local function gearName(piece)
     return BAG.nameOf(piece.slot:GetItemId().StaticId:ToString())
 end
 
+-- The gear in the chest the player put there: every piece but the mailbox's own (view.gearMine, moved in by
+-- mailbox_chest_gear.lua). The mailbox's pieces no longer in the chest were taken out by the player: forgotten.
+local function depositedGear(view, gear)
+    local deposited, seen = {}, {}
+    for _, piece in ipairs(gear) do
+        if piece.own and view.gearMine[piece.own] then
+            seen[piece.own] = true
+        else
+            deposited[#deposited + 1] = piece
+        end
+    end
+    for own, state in pairs(view.gearMine) do
+        if state == "shown" and not seen[own] then
+            view.gearMine[own] = nil
+        end
+    end
+    return deposited
+end
+
 -- Gear can only go back by the game's move: asked once; if it is still there after GAME_MOVE_WAIT, the player is
 -- asked to take it out.
 local function returnGear(view, pawn, gear)
@@ -291,10 +337,14 @@ local function fillSlotFromWaiting(view, slot)
     SLOTS.putFirstWaiting(slot, view.held, view.inChest)
 end
 
--- Items received while the chest is open go into its empty slots.
+-- Items received while the chest is open go into its empty slots, but not those the mailbox's gear is being moved into
+-- (mailbox_chest_gear.lua): the piece would find its slot taken.
 local function refillFromWaiting(view, container, chest, handled)
     if #view.held == 0 then return end
     local seen = {}
+    for _, move in ipairs(view.gearMoving) do
+        seen[move.slot:GetSlotId().SlotIndex] = true
+    end
     for _, index in ipairs(slotsThatMayBeEmpty(container, chest, handled)) do
         if #view.held == 0 then break end
         if not seen[index] then
@@ -311,7 +361,7 @@ function SWEEP.run(view, pawn)
     local chest = readChest(container)
     local taken = dropTakenFromList(view, chest)
     local returned, handled = returnDeposits(view, pawn, chest)
-    returnGear(view, pawn, chest.gear)
+    returnGear(view, pawn, depositedGear(view, chest.gear))
     refillFromWaiting(view, container, chest, handled)
     if taken or returned then
         env.save()

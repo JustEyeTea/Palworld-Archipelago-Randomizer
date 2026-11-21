@@ -15,6 +15,7 @@
 --   tests/shop.lua           the shop's cards, their tooltips, which slots can be bought
 --   tests/walls.lua          area locks: the walls, sent home, the notice and hint at a wall, wall skins
 --   tests/map.lua            the world map: the picture, the fog, the stamps and icons, the Territories look
+--   tests/map_steps.lua      the map update's steps: icons on screen only, an outdated fog picture, long updates
 --   tests/walls_fresh.lua    walls and the map on fresh copies of walls.lua
 --   tests/world.lua          a new world, another world, Death Link
 --   tests/core_loop.lua      the core update's bookkeeping: frames, reconnecting, buying, the save file
@@ -27,6 +28,7 @@
 --   tests/tools_probe.lua    giving a Pal through the connector, the performance probe, the art
 --   tests/locks_hud.lua      Lock Size: areas, locks beyond the goal, the walls' colours, the HUD pieces
 --   tests/crates_run_style.lua  Palworld Crates and their window, Nomad and Speed Boost
+--   tests/glow.lua           the item-arrival burst, the check glow round fast-travel statues, glow=0 and no pak
 --   tests/core_logs.lua      small failures and fallbacks of the core files, said once in the log
 --   tests/util.lua           util.lua's helpers: the clock, log-once, addresses, the hook retry
 --   tests/rules.lua          rules read from the mod's source, and checks over the whole run
@@ -72,10 +74,10 @@ do
 end
 
 -- The test files, in the order they run.
-local TEST_FILES = { "core.lua", "shop.lua", "walls.lua", "map.lua", "walls_fresh.lua", "world.lua", "core_loop.lua",
-                     "mailbox.lua", "inventory_page.lua", "traps.lua", "test_tools.lua", "title_menu.lua", "goals.lua",
-                     "tools_probe.lua", "locks_hud.lua", "crates_run_style.lua", "core_logs.lua", "util.lua",
-                     "rules.lua" }
+local TEST_FILES = { "core.lua", "shop.lua", "walls.lua", "map.lua", "map_steps.lua", "walls_fresh.lua", "world.lua",
+                     "core_loop.lua", "mailbox.lua", "inventory_page.lua", "traps.lua", "test_tools.lua",
+                     "title_menu.lua", "goals.lua", "tools_probe.lua", "locks_hud.lua", "crates_run_style.lua",
+                     "glow.lua", "core_logs.lua", "util.lua", "rules.lua" }
 
 local failures = 0
 local groupTitle = "(before the first group)"    -- the group that is running, named in every FAIL line
@@ -115,6 +117,7 @@ function run(updates)
     for _ = 1, updates do
         clock, frameCount = clock + UPDATE_SECONDS, frameCount + FRAMES_PER_UPDATE
         gameSeconds = gameSeconds + UPDATE_SECONDS
+        gameTick()
         loop()
         runExtraLoops()
     end

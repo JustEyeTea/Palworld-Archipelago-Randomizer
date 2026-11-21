@@ -21,6 +21,7 @@ SLOT.KEYS = {
     ["options.lock_size"] = { use = "the 15 regions or the 75 areas (connection.lua)" },
     ["options.area_size"] = { use = "Lock Size under its old name (connection.lua)", old = true },
     ["options.beyond_goal"] = { use = "locked, passes or open beyond the goal (connection.lua)" },
+    ["options.fast_travel_checks"] = { use = "whether fast-travel points are checks (glow_checks.lua)" },
     ["options.run_style"] = { use = "Standard or Nomad (run_style.lua)" },
     ["options.speed_boost"] = { use = "whether Speed Boost raises the world's speeds (run_style.lua)" },
     ["options.boost_exp_rate"] = { use = "Speed Boost's EXP multiplier (run_style.lua)" },

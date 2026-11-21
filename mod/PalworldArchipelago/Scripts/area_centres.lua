@@ -10,70 +10,70 @@ return {
     [2] = { deepU = 0.7365, deepV = 0.4774, stampU = 0.7272, stampV = 0.4801, room = 56 },
     -- 65 px deep; 56 px from the start
     [3] = { deepU = 0.6586, deepV = 0.5123, stampU = 0.6595, stampV = 0.5074, room = 56 },
-    -- 41 px deep; 41 px from the start
-    [4] = { deepU = 0.6740, deepV = 0.4459, stampU = 0.6740, stampV = 0.4459, room = 41 },
-    -- 55 px deep; 55 px from the start
-    [5] = { deepU = 0.6273, deepV = 0.4462, stampU = 0.6273, stampV = 0.4462, room = 55 },
+    -- 42 px deep; 42 px from the start
+    [4] = { deepU = 0.6740, deepV = 0.4457, stampU = 0.6740, stampV = 0.4457, room = 42 },
+    -- 56 px deep; 56 px from the start
+    [5] = { deepU = 0.6271, deepV = 0.4464, stampU = 0.6271, stampV = 0.4464, room = 56 },
     -- 47 px deep; 47 px from the start
-    [6] = { deepU = 0.6141, deepV = 0.4889, stampU = 0.6141, stampV = 0.4889, room = 47 },
-    -- 136 px deep; 56 px from the start
-    [7] = { deepU = 0.5524, deepV = 0.4545, stampU = 0.5863, stampV = 0.4601, room = 56 },
+    [6] = { deepU = 0.6144, deepV = 0.4889, stampU = 0.6144, stampV = 0.4889, room = 47 },
+    -- 137 px deep; 56 px from the start
+    [7] = { deepU = 0.5524, deepV = 0.4545, stampU = 0.5858, stampV = 0.4594, room = 56 },
     -- 9 px deep; 10 px from the start
     [8] = { deepU = 0.6327, deepV = 0.4784, stampU = 0.6327, stampV = 0.4784, room = 9 },
     -- 162 px deep; 56 px from the start
-    [9] = { deepU = 0.5548, deepV = 0.5345, stampU = 0.5753, stampV = 0.5055, room = 56 },
-    -- 128 px deep; 663 px from the start
-    [10] = { deepU = 0.4567, deepV = 0.3353, stampU = 0.4755, stampV = 0.3519, room = 56 },
+    [9] = { deepU = 0.5548, deepV = 0.5345, stampU = 0.5753, stampV = 0.5057, room = 56 },
+    -- 128 px deep; 662 px from the start
+    [10] = { deepU = 0.4567, deepV = 0.3353, stampU = 0.4755, stampV = 0.3522, room = 56 },
     -- 118 px deep; 548 px from the start
     [11] = { deepU = 0.5162, deepV = 0.3241, stampU = 0.5336, stampV = 0.3385, room = 56 },
-    -- 146 px deep; 294 px from the start
-    [12] = { deepU = 0.5197, deepV = 0.3915, stampU = 0.5580, stampV = 0.3966, room = 56 },
-    -- 131 px deep; 56 px from the start
-    [13] = { deepU = 0.7162, deepV = 0.4318, stampU = 0.7054, stampV = 0.4532, room = 56 },
-    -- 133 px deep; 354 px from the start
-    [14] = { deepU = 0.7621, deepV = 0.3754, stampU = 0.7692, stampV = 0.4103, room = 57 },
+    -- 145 px deep; 294 px from the start
+    [12] = { deepU = 0.5209, deepV = 0.3912, stampU = 0.5580, stampV = 0.3966, room = 56 },
+    -- 130 px deep; 56 px from the start
+    [13] = { deepU = 0.7159, deepV = 0.4313, stampU = 0.7057, stampV = 0.4532, room = 56 },
+    -- 133 px deep; 355 px from the start
+    [14] = { deepU = 0.7621, deepV = 0.3751, stampU = 0.7694, stampV = 0.4103, room = 56 },
     -- 66 px deep; 534 px from the start
     [15] = { deepU = 0.8099, deepV = 0.3837, stampU = 0.8073, stampV = 0.3866, room = 56 },
-    -- 68 px deep; 476 px from the start
-    [16] = { deepU = 0.7316, deepV = 0.3312, stampU = 0.7281, stampV = 0.3395, room = 56 },
+    -- 69 px deep; 475 px from the start
+    [16] = { deepU = 0.7313, deepV = 0.3312, stampU = 0.7279, stampV = 0.3395, room = 56 },
     -- 86 px deep; 267 px from the start
     [17] = { deepU = 0.7950, deepV = 0.4637, stampU = 0.7758, stampV = 0.4615, room = 56 },
     -- 92 px deep; 217 px from the start
     [18] = { deepU = 0.6115, deepV = 0.3785, stampU = 0.6219, stampV = 0.3925, room = 56 },
-    -- 3 px deep; 182 px from the start
-    [19] = { deepU = 0.5956, deepV = 0.4098, stampU = 0.5956, stampV = 0.4098, room = 3 },
-    -- 49 px deep; 161 px from the start
-    [20] = { deepU = 0.6508, deepV = 0.3947, stampU = 0.6508, stampV = 0.3947, room = 49 },
-    -- 38 px deep; 102 px from the start
-    [21] = { deepU = 0.6700, deepV = 0.4110, stampU = 0.6700, stampV = 0.4110, room = 38 },
+    -- 28 px deep; 175 px from the start
+    [19] = { deepU = 0.6049, deepV = 0.4108, stampU = 0.6049, stampV = 0.4108, room = 28 },
+    -- 50 px deep; 160 px from the start
+    [20] = { deepU = 0.6510, deepV = 0.3949, stampU = 0.6510, stampV = 0.3949, room = 50 },
+    -- 37 px deep; 98 px from the start
+    [21] = { deepU = 0.6696, deepV = 0.4117, stampU = 0.6696, stampV = 0.4117, room = 37 },
     -- 119 px deep; 56 px from the start
-    [22] = { deepU = 0.6246, deepV = 0.5460, stampU = 0.6171, stampV = 0.5255, room = 56 },
-    -- 80 px deep; 329 px from the start
-    [23] = { deepU = 0.5006, deepV = 0.4796, stampU = 0.5070, stampV = 0.4835, room = 56 },
+    [22] = { deepU = 0.6244, deepV = 0.5460, stampU = 0.6171, stampV = 0.5255, room = 56 },
+    -- 81 px deep; 328 px from the start
+    [23] = { deepU = 0.5001, deepV = 0.4794, stampU = 0.5070, stampV = 0.4835, room = 56 },
     -- 145 px deep; 494 px from the start
-    [24] = { deepU = 0.4186, deepV = 0.5450, stampU = 0.4735, stampV = 0.5399, room = 56 },
-    -- 18 px deep; 623 px from the start
+    [24] = { deepU = 0.4193, deepV = 0.5448, stampU = 0.4733, stampV = 0.5399, room = 56 },
+    -- 18 px deep; 622 px from the start
     [25] = { deepU = 0.4523, deepV = 0.5690, stampU = 0.4523, stampV = 0.5690, room = 18 },
-    -- 75 px deep; 555 px from the start
+    -- 75 px deep; 554 px from the start
     [26] = { deepU = 0.4747, deepV = 0.5863, stampU = 0.4784, stampV = 0.5792, room = 56 },
     -- 92 px deep; 460 px from the start
     [27] = { deepU = 0.5841, deepV = 0.6351, stampU = 0.5907, stampV = 0.6268, room = 56 },
     -- 199 px deep; 468 px from the start
-    [28] = { deepU = 0.3729, deepV = 0.4642, stampU = 0.4720, stampV = 0.4984, room = 56 },
-    -- 92 px deep; 685 px from the start
+    [28] = { deepU = 0.3729, deepV = 0.4640, stampU = 0.4718, stampV = 0.4984, room = 56 },
+    -- 92 px deep; 684 px from the start
     [29] = { deepU = 0.4320, deepV = 0.3986, stampU = 0.4396, stampV = 0.4086, room = 56 },
-    -- 111 px deep; 855 px from the start
-    [30] = { deepU = 0.3873, deepV = 0.3595, stampU = 0.4095, stampV = 0.3700, room = 56 },
-    -- 82 px deep; 1132 px from the start
+    -- 111 px deep; 856 px from the start
+    [30] = { deepU = 0.3873, deepV = 0.3595, stampU = 0.4093, stampV = 0.3700, room = 56 },
+    -- 82 px deep; 1131 px from the start
     [31] = { deepU = 0.3239, deepV = 0.3890, stampU = 0.3297, stampV = 0.3932, room = 56 },
-    -- 113 px deep; 210 px from the start
-    [32] = { deepU = 0.6786, deepV = 0.3656, stampU = 0.6759, stampV = 0.3849, room = 56 },
+    -- 112 px deep; 210 px from the start
+    [32] = { deepU = 0.6788, deepV = 0.3656, stampU = 0.6759, stampV = 0.3849, room = 56 },
     -- 91 px deep; 365 px from the start
     [33] = { deepU = 0.5687, deepV = 0.3536, stampU = 0.5751, stampV = 0.3688, room = 56 },
     -- 82 px deep; 471 px from the start
     [34] = { deepU = 0.6718, deepV = 0.3082, stampU = 0.6735, stampV = 0.3192, room = 56 },
     -- 264 px deep; 620 px from the start
-    [35] = { deepU = 0.7838, deepV = 0.2504, stampU = 0.7614, stampV = 0.3209, room = 56 },
+    [35] = { deepU = 0.7838, deepV = 0.2504, stampU = 0.7609, stampV = 0.3204, room = 56 },
     -- 28 px deep; 926 px from the start
     [36] = { deepU = 0.7206, deepV = 0.2157, stampU = 0.7206, stampV = 0.2157, room = 28 },
     -- 97 px deep; 175 px from the start
@@ -86,8 +86,8 @@ return {
     [40] = { deepU = 0.8217, deepV = 0.1224, stampU = 0.8136, stampV = 0.1542, room = 56 },
     -- 121 px deep; 819 px from the start
     [41] = { deepU = 0.8937, deepV = 0.3568, stampU = 0.8773, stampV = 0.3634, room = 56 },
-    -- 335 px deep; 730 px from the start
-    [42] = { deepU = 0.5336, deepV = 0.1840, stampU = 0.6503, stampV = 0.2552, room = 56 },
+    -- 335 px deep; 733 px from the start
+    [42] = { deepU = 0.5336, deepV = 0.1840, stampU = 0.6486, stampV = 0.2545, room = 56 },
     -- 74 px deep; 511 px from the start
     [43] = { deepU = 0.5929, deepV = 0.3195, stampU = 0.5997, stampV = 0.3229, room = 56 },
     -- 81 px deep; 664 px from the start
@@ -95,63 +95,63 @@ return {
     -- 88 px deep; 1253 px from the start
     [45] = { deepU = 0.6503, deepV = 0.1190, stampU = 0.6578, stampV = 0.1273, room = 56 },
     -- 102 px deep; 970 px from the start
-    [46] = { deepU = 0.3954, deepV = 0.2985, stampU = 0.4047, stampV = 0.3217, room = 56 },
-    -- 78 px deep; 1071 px from the start
-    [47] = { deepU = 0.4369, deepV = 0.2179, stampU = 0.4530, stampV = 0.2386, room = 57 },
-    -- 104 px deep; 829 px from the start
-    [48] = { deepU = 0.4691, deepV = 0.2748, stampU = 0.4979, stampV = 0.2802, room = 56 },
+    [46] = { deepU = 0.3954, deepV = 0.2985, stampU = 0.4047, stampV = 0.3214, room = 57 },
+    -- 78 px deep; 1070 px from the start
+    [47] = { deepU = 0.4369, deepV = 0.2179, stampU = 0.4542, stampV = 0.2382, room = 56 },
+    -- 103 px deep; 829 px from the start
+    [48] = { deepU = 0.4686, deepV = 0.2750, stampU = 0.4977, stampV = 0.2802, room = 56 },
     -- 77 px deep; 1088 px from the start
     [49] = { deepU = 0.4142, deepV = 0.2577, stampU = 0.4161, stampV = 0.2635, room = 56 },
     -- 94 px deep; 1277 px from the start
     [50] = { deepU = 0.3234, deepV = 0.2838, stampU = 0.3307, stampV = 0.2985, room = 56 },
-    -- 104 px deep; 914 px from the start
+    -- 104 px deep; 913 px from the start
     [51] = { deepU = 0.3456, deepV = 0.5917, stampU = 0.3912, stampV = 0.6056, room = 56 },
     -- 121 px deep; 1416 px from the start
     [52] = { deepU = 0.3302, deepV = 0.7731, stampU = 0.3634, stampV = 0.7631, room = 56 },
-    -- 12 px deep; 1615 px from the start
-    [53] = { deepU = 0.2706, deepV = 0.7338, stampU = 0.2706, stampV = 0.7338, room = 12 },
-    -- 59 px deep; 1692 px from the start
-    [54] = { deepU = 0.2633, deepV = 0.7565, stampU = 0.2643, stampV = 0.7560, room = 57 },
-    -- 182 px deep; 1213 px from the start
-    [55] = { deepU = 0.2745, deepV = 0.6361, stampU = 0.3209, stampV = 0.6285, room = 56 },
+    -- 13 px deep; 1615 px from the start
+    [53] = { deepU = 0.2709, deepV = 0.7340, stampU = 0.2709, stampV = 0.7340, room = 13 },
+    -- 60 px deep; 1690 px from the start
+    [54] = { deepU = 0.2633, deepV = 0.7562, stampU = 0.2645, stampV = 0.7557, room = 56 },
+    -- 182 px deep; 1214 px from the start
+    [55] = { deepU = 0.2745, deepV = 0.6364, stampU = 0.3204, stampV = 0.6285, room = 56 },
     -- 142 px deep; 1644 px from the start
     [56] = { deepU = 0.1788, deepV = 0.6537, stampU = 0.2167, stampV = 0.6537, room = 56 },
-    -- 111 px deep; 927 px from the start
+    -- 111 px deep; 926 px from the start
     [57] = { deepU = 0.4015, deepV = 0.6656, stampU = 0.4117, stampV = 0.6415, room = 56 },
     -- 187 px deep; 1815 px from the start
-    [58] = { deepU = 0.2238, deepV = 0.8109, stampU = 0.2538, stampV = 0.7902, room = 56 },
+    [58] = { deepU = 0.2233, deepV = 0.8107, stampU = 0.2533, stampV = 0.7902, room = 56 },
     -- 31 px deep; 2082 px from the start
     [59] = { deepU = 0.1691, deepV = 0.7877, stampU = 0.1691, stampV = 0.7877, room = 31 },
-    -- 49 px deep; 1430 px from the start
+    -- 49 px deep; 1429 px from the start
     [60] = { deepU = 0.3046, deepV = 0.7035, stampU = 0.3046, stampV = 0.7035, room = 49 },
     -- 34 px deep; 1816 px from the start
     [61] = { deepU = 0.2252, deepV = 0.7548, stampU = 0.2252, stampV = 0.7548, room = 34 },
     -- 96 px deep; 1194 px from the start
     [62] = { deepU = 0.3785, deepV = 0.7272, stampU = 0.3820, stampV = 0.7054, room = 56 },
-    -- 21 px deep; 2160 px from the start
+    -- 21 px deep; 2159 px from the start
     [63] = { deepU = 0.1996, deepV = 0.8558, stampU = 0.1996, stampV = 0.8558, room = 21 },
     -- 143 px deep; 2183 px from the start
     [64] = { deepU = 0.2445, deepV = 0.9391, stampU = 0.2584, stampV = 0.9205, room = 56 },
-    -- 114 px deep; 2100 px from the start
+    -- 114 px deep; 2099 px from the start
     [65] = { deepU = 0.0741, deepV = 0.6276, stampU = 0.0873, stampV = 0.6146, room = 56 },
-    -- 115 px deep; 1507 px from the start
+    -- 115 px deep; 1506 px from the start
     [66] = { deepU = 0.2045, deepV = 0.5214, stampU = 0.2189, stampV = 0.5179, room = 56 },
-    -- 95 px deep; 2405 px from the start
+    -- 95 px deep; 2404 px from the start
     [67] = { deepU = 0.0660, deepV = 0.7916, stampU = 0.0739, stampV = 0.7838, room = 56 },
     -- 96 px deep; 1109 px from the start
-    [68] = { deepU = 0.4576, deepV = 0.7567, stampU = 0.4498, stampV = 0.7374, room = 57 },
-    -- 127 px deep; 1296 px from the start
-    [69] = { deepU = 0.4259, deepV = 0.8048, stampU = 0.4240, stampV = 0.7750, room = 56 },
+    [68] = { deepU = 0.4576, deepV = 0.7570, stampU = 0.4498, stampV = 0.7374, room = 57 },
+    -- 127 px deep; 1297 px from the start
+    [69] = { deepU = 0.4259, deepV = 0.8051, stampU = 0.4242, stampV = 0.7755, room = 57 },
     -- 11 px deep; 1230 px from the start
     [70] = { deepU = 0.4178, deepV = 0.7506, stampU = 0.4178, stampV = 0.7506, room = 11 },
     -- 56 px deep; 1074 px from the start
-    [71] = { deepU = 0.5018, deepV = 0.7567, stampU = 0.5018, stampV = 0.7567, room = 56 },
-    -- 72 px deep; 1048 px from the start
-    [72] = { deepU = 0.5360, deepV = 0.7665, stampU = 0.5304, stampV = 0.7604, room = 56 },
-    -- 76 px deep; 1264 px from the start
-    [73] = { deepU = 0.4830, deepV = 0.8102, stampU = 0.4894, stampV = 0.8016, room = 57 },
-    -- 104 px deep; 1181 px from the start
-    [74] = { deepU = 0.5316, deepV = 0.8094, stampU = 0.5436, stampV = 0.7972, room = 56 },
+    [71] = { deepU = 0.5018, deepV = 0.7567, stampU = 0.5021, stampV = 0.7567, room = 56 },
+    -- 71 px deep; 1048 px from the start
+    [72] = { deepU = 0.5363, deepV = 0.7667, stampU = 0.5304, stampV = 0.7604, room = 56 },
+    -- 76 px deep; 1263 px from the start
+    [73] = { deepU = 0.4833, deepV = 0.8102, stampU = 0.4896, stampV = 0.8014, room = 56 },
+    -- 103 px deep; 1184 px from the start
+    [74] = { deepU = 0.5311, deepV = 0.8097, stampU = 0.5436, stampV = 0.7980, room = 56 },
     -- 112 px deep; 1609 px from the start
     [75] = { deepU = 0.3588, deepV = 0.1276, stampU = 0.3754, stampV = 0.1327, room = 56 },
 }

@@ -102,7 +102,8 @@ sequenceDiagram
 | **Area Locks** | The feature as a whole: the map is walled off in parts, and each part opens when its pass arrives. |
 | **Region** | One of the 15 large locked parts (Lock Size: regions, the default), opened by a **Region Pass**. Each is a group of areas. |
 | **Area** | One of the game's 75 named places (the game's `DT_WorldMapAreaData`), locked one by one with Lock Size: areas and opened by an **Area Pass**. |
-| **Lock** | Whichever locked part the seed uses: a region or an area, by Lock Size. Code that serves both sizes alike says lock: the APWorld's logic (`every_lock`, `locks_in_scope` and the routes in `map_plan.py`, the rules in `__init__.py`), `locks.lua` and the map's Lua, and the tools that build either size (`tools/lock_*.py`). Code that means one kind only says region or area. |
+| **Tier** | One of Level Progression's 8 locked parts (Lock Size: levels): the land whose wild Pals by day are in one band of levels (`Levels 1-16` to `Levels 70-80`), wherever it lies. Tiers open in order, each by one more copy of the **Progressive Level Pass**. `tools/level_tiers.py` labels the land by them. |
+| **Lock** | Whichever locked part the seed uses: a region, an area or a tier, by Lock Size. Code that serves every size alike says lock: the APWorld's logic (`every_lock`, `locks_in_scope` and the routes in `map_plan.py`, the rules in `__init__.py`), `locks.lua` and the map's Lua, and the tools that build any size (`tools/lock_*.py`). Code that means one kind only says region, area or tier. |
 | **Piece** | The logic's smallest part of the map: an Archipelago `Region` in `__init__.py`. Each piece belongs to one lock. |
 | **Archipelago Region** | Archipelago's own class for a node in the logic's map (`BaseClasses.Region`). This code makes one per piece. |
 | **The core** | In the Lua mod's comments: `main.lua` and its update loop, with the files split from it (listed under [The Lua mod](#the-lua-mod)), which hand the other modules their state and call them. |
@@ -118,7 +119,7 @@ sequenceDiagram
 | `mod/test/` | The Lua test harness: the mod run against stand-ins for UE4SS, the game and the APConnector. `harness.lua` (the kit and the order the test files run in), `fakes.lua`, `fakes_map.lua` and `fakes_menus.lua` (the stand-ins), `helpers.lua`, and `tests/` (the test groups, a file per topic) |
 | `logicmod/` | Python scripts the Modding Kit's editor runs to build the paks |
 | `tools/` | Generators, test runners and the server-side probe that dumps the game's tables |
-| `data/` | Facts derived from the game: each lock size's pieces, borders and levels (`region-model-1.0.5.json` for the 15 regions, `area-model-1.0.5.json` for the 75 areas), and where each Pal can be obtained (`region-pal-sources-1.0.5.json`, `area-pal-sources-1.0.5.json`) |
+| `data/` | Facts derived from the game: each lock size's pieces, borders and levels (`region-model-1.0.5.json` for the 15 regions, `area-model-1.0.5.json` for the 75 areas, `level-model-1.0.5.json` for the tiers), and where each Pal can be obtained (`region-pal-sources-1.0.5.json`, `area-pal-sources-1.0.5.json`, `level-pal-sources-1.0.5.json`) |
 | `docs/` | This guide, the style guide, and the options page (`docs/options/`) |
 | `art/` | The project's own artwork and the README graphics |
 
@@ -130,11 +131,11 @@ own copy of the game with the probe's `dumptable` command (`tools/probe/`).
 
 | File | Made by | From |
 |---|---|---|
-| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py`, given the game version | the table dumps, and that version's `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` and their `area-` versions |
+| `apworld/palworld/game_data.py` | `tools/gen_apworld_data.py`, given the game version | the table dumps, and that version's `data/region-model-1.0.5.json`, `data/region-pal-sources-1.0.5.json` and their `area-` and `level-` versions |
 | `mod/.../Scripts/ap_data.lua` | `tools/gen_lua_data.py` | the APWorld's own tables (`data.py`), so the mod and the APWorld agree on every id |
-| `mod/.../Scripts/region_*.lua`, `area_*.lua`, and `region_labels.png`, `area_labels.png` beside them | `tools/lock_walls.py`, `tools/lock_centres.py` (each run once per size; `LOCK_SIZE=areas` for the 75 areas) | the game's world map, its map rows and `tools/lock_groups.py` |
+| `mod/.../Scripts/region_*.lua`, `area_*.lua`, `level_*.lua`, and `region_labels.png`, `area_labels.png`, `level_labels.png` and `level_flying.png` (the flying corridors, striped on the map) beside them | `tools/lock_walls.py` (with `tools/level_tiers.py` for the tiers, `tools/flying_picture.py` for the corridors), `tools/lock_centres.py` (each run once per size; `LOCK_SIZE=areas` for the 75 areas, `LOCK_SIZE=levels` for the tiers) | the game's world map, its map rows, its spawn points' levels (the tiers) and `tools/lock_groups.py` |
 | `mod/.../Scripts/area_regions.lua` | `tools/area_regions.py` | `tools/lock_groups.py` |
-| `mod/.../region_field.png`, `area_field.png` | `tools/map_fields.py` | the label pictures |
+| `mod/.../region_field.png`, `area_field.png`, `level_field.png` | `tools/map_fields.py` | the label pictures |
 | `data/*-model-1.0.5.json`, `data/*-pal-sources-1.0.5.json` | `tools/lock_model.py` | the table dumps and `lock_walls.py`'s private grid |
 | `mod/.../Scripts/tech_icons.lua` | `tools/gen_tech_icons.py` | the table dumps |
 | `mod/.../Scripts/tech_gifts.lua` | `tools/gen_tech_gifts.py` | the table dumps |
@@ -154,11 +155,12 @@ flowchart LR
   end
   LG(["lock_groups.py"]) --> LW
   MAP --> LW(["lock_walls.py<br/>lock_centres.py"])
-  LW --> LOCKLUA["the region_ and area_ Lua tables<br/>and their label pictures"]
-  LOCKLUA --> MF(["map_fields.py"]) --> FIELDS["region_field.png<br/>area_field.png"]
+  LT(["level_tiers.py"]) --> LW
+  LW --> LOCKLUA["the region_, area_ and level_ Lua tables<br/>and their label pictures"]
+  LOCKLUA --> MF(["map_fields.py"]) --> FIELDS["region_field.png<br/>area_field.png<br/>level_field.png"]
   LG --> AR(["area_regions.py"]) --> ARL["Scripts/area_regions.lua"]
   LW -->|"private grid"| LM(["lock_model.py"])
-  DUMPS --> LM --> DATA["data/: region- and area-<br/>model and pal-sources JSON"]
+  DUMPS --> LM --> DATA["data/: region-, area- and level-<br/>model and pal-sources JSON"]
   DUMPS --> GA(["gen_apworld_data.py"])
   DATA --> GA --> GD["apworld/palworld/game_data.py"]
   GD --> DPY["data.py<br/>(items and locations)"]
@@ -206,9 +208,14 @@ Every item and every location, each with its name and permanent id.
     item).
 - **`ITEMS` and `LOCATIONS`.** These are made by `_items()` and `_locations()`; each entry is an `ItemDef` or
   `LocationDef`.
-- **`LAYOUTS`.** The two ways of cutting the map (the Lock Size option), in one shape (`Layout`) that the logic reads.
-  Its keys are Lock Size's values: `regions`, the 15 regions (Region Passes), and `areas`, the 75 areas (Area
-  Passes).
+- **`LAYOUTS`.** The three ways of cutting the map (the Lock Size option), in one shape (`Layout`) that the logic reads.
+  Its keys are Lock Size's values: `regions`, the 15 regions (Region Passes), `areas`, the 75 areas (Area Passes),
+  and `levels`, Level Progression's tiers (copies of one Progressive Level Pass: `pass_counts` says how many each tier
+  needs, and `in_order` keeps a seed's tiers without a gap). `flying` names the pieces a flying mount reaches: the
+  Sky Islands, and with the tiers a piece only higher tiers surround (its walled corridor cut by `level_tiers.py`).
+  A corridor holds no checks: `lock_walls.check_pieces` gives its cells' spawn points and objects to the tier
+  beneath, and `lock_model.py` places every check by that grid. Its two mouths are in `level_walls.lua`'s
+  `corridors`, for the map's fly-up icon (`map_icons.lua`) and the save's `flown` set (`area_locks.lua`).
 - **Groups.** `ITEM_GROUPS` and `LOCATION_GROUPS` are the names players can use for hints and `start_inventory`.
 
 A few `assert`s at import time stop generation at once if two items or locations share a name or an id, or a
@@ -363,9 +370,12 @@ the other modules.
 | `wall_hints.lua` | The notice at a locked wall and buying its pass's hint with the hint key; the server's chat (`onMessage`, `parsePassHint`). |
 | `area_locks.lua` | When the walls act (`AREA_LOCKS.update`), the visited locks, sending the player home from a locked one, and the walls' settings from config.txt (`configureWalls`). |
 | `held_notices.lua` | Notices held through a loading screen. |
+| `keybinds_check.lua` | Whether UE4SS's own Keybinds mod is on (its Ctrl+H header dump, set off by the hint key while crouching, crashed the game), and a chat warning once a session saying how to turn it off. |
 | `run_style.lua` | Run Style (Nomad's hand-overs, `RUN_STYLE.gifts`) and Speed Boost: the world settings it multiplies (`RUN_STYLE.apply`), the world's own values (`syncbase=` in the save) and the warning. |
 | `death_link.lua` | Death Link: the faint routes (`ROUTES`), a death received, the player's own death and the amnesty. |
 | `techscan.lua` | Other mods' techs: the scanner, and the once-a-session scan (`TECHSCAN.phase`) that sends the checks of slots another mod removed. |
+| `glow_pieces.lua`, `glow_checks.lua`, `glow_burst.lua` | The glows, visual only (`updateGlows` in `main.lua`, in a settled world): the pieces (the pak's meshes and `M_APGlow` looks on plain StaticMeshActors, `glow=0`, forgetting them at a world change); the check glow round objects still checks near the player (`KINDS`: fast-travel statues so far); the burst round the player when a new item arrives (`items.lua` calls `noteArrival`). |
+| `fast_travel.lua` | The loaded fast-travel statues still locked (`lockedPoints`), shared by the check glow, the test tools' unlock probe and `records.lua`. |
 
 The connection's four states (`ap.status`; `STATE.setStatus` in `ap_state.lua` is their only writer):
 
@@ -501,21 +511,27 @@ flowchart LR
 ### The mailbox's hidden chest
 
 `mailbox.lua` keeps the mailbox's list and opens it. Without the LogicMod window (`mailbox_window.lua`) it shows the
-list in the game's own chest window on a hidden chest, through `mailbox_chest.lua`, which uses three files of its own.
-The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other three are handed it. The list is the
+list in the game's own chest window on a hidden chest, through `mailbox_chest.lua`, which uses four files of its own.
+The chest view (the window it opened) is `mailbox_chest.lua`'s state; the other four are handed it. The list is the
 truth: a take leaves it (and the mod's save file) at once, while the item in the bag is kept only by the game's next
 world save, so an item taken just before a crash is lost rather than given twice (`mailbox_chest_slots.lua` says so).
 
-Gear and accessories (from a crate or a Nomad tech) wait in a list of their own, `M.gear` (`mailgear=` in the save),
-and never go in the chest: they carry per-item data (durability, the ammo loaded) a chest slot filled by the mod would
-not have. `handOutGear` gives them to the bag through the game's own `AddItem` the first update the mailbox is open,
-and again when more gear arrives while it is; what the bag refuses waits for the next open.
+Gear and accessories (from a crate or a Nomad tech) wait in a list of their own, `M.gear` (`mailgear=` in the save):
+they carry per-item data (durability, the ammo loaded) a chest slot written by the mod would not have. `handOutGear`
+gives them to the bag through the game's own `AddItem` the first update the mailbox is open, and again when more gear
+arrives while it is; what the bag refuses waits for the next open. The game may put a piece straight into an empty
+equipment slot, but only after `AddItem` returns, so `mailbox_gear.lua` reads where each piece went half a second
+later: worn ("now equipped"), or in the bag, from where a piece is moved on into the chest window by the game's own
+move (`mailbox_chest_gear.lua`), so the player sees it in the mailbox. Gear the player leaves there goes to the bag as
+the window closes, and the player is warned of that whenever gear arrives. When the move does nothing, the piece
+stays in the bag and the player is told so.
 
 | File | What it holds |
 |---|---|
 | `mailbox_chest.lua` | The hidden chest made once per world (`CHEST.startMaking`, `CHEST.followMaking`) and kept from decaying (`harden`), its window opened (`CHEST.open`), followed every update until the player closes it (`CHEST.followView`), and closed (`CHEST.close`). |
 | `mailbox_chest_slots.lua` | The chest's slots: emptied of copies and filled from the list as the window opens (`SLOTS.emptyThenFillChest`), emptied back into the list as it closes (`SLOTS.absorb`), and the slot helpers the sweep also uses (`SLOTS.put`, `SLOTS.clear`). |
 | `mailbox_chest_sweep.lua` | Every update while the window is open (`SWEEP.run`): what the player took comes off the list, deposits go back to the bag, and items received go into the slots that empty; and the rule that refuses deposits (`SWEEP.lockPermission`). |
+| `mailbox_chest_gear.lua` | The mailbox's own gear: a piece moved in from the bag by the game's move, the slot and the chest letting that item in until it arrives (`CGEAR.moveIn`, `CGEAR.follow`), and the pieces left in the chest sent to the bag as the window closes (`CGEAR.sendLeftToBag`). The sweep leaves these pieces alone (`view.gearMine`). |
 | `mailbox_chest_heading.lua` | The window's heading set to the mailbox's name, and the mailbox emblem beside it (`HEADING.dress`). |
 
 The chest window's life, from the mailbox's side:
@@ -543,6 +559,7 @@ stateDiagram-v2
   - `test_logic.py`: the level climb, mounts for the sea and the sky;
   - `test_progression.py`: each goal's plan (cap, passes, Regions Beyond the Goal, Gear Logic, the points budget);
   - `test_areas.py`: Lock Size: areas;
+  - `test_levels.py`: Lock Size: levels (passes in order, the flying pieces, a seed's tiers without a gap);
   - `test_options.py`: refused options, and what reaches the mod's slot data.
 - `tools/test_generate.sh N` builds the `.apworld` as players get it and generates N seeds, checking each is
   beatable.
@@ -626,6 +643,7 @@ Always first: open `UE4SS.log` and search for `[PalworldAP]` (the Lua mod) or `[
 | The mailbox won't open, or its items look wrong | The log's `mailbox:` lines | The list of states and moves at the top of `mailbox.lua` (closed, asked, window, making, opening, viewing, lost), then `mailbox_chest*.lua` |
 | The Palworld Crates window won't come back | The log's `crate window:` lines (the button placed, the click hook in place, the click arrived) | `crate_window.lua` |
 | The title menu's Archipelago rows are missing or odd | The log's `menu:` lines and the menu survey | `menu_title*.lua`, `menu_survey.lua` |
+| No glow round a statue, or no burst when an item arrives | The log's `glow:` lines: `off (glow=0 ...)`, `off for this session: the PalworldArchipelagoArt pak has no ...`, `the first statue's bounds`, `an item-arrival burst (...)` | `KINDS` and `RADIUS_CM` in `glow_checks.lua`; `GLOW_BURST.update` in `glow_burst.lua`; the pak's assets come from `logicmod/make_glow_assets.py` |
 | A trap "fizzled" or never fires | The log's `trap #N ...` lines (what it waits for, or `fizzled`) | The trap's entry in `TRAP_KINDS` in `traps.lua` (its `wait` and `run`) |
 | The Lua harness fails | **The first FAIL line**: it names the group, the file and the line | Later FAILs are often the state the first one left behind |
 | CI fails | Which job failed: "ap_data.lua is stale" means run `tools/gen_lua_data.py`; the Windows job's "Report build errors" step; the release's "tag ... but the mod says ..." means `VERSION` in `main.lua` | `.github/workflows/ci.yml` |

@@ -434,5 +434,5 @@ auto compose_fog(const std::string& chart, const std::string& mask, const std::s
     std::vector<unsigned char> img = fog_over(explored, size, artAt);
     err = draw_stamps(img, size, stamps);
     if (!err.empty()) return err;
-    return write_png_fast(out, size, size, 4, img.data()) ? "" : "could not write " + out;
+    return write_picture(out, size, size, 4, img.data()) ? "" : "could not write " + out;
 }

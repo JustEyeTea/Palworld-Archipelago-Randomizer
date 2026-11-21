@@ -5,33 +5,33 @@
 -- lock's edge, in pixels of the 4096 map (walls.lua shrinks the stamp of a lock too small for it).
 return {
     -- 123 px deep; 0 px from the start
-    [1] = { deepU = 0.6718, deepV = 0.4908, stampU = 0.6508, stampV = 0.4603, room = 56 },
-    -- 136 px deep; 56 px from the start
-    [2] = { deepU = 0.5524, deepV = 0.4545, stampU = 0.5863, stampV = 0.4572, room = 56 },
+    [1] = { deepU = 0.6720, deepV = 0.4906, stampU = 0.6508, stampV = 0.4598, room = 56 },
+    -- 137 px deep; 56 px from the start
+    [2] = { deepU = 0.5524, deepV = 0.4545, stampU = 0.5858, stampV = 0.4572, room = 56 },
     -- 162 px deep; 56 px from the start
-    [3] = { deepU = 0.5548, deepV = 0.5345, stampU = 0.5753, stampV = 0.5055, room = 56 },
-    -- 199 px deep; 295 px from the start
+    [3] = { deepU = 0.5548, deepV = 0.5345, stampU = 0.5753, stampV = 0.5057, room = 56 },
+    -- 199 px deep; 294 px from the start
     [4] = { deepU = 0.4972, deepV = 0.3444, stampU = 0.5582, stampV = 0.3966, room = 56 },
     -- 169 px deep; 56 px from the start
-    [5] = { deepU = 0.7281, deepV = 0.4188, stampU = 0.7496, stampV = 0.4406, room = 56 },
+    [5] = { deepU = 0.7284, deepV = 0.4186, stampU = 0.7509, stampV = 0.4403, room = 56 },
     -- 123 px deep; 56 px from the start
     [6] = { deepU = 0.6044, deepV = 0.4030, stampU = 0.6171, stampV = 0.5255, room = 56 },
-    -- 147 px deep; 329 px from the start
-    [7] = { deepU = 0.4205, deepV = 0.5453, stampU = 0.5070, stampV = 0.4835, room = 56 },
+    -- 147 px deep; 328 px from the start
+    [7] = { deepU = 0.4110, deepV = 0.5455, stampU = 0.5070, stampV = 0.4835, room = 56 },
     -- 264 px deep; 468 px from the start
-    [8] = { deepU = 0.3927, deepV = 0.4398, stampU = 0.4720, stampV = 0.4984, room = 56 },
-    -- 197 px deep; 210 px from the start
-    [9] = { deepU = 0.6666, deepV = 0.3192, stampU = 0.6759, stampV = 0.3849, room = 56 },
+    [8] = { deepU = 0.3925, deepV = 0.4398, stampU = 0.4718, stampV = 0.4984, room = 56 },
+    -- 197 px deep; 211 px from the start
+    [9] = { deepU = 0.6666, deepV = 0.3190, stampU = 0.6761, stampV = 0.3846, room = 57 },
     -- 372 px deep; 175 px from the start
-    [10] = { deepU = 0.7645, deepV = 0.1881, stampU = 0.7345, stampV = 0.5441, room = 56 },
-    -- 337 px deep; 508 px from the start
-    [11] = { deepU = 0.5348, deepV = 0.1842, stampU = 0.6000, stampV = 0.3236, room = 56 },
-    -- 209 px deep; 830 px from the start
+    [10] = { deepU = 0.7648, deepV = 0.1881, stampU = 0.7345, stampV = 0.5441, room = 56 },
+    -- 337 px deep; 510 px from the start
+    [11] = { deepU = 0.5348, deepV = 0.1842, stampU = 0.5997, stampV = 0.3229, room = 56 },
+    -- 209 px deep; 829 px from the start
     [12] = { deepU = 0.4218, deepV = 0.2552, stampU = 0.4977, stampV = 0.2802, room = 57 },
-    -- 473 px deep; 914 px from the start
+    -- 473 px deep; 913 px from the start
     [13] = { deepU = 0.2941, deepV = 0.6879, stampU = 0.3912, stampV = 0.6056, room = 56 },
     -- 220 px deep; 1050 px from the start
     [14] = { deepU = 0.4452, deepV = 0.7843, stampU = 0.5326, stampV = 0.7614, room = 56 },
-    -- 112 px deep; 1610 px from the start
+    -- 112 px deep; 1609 px from the start
     [15] = { deepU = 0.3588, deepV = 0.1276, stampU = 0.3754, stampV = 0.1327, room = 56 },
 }

@@ -3,6 +3,7 @@
 --   Ctrl+F1              a big chunk of EXP (GiveExpToAroundPlayerCharacter)
 --   Ctrl+F2              move faster: x1, x3, x6 (the game's named walk-speed multiplier)
 --   Ctrl+F3              the next wall skin (wall_skins.lua)
+--   Ctrl+Shift+F3        the walls drawn only where each is the nearest wall, or back (wall_skins.lua)
 --   Ctrl+F4              HUD probe: the HUD layout logged, a spinning icon and a sample goal banner for 6 s
 --   Ctrl+F5 .. Ctrl+F8   a Slow, Hunger, Teleport or Fool Trap now (through the trap queue's gates, without its pacing)
 --   Ctrl+F9              Exhaustion probe: stamina to 0 (SetSP), only while on the ground
@@ -31,6 +32,7 @@
 --   "test tools: giving a Pal through the connector" (tools/lua_harness.sh, in CI).
 local TEST_TOOLS = {}
 local ART = require("art")
+local FAST_TRAVEL = require("fast_travel")
 local PLAYER = require("player")
 local POPUP = require("hint_popup")
 local SOON = require("soon")
@@ -458,16 +460,14 @@ local CTRL = nil                       -- { ModifierKey.CONTROL }, once UE4SS's 
 -- works, the records scan (records.lua) also sends that point's check, as for a point reached on foot.
 local function nearestLockedFastTravel(p)
     local px, py = PLAYER.pawnXY(p)
-    local best, bestCm, locked = nil, math.huge, 0
-    for _, actor in ipairs(FindAllOf("PalLevelObjectUnlockableFastTravelPoint") or {}) do
-        local ok, open, at = pcall(function() return actor:IsUnlocked(), actor:K2_GetActorLocation() end)
-        if ok and not open and at and px then
-            locked = locked + 1
-            local cm = math.sqrt((at.X - px) ^ 2 + (at.Y - py) ^ 2)
-            if cm < bestCm then best, bestCm = actor, cm end
-        end
+    if not px then return nil, nil, 0 end
+    local points = FAST_TRAVEL.lockedPoints()
+    local best, bestCm = nil, math.huge
+    for _, point in ipairs(points) do
+        local cm = math.sqrt((point.at.X - px) ^ 2 + (point.at.Y - py) ^ 2)
+        if cm < bestCm then best, bestCm = point, cm end
     end
-    return best, best and bestCm / CM_PER_M, locked
+    return best, best and bestCm / CM_PER_M, #points
 end
 local function fastTravelUnlockProbe()
     local p = livePawn()
@@ -475,12 +475,12 @@ local function fastTravelUnlockProbe()
         log("fast-travel unlock probe: no player character")
         return
     end
-    local actor, metres, locked = nearestLockedFastTravel(p)
-    if not actor then
+    local point, metres, locked = nearestLockedFastTravel(p)
+    if not point then
         log("fast-travel unlock probe: no locked fast-travel point found (" .. locked .. " locked)")
         return
     end
-    local id = actor.FastTravelPointID:ToString()
+    local actor, id = point.actor, point.id
     log(string.format("fast-travel unlock probe: %s, %.0f m away (%d locked points)", id, metres, locked))
     try("fast-travel unlock probe: OnTriggerInteract(player, UnlockFastTravel) on " .. id, function()
         actor:OnTriggerInteract(p, UNLOCK_FAST_TRAVEL)
@@ -536,6 +536,11 @@ local function bindToolKeys()
     end, "[test] level up")
     log("test tools on: Ctrl+F1 " .. LEVEL_EXP .. " EXP (the game's GiveExpToAroundPlayerCharacter)")
     log("test tools on: Ctrl+F3 wall skin (" .. table.concat(require("walls").SKINS, ", ") .. ")")
+    UTIL.bindKey(Key.F3, { ModifierKey.CONTROL, ModifierKey.SHIFT }, function()
+        local on = require("walls").toggleNearest()
+        log("--- walls: the nearest wall only " .. (on and "on" or "off") .. " (at the next update)")
+    end, "[test] nearest wall")
+    log("test tools on: Ctrl+Shift+F3 the nearest wall only (on M_APWallNearest), or back")
     UTIL.bindKey(Key.F4, CTRL, function()
         log("--- HUD probe")
         local ok, err = pcall(hudProbeStart)

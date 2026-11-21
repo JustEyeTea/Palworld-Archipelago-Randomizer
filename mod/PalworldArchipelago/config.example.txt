@@ -28,12 +28,13 @@ perf_log=
 # load), Ctrl+F3 wall skins, Ctrl+F4 HUD probe (hint icon and goal banner for 6 s) and the probes that need the game
 # to answer. For playtests only.
 test_tools=
-# The area walls' look, one of three: paws, area or red. Empty (or paws) is cream paws over the colour of the locked
-# region or area behind each wall (its region's pass ticket colour; those beyond the seed's goal in slate grey), with
-# the PalworldArchipelagoArt pak; without it, area. area is a wall with see-through paw-shaped holes in that colour;
-# red is the game's own red grid. Any other name is logged and paws worn instead. With test_tools=1, Ctrl+F3 cycles
-# the three. wall_tiling=U,V (the material's own is 5,3) and wall_scroll=U,V (0,0) change the pattern's size and
-# drift.
+# The area walls' look, one of four: regions, paws, area or red. Empty (or regions) is each region's own wall over the
+# colour of the locked region or area behind it (its region's pass ticket colour), and a bunker grille on those beyond
+# the seed's goal, with a PalworldArchipelagoArt pak that has the region walls. With an older pak, that has none, the
+# walls wear paws instead: cream paws over that colour (slate grey beyond the goal). Without the pak, area: a wall
+# with see-through paw-shaped holes in that colour. red is the game's own red grid. Any other name is logged and the
+# default worn instead. With test_tools=1, Ctrl+F3 cycles the four. wall_tiling=U,V (the material's own is 5,3) and
+# wall_scroll=U,V (0,0) change the pattern's size and drift.
 wall_skin=
 wall_tiling=
 wall_scroll=
@@ -42,6 +43,10 @@ wall_scroll=
 # PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are fully there, and where they are gone.
 wall_radius=
 wall_fade=
+# glow=0: no glows. Empty: with the PalworldArchipelagoArt pak, a halo, a soft light and a tall pillar of light mark
+# the fast-travel statues near you that are still checks in your slot, and a burst of light round you marks each new
+# item (its colour says progression, useful or filler; traps look like filler). Untested in game.
+glow=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=

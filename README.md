@@ -10,7 +10,8 @@ World Tree goal and alpha checks are not tested in game yet.
 
 Palworld's Technology tree (levels 2 and up) becomes an Archipelago shop whose cards show what each purchase sends to
 the multiworld, with captures, alphas, towers, fast-travel points and levels as further checks and Region Passes gating
-progression. It runs as a UE4SS mod inside the player's own game: a Lua core plus a C++ part that connects to the
+progression (or Area Passes for the game's 75 areas, or Progressive Level Passes for Level Progression's tiers of Pal
+level). It runs as a UE4SS mod inside the player's own game: a Lua core plus a C++ part that connects to the
 Archipelago server. Targets Palworld 1.0.5 and Archipelago 0.6.8. To install and connect, follow the setup guide,
 `apworld/palworld/docs/setup_en.md` (also the Setup Guide on an Archipelago site's Palworld page).
 

@@ -63,11 +63,15 @@ class LockGrid:
                      "tools/lock_walls.py with the same LOCK_SIZE, or point LOCK_GRID at its grid")
         self.x_min, self.x_max, self.y_min, _ = (float(v) for v in grid["bounds"])
         self.pieces = grid["pieces"]
+        # where checks are placed: a corridor's or lane's cells go to the lock they lie in (lock_walls.check_pieces)
+        self.check_pieces = grid["check_pieces"] if "check_pieces" in grid.files else self.pieces
         self.size = self.pieces.shape[0]
         self.cell = (self.x_max - self.x_min) / self.size
         self.lock_names = [str(n) for n in grid["names"]]
         self.piece_lock = grid["piece_lock"].tolist()
         self.piece_borders = grid["piece_borders"].tolist()
+        # pieces a player must fly to by the map's shape (Level Progression; the other sets ask by lock, data.py)
+        self.piece_flying = grid["piece_flying"].tolist() if "piece_flying" in grid.files else []
         self.piece_name = self.name_pieces()
         self.off_map = next(lock for lock, rows in LOCKS.items() if "FootOfWorldTree" in rows)
 
@@ -83,8 +87,8 @@ class LockGrid:
         return names
 
     def piece_at(self, x, y):
-        """The piece under a spot, or the nearest land piece within LAND_SEARCH_CELLS of it (a spot on the water's
-        edge); off the main map, the World Tree's lock."""
+        """The piece a check at a spot is placed in (check_pieces): the piece under it, or the nearest land piece within
+        LAND_SEARCH_CELLS of it (a spot on the water's edge); off the main map, the World Tree's lock."""
         row, col = int((self.x_max - x) / self.cell), int((y - self.y_min) / self.cell)
         if not (0 <= row < self.size and 0 <= col < self.size):
             return self.off_map
@@ -92,14 +96,14 @@ class LockGrid:
             for piece in self.pieces_on_ring(row, col, radius):
                 if piece and self.piece_lock[piece] != 0:
                     return self.piece_name[piece]
-        return self.piece_name.get(int(self.pieces[row, col]), SEA)
+        return self.piece_name.get(int(self.check_pieces[row, col]), SEA)
 
     def pieces_on_ring(self, row, col, radius):
-        """The pieces of the cells on the square ring `radius` cells around (row, col), inside the grid."""
+        """The check pieces of the cells on the square ring `radius` cells around (row, col), inside the grid."""
         for i in range(-radius, radius + 1):
             for j in range(-radius, radius + 1):
                 if max(abs(i), abs(j)) == radius and 0 <= row + i < self.size and 0 <= col + j < self.size:
-                    yield int(self.pieces[row + i, col + j])
+                    yield int(self.check_pieces[row + i, col + j])
 
 
 def read_spawn_points(tables, spawner_pals):
@@ -319,7 +323,8 @@ def without_repeats(sources):
 
 def write_model(out, grid, stats, where, paldeck, fast_travel, alphas, towers):
     """The model gen_apworld_data.py reads: each piece's contents, where each Pal spawns, the fast-travel points,
-    alphas and towers by piece, every piece with its lock, the pieces that share a border, and the start."""
+    alphas and towers by piece, every piece with its lock, the pieces that share a border, the pieces a player must
+    fly to, and the start."""
     names = grid.piece_name
     model = {"piece_stats": {piece: {"levels": median(c["lv"]), "spawners": len(c["lv"]), "fast_travel": c["ft"],
                                      "effigies": c["eff"], "alphas": sorted(c["alpha"])}
@@ -329,6 +334,7 @@ def write_model(out, grid, stats, where, paldeck, fast_travel, alphas, towers):
              # every piece (an Archipelago Region in the logic) with its lock, and the pieces that share a border
              "pieces": {names[piece]: grid.lock_names[grid.piece_lock[piece]] for piece in names},
              "borders": sorted(sorted([names[a], names[b]]) for a, b in grid.piece_borders),
+             "flying": sorted(names[piece] for piece, flies in enumerate(grid.piece_flying) if flies),
              "start": START}
     with open(out, "w") as file:
         json.dump(model, file, indent=1, sort_keys=True)

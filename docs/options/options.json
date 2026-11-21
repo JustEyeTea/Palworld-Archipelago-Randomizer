@@ -225,7 +225,7 @@
      "key": "lock_size",
      "name": "Lock Size",
      "type": "Choice",
-     "help": "How finely the map is cut into locked parts (with Area Locks on).\nRegions: 15 regions, each a group of the game's named areas, opened by Region Passes. The game starts in Windswept\nIsland and its two nearby isles.\nAreas: every named area of the game on its own (75), opened by Area Passes. The game starts in the Windswept\nIsland area alone, where the first tower stands: a cramped start, and many small unlocks.",
+     "help": "How finely the map is cut into locked parts (with Area Locks on).\nRegions: 15 regions, each a group of the game's named areas, opened by Region Passes. The game starts in Windswept\nIsland and its two nearby isles.\nAreas: every named area of the game on its own (75), opened by Area Passes. The game starts in the Windswept\nIsland area alone, where the first tower stands: a cramped start, and many small unlocks.\nLevels: Level Progression. The walls follow where wild Pals of each level live, in 8 tiers (levels 1-16, 17-28,\n29-34, 35-40, 41-48, 49-59, 60-69 and 70-80), not the game's named places. Each Progressive Level Pass opens the\nnext tier, 7 in all. The start is the levels 1-16 land, Windswept Island among it. The Sky Islands and one high\nAstral Mountains valley of levels 29-34 need a flying mount: the valley sits inside higher tiers, so a corridor\nwith walls on both sides leads up to it from the coast.",
      "choices": [
       {
        "name": "regions",
@@ -236,6 +236,11 @@
        "name": "areas",
        "value": 1,
        "yaml": "areas"
+      },
+      {
+       "name": "levels",
+       "value": 2,
+       "yaml": "levels"
       }
      ],
      "default": "regions"
@@ -244,7 +249,7 @@
      "key": "beyond_goal",
      "name": "Regions Beyond the Goal",
      "type": "Choice",
-     "help": "Area Locks: what becomes of the regions (or areas) this goal never needs, the ones whose Pals are all above the\nCheck Level Cap. The ones on the way to the goal's towers always stay in.\nLocked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.\nPasses: every one has its pass somewhere in the multiworld, as with no cap at all.\nOpen: their walls are down from the start, but nothing in them is a check.",
+     "help": "Area Locks: what becomes of the regions (or areas, or level tiers) this goal never needs, the ones whose Pals\nare all above the Check Level Cap. The ones on the way to the goal's towers always stay in. Level tiers stay in\norder: a tier the goal needs keeps every tier below it.\nLocked: they keep their walls, with no pass and no checks, so a short goal keeps a small map.\nPasses: every one has its pass somewhere in the multiworld, as with no cap at all.\nOpen: their walls are down from the start, but nothing in them is a check.",
      "choices": [
       {
        "name": "locked",

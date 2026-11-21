@@ -93,10 +93,16 @@ function maskMaterial(name)
 end
 rtOwners = {}                                              -- the owner given for every render target made
 exports = 0                                                -- render targets exported to files
+exportedPixels = "png"                                     -- what an export writes (a test changes it: the player
+                                                           -- explored, so the explored mask's pixels changed)
 renderLib = { IsValid = function() return true end,
               ReadRenderTargetPixel = function() return { R = game.mapArt, G = 90, B = 60, A = 255 } end,
               EndDrawCanvasToRenderTarget = function() end }
-function renderLib.ImportFileAsTexture2D(_, _, path) return Texture(path:match("([%w_%-]+)%.png$")) end
+-- (the game reads a picture by its content: PNG and BMP are the ones the mod writes)
+function renderLib.ImportFileAsTexture2D(_, _, path)
+    local name = path:match("([%w_%-]+)%.png$") or path:match("([%w_%-]+)%.bmp$")
+    return Texture(name)
+end
 function renderLib.CreateRenderTarget2D(_, owner)
     rtOwners[#rtOwners + 1] = owner
     return { IsValid = function() return true end, rt = true, GetAddress = function() return 555 end,
@@ -107,7 +113,7 @@ end
 function renderLib.ExportRenderTarget(_, _, _, dir, name)
     exports = exports + 1
     local f = io.open(dir .. "/" .. name, "w")
-    f:write("png")
+    f:write(exportedPixels)
     f:close()
 end
 function renderLib.BeginDrawCanvasToRenderTarget(_, _, rt, canvasOut, contextOut)
@@ -125,7 +131,8 @@ local function WallActor(t)
     local address = FIRST_WALL_ADDRESS + spawned
     local a = { IsValid = function(self) return not self.gone end, t = t, GetAddress = function() return address end }
     a.Cube = { IsValid = function() return true end, GetMaterial = function(self) return self.mat or wallRed end,
-               SetMaterial = function(self, _, m) self.mat = m end }
+               SetMaterial = function(self, _, m) self.mat = m end,
+               SetRenderCustomDepth = function(self, on) self.customDepth = on end }
     function a:K2_DestroyActor()
         self.gone = true
         wallsUp[self] = nil
@@ -142,13 +149,69 @@ local function WallActor(t)
     end
     return a
 end
+-- The glows' pieces (glow_pieces.lua): plain StaticMeshActors, as BeginDeferredActorSpawnFromClass makes them for the
+-- engine's StaticMeshActor class. Each records what the mod sets on it: its mesh, material, mobility, collision,
+-- shadow, scale, place and turn.
+staticMeshActorClass = { IsValid = function() return true end, name = "StaticMeshActor" }
+glowActors = {}                                            -- the glow pieces standing: piece actor -> true
+glowSpawned = 0                                            -- glow pieces spawned
+local FIRST_GLOW_ADDRESS = 0x900000
+local function GlowActor(t)
+    glowSpawned = glowSpawned + 1
+    local address = FIRST_GLOW_ADDRESS + glowSpawned
+    local a = { IsValid = function(self) return not self.gone end, GetAddress = function() return address end,
+                glow = true, at = t.Translation, scale = t.Scale3D, destroyCalls = 0 }
+    a.StaticMeshComponent = { SetMobility = function(_, m) a.mobility = m end,
+                              SetStaticMesh = function(_, mesh) a.mesh = mesh end,
+                              SetMaterial = function(_, _, m) a.material = m end,
+                              SetCollisionEnabled = function(_, c) a.collision = c end,
+                              SetCastShadow = function(_, on) a.shadow = on end }
+    function a:SetActorEnableCollision(on) self.actorCollision = on end
+    function a:SetActorScale3D(sc) self.scale = sc end
+    function a:K2_SetActorRotation(r)
+        self.rotation = r
+        return true
+    end
+    function a:K2_TeleportTo(at, r)
+        self.at, self.rotation = at, r
+        return true
+    end
+    function a:K2_SetActorLocation()
+        error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS")
+    end
+    function a:K2_DestroyActor()
+        self.destroyCalls = self.destroyCalls + 1
+        self.gone = true
+        glowActors[self] = nil
+    end
+    return a
+end
+-- The glow pieces standing, as a list (FindAllOf("StaticMeshActor") lists them, live ones only).
+function glowList()
+    local list = {}
+    for a in pairs(glowActors) do
+        list[#list + 1] = a
+    end
+    return list
+end
 local FRAME_SECONDS = 0.016                                -- the engine's frame time here: 60 frames a second
 gameplay = { IsValid = function() return true end,
-             FinishSpawningActor = function(_, a) wallsUp[a] = true end,
              GetWorldDeltaSeconds = function() return FRAME_SECONDS end,
              GetTimeSeconds = function() return gameSeconds end,
-             SpawnObject = function() return Widget() end }
-function gameplay.BeginDeferredActorSpawnFromClass(_, _, _, t) return WallActor(t) end
+             SpawnObject = function() return Widget() end,
+             GetCurrentLevelName = function() return { ToString = function() return game.level end } end }
+-- A piece spawned and finished stands: a glow piece among glowActors, a wall among wallsUp.
+function gameplay.FinishSpawningActor(_, a)
+    if a.glow then
+        glowActors[a] = true
+    else
+        wallsUp[a] = true
+    end
+end
+function gameplay.BeginDeferredActorSpawnFromClass(_, _, cls, t)
+    if cls == staticMeshActorClass then return GlowActor(t) end
+    return WallActor(t)
+end
 -- How many wall actors stand now.
 function wallCount()
     local n = 0
