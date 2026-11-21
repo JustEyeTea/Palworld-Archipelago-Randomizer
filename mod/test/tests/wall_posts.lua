@@ -106,6 +106,10 @@ local function postsGoUp()
     expect(sample and sample.scale.Z == 3000 and sample.at.Z == 50000 - 150000 and sample.collision == 0
            and sample.actorCollision == false and tostring(sample.material.parent.path):find("M_APWallPost", 1, true),
            "as tall as the walls (3 km, from their foot), without collision, on M_APWallPost")
+    local c = sample and sample.StaticMeshComponent
+    expect(c and c.CachedMaxDrawDistance == 0 and c.bNeverDistanceCull == true and c.bAllowCullDistanceVolume == false,
+           "never culled by distance: the game's 50 m cull distance cleared (cached " .. tostring(c and
+           c.CachedMaxDrawDistance) .. "), never distance culled, no cull distance volume")
     return W, data
 end
 

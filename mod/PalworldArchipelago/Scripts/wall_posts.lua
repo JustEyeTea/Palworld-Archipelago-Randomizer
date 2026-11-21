@@ -14,6 +14,7 @@ local log = UTIL.log
 local ART_FOLDER = "/Game/Mods/PalworldArchipelagoArt/"
 local MESH, MATERIAL = "SM_APWallPost", "M_APWallPost"     -- logicmod/make_wall_post.py makes them
 local POST_CM = 100           -- the post mesh's height at scale 1 (the Art lane's FBX): scaled up to the walls' height
+local NEVER_CULLED = true     -- MESH_ACTORS.spawn: 3 km tall, a post's middle is far past the game's 50 m cull distance
 local WALK_PER_TICK = 80      -- posts looked at an update: the 75 areas' 1,157 in 15 updates (4.5 s)
 local SPAWNS_PER_TICK = 30    -- posts raised an update at most, as the walls' PER_TICK, to spread the work
 -- M_APWallPost's parameters the mod sets (logicmod/make_wall_post.py's list; change both): the rest keep the
@@ -132,7 +133,7 @@ local function raise(k, hex, ctx)
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = post.x, Y = post.y, Z = foot },
                 Scale3D = { X = 1, Y = 1, Z = tall / POST_CM } }
-    local actor, why = MESH_ACTORS.spawn(ctx.pawn, assets.mesh, look, t)
+    local actor, why = MESH_ACTORS.spawn(ctx.pawn, assets.mesh, look, t, NEVER_CULLED)
     if not actor then
         UTIL.onceErr("wall posts raise", why, "wall posts: could not raise post " .. k .. ": " .. tostring(why))
         return false
@@ -252,8 +253,9 @@ local function componentFacts(k)
     local c = up[k].StaticMeshComponent
     local function field(name) return asText(function() return c[name] end) end
     return string.format("its mesh component: visible %s, hidden in game %s, max draw distance %s (cached %s), min"
-        .. " draw distance %s, bounds scale %s", field("bVisible"), field("bHiddenInGame"), field("LDMaxDrawDistance"),
-        field("CachedMaxDrawDistance"), field("MinDrawDistance"), field("BoundsScale"))
+        .. " draw distance %s, bounds scale %s, never distance culled %s, cull distance volume %s", field("bVisible"),
+        field("bHiddenInGame"), field("LDMaxDrawDistance"), field("CachedMaxDrawDistance"), field("MinDrawDistance"),
+        field("BoundsScale"), field("bNeverDistanceCull"), field("bAllowCullDistanceVolume"))
 end
 
 -- The wall piece standing nearest (px, py), and whether the engine drew it lately: the report's control, a piece

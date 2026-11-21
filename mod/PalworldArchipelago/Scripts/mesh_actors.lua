@@ -10,6 +10,7 @@ MESH_ACTORS.SPAWN_ALWAYS = 1         -- ESpawnActorCollisionHandlingMethod::Alwa
 local MOVABLE = 2                    -- EComponentMobility::Movable: a spawned StaticMeshActor starts Static
 local NO_COLLISION = 0               -- ECollisionEnabled::NoCollision
 local STATIC_MESH_ACTOR = "StaticMeshActor"       -- the class by the short name FindAllOf takes
+local NO_CULL = 0                    -- a cull distance of 0: never culled by distance
 
 -- The game's spawning library and the StaticMeshActor class. Forgotten: never; each is checked with IsValid before use.
 local statics, actorClass = nil, nil
@@ -37,13 +38,38 @@ local function dressNew(actor, mesh, material)
     actor:SetActorEnableCollision(false)
 end
 
+-- Why: the game gives a StaticMeshActor spawned from Lua a cull distance of 50 m (CachedMaxDrawDistance 5000), and the
+-- engine measures it to the middle of the actor's bounds; a corner post 3 km tall has its middle 500 m overhead and was
+-- never drawn (a post 10 m tall was). Three ways, as it is not known which the game honours: before the spawn is
+-- finished, never culled by distance and no cull distance volume; after, the cull distance set to the one it has and
+-- then to none (SetCullDistance copies a new value to the cached one only while the two agree). The posts' report
+-- says what took.
+-- Before the spawn is finished: the component flagged never to be culled by distance, outside every cull volume.
+local function flagNeverCulled(component)
+    pcall(function() component.bNeverDistanceCull = true end)
+    pcall(function() component.bAllowCullDistanceVolume = false end)
+end
+-- After the spawn is finished: the cull distance the game gave it cleared to none.
+local function clearCullDistance(component)
+    pcall(function()
+        local cached = component.CachedMaxDrawDistance
+        if cached and cached > NO_CULL then
+            component:SetCullDistance(cached)
+            component:SetCullDistance(NO_CULL)
+        end
+    end)
+end
+
 -- A StaticMeshActor showing `mesh` in `material`, spawned at the transform t ({ Rotation, Translation, Scale3D }),
 -- dressed and finished; or nil and why not. One that could not be dressed is destroyed again. Call ready() first.
-function MESH_ACTORS.spawn(pawn, mesh, material, t)
+-- neverCulled: drawn at any distance (see flagNeverCulled), for meshes far taller than the cull distance.
+function MESH_ACTORS.spawn(pawn, mesh, material, t, neverCulled)
     local actor = statics:BeginDeferredActorSpawnFromClass(pawn, actorClass, t, MESH_ACTORS.SPAWN_ALWAYS, nil)
     if not UTIL.isValid(actor) then return nil, "the spawn gave no actor" end
     local ok, err = pcall(dressNew, actor, mesh, material)
+    if ok and neverCulled then flagNeverCulled(actor.StaticMeshComponent) end
     statics:FinishSpawningActor(actor, t)
+    if ok and neverCulled then clearCullDistance(actor.StaticMeshComponent) end
     if ok then return actor end
     pcall(function() actor:K2_DestroyActor() end)
     return nil, "it could not be dressed: " .. tostring(err)
