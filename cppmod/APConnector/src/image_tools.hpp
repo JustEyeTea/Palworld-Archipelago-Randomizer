@@ -1,4 +1,12 @@
-// Small image helpers for the Lua mod, independent of UE4SS (tested on Linux by test/image_test.cpp).
+// The map pictures the Lua mod asks the connector for (dllmain.cpp registers the AP_* functions that call these): the
+// world map with locked locks grey, the explorer's chart, the fog picture over it, and the two Territories pictures,
+// each made on a background thread in its JobSlot; and two small PNG tools. Each argument's text is defined here, once:
+// the Lua side cites these comments. The code: image_grey_map, image_chart, image_fog, image_territories and
+// image_jobs (.cpp), on the shared pieces in image_basics and image_land_sea. Needs no Unreal.
+// Tests: test/image_test.cpp (in CI, step "The C++ part's image helper"; its header gives the build line).
+// A lock here is one label of the label pictures: a region or an area, by the seed's Lock Size. The error texts say
+// "regions" for the borders argument and "area" for a lock: they reach Lua in the status lines, whose words stay
+// fixed so a log reads the same from any build.
 #pragma once
 
 #include <functional>
@@ -10,27 +18,22 @@
 // Returns "" on success, else what went wrong.
 auto greyscale_png(const std::string& in, const std::string& out, double gamma) -> std::string;
 
-// Composes the world map with locked areas in greyscale: colour where an area is open, greyscale where it is locked,
-// with a soft (blurred) boundary and a gentle inner shadow along a locked area's edge. labels: a greyscale PNG the
-// size of the colour map, each pixel the index of its area; locked: "3,7,12". gamma as in greyscale_png, applied to
-// the colour map. Returns "" on success, else what went wrong.
-auto compose_map(const std::string& colour, const std::string& labels, const std::string& locked, const std::string& out,
-                 double gamma) -> std::string;
+// Composes the world map with locked locks in greyscale: colour where a lock is open, greyscale where it is locked,
+// with a soft (blurred) boundary and a gentle inner shadow along a locked lock's edge. labels: a greyscale PNG the
+// size of the colour map, each pixel the index of its lock; locked: "3,7,12" (each 0..255; a part that is not, or not
+// a whole number, is an error). gamma as in greyscale_png, applied to the colour map. Returns "" on success, else what
+// went wrong.
+auto compose_map(const std::string& colour, const std::string& labels, const std::string& locked,
+                 const std::string& out, double gamma) -> std::string;
 
-// compose_map on a background thread: start returns "" (started), "busy" or an error; status returns "busy", "done"
-// (the last job finished well; then "" until the next), or "error: ...".
-auto compose_map_start(const std::string& colour, const std::string& labels, const std::string& locked,
-                       const std::string& out, double gamma) -> std::string;
-auto compose_map_status() -> std::string;
-
-// The explorer's-chart picture of the map (the user, 2026-11-06: unexplored areas drawn like an explorer's chart instead
-// of the black fog, so the locked-area stamps show there too). size x size, opaque: paper, with land and sea told apart
-// by colour; inked coastlines, coastal ripple rings, light contours and relief on land, a double-ruled frame along the
-// world's edge and cross-hatching beyond it. colour: the map as compose_map reads it (gamma as there). paper / sea /
-// compass: the Art lane's ap-chart-*.png ("" for each: plain procedural paper, no sea marks, no compass). Returns "" on
-// success, else what went wrong. Look worked out in a numpy prototype against the real map (2026-11-06).
-auto compose_chart(const std::string& colour, const std::string& paper, const std::string& sea, const std::string& compass,
-                   const std::string& out, int size, double gamma) -> std::string;
+// The explorer's-chart picture of the map: unexplored parts drawn like an explorer's chart instead of the black fog,
+// so the locked locks' stamps show there too. size x size, opaque: paper, with land and sea told apart by colour; inked
+// coastlines, coastal ripple rings, light contours and relief on land, a double-ruled frame along the world's edge
+// and cross-hatching beyond it. colour: the map as compose_map reads it (gamma as there). paper / sea / compass:
+// ap-chart-*.png ("" for each: plain procedural paper, no sea marks, no compass). Returns "" on success, else what
+// went wrong.
+auto compose_chart(const std::string& colour, const std::string& paper, const std::string& sea,
+                   const std::string& compass, const std::string& out, int size, double gamma) -> std::string;
 
 // A PNG's colour at (u, v) in 0..1 (the 3x3 pixels around it averaged): "r,g,b,a" in 0..255, or "error: ...". Lua
 // reads the game's explored mask with it (which channel, which way round).
@@ -40,52 +43,60 @@ auto sample_png(const std::string& path, double u, double v) -> std::string;
 // between (size x size RGBA). mask: the explored mask exported from the game (fog-mask.png); default_mask: the map's
 // always-uncovered mask (fog-default-mask.png, "" for none); explored where either says so. spec says how to read
 // them, as the in-game probe shows: a channel and which way round, "r+" (explored where red is high), "r-", "a+", ...
-// stamps: the locked areas' stamps drawn on top wherever the fog is ("path|u|v|px;..." with u, v in 0..1 and px their
+// stamps: the locked locks' stamps drawn on top wherever the fog is ("path|u|v|px;..." with u, v in 0..1 and px their
 // width on a 4096 map; "" for none), so they show on the chart. Returns "" on success, else what went wrong.
-// regions (the user, 2026-11-07: "should the regions on the unexplored map have better boundaries?"): borders between
-// neighbouring areas and a hatch over locked ones, drawn on the chart before the explored parts are cut out.
-// "labels|locked|hatch|r,g,b,a|width|dash|gap|hatchop[|colour|gamma]": labels the area label PNG (as compose_map),
-// locked "3,7,12", hatch a tile PNG ("" for a plain diagonal hatch in the ink), ink 0-255, width/dash/gap in px at this
-// size (dash 0: a solid line; dashes are measured along the border, so they stay even round curves; the line's edge is
-// softened), hatchop 0..1; colour and gamma: the map as compose_chart reads it, to keep both to land (the user, dev.30
-// test: they ran out over the sea; without them, everywhere). "" for none.
+// borders: the borders between neighbouring locks and a hatch over locked ones, drawn on the chart before the
+// explored parts are cut out, so the locks on the unexplored map have clear boundaries ("" for none). Its fields,
+// '|'-separated:
+//   "labels|locked|hatch|r,g,b[,a]|width|dash|gap|hatchop[|colour|gamma]"
+//   labels   the lock label PNG (as compose_map's)
+//   locked   "3,7,12", the locks hatched (as compose_map's)
+//   hatch    a tile PNG ("" for a plain diagonal hatch in the ink)
+//   r,g,b,a  the ink, 0-255 (alpha 204 when left out)
+//   width, dash, gap   in px at this size; dash 0 is a solid line. Dashes are measured along the border, so they stay
+//            even round curves; the line's edge is softened
+//   hatchop  the hatch's opacity, 0..1
+//   colour, gamma   the map as compose_chart reads it, to keep the borders and hatch to land, since a lock's labels
+//            take in its waters (without them: everywhere)
 auto compose_fog(const std::string& chart, const std::string& mask, const std::string& default_mask,
                  const std::string& spec, const std::string& out, int size, const std::string& stamps = "",
-                 const std::string& regions = "") -> std::string;
+                 const std::string& borders = "") -> std::string;
 
-// The "Territories" overlay (the user's direction 1 with the Art & Assets lane, 2026-11-07): every area tinted in its
-// colour by its state, with a soft rim inside its edge, over land and sea; the standing walls as a soft glow and an
-// anti-aliased core, drawn from the walls' own positions. labels: the area label PNG; areas: "index:state:RRGGBB,..."
-// (state v visited, u unlocked not visited, l locked, s sealed; an index not listed is left clear); walls: the standing
-// pieces as "u1,v1,u2,v2;..." (0..1 of the map square); style: "glowRGB,glowA,coreRGB,coreA,glowW,glowSigma,coreW"
-// ("" for the Art lane's cream: FFE9B0,0.55,FFF4DC,1,10,3,5; widths in px of a 4096 map, scaled to size). Writes the
-// overlay (RGBA, clear where nothing is drawn) to out, and, if fogart is not "", the same over an opaque fog colour
-// (RRGGBB) for the unexplored parts. Returns "" or what went wrong.
-auto compose_territories(const std::string& labels, const std::string& areas, const std::string& walls,
+// The "Territories" overlay: every lock tinted in its colour by its state, with a soft rim inside its edge, over land
+// and sea; the standing walls as a soft glow and an anti-aliased core, drawn from the walls' own positions. labels: the
+// lock label PNG; locks: "index:state:RRGGBB,..." (state v visited, u unlocked not visited, l locked, s sealed; an
+// index not listed is left clear); walls: the standing pieces as "u1,v1,u2,v2;..." (0..1 of the map square); style:
+// "glowRGB,glowA,coreRGB,coreA,glowW,glowSigma,coreW" ("" for the cream: FFE9B0,0.55,FFF4DC,1,10,3,5; widths in px of a
+// 4096 map, scaled to size). Writes the overlay (RGBA, clear where nothing is drawn) to out, and, if fogart is not "",
+// the same over an opaque fog colour (RRGGBB) for the unexplored parts. Returns "" or what went wrong.
+auto compose_territories(const std::string& labels, const std::string& locks, const std::string& walls,
                          const std::string& style, const std::string& out, const std::string& fogart,
                          const std::string& fog, int size) -> std::string;
 
-// The Territories overlay from a distance field (the Art & Assets lane, 2026-11-08: smooth curves at 4096 where the
-// 2048 label map gave stairs and octagons): field is area_field*.png, 4096 RGB, R the area label, G the area across the
-// nearest border (for the open sea: the nearest area), B the distance to that border in 1/8 px. Fill and rim as
-// compose_territories, from the field's distance; the open sea next to an area takes its look over the last part of a
-// pixel. The walls are drawn along the field's borders, a glow (a Gaussian across the border, sd glowW * 0.4) and a core
-// (coreW wide), only where a standing piece is near, fading past its ends: some borders have no walls in the game. A
-// piece away from every border (a few stand out at sea) is drawn straight where it stands. Other arguments, the outputs
-// and the result as compose_territories (glowSigma is not used).
-// colour (the player's saved map, "" for none) and gamma as compose_map: then out is the whole map picture, opaque: the
-// map, greyscale in closed (locked, sealed) areas with no fill there (the user, dev.33: "the interior should be the
-// greyscale"), the rims, and the walls in the closed side's colour, lighter (style fields 8, 9: their glow and core
-// alpha, default 0.3, 0.5); and the fog picture is the duotone (the Art lane's combo C, the user's pick): the open sea
-// the map's brightness over the fog colour, each area its colour from dark to light with the map's brightness (dimmer
-// locked or sealed), rims (no fills) and the cream walls. Without colour, out is the overlay and the fog picture the fills
-// and rims over the fog colour.
-auto compose_field(const std::string& field, const std::string& areas, const std::string& walls,
+// The Territories overlay from a distance field (smooth curves at 4096 where the 2048 label map gave stairs and
+// octagons): field is region_field.png or area_field.png (by Lock Size), 4096 RGB, R the lock label, G the lock
+// across the nearest border (for the open sea: the nearest lock), B the distance to that border in 1/8 px. Fill and
+// rim as compose_territories, from the field's distance; the open sea next to a lock takes its look over the last
+// part of a pixel. The walls are drawn along the field's borders, a glow (a Gaussian across the border, sd
+// glowW * 0.4) and a core (coreW wide), only where a standing piece is near, fading past its ends: some borders have
+// no walls in the game. A piece away from every border (a few stand out at sea) is drawn straight where it stands.
+// Other arguments, the outputs and the result as compose_territories (glowSigma is not used).
+// With colour (the player's saved map, "" for none) and gamma as compose_map's, out is the whole map picture,
+// opaque: the map, greyscale in closed (locked, sealed) locks with no fill there, the rims, and the walls in the
+// closed side's colour, lighter (style fields 8, 9: their glow and core alpha, default 0.3, 0.5); and the fog picture
+// is the duotone: the open sea the map's brightness over the fog colour, each lock its colour from dark to light with
+// the map's brightness (dimmer locked or sealed), rims (no fills) and the cream walls. Without colour, out is the
+// overlay and the fog picture the fills and rims over the fog colour. flying: the flying corridors' picture (one
+// channel at any size, over half on a corridor; "" for none), striped on both pictures in the corridor's colour and a
+// pale sky blue.
+auto compose_field(const std::string& field, const std::string& locks, const std::string& walls,
                    const std::string& style, const std::string& out, const std::string& fogart,
-                   const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0) -> std::string;
+                   const std::string& fog, int size, const std::string& colour = "", double gamma = 1.0,
+                   const std::string& flying = "") -> std::string;
 
-// One background job at a time per slot (the map, the chart, the fog each have their own), as compose_map_start:
-// start returns "" (started), "busy" or an error; status "busy", "done" (once), "error: ..." or "".
+// One background job at a time per slot (the map, the chart, the fog and the Territories each have their own).
+// start returns "" (started) or "busy". Every error, even a bad argument or a thread that could not start, comes
+// from status, which returns "busy", then once "done" or "error: ...", then "". Neither throws.
 class JobSlot
 {
   public:
@@ -96,6 +107,7 @@ class JobSlot
     std::mutex m_lock;
     std::string m_state;                            // "busy", "done", "error: ..." or ""
 };
+auto map_jobs() -> JobSlot&;
 auto chart_jobs() -> JobSlot&;
 auto fog_jobs() -> JobSlot&;
 auto territory_jobs() -> JobSlot&;

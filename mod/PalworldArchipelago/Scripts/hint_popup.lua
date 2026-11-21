@@ -1,130 +1,146 @@
--- The hint pop-up at a locked wall (the user, 2026-11-05: "Centered and a little transparent so that it doesn't block
--- your view in a major way"). The Art & Assets lane's plate (art/ap-hint-plate-ready.png when the player has the points
--- for a hint, -short.png when not; 760x168, drawn at half size) in the middle of the screen at OPACITY for SHOW_TICKS,
--- with two lines of text and the hint points bar filled to have/cost (the plate's own empty track; hint_prompt.py's
--- SLOTS, halved). Without a plate file, a navy box in its place. The host is the HUD layout's canvas
--- (WBP_PalHUDLayout_C: SafeZone_0 > CanvasPanel, found by the Ctrl+F4 probe and seen working in the v0.13.9 playtest).
--- The chat line is sent as before; this only shows it better. Untested in game.
-local H = {}
+-- The hint plate at a locked wall and the goal banner, on the HUD: shown by main.lua with the chat line it sends
+-- anyway, taken down when their time is up or forgotten when the world goes.
+-- Tests: mod/test/tests/locks_hud.lua; groups "region-coloured walls and the hint pop-up",
+--   "debuff icons, the hint plate and the goal banner" (tools/lua_harness.sh, in CI).
+local POPUP = {}
+-- The plate, centred and a little see-through so it doesn't block the player's view: art/ap-hint-plate-ready.png when
+-- the player has the points for a hint, -short.png when not (760x168, drawn at half size), in the middle of the screen
+-- at OPACITY for SHOW_TICKS, with two lines of text and the hint points bar filled to have/cost (the plate's own empty
+-- track). Without a plate file, a navy box in its place. The host is the HUD layout's canvas (WIDGETS.hudCanvas).
 local ART = require("art")
+local UTIL = require("util")
+local WIDGETS = require("widgets")
 local OPACITY = 0.8
-local SHOW_TICKS = 20                    -- updates of 300 ms: 6 s
+local SHOW_TICKS = UTIL.updates(6)      -- a hint plate stays 6 s
 local WIDTH, HEIGHT = 380, 84
-local LINE1 = { 86, 15, 280 }            -- left, top, width (half of hint_prompt.py's SLOTS)
-local LINE2 = { 86, 37, 280 }
-local BAR = { 86, 60, 280, 9 }
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
-local reported = {}
-local function once(key, msg) if not reported[key] then reported[key] = true; log(msg) end end
+-- Where the plate's two lines and its hint-points bar go on it, in px of the plate as drawn (half its art's size).
+local LINE1 = { left = 86, top = 15 }
+local LINE2 = { left = 86, top = 37 }
+local BAR = { left = 86, top = 60, width = 280, height = 9 }   -- the plate's own empty track, filled to have / cost
+local TITLE_PT, LINE_PT = 13, 10        -- text sizes: the title line, the second line (and the banner's line: TITLE_PT)
+local PLATE_AT_Y, BANNER_AT_Y = 0.5, 0.3  -- how far down the screen the plate and the banner sit (0 top, 1 bottom)
+local log = UTIL.log
+local once = UTIL.onceIn("hint_popup")
 
--- sRGB #RRGGBB (the brand palette, art-assets src/brand.py) as UMG's linear colour.
-local function linear(hex, a)
-    local c = { A = a or 1 }
-    for k, at in pairs({ R = 1, G = 3, B = 5 }) do
-        local v = tonumber(hex:sub(at, at + 1), 16) / 255
-        c[k] = v <= 0.04045 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4
+-- The brand palette's sRGB colours (the project's art), as UMG's linear colour.
+local CREAM, LTEAL, SAND = UTIL.linear("FFF4DC"), UTIL.linear("7FD3CF"), UTIL.linear("ECBE6E")
+local NAVY = UTIL.linear("17324D", 0.94)
+local BANNER_INK = UTIL.linear("CEE7E3")   -- the goal banner's text, on its pill
+
+-- State: what is on screen: { box, untilTick, hud = the HUD layout's address (UTIL.addr), banner = true for the goal
+-- banner }. Forgotten: when taken down (POPUP.hide), when its time is up or its HUD is gone (POPUP.tick), and at a new
+-- pawn (POPUP.forget).
+local shown = nil
+
+-- Puts the box on the HUD's canvas, centred across and `anchorY` of the way down the screen, over the HUD's own
+-- widgets, never taking a click.
+local function pinCentred(canvas, box, anchorY)
+    WIDGETS.pinToCanvas(canvas, box, { anchor = { X = 0.5, Y = anchorY }, alignment = { X = 0.5, Y = 0.5 },
+                                       position = { X = 0, Y = 0 }, z = WIDGETS.OVER_HUD_Z })
+end
+
+-- Takes down what is shown (the plate or the banner), if anything.
+function POPUP.hide()
+    if shown then
+        pcall(function() shown.box:RemoveFromParent() end)
     end
-    return c
-end
-local CREAM, LTEAL, SAND, NAVY = linear("FFF4DC"), linear("7FD3CF"), linear("ECBE6E"), linear("17324D", 0.94)
-
-local shown = nil                        -- { box, untilTick }
-
--- The canvas of the HUD layout the player sees, or nil and why.
-local function hudCanvas()
-    local layout
-    for _, l in ipairs(FindAllOf("WBP_PalHUDLayout_C") or {}) do
-        local ok, vis = pcall(function() return l:IsValid() and l:IsVisible() end)
-        if ok and vis then layout = l; break end
-    end
-    if not layout then return nil, nil, "no HUD layout on screen" end
-    local root = layout.WidgetTree.RootWidget
-    for _ = 1, 3 do
-        if not (root and root:IsValid()) then break end
-        local okc, cls = pcall(function() return root:GetClass():GetFName():ToString() end)
-        if okc and cls == "CanvasPanel" then return root, layout end
-        local okk, k = pcall(function() return root:GetChildAt(0) end)
-        root = okk and k or nil
-    end
-    return nil, nil, "no canvas in the HUD layout"
-end
-
-local function text(outer, s, size, colour)
-    local t = StaticConstructObject(StaticFindObject("/Script/UMG.TextBlock"), outer)
-    local sized = pcall(function() local f = t.Font; f.Size = size; t:SetFont(f) end)
-    if not sized then          -- the default font is 24: scale it down instead
-        pcall(function() t:SetRenderTransformPivot({ X = 0, Y = 0 }); t:SetRenderScale({ X = size / 24, Y = size / 24 }) end)
-    end
-    pcall(function() t:SetColorAndOpacity({ SpecifiedColor = colour, ColorUseRule = 0 }) end)
-    t:SetText(FText(s))
-    return t
-end
--- A plain filled box (an Image with no texture draws white; its colour tints it) w x h, in a SizeBox.
-local function fill(outer, w, h, colour)
-    local img = StaticConstructObject(StaticFindObject("/Script/UMG.Image"), outer)
-    pcall(function() img:SetColorAndOpacity(colour) end)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), outer)
-    box:SetWidthOverride(w)
-    box:SetHeightOverride(h)
-    local s = box:AddChild(img)
-    pcall(function() s:SetHorizontalAlignment(0); s:SetVerticalAlignment(0) end)
-    return box
-end
-local function place(over, w, left, top)
-    local s = over:AddChild(w)
-    pcall(function() s:SetHorizontalAlignment(1); s:SetVerticalAlignment(1) end)    -- Left, Top
-    pcall(function() s:SetPadding({ Left = left, Top = top, Right = 0, Bottom = 0 }) end)
-    return s
-end
-
-function H.hide()
-    if shown then pcall(function() shown.box:RemoveFromParent() end) end
     shown = nil
+end
+
+-- The plate's hint-points bar, filled to have / cost, on its overlay (none when no points are had).
+local function addPointsBar(layout, over, info)
+    local filledShare = math.max(0, math.min(1, (info.have or 0) / info.cost))
+    if filledShare <= 0 then return end
+    local filled = WIDGETS.plain(layout, math.max(BAR.height, math.floor(BAR.width * filledShare)), BAR.height,
+        info.ready and LTEAL or SAND)
+    WIDGETS.place(over, filled, BAR.left, BAR.top)
 end
 
 -- info: { title = line 1, line = line 2, have = points, cost = a hint's cost (the bar; nil for none), ready = enough
 -- points }, shown from update `tick`. Returns true when it is on screen.
-function H.show(info, tick)
-    H.hide()
-    local canvas, layout, why = hudCanvas()
-    if not canvas then once("popupnohud" .. why, "hint pop-up: " .. why .. "; chat only"); return false end
-    local plateName = info.ready and "ap-hint-plate-ready" or "ap-hint-plate-short"
-    local plate, plateImg = ART.box(layout, plateName, WIDTH, HEIGHT)
-    local box = StaticConstructObject(StaticFindObject("/Script/UMG.SizeBox"), layout)
-    box:SetWidthOverride(WIDTH)
-    box:SetHeightOverride(HEIGHT)
-    local over = StaticConstructObject(StaticFindObject("/Script/UMG.Overlay"), layout)
-    box:AddChild(over)
-    local bg = plate or fill(layout, WIDTH, HEIGHT, NAVY)
-    local bs = over:AddChild(bg)
-    pcall(function() bs:SetHorizontalAlignment(0); bs:SetVerticalAlignment(0) end)
-    if not plate then once("popupnoplate", "hint pop-up: no " .. plateName .. ".png yet; a plain box instead") end
-    place(over, text(layout, info.title or "", 13, CREAM), LINE1[1], LINE1[2])
-    place(over, text(layout, info.line or "", 10, CREAM), LINE2[1], LINE2[2])
-    if info.cost and info.cost > 0 then
-        local f = math.max(0, math.min(1, (info.have or 0) / info.cost))
-        if f > 0 then place(over, fill(layout, math.max(BAR[4], math.floor(BAR[3] * f)), BAR[4], info.ready and LTEAL or SAND), BAR[1], BAR[2]) end
+function POPUP.show(info, tick)
+    if shown and shown.banner and tick < shown.untilTick then
+        return false                       -- the goal banner keeps its time on screen: the hint goes to chat only
     end
-    local slot = canvas:AddChildToCanvas(box)
-    pcall(function() slot:SetAnchors({ Minimum = { X = 0.5, Y = 0.5 }, Maximum = { X = 0.5, Y = 0.5 } }) end)
-    pcall(function() slot:SetAlignment({ X = 0.5, Y = 0.5 }) end)
-    pcall(function() slot:SetPosition({ X = 0, Y = 0 }) end)
-    pcall(function() slot:SetAutoSize(true) end)
-    pcall(function() slot:SetZOrder(1000) end)
+    POPUP.hide()
+    local canvas, layout, why = WIDGETS.hudCanvas()
+    if not canvas then
+        once("popupnohud" .. why, "hint pop-up: " .. why .. "; chat only")
+        return false
+    end
+    local plateName = info.ready and "ap-hint-plate-ready" or "ap-hint-plate-short"
+    local plate = ART.box(layout, plateName, WIDTH, HEIGHT)
+    local box, over = WIDGETS.hudBox(layout, WIDTH, HEIGHT)
+    WIDGETS.fill(over:AddChild(plate or WIDGETS.plain(layout, WIDTH, HEIGHT, NAVY)))
+    if not plate then
+        once("popupnoplate", "hint pop-up: no " .. plateName .. ".png yet; a plain box instead")
+    end
+    WIDGETS.place(over, WIDGETS.textLine(layout, info.title or "", TITLE_PT, CREAM), LINE1.left, LINE1.top)
+    WIDGETS.place(over, WIDGETS.textLine(layout, info.line or "", LINE_PT, CREAM), LINE2.left, LINE2.top)
+    if info.cost and info.cost > 0 then
+        addPointsBar(layout, over, info)
+    end
+    pinCentred(canvas, box, PLATE_AT_Y)
     pcall(function() box:SetRenderOpacity(OPACITY) end)
-    pcall(function() box:SetVisibility(4) end)          -- SelfHitTestInvisible: never takes a click
-    shown = { box = box, untilTick = tick + SHOW_TICKS }
-    once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen (" .. (plate and plateName or "plain box")
-        .. ", opacity " .. OPACITY .. ")")
+    shown = { box = box, untilTick = tick + SHOW_TICKS, hud = UTIL.addr(layout) }
+    once("popupshown" .. plateName, "hint pop-up: shown in the middle of the screen ("
+        .. (plate and plateName or "plain box") .. ", opacity " .. OPACITY .. ")")
     return true
 end
 
--- Every update: takes it down when its time is up (or when its HUD went away with the world).
-function H.tick(tick)
-    if not shown then return end
-    local ok, valid = pcall(function() return shown.box:IsValid() end)
-    if not (ok and valid) or tick >= shown.untilTick then H.hide() end
+-- The goal banner (art/ap-goal-banner.png, 1200x300 drawn at 600x150) in the upper third with what was done in its
+-- pill (where the Ctrl+F4 HUD probe put a sample line), for BANNER_TICKS. It takes the pop-up's place.
+local BANNER_TICKS = UTIL.updates(15)   -- long enough to read what was done
+-- The banner as drawn, in px: its size, and its line's place in its pill. The Ctrl+F4 HUD probe draws a sample by it.
+POPUP.BANNER = { width = 600, height = 150, text = { left = 155, top = 111 }, ink = BANNER_INK, pt = TITLE_PT }
+local BANNER = POPUP.BANNER
+-- Shows the goal banner with `line` from update `tick`; whether it is on screen (else the goal is in chat only). A goal
+-- is rare, so each failure is logged each time.
+function POPUP.banner(line, tick)
+    POPUP.hide()
+    local canvas, layout, why = WIDGETS.hudCanvas()
+    if not canvas then
+        log("goal banner: " .. why .. "; chat only")
+        return false
+    end
+    local art = ART.box(layout, "ap-goal-banner", BANNER.width, BANNER.height)
+    if not art then
+        log("goal banner: no ap-goal-banner.png; chat only")
+        return false
+    end
+    local box, over = WIDGETS.hudBox(layout, BANNER.width, BANNER.height)
+    WIDGETS.fill(over:AddChild(art))
+    WIDGETS.place(over, WIDGETS.textLine(layout, line or "", BANNER.pt, BANNER.ink), BANNER.text.left, BANNER.text.top)
+    pinCentred(canvas, box, BANNER_AT_Y)
+    shown = { box = box, untilTick = tick + BANNER_TICKS, hud = UTIL.addr(layout), banner = true }
+    log("goal banner: shown (" .. tostring(line) .. ")")
+    return true
 end
 
-H.SHOW_TICKS = SHOW_TICKS
-return H
+-- Every update: takes the plate or banner down when its time is up. If its HUD went away with the world (Return to
+-- title), it is forgotten without a call: a call on a widget of a world gone crashes the game in UE4SS. Whether the
+-- HUD is still there is asked of WIDGETS.hudLive.
+function POPUP.tick(tick)
+    if not shown then return end
+    if not WIDGETS.hudLive(shown.hud) then
+        shown = nil
+        return
+    end
+    if tick >= shown.untilTick then
+        POPUP.hide()
+    end
+end
+
+-- The core saw a new pawn, or none: the world may have gone (the title), or the pawn read nil for a moment in the same
+-- world (a faint, a respawn). Taken down while its HUD is still there, else forgotten without touching it.
+-- Untested in game: the taking down at a faint, and Return to title during the goal banner with this forget.
+function POPUP.forget()
+    if shown and WIDGETS.hudLive(shown.hud) then
+        POPUP.hide()
+    else
+        shown = nil
+    end
+end
+
+POPUP.SHOW_TICKS = SHOW_TICKS                -- (for the harness: how long a plate stays)
+return POPUP

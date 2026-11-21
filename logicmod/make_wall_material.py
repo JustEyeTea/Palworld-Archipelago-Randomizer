@@ -5,36 +5,55 @@ Run it inside the kit's editor (Tools > Execute Python Script...), or without op
 
 It makes, under /Game/Mods/PalworldArchipelagoArt/ (Content/Mods/PalworldArchipelagoArt):
   M_APWall                    the area walls' material, built node by node here (nothing by hand)
-  T_APWallPaws                the Art lane's cream-paw layer (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png in
+  M_APWallNearest             the same, drawn only where it is the nearest wall to the camera (an experiment the
+                              Lua mod switches to; its build may fail, which leaves M_APWall as it is)
+  T_APWallPaws                the paws skin's cream-paw layer (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png in
                               this repo), cooked with mips so its navy rims don't shimmer far off
+  T_APWallRegion_<region>_<v>  the regions skin's walls, from logicmod/art/walls/ap-wall-region-<region>-<v>.png (each
+                              of the 15 regions in versions 0 to 3; <region> is its name in lower case, words joined
+                              by _ here and by - in the file), cooked with mips
+  T_APWallSealed              the regions skin's bunker grille for locks beyond the goal
+                              (logicmod/art/walls/ap-wall-sealed-bunker.png), cooked with mips
+  T_APWallDissolve            the unlock's dissolve pattern, embers (logicmod/art/walls/ap-wall-dissolve-embers.png):
+                              greyscale data, not colour, so imported with sRGB off; without it the material uses
+                              the engine's noise
   ModActor                    an empty Actor Blueprint, so BPModLoader's log shows the pak loaded
   PalworldArchipelagoArt_Label  Primary Asset Label: chunk 2, always cooked, everything in the folder
 
 Why: the game's wall material (MI_AirBlock_v2) multiplies one tint by one channel of its texture, so a wall piece can
-only be one colour. M_APWall shows a full-colour RGBA texture (the user, 2026-11-05: multicolour walls).
+only be one colour. M_APWall shows a full-colour RGBA texture, so the walls can be multicoloured.
 
-M_APWall: unlit, translucent, two-sided. The pattern is laid on the wall itself (world space along the piece's length
-and up its height, so it recedes in perspective and doesn't stretch with the piece's scale), and fades out with
-distance from the camera like the game's walls. Parameters the Lua mod sets on its dynamic instances:
+M_APWall: unlit, translucent, two-sided. Each wall piece is a box, so the far face shows through the near one: the
+user's choice, as it reads as a wall with depth (one-sided hides it). M_APWallNearest is one-sided, writes its depth
+to the custom depth buffer and hides itself wherever that buffer holds a nearer wall, so overlapping pieces at a bend
+show one pattern (it needs the Lua mod to turn custom depth on for each piece; where the buffer is empty it draws like
+a one-sided M_APWall). It hides the far wall too, so it is for comparing, not the default.
+The pattern is laid on the wall itself (world space along the piece's length and up its height, so it recedes in
+perspective and doesn't stretch with the piece's scale), and fades out with distance from the camera like the game's
+walls. Parameters the Lua mod sets on its dynamic instances:
   Pattern (texture)     the RGBA tile; colour is the colour, alpha is how solid
   CellSize              centimetres per tile, both ways (300)
   ScrollU, ScrollV      tiles per second (0, 0)
   Tint (colour)         multiplies the colour (white)
-  Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws skin
-                        puts each area's colour at 0.34 under the cream-paw layer (the Art lane's formula, 2026-11-08:
-                        A = a + BackAlpha*(1 - a), colour = (rgb*a + Back*BackAlpha*(1 - a)) / A)
-  Brightness            emissive strength (1.5); NightDim multiplies it (1, the Lua mod lowers it at night)
+  Back (colour), BackAlpha  a colour laid under the pattern, and how solid (black, 0: the pattern alone). The paws and
+                        regions skins put each region's colour at 0.34 under their layer
+                        (A = a + BackAlpha*(1 - a), colour = (rgb*a + Back*BackAlpha*(1 - a)) / A)
+  Brightness            emissive strength (1.5); NightDim multiplies it (1). The Lua mod does not set NightDim,
+                        so the walls are as bright by night as by day; it is there for dimming them at night.
   Opacity               overall (0.85)
   FadeStart, FadeEnd    centimetres from the camera where it starts to fade, and where it is gone (1500, 2500)
-  OffsetU, OffsetV, MirrorU  the pattern shifted (tiles) and mirrored (1) per area (the Art lane, 2026-11-08: sister
-                        Areas of one Region differ by an offset, a mirror and a shade of the Back colour, never hue)
+  OffsetU, OffsetV, MirrorU  the pattern shifted (tiles) and mirrored (1) per Area: sister Areas of one Region
+                        differ by an offset, a mirror and a shade of the Back colour, never by hue
   PlayerPos, ReactRadius, ReactStrength, RippleSize, RippleSpeed, ReactColor  the wall glows and ripples near the
-                        player (PlayerPos, set by the Lua mod each update, 300 ms; dev.41 measured from the camera,
-                        which sits off to the side): within ReactRadius cm (600), rings RippleSize cm apart (60)
-                        moving RippleSpeed a second
+                        player (PlayerPos, the player's own position, not the camera's, which sits off to the side;
+                        set by the Lua mod each update, 300 ms): within ReactRadius cm (600), rings RippleSize cm
+                        apart (60) moving RippleSpeed a second
   DissolveStart, DissolveTime, EdgeColor  the wall dissolves from DissolveStart (game seconds, the Time node's clock;
-                        1e8: never) over DissolveTime s (1.6), a glowing EdgeColor edge eating it away (an unlock)
+                        1e8: never) over DissolveTime s (1.6), a glowing EdgeColor edge eating it away (an unlock).
+                        Where it opens first is T_APWallDissolve's grey (dark first), one texture tile per pattern
+                        tile, so the holes keep their place on the pattern
 The material is replaced as a whole if it already exists, so it is safe to run again after changing this script.
+Tests: none; it runs only in the Modding Kit on Windows, and the pak is checked in game (logicmod/README.md).
 """
 import os
 
@@ -42,18 +61,31 @@ import unreal
 
 ROOT = "/Game/Mods/PalworldArchipelagoArt"
 NAME = "M_APWall"
+NEAREST_NAME = "M_APWallNearest"
+NEAREST_BIAS_CM = 5.0            # how far behind the nearest wall a pixel may be and still draw (depth rounding)
+NEAREST_SOFT_CM = 2.0            # over how many cm behind that it fades out, so the cut-off doesn't shimmer
 CHUNK_ID = 2
+DISSOLVE_EDGE = 0.08             # how wide the dissolve's glowing edge is, in the noise's 0..1
+DISSOLVE_FILE = "ap-wall-dissolve-embers"  # logicmod/art/walls/ap-wall-dissolve-embers.png (the user's pick, A)
+DISSOLVE_TEXTURE = "T_APWallDissolve"
+REGION_WALL_PREFIX = "ap-wall-region-"    # logicmod/art/walls/ap-wall-region-<region>-<version>.png
+BUNKER_FILE = "ap-wall-sealed-bunker"     # logicmod/art/walls/ap-wall-sealed-bunker.png
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 mel = unreal.MaterialEditingLibrary
 
 
+# log, node, scalar, link, import_task and imported_texture have copies in make_glow_assets.py (which says why): a fix
+# to one is made to the other.
 def log(msg):
+    """One line of the Output Log, under this pak's prefix."""
     unreal.log("[PalworldArchipelagoArt] " + msg)
 
 
 def node(mat, cls, x, y, **props):
+    """A new expression node of class cls with its properties set. x, y only place it until
+    layout_material_expressions (at the end of material()) lays out the whole graph."""
     e = mel.create_material_expression(mat, cls, x, y)
     for k, v in props.items():
         e.set_editor_property(k, v)
@@ -61,12 +93,14 @@ def node(mat, cls, x, y, **props):
 
 
 def scalar(mat, name, value, x, y):
+    """A scalar parameter node: a number the Lua mod can set on its dynamic instances."""
     return node(mat, unreal.MaterialExpressionScalarParameter, x, y, parameter_name=name, default_value=value)
 
 
 def link(a, out, b, inp):
-    # A node with one input has no name on it ("": Transform, Normalize, ComponentMask, Saturate...; the Game PC's first
-    # run, 2026-11-08: "Input" on the Transform failed), so a named input that fails is tried once unnamed.
+    """Connects node a's output `out` to node b's input `inp` ("" for the only one); fails loudly if it can't."""
+    # A node with one input has no name on it ("": Transform, Normalize, ComponentMask, Saturate...; "Input" on the
+    # Transform fails), so a named input that fails is tried once unnamed.
     if mel.connect_material_expressions(a, out, b, inp):
         return
     if inp and mel.connect_material_expressions(a, out, b, ""):
@@ -75,37 +109,43 @@ def link(a, out, b, inp):
     raise RuntimeError(f"could not connect {a.get_name()}.{out or 'out'} -> {b.get_name()}.{inp or '(its input)'}")
 
 
-def material():
-    path = f"{ROOT}/{NAME}"
+def new_material(name, two_sided):
+    """An empty wall material called name: unlit and translucent (the old one, if any, deleted)."""
+    path = f"{ROOT}/{name}"
     if assets.does_asset_exist(path):
         assets.delete_asset(path)
-        log(f"{NAME}: replacing the old one")
-    mat = tools.create_asset(NAME, ROOT, unreal.Material, unreal.MaterialFactoryNew())
+        log(f"{name}: replacing the old one")
+    mat = tools.create_asset(name, ROOT, unreal.Material, unreal.MaterialFactoryNew())
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    mat.set_editor_property("two_sided", True)
+    mat.set_editor_property("two_sided", two_sided)
+    return mat
 
+
+def world_axis(mat, local_axis, y):
+    """One of the piece's local axes, as a unit vector in the world."""
+    local = node(mat, unreal.MaterialExpressionConstant3Vector, -1600, y, constant=local_axis)
+    to_world = node(mat, unreal.MaterialExpressionTransform, -1400, y,
+                    transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_LOCAL,
+                    transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)
+    link(local, "", to_world, "")
+    unit = node(mat, unreal.MaterialExpressionNormalize, -1200, y)
+    link(to_world, "", unit, "")
+    return unit
+
+
+def wall_axes(mat):
+    """The along-the-piece coordinate, in cm: along its local X axis (in the world), or across it on the piece's
+    ends. Returns (world position, that coordinate)."""
     # UV: along the piece (its local X axis, in the world) and up (world Z), in tiles, plus a scroll over time.
     wpos = node(mat, unreal.MaterialExpressionWorldPosition, -1600, 0)
-    xaxis = node(mat, unreal.MaterialExpressionConstant3Vector, -1600, 150, constant=unreal.LinearColor(1, 0, 0, 0))
-    toworld = node(mat, unreal.MaterialExpressionTransform, -1400, 150,
-                   transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_LOCAL,
-                   transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)
-    link(xaxis, "", toworld, "")
-    axis = node(mat, unreal.MaterialExpressionNormalize, -1200, 150)
-    link(toworld, "", axis, "")
+    axis = world_axis(mat, unreal.LinearColor(1, 0, 0, 0), 150)
     along = node(mat, unreal.MaterialExpressionDotProduct, -1000, 50)
     link(wpos, "", along, "A")
     link(axis, "", along, "B")
-    # The piece's ends (faces facing along it) take the pattern across the piece instead (dev.47 playtest: there "along"
-    # barely changes, so each row of the tile was smeared across the end face as a bar).
-    yaxis = node(mat, unreal.MaterialExpressionConstant3Vector, -1600, 300, constant=unreal.LinearColor(0, 1, 0, 0))
-    ytoworld = node(mat, unreal.MaterialExpressionTransform, -1400, 300,
-                    transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_LOCAL,
-                    transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)
-    link(yaxis, "", ytoworld, "")
-    yaxis_n = node(mat, unreal.MaterialExpressionNormalize, -1200, 300)
-    link(ytoworld, "", yaxis_n, "")
+    # The piece's ends (faces facing along it) take the pattern across the piece instead: there "along" barely
+    # changes, so each row of the tile would be smeared across the end face as a bar.
+    yaxis_n = world_axis(mat, unreal.LinearColor(0, 1, 0, 0), 300)
     across = node(mat, unreal.MaterialExpressionDotProduct, -1000, 350)
     link(wpos, "", across, "A")
     link(yaxis_n, "", across, "B")
@@ -113,6 +153,7 @@ def material():
     facing = node(mat, unreal.MaterialExpressionDotProduct, -1000, 450)
     link(normal, "", facing, "A")
     link(axis, "", facing, "B")
+    # An end is a face whose normal is within 60 degrees of the axis (|cos| over 0.5); x 50 makes the switch sharp.
     facing_abs = node(mat, unreal.MaterialExpressionAbs, -900, 450)
     link(facing, "", facing_abs, "")
     end_k = node(mat, unreal.MaterialExpressionSubtract, -800, 450, const_b=0.5)
@@ -125,6 +166,12 @@ def material():
     link(along, "", u_face, "A")
     link(across, "", u_face, "B")
     link(is_end, "", u_face, "Alpha")
+    return wpos, u_face
+
+
+def moving_tiles(mat, wpos, u_face):
+    """The UV in tiles (CellSize cm each; up the wall from world Z), scrolled by ScrollU, ScrollV over time.
+    Returns (the Time node, the UV)."""
     height = node(mat, unreal.MaterialExpressionComponentMask, -1000, 200, r=False, g=False, b=True, a=False)
     link(wpos, "", height, "")
     down = node(mat, unreal.MaterialExpressionMultiply, -850, 200, const_b=-1.0)   # texture rows run downwards
@@ -148,6 +195,11 @@ def material():
     moving = node(mat, unreal.MaterialExpressionAdd, -250, 200)
     link(tiles, "", moving, "A")
     link(drift, "", moving, "B")
+    return time, moving
+
+
+def area_variant(mat, moving):
+    """The UV of this Area's variant: mirrored along (MirrorU) and offset (OffsetU, OffsetV)."""
     # Per area: mirrored along (u * (1 - 2*MirrorU)) and offset.
     mirror = scalar(mat, "MirrorU", 0.0, -550, 650)
     m2 = node(mat, unreal.MaterialExpressionMultiply, -400, 650, const_b=-2.0)
@@ -169,9 +221,14 @@ def material():
     final_uv = node(mat, unreal.MaterialExpressionAdd, -100, 450)
     link(flipped, "", final_uv, "A")
     link(off, "", final_uv, "B")
+    return final_uv
 
+
+def pattern_over_back(mat, final_uv):
+    """The Pattern texture over the Back colour. Returns (how solid, the colour seen)."""
     white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
-    tex = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -50, 200, parameter_name="Pattern", texture=white)
+    tex = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -50, 200, parameter_name="Pattern",
+               texture=white)
     link(final_uv, "", tex, "UVs")
 
     # The pattern over the Back colour at BackAlpha: a = the pattern's alpha, under = BackAlpha*(1 - a),
@@ -203,7 +260,11 @@ def material():
     seen = node(mat, unreal.MaterialExpressionDivide, 550, -100)
     link(mixed, "", seen, "A")
     link(safe, "", seen, "B")
+    return solid, seen
 
+
+def tinted(mat, seen):
+    """The colour x Tint, and Brightness x NightDim. Returns (the tinted colour, the brightness)."""
     # Colour: that x tint x brightness x night dimming.
     tint = node(mat, unreal.MaterialExpressionVectorParameter, -50, -50, parameter_name="Tint",
                 default_value=unreal.LinearColor(1, 1, 1, 1))
@@ -215,7 +276,11 @@ def material():
     c2 = node(mat, unreal.MaterialExpressionMultiply, 400, 150)
     link(bright, "", c2, "A")
     link(night, "", c2, "B")
+    return c1, c2
 
+
+def faded_opacity(mat, wpos, solid):
+    """The distance fade (1 up to FadeStart, 0 from FadeEnd) and how solid x Opacity. Returns (fade, opacity)."""
     # Opacity: how solid (above) x overall opacity x distance fade (1 up to FadeStart, 0 from FadeEnd).
     cam = node(mat, unreal.MaterialExpressionCameraPositionWS, -50, 700)
     dist = node(mat, unreal.MaterialExpressionDistance, 150, 700)
@@ -240,7 +305,11 @@ def material():
     o1 = node(mat, unreal.MaterialExpressionMultiply, 650, 550)
     link(solid, "", o1, "A")
     link(opac, "", o1, "B")
+    return fade, o1
 
+
+def nearness(mat, wpos):
+    """How near the player each point of the wall is: (distance in cm, (1 - saturate(distance / ReactRadius))^2)."""
     # Near the player: a glow with rings moving out from the nearest point. PlayerPos starts far below the world, so
     # nothing glows until the Lua mod says where the player is.
     pp = node(mat, unreal.MaterialExpressionVectorParameter, 950, 1000, parameter_name="PlayerPos",
@@ -263,6 +332,11 @@ def material():
     near = node(mat, unreal.MaterialExpressionMultiply, 1700, 850)
     link(near1, "", near, "A")
     link(near1, "", near, "B")
+    return pdist, near
+
+
+def ripples(mat, pdist, time):
+    """Rings RippleSize cm apart moving out at RippleSpeed: 0.5 + 0.5 * (0.5 + 0.5 * sin(...)), between 0.5 and 1."""
     rs = scalar(mat, "RippleSize", 60.0, 1100, 1050)
     rsp = scalar(mat, "RippleSpeed", 1.5, 1100, 1150)
     ring_pos = node(mat, unreal.MaterialExpressionDivide, 1250, 1000)
@@ -280,6 +354,14 @@ def material():
     link(ring_s, "", ring_h, "A")
     ring_k = node(mat, unreal.MaterialExpressionAdd, 1850, 1050, const_b=0.75)   # 0.5 + 0.5*(0.5 + 0.5*sin)
     link(ring_h, "", ring_k, "A")
+    return ring_k
+
+
+def player_glow(mat, wpos, time):
+    """The glow near the player, with rings moving out from the nearest point (PlayerPos, ReactRadius,
+    RippleSize, RippleSpeed, ReactStrength)."""
+    pdist, near = nearness(mat, wpos)
+    ring_k = ripples(mat, pdist, time)
     rstr = scalar(mat, "ReactStrength", 0.8, 1700, 1200)
     react1 = node(mat, unreal.MaterialExpressionMultiply, 2000, 950)
     link(near, "", react1, "A")
@@ -287,7 +369,11 @@ def material():
     react = node(mat, unreal.MaterialExpressionMultiply, 2150, 950)
     link(react1, "", react, "A")
     link(rstr, "", react, "B")
+    return react
 
+
+def dissolve_progress(mat, time):
+    """How far the unlock's dissolve has gone, 0 to 1: saturate((Time - DissolveStart) / DissolveTime)."""
     # The unlock: dissolve = saturate((Time - DissolveStart) / DissolveTime); a world-space noise n in 0..1; what is
     # left = saturate((n - dissolve*(1 + e) + e) / e), e = 0.08; the edge glows where left is between 0 and 1.
     ds = scalar(mat, "DissolveStart", 1.0e8, 1100, 1350)
@@ -300,13 +386,32 @@ def material():
     link(dt, "", prog0, "B")
     prog = node(mat, unreal.MaterialExpressionSaturate, 1550, 1400)
     link(prog0, "", prog, "")
+    return prog
+
+
+def dissolve_order(mat, wpos, final_uv, pattern):
+    """Where the wall opens first, 0 to 1 (low first): the dissolve pattern's grey on the wall pattern's tiles, or,
+    without the pattern, the engine's noise in world space."""
+    if pattern:
+        grey = node(mat, unreal.MaterialExpressionTextureSample, 1250, 1550, texture=pattern,
+                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)
+        link(final_uv, "", grey, "UVs")
+        return grey
     noise = node(mat, unreal.MaterialExpressionNoise, 1250, 1550, scale=0.006, levels=3, output_min=0.0, output_max=1.0)
     link(wpos, "", noise, "Position")
-    # Clamped: layered noise overshoots its 0..1 (dev.41-46 playtests: bits above 1 + e never dissolved, and the piece
-    # went with them still there).
+    return noise
+
+
+def dissolve(mat, wpos, time, final_uv, pattern):
+    """The unlock's dissolve by the game's clock (DissolveStart, DissolveTime). Returns (what is left, the
+    glowing edge)."""
+    prog = dissolve_progress(mat, time)
+    order = dissolve_order(mat, wpos, final_uv, pattern)
+    # Clamped: layered noise overshoots its 0..1, and bits above 1 + e would never dissolve; the piece would go with
+    # them still there.
     noise01 = node(mat, unreal.MaterialExpressionSaturate, 1400, 1600)
-    link(noise, "", noise01, "")
-    edge = 0.08
+    link(order, "", noise01, "")
+    edge = DISSOLVE_EDGE
     thr = node(mat, unreal.MaterialExpressionMultiply, 1700, 1400, const_b=1.0 + edge)
     link(prog, "", thr, "A")
     gap = node(mat, unreal.MaterialExpressionSubtract, 1850, 1500)
@@ -325,7 +430,11 @@ def material():
     link(gone_part, "", rim0, "B")
     rim = node(mat, unreal.MaterialExpressionMultiply, 2750, 1550, const_b=4.0)
     link(rim0, "", rim, "A")
+    return left, rim
 
+
+def emissive_output(mat, c1, c2, react, rim):
+    """The emissive colour: the pattern's, plus the glow, plus the dissolving edge, x brightness."""
     # Colour: the pattern's, plus the glow near the player, plus the dissolving edge, all x brightness x night.
     rc = node(mat, unreal.MaterialExpressionVectorParameter, 2150, 800, parameter_name="ReactColor",
               default_value=unreal.LinearColor(1.0, 0.9, 0.7, 1))
@@ -350,6 +459,9 @@ def material():
     link(c2, "", emissive, "B")
     mel.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
+
+def opacity_output(mat, o1, react, left, rim, fade):
+    """The opacity: the wall's and the glow's, x what is left, plus the edge, x the distance fade."""
     # Opacity: ((solid x Opacity) + react x 0.35) x what is left, plus the edge, x the distance fade.
     react_a = node(mat, unreal.MaterialExpressionMultiply, 2300, 700, const_b=0.35)
     link(react, "", react_a, "A")
@@ -369,15 +481,74 @@ def material():
     link(fade, "", faded, "B")
     o2 = node(mat, unreal.MaterialExpressionSaturate, 3350, 700)
     link(faded, "", o2, "")
-    mel.connect_material_property(o2, "", unreal.MaterialProperty.MP_OPACITY)
+    return o2
 
+
+def nearest_only(mat, opacity):
+    """opacity, kept where this pixel is the nearest wall's (its depth within NEAREST_BIAS_CM of the custom depth
+    buffer) and faded to 0 behind it. An empty buffer reads far away, so then nothing is hidden."""
+    here = node(mat, unreal.MaterialExpressionPixelDepth, 3200, 900)
+    buffer = node(mat, unreal.MaterialExpressionSceneTexture, 3200, 1000,
+                  scene_texture_id=unreal.SceneTextureId.PPI_CUSTOM_DEPTH)
+    nearest = node(mat, unreal.MaterialExpressionComponentMask, 3350, 1000, r=True, g=False, b=False, a=False)
+    link(buffer, "Color", nearest, "")
+    behind = node(mat, unreal.MaterialExpressionSubtract, 3500, 950)
+    link(here, "", behind, "A")
+    link(nearest, "", behind, "B")
+    room = node(mat, unreal.MaterialExpressionSubtract, 3650, 950, const_a=NEAREST_BIAS_CM)
+    link(behind, "", room, "B")
+    steep = node(mat, unreal.MaterialExpressionMultiply, 3800, 950, const_b=1.0 / NEAREST_SOFT_CM)
+    link(room, "", steep, "A")
+    kept = node(mat, unreal.MaterialExpressionSaturate, 3950, 950)
+    link(steep, "", kept, "")
+    shown = node(mat, unreal.MaterialExpressionMultiply, 4100, 800)
+    link(opacity, "", shown, "A")
+    link(kept, "", shown, "B")
+    mat.set_editor_property("allow_translucent_custom_depth_writes", True)
+    return shown
+
+
+def material(dissolve_pattern, name=NAME, nearest=False):
+    """A wall material (M_APWall, or with nearest M_APWallNearest), built node by node in the order its parts feed
+    each other, then laid out and compiled. dissolve_pattern is T_APWallDissolve, or None for the engine's noise."""
+    mat = new_material(name, two_sided=not nearest)
+    wpos, u_face = wall_axes(mat)
+    time, moving = moving_tiles(mat, wpos, u_face)
+    final_uv = area_variant(mat, moving)
+    solid, seen = pattern_over_back(mat, final_uv)
+    c1, c2 = tinted(mat, seen)
+    fade, o1 = faded_opacity(mat, wpos, solid)
+    react = player_glow(mat, wpos, time)
+    left, rim = dissolve(mat, wpos, time, final_uv, dissolve_pattern)
+    emissive_output(mat, c1, c2, react, rim)
+    opacity = opacity_output(mat, o1, react, left, rim, fade)
+    if nearest:
+        opacity = nearest_only(mat, opacity)
+    mel.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
     mel.layout_material_expressions(mat)
     mel.recompile_material(mat)
-    log(f"{NAME}: made (unlit, translucent, two-sided; {mel.get_num_material_expressions(mat)} nodes)")
+    how = DISSOLVE_TEXTURE if dissolve_pattern else "the engine's noise"
+    shown = "nearest wall only" if nearest else "every wall"
+    sides = "one-sided" if nearest else "two-sided"
+    log(f"{name}: made (unlit, translucent, {sides}, {shown}; {mel.get_num_material_expressions(mat)} nodes; "
+        f"dissolve by {how})")
     return mat
 
 
+def nearest_material(dissolve_pattern):
+    """M_APWallNearest, or None if the editor can't build it (logged): an experiment must not stop M_APWall."""
+    try:
+        return material(dissolve_pattern, NEAREST_NAME, nearest=True)
+    except Exception as err:            # any failure here is the experiment's, and M_APWall is already saved
+        path = f"{ROOT}/{NEAREST_NAME}"
+        if assets.does_asset_exist(path):       # a half-built one would be cooked into the pak with the folder
+            assets.delete_asset(path)
+        log(f"{NEAREST_NAME}: could not be made ({err}); the pak goes without it")
+        return None
+
+
 def label():
+    """The Primary Asset Label: chunk CHUNK_ID, always cooked, everything in the folder (made once, then updated)."""
     name = "PalworldArchipelagoArt_Label"
     path = f"{ROOT}/{name}"
     lab = assets.load_asset(path) if assets.does_asset_exist(path) else None
@@ -394,18 +565,23 @@ def label():
     return lab
 
 
-def paw_layer():
-    # The paws skin's layer, cooked into the pak with mips (the Art lane, 2026-11-08: a file imported at run time has
-    # none, and the navy rims shimmer at a distance). The Lua mod loads the file itself if this is missing.
-    name = "T_APWallPaws"
+def logicmod_folder():
+    """This repo's logicmod folder. Run as a script file this one's folder is it; run some other way,
+    AP_REPO_LOGICMOD names it."""
     try:
-        here = os.path.dirname(os.path.abspath(__file__))
+        return os.path.dirname(os.path.abspath(__file__))
     except NameError:
-        here = os.environ.get("AP_REPO_LOGICMOD", "")
-    src = os.path.normpath(os.path.join(here, "..", "mod", "PalworldArchipelago", "walls", "ap-wall-paws-layer.png"))
-    if not os.path.isfile(src):
-        log(f"{name}: skipped, no {src} (the Lua mod will load the PNG at run time, without mips)")
-        return None
+        return os.environ.get("AP_REPO_LOGICMOD", "")
+
+
+def paw_layer_source():
+    """The paws layer's PNG in this repo (mod/PalworldArchipelago/walls/ap-wall-paws-layer.png)."""
+    here = logicmod_folder()
+    return os.path.normpath(os.path.join(here, "..", "mod", "PalworldArchipelago", "walls", "ap-wall-paws-layer.png"))
+
+
+def import_task(src, name):
+    """An import of src as /Game/.../<name>, replacing one already there, with the classic texture factory."""
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", src)
     task.set_editor_property("destination_path", ROOT)
@@ -413,28 +589,45 @@ def paw_layer():
     task.set_editor_property("automated", True)
     task.set_editor_property("replace_existing", True)
     task.set_editor_property("save", True)
-    # The classic texture factory imports at once. Without it UE 5.1 used Interchange, whose texture was not in the
-    # asset registry yet when load_asset asked for it (Game PC, 2026-11-08: "Import Done", then "LoadAsset failed ...
-    # could not be found in the Asset Registry", and nothing saved). So the texture is taken from the task itself.
+    # The classic texture factory imports at once. Without it UE 5.1 uses Interchange, whose texture is not in the
+    # asset registry yet when load_asset asks for it ("Import Done", then "LoadAsset failed ... could not be found in
+    # the Asset Registry", and nothing saved). So the texture is taken from the task itself.
     task.set_editor_property("factory", unreal.TextureFactory())
-    tools.import_asset_tasks([task])
-    tex = None
+    return task
+
+
+def imported_texture(task, name):
+    """The texture an import made, tried four ways in turn, saying which found it; None if none did."""
     try:
         tex = next((o for o in task.get_objects() if isinstance(o, unreal.Texture2D)), None)
-    except Exception:
-        pass
+        if tex:
+            return tex, "the task's objects"
+    except Exception as e:  # noqa: BLE001 - get_objects is missing in some 5.1 builds; the next ways cover it
+        log(f"{name}: the import task's get_objects failed ({e}); trying its imported_object_paths")
+    for path in task.get_editor_property("imported_object_paths") or []:
+        tex = unreal.load_object(None, path)
+        if tex:
+            return tex, "the task's imported_object_paths"
+    tex = unreal.find_object(None, f"{ROOT}/{name}.{name}")
+    if tex:
+        return tex, "find_object"
+    unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous([ROOT], True)
+    if assets.does_asset_exist(f"{ROOT}/{name}"):
+        return assets.load_asset(f"{ROOT}/{name}"), "a rescan of the asset registry and load_asset"
+    return None, None
+
+
+def import_layer(src, name, without):
+    """Imports src as the wall layer texture <name>: sRGB, with mips, in the world texture group. None, logged with
+    `without` (what the Lua mod does without it), when the file is missing or the import fails."""
+    if not os.path.isfile(src):
+        log(f"{name}: skipped, no {src} ({without})")
+        return None
+    task = import_task(src, name)
+    tools.import_asset_tasks([task])
+    tex, found_by = imported_texture(task, name)
     if not tex:
-        for p in task.get_editor_property("imported_object_paths") or []:
-            tex = unreal.load_object(None, p)
-            if tex:
-                break
-    if not tex:
-        tex = unreal.find_object(None, f"{ROOT}/{name}.{name}")
-    if not tex:
-        unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous([ROOT], True)
-        tex = assets.load_asset(f"{ROOT}/{name}") if assets.does_asset_exist(f"{ROOT}/{name}") else None
-    if not tex:
-        log(f"{name}: the import of {src} failed (the Lua mod will load the PNG at run time, without mips)")
+        log(f"{name}: the import of {src} failed ({without})")
         return None
     tex.set_editor_property("srgb", True)
     tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)
@@ -442,16 +635,75 @@ def paw_layer():
     tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
     try:
         size = f"{tex.blueprint_get_size_x()}x{tex.blueprint_get_size_y()}"
-    except Exception:
+    except Exception:  # noqa: BLE001 - the size is only for the log line
         size = "size unknown"
-    log(f"{name}: imported from {src} ({size}, sRGB, with mips)")
+    log(f"{name}: imported from {src} ({size}, sRGB, with mips), found by {found_by}")
+    return tex
+
+
+def paw_layer():
+    """T_APWallPaws: the paws skin's layer, cooked into the pak with mips (a file imported at run time has none, and
+    its navy rims shimmer at a distance)."""
+    return import_layer(paw_layer_source(), "T_APWallPaws", "the Lua mod will load the PNG at run time, without mips")
+
+
+def region_wall_name(stem):
+    """The texture name the Lua mod asks for (wall_skins.lua's regionTileName, BUNKER_TILE) for a file in
+    logicmod/art/walls, by its name without .png; None for a file that is not a region wall."""
+    if stem == BUNKER_FILE:
+        return "T_APWallSealed"
+    if stem.startswith(REGION_WALL_PREFIX):
+        return "T_APWallRegion_" + stem[len(REGION_WALL_PREFIX):].replace("-", "_")
+    return None
+
+
+def region_walls():
+    """The regions skin's layers, every logicmod/art/walls/*.png that is a region wall, cooked into the pak with mips:
+    T_APWallRegion_<region>_<version> and T_APWallSealed. The Lua mod has no copy of them, so without them it wears
+    the paws."""
+    folder = os.path.join(logicmod_folder(), "art", "walls")
+    if not os.path.isdir(folder):
+        log(f"region walls: skipped, no {folder} (the Lua mod will wear the paws)")
+        return []
+    made = []
+    for file in sorted(os.listdir(folder)):
+        stem, ext = os.path.splitext(file)
+        name = region_wall_name(stem) if ext.lower() == ".png" else None
+        if not name:
+            continue
+        tex = import_layer(os.path.join(folder, file), name, "the Lua mod's regions skin cannot wear it")
+        if tex:
+            made.append(tex)
+    log(f"region walls: {len(made)} textures imported from {folder}")
+    return made
+
+
+def dissolve_pattern():
+    """T_APWallDissolve: the dissolve's greyscale pattern, imported as data (sRGB off, 8-bit grey, so the threshold
+    keeps all 256 steps), with mips. None when the file is missing or the import fails."""
+    src = os.path.join(logicmod_folder(), "art", "walls", DISSOLVE_FILE + ".png")
+    without = "M_APWall dissolves by the engine's noise"
+    if not os.path.isfile(src):
+        log(f"{DISSOLVE_TEXTURE}: skipped, no {src} ({without})")
+        return None
+    task = import_task(src, DISSOLVE_TEXTURE)
+    tools.import_asset_tasks([task])
+    tex, found_by = imported_texture(task, DISSOLVE_TEXTURE)
+    if not tex:
+        log(f"{DISSOLVE_TEXTURE}: the import of {src} failed ({without})")
+        return None
+    tex.set_editor_property("srgb", False)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE)
+    tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP)
+    tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
+    log(f"{DISSOLVE_TEXTURE}: imported from {src} (greyscale data, sRGB off, with mips), found by {found_by}")
     return tex
 
 
 def mod_actor():
-    # An empty Actor Blueprint named ModActor: UE4SS's BPModLoader then loads the pak's ModActor and says so, proof that
-    # the game mounted the pak (2026-11-08 playtest: without one it said "ModClass ... is not valid" and the mod's
-    # LoadAsset found no M_APWall, so whether the pak was mounted at all was unknown).
+    """An empty Actor Blueprint named ModActor: UE4SS's BPModLoader then loads the pak's ModActor and says so, proof
+    that the game mounted the pak. Without one it logs "ModClass ... is not valid", and a failed LoadAsset of
+    M_APWall can't tell an unmounted pak from a missing material."""
     path = f"{ROOT}/ModActor"
     if assets.does_asset_exist(path):
         assets.delete_asset(path)
@@ -466,10 +718,16 @@ def mod_actor():
 def main():
     if not assets.does_directory_exist(ROOT):
         assets.make_directory(ROOT)
-    for a in (material(), paw_layer(), mod_actor(), label()):
+    pattern = dissolve_pattern()
+    for a in [material(pattern), pattern, paw_layer(), *region_walls(), mod_actor()]:
         if a:
             assets.save_loaded_asset(a, only_if_is_dirty=False)
-    log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as PalworldArchipelagoArt.pak")
+    nearest = nearest_material(pattern)
+    if nearest:
+        assets.save_loaded_asset(nearest, only_if_is_dirty=False)
+    assets.save_loaded_asset(label(), only_if_is_dirty=False)
+    log("done: package the project (logicmod/README.md, wall material), then copy pakchunk2 as "
+        "PalworldArchipelagoArt.pak")
 
 
 main()

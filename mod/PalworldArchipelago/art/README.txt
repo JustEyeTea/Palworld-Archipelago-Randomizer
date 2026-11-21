@@ -5,28 +5,34 @@ Round-1 art from the Art & Assets lane (2026-11-04; the user picked each design)
                               lighter plate (the user's pick A, 2026-11-07); everything else placed as the banner's.
   ap-title-banner-pressed.png 1200x300, the banner for a moment as it is clicked: a darker plate, a dimmed rim.
   ap-status-dot.png           24x24 white dot in the pill, tinted green / amber / red by the connection state.
-  ap-map-stamp.png            256x256, drawn 88 px wide at the centre of each locked area on the map (walls.lua,
-                              Scripts/area_centres.lua from tools/area_centres.py).
+  ap-map-stamp.png            256x256, drawn 88 px wide at the centre of each locked region or area on the map
+                              (walls.lua, Scripts/region_centres.lua and area_centres.lua from tools/lock_centres.py).
   ap-map-stamp-open.png       256x256, the ticket with an open padlock on a green badge (the user's pick A, 2026-11-07),
-                              a map icon on an unlocked area not visited yet; ap-map-stamp-open-<area>.png per area.
+                              a map icon on an unlocked region or area not visited yet;
+                              ap-map-stamp-open-<region>.png per region (its areas wear it too).
   ap-mailbox-emblem-64.png    beside the mailbox chest window's heading and the Inventory page's Mailbox button.
   ap-mailbox-emblem-128.png   the same at 128x128, for larger places.
 Round 2 (2026-11-04):
-  ap-pass-<area>.png          256x256, each Area Pass's own ticket on the Technology cards (main.lua; the shared
-                              icons/area-pass.png when missing).
-  ap-map-stamp-<area>.png     256x256, each locked area's own stamp on the map (walls.lua; ap-map-stamp.png when
-                              missing).
+  ap-pass-<region>.png        256x256, each region's own pass ticket on the Technology cards, for its Region Pass, and
+                              for its areas' Area Passes when an area has no ticket of its own (shop_cards.lua; the
+                              shared icons/area-pass.png when missing).
+  ap-map-stamp-<region>.png   256x256, each locked region's own stamp on the map, worn by its areas too (walls.lua;
+                              ap-map-stamp.png when missing).
   ap-hint-icon-64/128.png     the hint prompt's icon; not drawn in play yet (needs a place on the in-game HUD).
-  ap-goal-banner.png          1200x300, the goal-complete banner (shown at 600x150); not drawn in play yet.
-  Both appear for 6 s with test_tools=1 and Ctrl+F4 (the HUD probe), to see whether and where the HUD takes them.
+  ap-goal-banner.png          1200x300, the goal-complete banner (shown at 600x150 once a seed's goal is reached;
+                              seen in game).
+  The hint icon appears for 6 s with test_tools=1 and Ctrl+F4 (the HUD probe), to see whether and where the HUD
+  takes it.
 Round 3 (2026-11-05):
-  ap-map-stamp-sealed.png     256x256, the stamp of an area beyond the seed's goal (sealed for good; a chained padlock).
-  ap-pass-region.png          256x256, a Region Pass's ticket on the Technology cards when its area has none.
+  ap-map-stamp-sealed.png     256x256, the stamp of a region or area beyond the seed's goal (sealed for good; a chained
+                              padlock).
+  ap-pass-region.png          256x256, the small-pass ticket: an Area Pass's on the Technology cards when its region
+                              has none.
   ap-hint-plate-ready.png     760x168, the hint pop-up at a locked wall with enough hint points (hint_popup.lua; shown
                               at 380x84 in the middle of the screen, a little transparent).
   ap-hint-plate-short.png     the same without enough points.
   ap-hint-icon-short-64/128.png  the hint icon without enough points.
-Round 4 (2026-11-05, interim drafts until the user picks):
+Round 4 (2026-11-05; the user kept these as final):
   ap-crate-palworld.png       256x256, the Palworld Crate (a slot holding one shows it on the Technology cards).
   ap-crate-sphere/-food/-supply-common/-supply-rare/-supply-jackpot.png  256x256, the five crates (crate_window.lua).
   ap-mailbox-window.png       1600x1000, the crate window's plate (shown at 800x500 over the mailbox's chest window).
@@ -36,16 +42,36 @@ Round 4 (2026-11-05, interim drafts until the user picks):
 Round 5 (2026-11-06, the user's pick A):
   ap-debuff-slow.png          128x128, the Slow Trap's debuff icon (a snail; debuffs.lua shows it at 44 px at the top of
                               the HUD with the time left under it).
-  ap-debuff-frame.png         128x128, the same frame empty, for future timed traps (keep a glyph inside x 20-108,
+  ap-debuff-frame.png         128x128, the same frame empty, for future traps (keep a glyph inside x 20-108,
                               y 20-104).
 Round 6 (2026-11-06, the user's pick A, "engraved"): the explorer's-chart fog of war (the map's unexplored parts drawn
-as a chart; image_tools.cpp compose_chart / compose_fog, not drawn in play yet).
+as a chart; compose_chart in image_chart.cpp and compose_fog in image_fog.cpp, not drawn in play yet).
   ap-chart-paper.png          1024x1024 opaque, seamless parchment (tiled two across the chart).
   ap-chart-sea.png            512x512, seamless engraved wave lines for open water.
   ap-chart-compass.png        512x512, a 16-point compass rose with a paw for north (beyond the frame's top-left).
   ap-chart-edge.png           512x64, tiles left to right, chart side at the top: a torn edge for the explored boundary
                               (not used yet).
   ap-chart-hatch.png          256x256, seamless single diagonal engraved lines in ink #3B2A1A, drawn at 0.45 over locked
-                              areas on the chart, under the borders (the user's pick, 2026-11-07).
-Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTee's direction. Original work (no Pocketpair
+                              regions or areas on the chart, under the borders (the user's pick, 2026-11-07).
+Round 7 (2026-11-12, the user's picks):
+  ap-debuff-hunger.png        128x128 in the debuff frame: a bitten drumstick, shown for a few seconds when a Hunger
+                              Trap fires (traps.lua, debuffs.lua; no timer under it).
+  ap-debuff-teleport.png      a house with an arrow arcing onto its roof, shown when a Teleport Trap fires.
+  ap-debuff-teleport-waiting.png  the same, dimmed, with an amber hourglass badge: shown while a Teleport Trap waits
+                              for the player to leave a dungeon.
+  ap-debuff-fool.png          a jester's hat with three bells, shown when a Fool Trap fires.
+  area-passes/ap-area-pass-<area>.png  256x256, each of the 75 areas' own pass ticket (74: the starting area has
+                              none), for its Area Pass on the Technology cards (shop_cards.lua; the area's region's
+                              ticket when missing). <area> is the area's name in lower case, every run of other
+                              characters a "-" (WALLS.slugOf).
+Round 8 (2026-11-16, the user's picks): Level Progression (Lock Size: levels).
+  ap-map-stamp-levels-<tier>.png       256x256, each locked level tier's stamp on the map, in its tier colour (locks.lua
+                                       has the colours). <tier> as for areas, e.g. levels-17-28. The starting tier has
+                                       none: it is never locked.
+  ap-map-stamp-open-levels-<tier>.png  the same with an open padlock, for a tier unlocked but not visited yet.
+  ap-pass-progressive-level.png        256x256, the Progressive Level Pass ticket on the Technology cards, one for
+                                       every copy (shop_cards.lua).
+  ap-map-fly-up.png                    256x256, a map icon at the near mouth of each flying corridor until the
+                                       player has flown through it (map_icons.lua; the user's pick B).
+Artwork made by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction. Original work (no Pocketpair
 material), CC0 1.0 like the rest of the repository's art (art/LICENSE.txt).

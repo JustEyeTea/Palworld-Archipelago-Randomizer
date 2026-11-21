@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Setup guide
-    url: https://github.com/JustEyeTee/Palworld-Archipelago-Randomizer/blob/main/apworld/palworld/docs/setup_en.md
+    url: https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/blob/main/apworld/palworld/docs/setup_en.md
     about: Installing the mod and the APWorld, and connecting. Most "it doesn't load" problems are answered here.

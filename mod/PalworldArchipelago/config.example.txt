@@ -1,4 +1,6 @@
 # Copy this file to config.txt and fill it in (config.txt is never shipped, so updates keep it).
+# Connecting from the title menu's Archipelago menu saves config.txt again: your settings are kept, these comments
+# are not.
 server=
 slot=
 password=
@@ -7,12 +9,11 @@ password=
 servers=
 # A seed belongs to the first world you play it in: in other worlds the mod connects but locks, sends and gives
 # nothing. To move a seed to another world, delete the world= line from its save-<seed>-<slot>.txt in this folder.
-# The key that buys a hint for the Area Pass of the wall you are at (a letter or a key name such as F6).
+# The key that buys a hint for the pass of the wall you are at (a letter or a key name such as F6).
 hint_key=H
 # The Archipelago Mailbox (Esc menu > Archipelago Mailbox; also a new button at the right of your name on the
-# Inventory page, not yet tried in game): received items wait there until you take them.
-# mailbox=0 puts them straight into your bag instead.
-mailbox=1
+# Inventory page, not yet tried in game): received items wait there until you take them. Gear and accessories from
+# Palworld Crates go straight into your bag.
 # Optional key that opens the mailbox (empty: only the menu buttons).
 mailbox_key=
 # Slots of the hidden chest the game's chest window shows the mailbox in (54 to 2000; set before it is first made).
@@ -27,13 +28,13 @@ perf_log=
 # load), Ctrl+F3 wall skins, Ctrl+F4 HUD probe (hint icon and goal banner for 6 s) and the probes that need the game
 # to answer. For playtests only.
 test_tools=
-# The area walls' look: empty (or paws) is cream paws over the colour of the locked area behind each wall (its pass
-# ticket's colour; areas beyond the seed's goal in slate grey), with the PalworldArchipelagoArt pak; without it, area.
-# area is a wall with see-through paw-shaped holes in that colour; a is the lattice in teal everywhere; red is the
-# game's own red grid. Test builds can try others: b, a3d, b3d, a3d-dense, b3d-dense, and with the PalworldArchipelagoArt pak
-# colour-paws, colour-routes,
-# colour-grid, colour-rainbow, colour-rainbow-flow; with test_tools=1, Ctrl+F3 cycles them all. wall_tiling=U,V
-# (the material's own is 5,3) and wall_scroll=U,V (0,0) change the pattern's size and drift.
+# The area walls' look, one of four: regions, paws, area or red. Empty (or regions) is each region's own wall over the
+# colour of the locked region or area behind it (its region's pass ticket colour), and a bunker grille on those beyond
+# the seed's goal, with a PalworldArchipelagoArt pak that has the region walls. With an older pak, that has none, the
+# walls wear paws instead: cream paws over that colour (slate grey beyond the goal). Without the pak, area: a wall
+# with see-through paw-shaped holes in that colour. red is the game's own red grid. Any other name is logged and the
+# default worn instead. With test_tools=1, Ctrl+F3 cycles the four. wall_tiling=U,V (the material's own is 5,3) and
+# wall_scroll=U,V (0,0) change the pattern's size and drift.
 wall_skin=
 wall_tiling=
 wall_scroll=
@@ -42,6 +43,10 @@ wall_scroll=
 # PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are fully there, and where they are gone.
 wall_radius=
 wall_fade=
+# glow=0: no glows. Empty: with the PalworldArchipelagoArt pak, a halo, a soft light and a tall pillar of light mark
+# the fast-travel statues near you that are still checks in your slot, and a burst of light round you marks each new
+# item (its colour says progression, useful or filler; traps look like filler). Untested in game.
+glow=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=
@@ -50,13 +55,14 @@ perf_no_bp_hooks=
 # set-up of the screen, so it never shows the game's version first. Test builds tint the fog parchment (a probe).
 map_cpp=
 # map_chart=0: keep the game's dark fog over unexplored parts of the world map. Empty: they are drawn as an explorer's
-# chart (made on your PC from the game's map, with the locked-area stamps on it), from the map's next opening.
+# chart (made on your PC from the game's map, with the locked stamps on it), from the map's next opening.
 map_chart=
-# map_icons=0: draw the locked-area stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
+# map_icons=0: draw the locked stamps into the world map's picture (they grow and shrink with the zoom). Empty: they
 # are the map's own icons, one size at every zoom, like the game's.
 map_icons=
-# map_regions=0: no area borders and no hatch over locked areas on the explorer's chart. Empty: they are drawn.
+# map_regions=0: no borders and no hatch over locked regions or areas on the explorer's chart. Empty: they are drawn.
 map_regions=
-# map_style=chart: the world map as the explorer's chart with greyed locked areas (dev.17-31). Empty: "Territories",
-# every area tinted by its state (locked, open, visited, sealed) over the game's own map, with the walls glowing.
+# map_style=chart: the world map as the explorer's chart with greyed locked regions or areas (dev.17-31). Empty:
+# "Territories", every region or area tinted by its state (locked, open, visited, sealed) over the game's own map, with
+# the walls glowing.
 map_style=

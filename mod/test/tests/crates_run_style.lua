@@ -1,0 +1,707 @@
+-- Palworld Crates and their window, and the run style (Nomad) and Speed Boost.
+-- Tests crates.lua, crate_window.lua, items.lua, run_style.lua, mailbox_gear.lua, mailbox_chest_gear.lua.
+
+group("Palworld Crates", function()
+    -- Rolled on arrival, the same every time.
+    local CR = require("crates")
+    h.switchSeed("70200", {})                   -- a seed of its own
+    local cratesBefore = CR.count()
+    pushItem({ name = "Palworld Crate", from = "Friend" })
+    run(20)
+    expect(CR.count() == cratesBefore + 1 and table.concat(announced, "|"):find("Palworld Crate: it's a ", 1, true),
+           "a Palworld Crate arrives as one of the five crates, and says which")
+    expect(CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS) == CR.kindFor("seed", 5, CR.DEFAULT_WEIGHTS),
+           "the same seed and index roll the same crate")
+    local n = {}
+    for i = 1, 10000 do
+        local k = CR.kindFor("seed", i, CR.DEFAULT_WEIGHTS)
+        n[k] = (n[k] or 0) + 1
+    end
+    expect(math.abs(n.sphere - 3000) < 300 and math.abs(n.food - 2500) < 300 and math.abs(n.rare - 1200) < 200
+           and math.abs(n.jackpot - 300) < 120, string.format("over 10,000 the chances hold: %d %d %d %d %d",
+           n.sphere, n.food, n.common, n.rare, n.jackpot))
+    expect(CR.kindFor("x", 1, { sphere = 0, food = 0, common = 0, rare = 0, jackpot = 5 }) == "jackpot",
+           "the slot's weights are used")
+    local ok = true
+    for _, kind in ipairs(CR.KINDS) do
+        for _, lv in ipairs({ 1, 20, 50 }) do
+            CR.list = { kind }
+            local k, out = CR.openNext(lv)
+            if k ~= kind or #out == 0 or not out[1].id or out[1].n < 1 then
+                ok = false
+                print("  bad roll: " .. kind .. " at level " .. lv)
+            end
+        end
+    end
+    expect(ok, "every crate kind rolls real contents at levels 1, 20 and 50")
+    -- The level can't be read for a moment (the pawn missing): the last level read stands, for the crate and the shop.
+    local STATE = require("ap_state")
+    runCycles(2)
+    local known = STATE.ap.level
+    game.playerLevel = nil
+    runCycles(2)
+    local keptLevel = STATE.ap.level
+    CR.list = { "sphere" }
+    local openedAt = logMark()
+    require("items").openCrate()
+    game.playerLevel = known
+    expect(known == 4 and keptLevel == known and loggedSince(openedAt, "opened a Sphere Crate at level 4:"),
+           "an unreadable level keeps the last one read, and a crate rolls at it: " .. tostring(keptLevel))
+end)
+
+group("the crate window", function()
+    -- The Palworld Crates window over the mailbox's chest window.
+    local CR, MB = require("crates"), require("mailbox")
+    local canvas, kids = fakeCanvas("CanvasPanel_0")      -- the chest window's canvas
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedCW, savedList = MB.chestWidget, CR.list
+    MB.chestWidget = function() return chestWin end
+    CR.list = { "rare", "sphere", "rare", "jackpot" }
+    run(1)
+    local panel = kids[#kids]
+    local over = panel and panel.child
+    local function texts(o)
+        local t = {}
+        for _, c in ipairs(o and o.children or {}) do
+            if c.text then
+                t[#t + 1] = c.text
+            end
+            if c.child and c.child.text then
+                t[#t + 1] = c.child.text
+            end
+        end
+        return table.concat(t, "|")
+    end
+    local all = texts(over)
+    expect(panel and panel.width == 800 and panel.height == 500 and panel.canvasSlot.anchors.Minimum.X == 0.5
+           and logged("crate window: shown over the mailbox %(4 crate%(s%)%)"),
+           "with crates waiting, the mailbox shows the crate window, 800x500, centred")
+    expect(over and over.children[1].child and over.children[1].child.texture
+           and over.children[1].child.texture.path == "ap-mailbox-window",
+           "on the Art lane's window plate")
+    expect(all:find("Sphere Crate|1 waiting", 1, true) and all:find("Rare Supply Crate|2 waiting", 1, true)
+           and all:find("Jackpot Supply Crate|1 waiting", 1, true) and not all:find("Food Crate", 1, true),
+           "one row per kind waiting, with its count: " .. all)
+    -- The rows' Open buttons: find the Rare row's and click it.
+    local clickHook
+    for k, f in pairs(hooks) do
+        if k:find("WBP_CommonButton_C:BndEvt", 1, true) then
+            clickHook = f
+        end
+    end
+    local opens = {}
+    for _, c in ipairs(over.children) do
+        if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then
+            opens[#opens + 1] = c.child
+        end
+    end
+    local rareOpen = opens[2]                  -- rows follow the kinds' order: sphere first, then rare
+    expect(#opens == 3 and clickHook, "each row has the game's button to open one: " .. #opens)
+    clickHook({ get = function() return rareOpen end })
+    expect(#CR.list == 4, "nothing opens inside the click's hook")
+    run(1)
+    run(1)
+    local n = 0
+    for _, k in ipairs(CR.list) do
+        if k == "rare" then
+            n = n + 1
+        end
+    end
+    expect(#CR.list == 3 and n == 1 and logged("crate: opened a Rare Supply Crate"),
+           "the row's Open opens one of its kind")
+    local panel2 = kids[#kids]
+    local all2 = texts(panel2 and panel2.child)
+    expect(panel ~= panel2 and panel.removed and all2:find("Last opened: Rare Supply Crate", 1, true),
+           "the window is rebuilt with the contents of the crate just opened: " .. all2)
+    -- Close: the small button brings it back.
+    local closeBtn
+    for _, c in ipairs(panel2.child.children) do
+        if c.child and c.child.Text_Main and c.child.Text_Main.text == "X" then
+            closeBtn = c.child
+        end
+    end
+    clickHook({ get = function() return closeBtn end })
+    run(2)
+    local toggle = kids[#kids]
+    expect(panel2.removed and toggle and toggle.child and toggle.child.Text_Main
+           and toggle.child.Text_Main.text == "Open Palworld Crates (3)",
+           "Close leaves the chest with an Open Palworld Crates (3) button")
+    local toggleAt = toggle.canvasSlot
+    expect(toggleAt and toggleAt.anchors.Minimum.X == 0.5 and toggleAt.anchors.Minimum.Y == 0.5,
+           "centred on the chest window, where the window was (not the screen's corner)")
+    clickHook({ get = function() return toggle.child end })
+    run(2)
+    expect(toggle.removed and kids[#kids].width == 800, "which brings the window back")
+    MB.chestWidget, CR.list = savedCW, savedList
+    run(1)
+    expect(kids[#kids].removed, "and it all goes with the chest window")
+    do   -- a crate the window asks for and can't open (none of that kind left) is logged
+        local CR, MB = require("crates"), require("mailbox")
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        MB.chestWidget = function() return chestWin end
+        CR.list = { "sphere" }
+        run(1)
+        local open, clickHook
+        for _, c in ipairs(kids[#kids] and kids[#kids].child.children or {}) do
+            if c.child and c.child.Text_Main and c.child.Text_Main.text == "Open" then
+                open = c.child
+            end
+        end
+        for k, f in pairs(hooks) do
+            if k:find("WBP_CommonButton_C:BndEvt", 1, true) then
+                clickHook = f
+            end
+        end
+        clickHook({ get = function() return open end })
+        clickHook({ get = function() return open end })            -- twice before the next update: one crate only
+        run(1)
+        expect(open and #CR.list == 0 and logged("crate window: no Sphere Crate was opened"),
+               "the second click finds no crate left, and says so")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    do   -- a text whose font can't be set is scaled to its size instead, and that is said once
+        local CR, MB = require("crates"), require("mailbox")
+        local canvas = fakeCanvas("CanvasPanel_0")
+        local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+        local savedWidget, savedList, construct = MB.chestWidget, CR.list, StaticConstructObject
+        StaticConstructObject = function(class, owner)
+            local made = construct(class, owner)
+            made.SetFont = nil                                          -- no font setter, as a different engine build
+            return made
+        end
+        MB.chestWidget = function() return chestWin end
+        CR.list = { "food" }
+        run(1)
+        StaticConstructObject = construct
+        expect(logged("widgets: text sizes: scaled, as a text's font could not be set"), "the fallback is logged")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    -- Reopening the window from the mailbox (untested in game): the small button shows whenever the chest window is
+    -- open and the crate window is not, where the window's top edge was (the one place over the chest window seen to
+    -- show and take clicks), and each step of the way back is logged once a session (the test above may have).
+    local function buttonsHook()
+        for path, callback in pairs(hooks) do
+            if path:find("WBP_CommonButton_C:BndEvt", 1, true) then return callback end
+        end
+    end
+    local function labelOf(button)
+        return button and button.Text_Main and button.Text_Main.text
+    end
+    -- The game's button labelled `label` on a drawn part: the reopen button itself, or one on the window's plate.
+    local function buttonOn(part, label)
+        if part and labelOf(part.child) == label then return part.child end
+        for _, c in ipairs(part and part.child and part.child.children or {}) do
+            if labelOf(c.child) == label then return c.child end
+        end
+    end
+    local function click(button)
+        buttonsHook()({ get = function() return button end })
+        run(2)
+    end
+    local function textsOn(part)
+        local t = {}
+        for _, c in ipairs(part and part.child and part.child.children or {}) do
+            t[#t + 1] = c.text or (c.child and c.child.text) or nil
+        end
+        return table.concat(t, "|")
+    end
+    local function chestWindowOn(canvas)
+        local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+        MB.chestWidget = function() return chestWin end
+        return chestWin
+    end
+    do   -- closed with crates waiting: "Open Palworld Crates (N)" brings it back
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        chestWindowOn(canvas)
+        CR.list = { "food", "food" }
+        run(1)
+        click(buttonOn(kids[#kids], "X"))
+        local toggle = kids[#kids]
+        local at = toggle and toggle.canvasSlot
+        expect(labelOf(toggle and toggle.child) == "Open Palworld Crates (2)" and at and at.anchors.Minimum.X == 0.5
+               and at.anchors.Minimum.Y == 0.5 and at.alignment.Y == 0.5 and at.position.Y == -(500 - 36) / 2,
+               "closed with 2 crates waiting: Open Palworld Crates (2), where the window's top edge was")
+        expect(logged("crate window: reopen button placed")
+               and logged("crate window: the buttons' click hook is in place"),
+               "where it went and whether its click hook is in place are logged")
+        click(toggle.child)
+        expect(toggle.removed and kids[#kids].width == 800 and buttonOn(kids[#kids], "X")
+               and logged("crate window: the reopen button's click arrived"),
+               "its click brings the window back, and the click is logged")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    do   -- with no crate left it still shows, as Palworld Crates, and brings back the last crate opened
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        chestWindowOn(canvas)
+        CR.list = { "food" }
+        run(1)
+        click(buttonOn(kids[#kids], "Open"))
+        local opened = kids[#kids]
+        expect(#CR.list == 0 and opened.width == 800 and textsOn(opened):find("No crates waiting.", 1, true)
+               and textsOn(opened):find("Last opened: Food Crate", 1, true),
+               "the last crate opened keeps the window up: " .. textsOn(opened))
+        click(buttonOn(opened, "X"))
+        local toggle = kids[#kids]
+        expect(opened.removed and labelOf(toggle and toggle.child) == "Palworld Crates",
+               "closed with none waiting, the button still shows: Palworld Crates")
+        click(toggle.child)
+        expect(toggle ~= opened and toggle.removed and kids[#kids].width == 800
+               and textsOn(kids[#kids]):find("Last opened: Food Crate", 1, true),
+               "which brings the window back with the last crate opened")
+        local canvas2, kids2 = fakeCanvas("CanvasPanel_0")
+        chestWindowOn(canvas2)
+        run(1)
+        expect(labelOf(kids2[#kids2] and kids2[#kids2].child) == "Palworld Crates",
+               "a mailbox opened with no crates waiting shows the button, not the window")
+        click(kids2[#kids2] and kids2[#kids2].child)
+        expect(textsOn(kids2[#kids2]):find("Last opened: Food Crate", 1, true),
+               "and the last crate opened is still there to see")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    do   -- a window that could not be drawn yet (no canvas on its first update) is drawn once it can be
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        local chestWin = chestWindowOn(nil)
+        CR.list = { "sphere" }
+        run(1)
+        chestWin.WidgetTree.RootWidget = canvas
+        run(1)
+        expect(kids[#kids] and kids[#kids].width == 800, "a draw that failed is tried again on the next update")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+    do   -- the reopen button taken off the chest window (the game rebuilt it) is drawn again
+        local canvas, kids = fakeCanvas("CanvasPanel_0")
+        local savedWidget, savedList = MB.chestWidget, CR.list
+        chestWindowOn(canvas)
+        CR.list = { "sphere" }
+        run(1)
+        click(buttonOn(kids[#kids], "X"))
+        local toggle = kids[#kids]
+        toggle.GetParent = function() return nil end
+        run(1)
+        expect(kids[#kids] ~= toggle and labelOf(kids[#kids].child) == "Open Palworld Crates (1)"
+               and logged("crate window: what was drawn is gone from the chest window; drawn again"),
+               "a reopen button the game took away is put back")
+        MB.chestWidget, CR.list = savedWidget, savedList
+        run(1)
+    end
+end)
+
+group("run style and speed boost: Nomad's hand-overs, and world settings changed only when asked, with a warning",
+      function()
+    local MB = require("mailbox")
+    local ws = { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 }
+    local optionSub = { OptionWorldSettings = ws, sets = 0 }
+    function optionSub:IsValid() return true end
+    function optionSub:SetOptionWorldSettings()
+        self.sets = self.sets + 1
+        error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer")
+    end
+    util.GetOptionSubsystem = function() return optionSub end
+    inWorld(true)                                                 -- the bag is reached through the pawn
+    local function mailHas(id, list)
+        local n = 0
+        for _, e in ipairs(list or MB.queue) do
+            if e.id == id then
+                n = n + e.n
+            end
+        end
+        return n
+    end
+    local function warned(pattern)
+        for _, t in ipairs(announced) do
+            if t:find(pattern) then return true end
+        end
+    end
+    -- The defaults (Standard, no Speed Boost): the world's settings are never touched, and a tech is a recipe only.
+    h.switchSeed("70012", { ["options.run_style"] = "0", ["options.speed_boost"] = "0" })
+    local bows = bagHas.WeakerBow or 0
+    pushItem({ name = "Tech: Old Bow", from = "Friend" })
+    run(40)
+    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1 and (bagHas.WeakerBow or 0) == bows and not logged("nomad:")
+           and not warned("Speed Boost"), "defaults: world settings untouched, no warning, no bow handed over")
+    -- Speed Boost: the world's own values times the multipliers, the base kept in the save, never compounding, and
+    -- the player told in game what changed and the values to set back.
+    h.switchSeed("70015", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3",
+                            ["options.boost_work_speed"] = "3",
+                       ["options.boost_gather_rate"] = "2" })
+    run(40)
+    expect(ws.ExpRate == 3 and ws.WorkSpeedRate == 3 and ws.CollectionDropRate == 2
+           and logged("sync: Speed Boost: ExpRate 1 %-> 3 %(the world's own 1 x3%); reads back 3"),
+           "Speed Boost: EXP x3, work speed x3, gathering x2, logged with what reads back")
+    expect(warned("Speed Boost changed your World Settings: EXP Rate 3, Work Speed Multiplier 3, Gatherable Items "
+                  .. "Multiplier 2 %(your world's values before this seed: 1, 1, 1%)%. Your world keeps these in its save; set "
+                  .. "them back"),
+           "the player is warned in game, with the values to set back")
+    expect(h.saveText("70015", "Other"):find("syncbase=ExpRate:1,WorkSpeedRate:1,CollectionDropRate:1", 1, true),
+           "the world's own values are in the save")
+    local warnings = #announced
+    run(40)
+    expect(ws.ExpRate == 3 and optionSub.sets == 0 and #announced == warnings,
+           "set again, it stays x3 (not x9), the setter wasn't needed, and the warning isn't repeated")
+    pushItem({ name = "Tech: Old Bow", from = "Friend" })
+    runCycles(2)
+    expect((bagHas.WeakerBow or 0) == bows, "Standard with Speed Boost: a tech is still a recipe only")
+    -- A struct that comes back as a copy (writes don't stick): reported once for that world; the game's setter is never
+    -- called from Lua (its struct is bigger than UE4SS Lua's 0x200-byte call buffer: in game that is a crash, not an
+    -- error).
+    local copySub = { sets = 0 }
+    function copySub:IsValid() return true end
+    setmetatable(copySub, { __index = function(_, k)                    -- a new copy at every read
+        if k == "OptionWorldSettings" then return { ExpRate = 1, WorkSpeedRate = 1, CollectionDropRate = 1 } end
+    end })
+    function copySub:SetOptionWorldSettings()
+        self.sets = self.sets + 1
+        error("SetOptionWorldSettings from Lua overruns UE4SS's call buffer")
+    end
+    util.GetOptionSubsystem = function() return copySub end
+    run(40)
+    expect(copySub.sets == 0 and logged("didn't change in place; not calling SetOptionWorldSettings from Lua"),
+           "a copy that won't take: reported, and SetOptionWorldSettings never called from Lua")
+    util.GetOptionSubsystem = function() return optionSub end
+    -- Nomad without Speed Boost: the gear and the stack wait in the mailbox (the gear in its gear list, out of the bag
+    -- until the mailbox opens), the recipe as always; speeds untouched.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    h.switchSeed("70016", { ["options.run_style"] = "1", ["options.speed_boost"] = "0" })
+    local spheres = mailHas("PalSphere")
+    pushItem({ name = "Tech: Old Bow", from = "Friend" })
+    pushItem({ name = "Tech: Pal Sphere", from = "Friend" })
+    run(40)
+    expect((bagHas.WeakerBow or 0) == bows and mailHas("WeakerBow", MB.gear) == 1
+           and logged("nomad: Tech: Old Bow brought .*%(in the mailbox%)"),
+           "Nomad: the Old Bow itself, waiting in the mailbox's gear list, not in the bag: "
+           .. mailHas("WeakerBow", MB.gear))
+    expect(mailHas("PalSphere") == spheres + 10, "Nomad: 10 Pal Spheres in the mailbox")
+    expect(ws.ExpRate == 1 and ws.WorkSpeedRate == 1, "Nomad alone leaves the world's settings alone")
+    run(40)
+    expect((bagHas.WeakerBow or 0) == bows and mailHas("WeakerBow", MB.gear) == 1
+           and mailHas("PalSphere") == spheres + 10, "handed over once, not every update")
+    -- The Nomad Sync preset (Nomad and Speed Boost) in a world already sped up from before: a reminder, not a change.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 5, 3, 2
+    h.switchSeed("70013", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "5" })
+    run(40)
+    expect(ws.ExpRate == 25 and warned("Speed Boost changed your World Settings: EXP Rate 25"),
+           "a world already sped up by hand is taken as its own (5 x5), and the warning says so")
+    -- A warning 2 s after the world loads is hidden behind the loading screen, so the speeds change at once but the
+    -- warning waits until the character has moved 3 m (or a minute has passed).
+    local pawnWas, atWas = pawnAddress, pawnAt
+    newPawn()                                                     -- the world loaded again: a new pawn
+    pawnAt = { X = atWas.X, Y = atWas.Y, Z = atWas.Z }            -- where the last one stood
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    local noticesBefore = #announced
+    local function newWarning()
+        for i = noticesBefore + 1, #announced do
+            if announced[i]:find("Speed Boost changed your World Settings: EXP Rate 3,", 1, true) then return true end
+        end
+    end
+    h.switchSeed("70014", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
+    run(40)
+    expect(ws.ExpRate == 3 and not newWarning(), "a world just loaded: the speeds change at once, the warning waits")
+    pawnAt = { X = atWas.X + 500, Y = atWas.Y, Z = atWas.Z }
+    runCycles(2)
+    expect(newWarning() and logged("held notice%(s%) shown %(the player moved%)"), "and is shown once the player moves")
+    pawnAddress, pawnAt = pawnWas, atWas
+    -- World settings that can be written but not read back: the change is still logged field by field, and the
+    -- world's own values still saved.
+    ws.ExpRate, ws.WorkSpeedRate, ws.CollectionDropRate = 1, 1, 1
+    util.GetOptionSubsystem = function()
+        local reads = 0
+        local sub = { IsValid = function() return true end }
+        setmetatable(sub, { __index = function(_, key)
+            if key ~= "OptionWorldSettings" then return nil end
+            reads = reads + 1
+            if reads > 1 then error("the world settings can't be read back") end
+            return ws
+        end })
+        return sub
+    end
+    local readBackAt = logMark()
+    h.switchSeed("70017", { ["options.speed_boost"] = "1", ["options.boost_exp_rate"] = "3" })
+    runSeconds(70)
+    util.GetOptionSubsystem = function() return optionSub end
+    expect(loggedSince(readBackAt, "sync: Speed Boost: ExpRate 1 %-> 3 .*reads back nil")
+           and not loggedSince(readBackAt, "sync error")
+           and h.saveText("70017", "Other"):find("syncbase=ExpRate:1,", 1, true),
+           "a read-back that fails is logged as nothing read, and the world's own values are saved")
+    -- A faint gives a new character (a new pawn) in the same world: the warning is not shown again.
+    local function warnings()
+        local n = 0
+        for _, t in ipairs(announced) do
+            if t:find("Speed Boost changed your World Settings", 1, true) or t:find("Speed Boost is on", 1, true) then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    local warnedOnce = warnings()
+    for _ = 1, 2 do
+        newPawn()
+        runSeconds(70)
+    end
+    pawnAddress = pawnWas
+    runSeconds(70)
+    expect(warnings() == warnedOnce, "a new character in the same world brings no second Speed Boost warning: "
+           .. warnedOnce .. " then " .. warnings())
+    slotData["options.run_style"], slotData["options.speed_boost"] = "0", "0"
+    inWorld(false)
+end)
+
+-- Opens a Rare Supply Crate rolled to hold gear (a roll of 0.6 is its gear branch); the gear's id, or nil. (The
+-- two gear groups below use it.)
+local function openRareGear()
+    local random = math.random
+    math.random = function(low)
+        if low then return low end
+        return 0.6
+    end
+    require("crates").list = { "rare" }
+    local _, out = require("items").openCrate()
+    math.random = random
+    return out and out[1] and out[1].id
+end
+
+-- How many of a gear item wait in the mailbox's gear list.
+local function waiting(id)
+    local n = 0
+    for _, e in ipairs(require("mailbox").gear) do
+        if e.id == id then
+            n = n + e.n
+        end
+    end
+    return n
+end
+
+-- The hidden chest's slot holding an item, or nil.
+local function chestSlotWith(id)
+    for _, slot in ipairs(chests[1] and chests[1].c.slots or {}) do
+        if not slot:IsEmpty() and slot.ItemId.StaticId:ToString() == id then return slot end
+    end
+    return nil
+end
+local function inChest(id)
+    return chestSlotWith(id) ~= nil
+end
+
+group("crate and Nomad gear waits in the mailbox, out of its hidden chest", function()
+    -- Gear carries per-item data a chest slot filled by the mod would not have: it waits in the mailbox's gear list,
+    -- goes into the bag (through the game's AddItem) when the mailbox is open, and is never written into the hidden
+    -- chest, lost when the chest closes, or given twice. Here the game makes no piece the mailbox could move on into
+    -- the chest (the next group), so the gear stays in the bag.
+    local MB = require("mailbox")
+    inWorld(true)
+    newController()                                               -- a world with a live player, to open the mailbox
+    h.switchSeed("70040", {})
+    -- Opened with the mailbox shut: it waits, and nothing goes into the bag.
+    local givenBefore = #given
+    local gear = openRareGear()
+    local inBag = bagHas[gear] or 0
+    expect(gear and #given == givenBefore, "a crate's gear does not go into the bag: " .. tostring(given[#given]))
+    expect(waiting(gear) == 1 and announced[#announced]:find("(in the mailbox)", 1, true),
+           "it waits in the mailbox's gear list, and the chat says so: " .. tostring(gear))
+    run(20)
+    expect(waiting(gear) == 1 and #given == givenBefore, "and stays there while the mailbox is shut")
+    -- The mailbox opens: the gear goes into the bag, never into a chest slot.
+    MB.open()
+    run(6)
+    expect(MB.viewOpen() and not inChest(gear) and waiting(gear) == 0 and bagHas[gear] == inBag + 1
+           and h.told("From your mailbox, now in your bag:"),
+           "opening the mailbox hands the gear to the bag, not to the chest: " .. tostring(bagHas[gear]))
+    -- A crate opened while the mailbox is open (as from the crate window over it): its gear goes to the bag at once.
+    local second = openRareGear()
+    run(1)
+    expect(waiting(second) == 0 and not inChest(second) and bagHas[gear] == inBag + 2,
+           "gear from a crate opened in the open mailbox goes to the bag on the next update")
+    -- The bag full: it stays in the gear list, closing the chest keeps it, and the save has it.
+    game.bagFull = true
+    local third = openRareGear()
+    run(2)
+    expect(waiting(third) == 1 and not inChest(third) and h.told("stays in the mailbox."),
+           "with the bag full the gear stays in the mailbox, and the player is told")
+    h.closeChestWindow()
+    run(2)
+    game.bagFull = false
+    expect(not MB.viewOpen() and waiting(third) == 1
+           and h.saveText("70040", "Other"):find("mailgear=" .. third .. ":1\n", 1, true),
+           "closing the chest keeps the gear waiting, in the save's mailgear= line")
+    run(20)
+    expect(waiting(third) == 1 and bagHas[gear] == inBag + 2, "nothing goes into the bag while the mailbox is shut")
+    -- Opened again: handed over once, however long the mailbox stays open.
+    MB.open()
+    run(26)
+    local gearGiven = 0
+    for i = givenBefore + 1, #given do
+        if given[i] == gear .. " x1" then
+            gearGiven = gearGiven + 1
+        end
+    end
+    expect(waiting(third) == 0 and bagHas[gear] == inBag + 3 and gearGiven == 3,
+           "the next open hands it over, once: " .. gearGiven .. " given for 3 crates")
+    h.closeChestWindow()
+    run(2)
+    expect(h.saveText("70040", "Other"):find("mailgear=\n", 1, true), "and the save's gear list is empty")
+    -- The game puts the gear straight into an empty accessory slot: it counts as handed out, and the player is told it
+    -- is equipped, not in the bag.
+    game.equipsFreeSlot = true
+    local equipMark, announcedBefore = logMark(), #announced
+    local worn = openRareGear()
+    MB.open()
+    run(6)
+    game.equipsFreeSlot = false
+    local toldEquipped = false
+    for i = announcedBefore + 1, #announced do
+        if announced[i]:find("From your mailbox, now equipped: ", 1, true) then
+            toldEquipped = true
+        end
+    end
+    expect(waiting(worn) == 0 and toldEquipped,
+           "gear the game puts straight into an empty accessory slot is handed out, and the player told it is "
+           .. "equipped: " .. tostring(announced[#announced]))
+    expect(not loggedSince(equipMark, "gained") and loggedSince(equipMark, "; equipped "),
+           "the log counts the equipment slot as a gain, and says where it went")
+    h.closeChestWindow()
+    run(2)
+    -- A weapon goes into an empty weapon slot, which is no EPalPlayerEquipItemSlotType: the loadout is asked too.
+    game.equipsFreeSlot, game.givesWeapons = true, true
+    local weaponMark, weaponAnnouncedBefore = logMark(), #announced
+    local weapon = openRareGear()
+    MB.open()
+    run(6)
+    game.equipsFreeSlot, game.givesWeapons = false, false
+    local weaponEquipped = false
+    for i = weaponAnnouncedBefore + 1, #announced do
+        if announced[i]:find("From your mailbox, now equipped: ", 1, true) then
+            weaponEquipped = true
+        end
+    end
+    expect(waiting(weapon) == 0 and weaponEquipped and not loggedSince(weaponMark, "gained"),
+           "gear the game puts straight into an empty weapon slot is told as equipped, not in the bag: "
+           .. tostring(announced[#announced]))
+    weaponSlots = {}
+    h.closeChestWindow()
+    run(2)
+    -- A save from an older mod: the gear its bag refused (cratebag=) waits in the gear list.
+    MB.load("cratebag=Sword:1")
+    expect(waiting("Sword") == 1, "an older save's cratebag= gear waits in the mailbox")
+    MB.removeCount(MB.gear, "Sword", 1)
+    inWorld(false)
+end)
+
+group("crate gear shows in the mailbox's chest", function()
+    -- The game makes gear a piece of its own in the bag; the mailbox moves it on into its chest by the game's own move,
+    -- so the player sees it there and takes it out. What is left there goes to the bag as the window closes, and the
+    -- player is warned of that whenever gear arrives.
+    local MB, BAG = require("mailbox"), require("bag")
+    inWorld(true)
+    newController()
+    h.switchSeed("70041", {})
+    game.gearPieces = true
+    local openMark = logMark()
+    -- 1. Into the chest, by the game's move, and the player warned.
+    local gear = openRareGear()
+    local name = BAG.nameOf(gear)
+    local bagBefore, movesBefore = bagHas[gear] or 0, #moves
+    MB.open()
+    run(10)
+    local slot = chestSlotWith(gear)
+    expect(slot and (bagHas[gear] or 0) == bagBefore and #movesIn == 1,
+           "the gear goes into the mailbox's chest by the game's move, not left in the bag: " .. #movesIn)
+    expect(h.told("In your mailbox: " .. name .. ". Gear you leave in the mailbox goes to your bag when you close it."),
+           "the player is told it is in the mailbox, and warned that gear left there goes to the bag")
+    expect(slot and #slot.Permission.PermissionItemStaticIds.list == 1
+           and #chests[1].c.Permission.PermissionItemStaticIds.list == 1,
+           "the slot and the chest refuse deposits again once the piece is in")
+    -- 2. The sweep leaves the mailbox's own piece alone.
+    run(20)
+    expect(chestSlotWith(gear) == slot and #moves == movesBefore, "the sweep does not send the mailbox's gear back")
+    -- 3. The player takes it out: it is theirs, given once.
+    local own = slot.ItemId.DynamicId.LocalIdInCreatedWorld
+    slot.ItemId = { StaticId = FNameOf("None"), DynamicId = { LocalIdInCreatedWorld = { A = 0, B = 0, C = 0, D = 0 } } }
+    slot.StackCount = 0
+    bagHas[gear] = (bagHas[gear] or 0) + 1
+    putPieceInBag(gear, own)
+    run(5)
+    expect(bagHas[gear] == bagBefore + 1 and not inChest(gear) and #movesIn == 1,
+           "taken out, it stays in the bag and is not moved back in")
+    -- 4. Gear left in the mailbox goes to the bag as the window closes, and the player is told.
+    local second = openRareGear()
+    run(10)
+    expect(inChest(second), "gear from a crate opened while the mailbox is open shows in it too")
+    h.closeChestWindow()
+    run(2)
+    expect(not inChest(second) and (bagHas[second] or 0) >= 1
+           and h.told("Gear you left in the mailbox went to your bag: " .. BAG.nameOf(second) .. "."),
+           "gear left in the mailbox goes to the bag when it closes, and the player is told")
+    -- 5. The game's move does nothing: the gear stays in the bag, and the player is told so.
+    game.movesWork = false
+    local third = openRareGear()
+    local thirdBefore = bagHas[third] or 0
+    MB.open()
+    run(12)
+    game.movesWork = true
+    expect(not inChest(third) and bagHas[third] == thirdBefore + 1
+           and h.told("From your mailbox, now in your bag: " .. BAG.nameOf(third) .. "."),
+           "when the move does nothing the gear stays in the bag, and the player is told")
+    expect(#chests[1].c.Permission.PermissionItemStaticIds.list == 1, "and the chest refuses deposits again")
+    h.closeChestWindow()
+    run(2)
+    -- 6. The game puts it into an empty accessory slot a moment after AddItem (as in game): "now equipped".
+    local wornBefore = wornIn
+    wornIn = {}
+    game.equipsFreeSlot, game.equipsLater = true, true
+    local fourth = openRareGear()
+    local toldAt = #announced
+    MB.open()
+    run(10)
+    game.equipsFreeSlot, game.equipsLater = false, false
+    local told = table.concat(announced, "|", toldAt + 1)
+    expect(told:find("now equipped: " .. BAG.nameOf(fourth), 1, true) and not told:find("now in your bag", 1, true),
+           "gear the game equips after AddItem returns is told as equipped, not in the bag: " .. told)
+    wornIn = wornBefore
+    h.closeChestWindow()
+    run(2)
+    -- 7. What opening cost is logged, once a world.
+    local costLines = 0
+    local COST_LINE = "mailbox: opening took %d+ ms %(finding the chest %d+, hiding it %d+, deposit rule %d+, "
+        .. "filling %d+"
+    for i = openMark + 1, #printed do
+        if printed[i]:find(COST_LINE) then
+            costLines = costLines + 1
+        end
+    end
+    expect(costLines == 1, "the opening's cost is logged once a world, part by part: " .. costLines .. " line(s)")
+    game.gearPieces = false
+    inWorld(false)
+end)
+
+group("a seed without Palworld Crates shows no crate button on the mailbox", function()
+    local CR, MB = require("crates"), require("mailbox")
+    local canvas, kids = fakeCanvas("CanvasPanel_0")
+    local chestWin = Widget({ WidgetTree = { RootWidget = canvas } })
+    local savedWidget, savedList = MB.chestWidget, CR.list
+    MB.chestWidget = function() return chestWin end
+    slotData["options.palworld_crates"] = "0"
+    CR.list = {}
+    run(2)
+    expect(#kids == 0, "no crates in the seed and none waiting: nothing on the chest window: " .. #kids)
+    CR.list = { "food" }
+    run(1)
+    expect(kids[#kids] and kids[#kids].width == 800, "a crate waiting all the same still shows the window")
+    slotData["options.palworld_crates"] = "1"
+    CR.list = {}
+    run(1)
+    local shown = kids[#kids] and kids[#kids].child
+    expect(shown and shown.Text_Main and shown.Text_Main.text == "Palworld Crates",
+           "with crates in the seed the small button stays when none wait")
+    slotData["options.palworld_crates"] = nil
+    MB.chestWidget, CR.list = savedWidget, savedList
+    run(1)
+end)

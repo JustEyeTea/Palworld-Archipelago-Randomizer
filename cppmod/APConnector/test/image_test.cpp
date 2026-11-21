@@ -1,13 +1,140 @@
-// Linux check of image_tools: a 2x1 PNG (pure red, pure green) comes back grey with the expected luminance.
-//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/image_tools.cpp -o /tmp/image_test && /tmp/image_test
+// Linux check of the map pictures (image_tools.hpp): greyscale_png, compose_map and its job slot, a slot whose thread
+// cannot start, compose_chart, compose_fog (plain, as a BMP, with a stamp, with borders, dashed, kept to land),
+// sample_png, compose_territories and compose_field (as the overlay, as the map picture with its duotone fog picture,
+// and with flying corridors striped), and bad arguments refused. Each check prints "ok" or "FAIL" with what it saw;
+// the first failure ends the run (exit 1).
+// It writes its pictures to /tmp/*.png and reads them back. Run by CI ("The C++ part's image helper"); by hand, from
+// cppmod/APConnector:
+//   g++ -std=c++17 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/lua_text.cpp src/image_*.cpp
+//       -o /tmp/image_test && /tmp/image_test
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <exception>
 #include <string>
 #include <vector>
+#include <sys/resource.h>
 #include "image_tools.hpp"
 #include "stb_image.h"
 #include "stb_image_write.h"
+
+// A job slot whose thread cannot start must say so through its status, not stay "busy" for the session. Threads are
+// refused by lowering this process's limit on the user's processes (not for root, which the limit does not bind:
+// then the check is skipped). Returns whether it passed.
+static bool check_job_without_thread()
+{
+    rlimit before{};
+    getrlimit(RLIMIT_NPROC, &before);
+    rlimit none = before;
+    none.rlim_cur = 1;
+    setrlimit(RLIMIT_NPROC, &none);
+    std::string started;
+    try
+    {
+        started = chart_jobs().start([] { return std::string(); });
+    }
+    catch (const std::exception& e)
+    {
+        started = std::string("threw ") + e.what();
+    }
+    setrlimit(RLIMIT_NPROC, &before);
+    std::string first = chart_jobs().status();
+    if (started == "" && (first == "busy" || first == "done"))
+    {
+        while (first == "busy") first = chart_jobs().status();
+        std::printf("skipped job without a thread: the thread started anyway (running as root?)\n");
+        return true;
+    }
+    const std::string after = chart_jobs().status();
+    const bool ok = started == "" && first.rfind("error: ", 0) == 0 && after == "";
+    std::printf("%s job without a thread: start '%s', status '%s', then '%s'\n", ok ? "ok" : "FAIL", started.c_str(),
+                first.c_str(), after.c_str());
+    return ok;
+}
+
+// A little-endian field of a file read into memory: n bytes (2 or 4) at offset at.
+static unsigned long le(const std::vector<unsigned char>& b, size_t at, int n)
+{
+    unsigned long v = 0;
+    for (int i = n - 1; i >= 0; --i) v = (v << 8) | b[at + i];
+    return v;
+}
+
+// The fog picture written as a BMP (write_picture, for an out path ending in ".bmp") holds the same pixels as the PNG,
+// alpha included: a 32-bit BMP with a V4 header whose masks put red, green, blue and alpha where the game's reader
+// looks for them, its rows bottom to top. png is that picture as RGBA (w x h). Returns whether it passed.
+static bool check_fog_bmp(const unsigned char* png, int w, int h)
+{
+    constexpr size_t FILE_HEADER = 14, V4_HEADER = 108;   // the BMP file header, then the BITMAPV4HEADER
+    constexpr unsigned long BI_BITFIELDS = 3, ALPHA_MASK = 0xff000000ul, RED_MASK = 0x00ff0000ul;
+    std::FILE* in = std::fopen("/tmp/fog_out.bmp", "rb");
+    std::vector<unsigned char> b;
+    for (int c; in && (c = std::fgetc(in)) != EOF;) b.push_back(static_cast<unsigned char>(c));
+    if (in) std::fclose(in);
+    const size_t pixels = FILE_HEADER + V4_HEADER;
+    bool ok = png && b.size() == pixels + static_cast<size_t>(w) * h * 4 && b[0] == 'B' && b[1] == 'M'
+              && le(b, 10, 4) == pixels && le(b, 14, 4) == V4_HEADER && le(b, 18, 4) == static_cast<unsigned long>(w)
+              && le(b, 22, 4) == static_cast<unsigned long>(h) && le(b, 28, 2) == 32 && le(b, 30, 4) == BI_BITFIELDS
+              && le(b, 54, 4) == RED_MASK && le(b, 66, 4) == ALPHA_MASK;
+    int differ = 0;
+    for (int y = 0; ok && y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const unsigned char* p = png + (static_cast<size_t>(y) * w + x) * 4;               // R G B A, top row first
+            const unsigned char* q = b.data() + pixels + (static_cast<size_t>(h - 1 - y) * w + x) * 4;   // B G R A
+            if (q[0] != p[2] || q[1] != p[1] || q[2] != p[0] || q[3] != p[3]) ++differ;
+        }
+    }
+    ok = ok && differ == 0;
+    std::printf("%s fog as BMP: %zu bytes, %d pixel(s) unlike the PNG\n", ok ? "ok" : "FAIL", b.size(), differ);
+    return ok;
+}
+
+// compose_field with a flying corridor (after the field checks in main, which write /tmp/field.png and
+// /tmp/field_colour.png): a 64 px flying picture marks columns 40-55 above row 50, which at 1024 px is x 640-895 above
+// y 800, in area 2 (visited, green). There the map picture is striped across the diagonal: a sky band pale blue, the
+// lock's band green; everywhere else every byte is as without the flying picture. Returns whether it passed.
+static bool check_flying_stripes()
+{
+    constexpr int SIZE = 1024, MASK = 64;
+    std::vector<unsigned char> mask(MASK * MASK, 0);
+    for (int y = 0; y < 50; ++y)
+        for (int x = 40; x < 56; ++x) mask[y * MASK + x] = 255;
+    stbi_write_png("/tmp/field_flying.png", MASK, MASK, 1, mask.data(), MASK);
+    const char* locks = "1:l:FF0000,2:v:00FF00";
+    const char* style = "FFE9B0,0.35,FFF4DC,0.6,160,48,80";
+    const auto plain = compose_field("/tmp/field.png", locks, "", style, "/tmp/field_plain.png", "", "102030", SIZE,
+                                     "/tmp/field_colour.png", 1.0);
+    const auto striped = compose_field("/tmp/field.png", locks, "", style, "/tmp/field_striped.png", "", "102030", SIZE,
+                                       "/tmp/field_colour.png", 1.0, "/tmp/field_flying.png");
+    int w = 0, h = 0, n = 0;
+    unsigned char* a = plain.empty() ? stbi_load("/tmp/field_plain.png", &w, &h, &n, 4) : nullptr;
+    unsigned char* b = striped.empty() ? stbi_load("/tmp/field_striped.png", &w, &h, &n, 4) : nullptr;
+    if (!a || !b)
+    {
+        std::printf("FAIL flying stripes: %s / %s\n", plain.c_str(), striped.c_str());
+        return false;
+    }
+    auto at = [&](unsigned char* px, int x, int y) { return px + (static_cast<size_t>(y) * SIZE + x) * 4; };
+    // Bands are 12 px of the 4096 reference map: 3 px here, 4.24 along x + y. (700, 400): x + y 1100, a sky band;
+    // (696, 400): 1096, the lock's.
+    const unsigned char *sky = at(b, 700, 400), *lock = at(b, 696, 400);
+    const bool skyBlue = sky[2] > sky[0] + 40 && sky[2] > lock[2] + 60;
+    const bool lockGreen = lock[1] > lock[2] + 100 && lock[1] > at(a, 696, 400)[1];
+    int spilled = 0;
+    for (int y = 0; y < SIZE; ++y)
+        for (int x = 0; x < SIZE; ++x)
+        {
+            const bool corridor = x >= 630 && x < 905 && y < 810;     // (its soft edge reaches a few px out)
+            if (!corridor && std::memcmp(at(a, x, y), at(b, x, y), 4) != 0) ++spilled;
+        }
+    const bool ok = skyBlue && lockGreen && spilled == 0;
+    std::printf("%s flying stripes: sky %d,%d,%d, lock's band %d,%d,%d, %d pixel(s) changed outside the corridor\n",
+                ok ? "ok" : "FAIL", sky[0], sky[1], sky[2], lock[0], lock[1], lock[2], spilled);
+    return ok;
+}
 
 int main()
 {
@@ -26,10 +153,13 @@ int main()
     for (int i = 0; i < 200 * 100; ++i) { map[i * 4] = 255; map[i * 4 + 3] = 255; lab[i] = (i % 200) < 100 ? 1 : 2; }
     stbi_write_png("/tmp/compose_map.png", 200, 100, 4, map.data(), 800);
     stbi_write_png("/tmp/compose_lab.png", 200, 100, 1, lab.data(), 200);
-    if (compose_map_start("/tmp/compose_map.png", "/tmp/compose_lab.png", "1", "/tmp/compose_out.png", 1.0) != "")
+    const auto map_job = [] {
+        return compose_map("/tmp/compose_map.png", "/tmp/compose_lab.png", "1", "/tmp/compose_out.png", 1.0);
+    };
+    if (map_jobs().start(map_job) != "")
         { std::printf("FAIL could not start\n"); return 1; }
     std::string st;
-    while ((st = compose_map_status()) == "busy") {}
+    while ((st = map_jobs().status()) == "busy") {}
     unsigned char* o = stbi_load("/tmp/compose_out.png", &w, &h, &n, 4);
     auto at = [&](int x, int y) { return o + (y * 200 + x) * 4; };
     const bool grey = o && at(20, 50)[0] == at(20, 50)[1] && at(20, 50)[0] > 40 && at(20, 50)[0] < 60;   // deep inside: Y(red)=54
@@ -38,6 +168,19 @@ int main()
     std::printf("%s compose: %s, inside %d, open %d, edge %d/%d\n", st == "done" && grey && colour && soft ? "ok" : "FAIL",
                 st.c_str(), o ? at(20, 50)[0] : -1, o ? at(180, 50)[0] : -1, o ? at(99, 50)[0] : -1, o ? at(99, 50)[1] : -1);
     if (!(st == "done" && grey && colour && soft)) return 1;
+    if (!check_job_without_thread()) return 1;
+
+    // compose_map refuses a locked list it cannot read whole ("257" is no area, not area 1; "1x" is not a number),
+    // instead of greying the wrong area.
+    bool badLockedOk = true;
+    for (const char* bad : {"257", "-255", "1x"})
+    {
+        const auto berr = compose_map("/tmp/compose_map.png", "/tmp/compose_lab.png", bad, "/tmp/compose_bad.png", 1.0);
+        std::printf("%s compose: locked '%s': %s\n", berr.empty() ? "FAIL" : "ok", bad,
+                    berr.empty() ? "written (an area greyed)" : berr.c_str());
+        badLockedOk = badLockedOk && !berr.empty();
+    }
+    if (!badLockedOk) return 1;
 
     // compose_chart: a 256x256 map: a grey band beyond the world's edge on the left, teal sea, a green island in the
     // middle. Land comes out as warm paper, the sea cooler, the coast inked dark, beyond the edge darker paper.
@@ -84,6 +227,9 @@ int main()
     std::printf("%s fog: %s, alpha unexplored %d, explored %d, edge %d\n", fogOk ? "ok" : "FAIL", fst.c_str(),
                 fa(20, 128), fa(240, 128), fa(128, 128));
     if (!fogOk) return 1;
+    const bool bmpOk = compose_fog("/tmp/chart_out.png", "/tmp/fog_mask.png", "", "r+", "/tmp/fog_out.bmp", 256) == ""
+                       && check_fog_bmp(f, 256, 256);
+    if (!bmpOk) return 1;
 
     // sample_png: the mask above reads 255 red on its right half, 0 on its left; a missing file is an error.
     const auto right = sample_png("/tmp/fog_mask.png", 0.9, 0.5), left = sample_png("/tmp/fog_mask.png", 0.1, 0.5);
@@ -137,7 +283,7 @@ int main()
                 redness(34, 130), on);
     if (!regionsOk) return 1;
 
-    // Land only (the user, dev.30 test: borders and hatch ran out over the sea): a colour map with land (tan) on x 0-23
+    // Land only (borders and hatch must not run out over the sea): a colour map with land (tan) on x 0-23
     // of 64 and sea (teal) beyond. Area 2 (x 16-31) is land on 16-23 and sea on 24-31: the hatch only on its land part;
     // the border between areas 1 and 2 (both land) still drawn.
     std::vector<unsigned char> lm(64 * 64 * 4);
@@ -160,7 +306,7 @@ int main()
                 lerr.empty() ? "written" : lerr.c_str(), lg ? lg[(128 * 256 + 63) * 4] : -1, seaHatch);
     if (!landOk) return 1;
 
-    // compose_territories (the user's direction 1): labels 64x64, area 1 (locked, red) on the left half, area 2 (visited,
+    // compose_territories: labels 64x64, area 1 (locked, red) on the left half, area 2 (visited,
     // green) on the right, sea (0) on the bottom eighth; one standing wall between them at u 0.5, v 0.1-0.8.
     std::vector<unsigned char> tl(64 * 64);
     for (int i = 0; i < 64 * 64; ++i) { const int x = i % 64, y = i / 64; tl[i] = y >= 56 ? 0 : (x < 32 ? 1 : 2); }
@@ -178,6 +324,12 @@ int main()
     const bool seaClear = tg && tp(60, 245)[3] == 0;                                // the sea: no fill
     const bool fogBase = tf && tf[(100 * 256 + 200) * 3] == 0x10 && tf[(100 * 256 + 200) * 3 + 2] == 0x30;   // fog colour
     const bool badState = compose_territories("/tmp/terr_labels.png", "1:x:FF0000", "", "", "/tmp/terr_bad.png", "", "", 64) != "";
+    // A number with trailing text is not a number (lua_text's rule): the style is refused, not read as 0.55.
+    const auto badStyle = compose_territories("/tmp/terr_labels.png", "1:l:FF0000", "", "FFE9B0,0.55x,FFF4DC,1,10,3,5",
+                                              "/tmp/terr_bad.png", "", "", 64);
+    std::printf("%s territories: style with '0.55x': %s\n", badStyle.empty() ? "FAIL" : "ok",
+                badStyle.empty() ? "read" : badStyle.c_str());
+    if (badStyle.empty()) return 1;
     const bool terrOk = lockedFill && rimNearEdge && visitedClear && wallCore && seaClear && fogBase && badState;
     std::printf("%s territories: %s, locked %d/a%d, rim a%d, visited a%d, wall %d,%d,%d a%d, sea a%d\n", terrOk ? "ok" : "FAIL",
                 terr.empty() ? "written" : terr.c_str(), tg ? tp(40, 100)[0] : -1, tg ? tp(40, 100)[3] : -1, tg ? tp(40, 223)[3] : -1,
@@ -185,7 +337,7 @@ int main()
                 tg ? tp(128, 100)[3] : -1, tg ? tp(60, 245)[3] : -1);
     if (!terrOk) return 1;
 
-    // compose_field (the Art lane's distance fields): 256x256, area 1 (locked, red) left of x = 128, area 2 (visited, green)
+    // compose_field (distance fields): 256x256, area 1 (locked, red) left of x = 128, area 2 (visited, green)
     // right, open sea below y = 224; G the area across the nearest border, B its distance in 1/8 px. One standing wall
     // piece on the top half of the land border only (v 0.05-0.45): the lower half of that border must show no wall. One
     // out at sea, away from every border (v 0.95): drawn where it stands.
@@ -228,8 +380,8 @@ int main()
                 fg ? fp(160, 250)[3] : -1, fg ? fp(76, 243)[3] : -1);
     if (!fieldOk) return 1;
 
-    // compose_field with the player's map (dev.33 playtest): the whole picture, opaque; the locked area greyscale with no
-    // fill, the visited one in colour; the wall in the locked side's red, lighter. The fog picture the duotone (combo C):
+    // compose_field with the player's map: the whole picture, opaque; the locked area greyscale with no
+    // fill, the visited one in colour; the wall in the locked side's red, lighter. The fog picture the duotone:
     // the map (lum 0.469) gives the locked red area dark red (~123,28,32), the visited green one brighter green (G ~163),
     // the open sea a blue grey (~59,69,78).
     std::vector<unsigned char> cmap(256 * 256 * 4);
@@ -258,5 +410,6 @@ int main()
                 mg ? mp(127, 50)[2] : -1,
                 mf ? (std::to_string(fq(40, 100)[0]) + "," + std::to_string(fq(40, 100)[1]) + " / " + std::to_string(fq(220, 100)[1])
                       + " / " + std::to_string(fq(160, 250)[0]) + "," + std::to_string(fq(160, 250)[2])).c_str() : "none");
-    return mapOk ? 0 : 1;
+    if (!mapOk) return 1;
+    return check_flying_stripes() ? 0 : 1;
 }

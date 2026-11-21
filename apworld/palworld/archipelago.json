@@ -1,8 +1,8 @@
 {
   "game": "Palworld",
   "authors": [
-    "JustEyeTee"
+    "JustEyeTea"
   ],
-  "world_version": "0.8.0",
+  "world_version": "0.10.0",
   "minimum_ap_version": "0.6.8"
 }

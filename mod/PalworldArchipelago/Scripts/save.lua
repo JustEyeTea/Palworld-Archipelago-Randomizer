@@ -1,0 +1,231 @@
+-- The seed's save file next to the mod (save-<seed>-<slot>.txt): what the server cannot send again, written whole
+-- and only when it changed, and read back when the mod connects to that seed and slot. Wired by main.lua
+-- (SAVE.install).
+-- Which seed each world is played in is kept beside the saves (world_seeds.lua), so a game started offline loads the
+-- loaded world's save (SAVE.seedOfWorld).
+-- Tests: mod/test/tests/goals.lua, mod/test/tests/core_loop.lua, mod/test/tests/core.lua; groups "the save file",
+--   "the save file is written only when it changes", "reconnect does not repeat one-off items", "loading the mod"
+--   (tools/lua_harness.sh, in CI).
+local SAVE = {}
+local CRATES = require("crates")
+local MAIL = require("mailbox")
+local PERF = require("perf")
+local PLAYER = require("player")
+local STATE = require("ap_state")
+local RUN_STYLE = require("run_style")
+local TRAPS = require("traps")
+local UTIL = require("util")
+local WORLD_SEEDS = require("world_seeds")
+local ap = STATE.ap
+local log, once = UTIL.log, UTIL.once
+local notify = PLAYER.notify
+
+-- What main.lua hands over (SAVE.install).
+--   dir     the mod's folder, where the save files are
+local env
+
+-- Takes what main.lua hands over.
+function SAVE.install(handedOver)
+    env = handedOver
+    WORLD_SEEDS.install({ dir = handedOver.dir })
+end
+
+-- The save file holds one "kind=value" line each, written in this order (loadSave hands each line to its owner):
+--   given=12                  the last item index whose one-off effect was applied (items are numbered from 0)
+--   world=<folder>            the world save this seed is played in (checkWorld; also kept in worlds.txt)
+--   deaths=1                  own faints forgiven since a death was last sent (Death Link amnesty)
+--   goal=shown                the goal's banner and notice have been shown
+--   bought=123,456            checks the mod sent itself (ap.bought): sent again on connecting
+--   visited=Lock|Lock         open locks the player has stood in (the map's open stamps)
+--   flown=1|2                 flying corridors flown through, by their number in *_walls.lua (the map's fly-up icons)
+--   traps=Slow Trap|14,...    traps.lua: traps still to fire, each with its item index
+--   mail=id:n,... and mailgear=id:n,...    mailbox.lua: the mailbox's items, and its gear (an older mod's save has
+--                             cratebag= in place of mailgear=, which mailbox.lua reads as gear)
+--   crates=kind,...           crates.lua: unopened crates
+--   syncbase=Field:value,...  run_style.lua: the world's own rates from before the run style changed them
+--   end                       the last line: the file was written whole
+-- The save file of `seed` played as `slot`.
+local function pathFor(seed, slot)
+    return env.dir .. "\\save-" .. seed .. "-" .. (slot:gsub("[^%w_%-]", "_")) .. ".txt"
+end
+-- The save file of the seed in memory. Named after the slot whose progress is in memory (set with the seed on
+-- connecting, or from worlds.txt offline), not cfg.slot: the title menu changes that before the server has said yes,
+-- and a refused slot must not get this one's progress.
+function SAVE.path()
+    if not ap.seed then return nil end
+    return pathFor(ap.seed, ap.slotName)
+end
+-- The file is written whole to save-...txt.tmp, then put in place, and ends with "end": a write cut short (a crash, a
+-- power cut) leaves either the old file or a complete .tmp, never half a file. Older saves have no "end" line.
+local function readSave(path)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local lines, complete = {}, false
+    for line in f:lines() do
+        if line == "end" then
+            complete = true
+        else
+            lines[#lines + 1] = line
+        end
+    end
+    f:close()
+    return lines, complete
+end
+-- Takes one line of the save file at `path`: the core's own lines here, the others by the module that wrote them.
+local function loadLine(path, line)
+    local n = line:match("^given=(%-?%d+)")
+    local w = line:match("^world=(.+)$")
+    local d = line:match("^deaths=(%d+)")
+    local v = line:match("^visited=(.*)$")
+    local f = line:match("^flown=(.*)$")
+    local b = line:match("^bought=(.*)$")
+    if line == "goal=shown" then
+        ap.goalShown = true
+    elseif n then
+        ap.given = tonumber(n)
+    elseif w then
+        ap.world = w
+    elseif d then
+        ap.forgiven = tonumber(d)
+    elseif v then
+        for lock in v:gmatch("[^|]+") do
+            ap.visited[lock] = true
+        end
+    elseif f then
+        for number in f:gmatch("%d+") do
+            ap.flown[tonumber(number)] = true
+        end
+    elseif b then
+        for loc in b:gmatch("%d+") do
+            ap.bought[tonumber(loc)], ap.checked[tonumber(loc)] = true, true
+        end
+    elseif not TRAPS.load(line) and not CRATES.load(line) and not RUN_STYLE.load(line) and not MAIL.load(line) then
+        local kind = line:match("^[^=]*") or line
+        once("saveline " .. kind, "save " .. path .. ": a line no part of the mod reads, left out: " .. kind .. "=")
+    end
+end
+
+-- The lines of the save file at `path`, or of its complete .tmp copy when the file was cut short; nil when there is
+-- neither. `quiet`: which one was taken is not logged (a look at the world= line only).
+local function saveLines(path, quiet)
+    local lines, complete = readSave(path)
+    local tmp, tmpComplete = readSave(path .. ".tmp")
+    if tmp and tmpComplete and not complete then
+        if not quiet then
+            log("save " .. path .. ": " .. (lines and "incomplete" or "missing") .. "; using the copy written last"
+                .. " (.tmp)")
+        end
+        return tmp
+    elseif lines and not complete and not quiet then
+        once("saveend " .. path, "save " .. path .. ": no end line (from an older version, or cut short) and no"
+            .. " complete .tmp copy; read as it is")
+    end
+    return lines
+end
+
+-- Reads the seed's save file (or its complete .tmp copy when the file was cut short) and hands each line to its owner.
+function SAVE.load()
+    local path = SAVE.path()
+    if not path then return end
+    local lines = saveLines(path)
+    if not lines then return end
+    for _, line in ipairs(lines) do
+        loadLine(path, line)
+    end
+    local kinds, items = MAIL.count()
+    log("save " .. path .. ": items applied up to index " .. ap.given .. "; " .. CRATES.count() .. " crate(s); mailbox "
+        .. items .. " item(s) of " .. kinds .. " kind(s); " .. #TRAPS.queue .. " trap(s) waiting; " .. ap.forgiven
+        .. " faint(s) forgiven; world " .. tostring(ap.world))
+end
+-- The seed and slot played in `world`, by worlds.txt, when that seed's save file still says it is played there; nil
+-- otherwise (no line for the world, the save gone, or the seed moved to another world since).
+function SAVE.seedOfWorld(world)
+    local seed, slot = WORLD_SEEDS.lookUp(world)
+    if not seed then return nil end
+    for _, line in ipairs(saveLines(pathFor(seed, slot), true) or {}) do
+        if line == "world=" .. world then return seed, slot end
+    end
+    log("worlds.txt names seed " .. seed .. " (" .. slot .. ") for world " .. world .. ", but its save does not: not"
+        .. " taken")
+    return nil
+end
+
+-- Written only when its text changed: creating, writing and closing the file costs an estimated 0.2-2 ms each time
+-- (more with antivirus; unmeasured), and the items phase asks for a write every cycle. The text
+-- is compared, not ap.given alone: mail that arrives (MAIL.add) is saved only by this write. always: write it anyway
+-- (the perf probe's Ctrl+0 replay of the old load).
+local lastSave = nil          -- path and text of the last write: the same again is not written
+local saveWarned = false      -- the player was told the save file can't be written (once a session)
+-- The save file's text, every line in the order the list above gives. One write holds everything that must agree:
+-- what was applied, and the traps and mailbox items it left.
+local function saveText()
+    local been = {}
+    for lock in pairs(ap.visited) do
+        been[#been + 1] = lock
+    end
+    table.sort(been)
+    local flown = {}
+    for number in pairs(ap.flown) do
+        flown[#flown + 1] = number
+    end
+    table.sort(flown)
+    local bought = {}
+    for loc in pairs(ap.bought) do
+        bought[#bought + 1] = loc
+    end
+    table.sort(bought)
+    return table.concat({
+        "given=" .. ap.given .. "\n",
+        ap.world and ("world=" .. ap.world .. "\n") or "",
+        "deaths=" .. ap.forgiven .. "\n",
+        ap.goalShown and "goal=shown\n" or "",
+        #been > 0 and ("visited=" .. table.concat(been, "|") .. "\n") or "",
+        #flown > 0 and ("flown=" .. table.concat(flown, "|") .. "\n") or "",
+        #bought > 0 and ("bought=" .. table.concat(bought, ",") .. "\n") or "",
+        TRAPS.serialize(), MAIL.serialize(), CRATES.serialize(), RUN_STYLE.serialize(),
+        "end\n",
+    })
+end
+
+-- Writes `text` in place of the file at `path` (through its .tmp copy, UTIL.replaceFile). Returns whether it worked; a
+-- file that cannot be opened is logged and the player told, once a session; a failed write or rename is logged once
+-- and leaves the last good file.
+local function writeWhole(path, text)
+    local ok, step, why = UTIL.replaceFile(path, text)
+    if ok then return true end
+    if step == "open" then
+        if not saveWarned then
+            saveWarned = true
+            log("could not write " .. path .. ".tmp: " .. tostring(why))
+            notify("Can't write the mod's save file: items you receive will be given again next time."
+                .. " Check that the game may write to its Mods folder.")
+        end
+    elseif step == "write" then
+        once("savewrite", "could not write " .. path .. ".tmp: " .. tostring(why) .. "; the last save is kept")
+    elseif step == "rename" then
+        once("saverename", "could not put the save in place: " .. tostring(why))
+    else
+        error("UTIL.replaceFile failed at a step save.lua does not know: " .. tostring(step))
+    end
+    return false
+end
+
+-- Writes the save file whole when its text changed, or anyway with `always`; and keeps worlds.txt in step with its
+-- world= line.
+function SAVE.write(always)
+    local path = SAVE.path()
+    if not path then return end
+    if ap.world then
+        WORLD_SEEDS.remember(ap.world, ap.seed, ap.slotName)
+    end
+    local text = saveText()
+    if not always and lastSave == path .. "\n" .. text then return end
+    PERF.start("save")
+    local written = writeWhole(path, text)
+    PERF.stop("save")
+    if not written then return end
+    lastSave = path .. "\n" .. text
+    PERF.count("save")
+end
+
+return SAVE

@@ -5,7 +5,7 @@ drop. Nothing had been measured. This probe measures it, and its hotkeys switch 
 old and new can be compared. It changes nothing in the game: it times, counts and logs. Every millisecond figure in the
 code comments is an estimate from the UE4SS source and the game's files until this probe measures it in game.
 
-Written by Claude (an AI model made by Anthropic) at JustEyeTee's direction, like most of this project.
+Written by Claude (an AI model made by Anthropic) at JustEyeTea's direction, like most of this project.
 
 ## Turning it on
 
@@ -37,7 +37,7 @@ Times are in ms. `a/m` means average / worst in the window.
 | `upd` | Updates in the window. About 100 expected; fewer means the 300 ms loop is being starved. |
 | `lua` | The whole update on the game thread, the controller walk that starts it included, a/m. The mod's update runs inside one frame (UE4SS runs queued game-thread work in its engine-tick hook), so this is how much longer that frame is. |
 | `gc` | KB of Lua garbage made per update. |
-| sections | Each part of the update, a/m, averaged over the updates where it ran: `ctx` (the controller walk every update starts with), `poll` (Archipelago events), `menu`, `mail`, `cards` (the shop labels), `scan` (other mods' techs, first minute only), `walls`, `map`, `e7` (the work every 7th update, the traps and the world check included) with `rec` (records), `techs` (the tech list) and `save` (the save file) inside it, and `legacy` (Ctrl+0 only). |
+| sections | Each part of the update, a/m, averaged over the updates where it ran: `ctx` (the controller walk every update starts with), `poll` (Archipelago events), `menu`, `mail`, `cards` (the shop labels), `scan` (other mods' techs, first minute only), `walls`, `map`, `glow` (the check glow and the item-arrival burst), `e7` (the work every 7th update, the traps and the world check included) with `rec` (records), `techs` (the tech list) and `save` (the save file) inside it, and `legacy` (Ctrl+0 only). |
 | `FAO`, `FFO` | FindAllOf and FindFirstOf calls / total ms. Each one walks the game's whole object array. |
 | `top` | The 3 costliest lookups as `class:calls x avg ms : avg hits`. A class with 0 hits costs a full walk for nothing: its ms is the cost of one walk. |
 | `probe` | The probe's own walks (the notify check, test_tools) as calls / total ms. Not in `FAO`, `FFO` or `top`. |

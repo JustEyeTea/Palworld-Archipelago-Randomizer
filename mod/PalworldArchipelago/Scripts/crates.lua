@@ -1,17 +1,20 @@
--- Palworld Crates (the user, 2026-11-05): the default filler item. A Palworld Crate rolls, when it arrives, into one of
+-- Palworld Crates: the default filler item. A Palworld Crate rolls, when it arrives, into one of
 -- five crates (the slot's Crate Chance options; the roll is fixed by the seed and the item's index, so a reconnect or a
 -- replay agrees). Crates are kept in the per-seed save and opened when the player chooses (the Inventory page's Open
 -- button, menu.lua); the contents roll from the player's level at that moment:
 --   Sphere   spheres of the player's tier (70%; one tier lower 20%, one higher 10%), 10-20 early, rising to 25+
 --   Food     dishes of the player's tier, 5-10 rising to 15+
---   Common   Gold Coins (200 x level x 0.5-2.5, the user's formula), medicine, small Training Manuals, Copper Keys
+--   Common   Gold Coins (200 x level x 0.5-2.5), medicine, small Training Manuals, Copper Keys
 --   Rare     Skill Fruits, accessories, gear up to a tier above the player ("sometimes good stuff"), big manuals, keys
 --   Jackpot  stat fruits, Remedies and Elixirs, gear up to two tiers above, a big stack of high spheres
--- Plain items go to the mailbox (or the bag with mailbox=0); gear and accessories, which carry per-item data the
--- mailbox chest can't hold, go straight to the bag, and what the bag refuses waits in `pending` and is tried again.
--- Item ids from the 1.0.5 item table. Untested in game (2026-11-05).
-local C = { list = {}, pending = {} }
-local function log(msg) print("[PalworldAP] " .. msg .. "\n") end
+-- Everything a crate holds goes to the mailbox; gear and accessories are marked `gear`, for the mailbox's gear list
+-- (mailbox.lua: the hidden chest can't hold their per-item data).
+-- Item ids from the 1.0.5 item table. Untested in game: opening a crate and the items it gives.
+-- Tests: mod/test/tests/crates_run_style.lua; groups "Palworld Crates", "the crate window"
+--   (tools/lua_harness.sh, in CI).
+local C = { list = {} }
+local UTIL = require("util")
+local log = UTIL.log
 
 C.KINDS = { "sphere", "food", "common", "rare", "jackpot" }
 C.NAMES = { sphere = "Sphere Crate", food = "Food Crate", common = "Common Supply Crate", rare = "Rare Supply Crate",
@@ -156,28 +159,25 @@ C.ABOUT = { sphere = "Spheres of your tier: more as you level.", food = "Dishes 
             common = "Gold, medicine, Training Manuals or keys.", rare = "Skill Fruits, accessories, gear or keys.",
             jackpot = "Stat fruits, Elixirs, top gear or high spheres." }
 
--- The save file: crates=rare,sphere,... and cratebag=id:n,... (gear the bag refused).
+-- The save file: crates=rare,sphere,...
 function C.serialize()
-    local p = {}
-    for _, e in ipairs(C.pending) do p[#p + 1] = e[1] .. ":" .. e[2] end
-    return "crates=" .. table.concat(C.list, ",") .. "\ncratebag=" .. table.concat(p, ",") .. "\n"
+    return "crates=" .. table.concat(C.list, ",") .. "\n"
 end
+-- One line of the save file; true if it was the crates'.
 function C.load(line)
     local list = line:match("^crates=(.*)$")
-    if list then
-        C.list = {}
-        for k in list:gmatch("[^,]+") do if C.NAMES[k] then C.list[#C.list + 1] = k end end
-        return true
-    end
-    local bag = line:match("^cratebag=(.*)$")
-    if bag then
-        C.pending = {}
-        for id, n in bag:gmatch("([^:,]+):(%d+)") do C.pending[#C.pending + 1] = { id, tonumber(n) } end
-        return true
-    end
-    return false
+    if not list then return false end
+    C.list = {}
+    for k in list:gmatch("[^,]+") do if C.NAMES[k] then C.list[#C.list + 1] = k end end
+    return true
 end
-function C.reset() C.list, C.pending = {}, {} end
+function C.reset() C.list = {} end
+
+-- Whether the seed has Palworld Crates, from slot data's options.palworld_crates as text. A seed from an APWorld
+-- without that option sends none, and has crates.
+function C.inSeed(optionText)
+    return optionText ~= "0" and optionText ~= "false"
+end
 
 -- The player's tier: the best sphere unlocked by `level` (1-based index into SPHERES); rank 1-5 for gear and food.
 local function sphereTier(level)
@@ -193,7 +193,7 @@ local function pick(list, ok)
 end
 local function between(a, b) return a + math.random() * (b - a) end
 
--- Opens the next crate (of `want`'s kind, if given): its kind and a list of { id, n, bag = true for gear }.
+-- Opens the next crate (of `want`'s kind, if given): its kind and a list of { id, n, gear = true for gear }.
 -- `level`: the player's level now.
 function C.openNext(level, want)
     local at = 1
@@ -206,7 +206,7 @@ function C.openNext(level, want)
     if not kind then return nil end
     level = math.max(1, tonumber(level) or 1)
     local out = {}
-    local function add(id, n, bag) if id and n and n > 0 then out[#out + 1] = { id = id, n = n, bag = bag } end end
+    local function add(id, n, gear) if id and n and n > 0 then out[#out + 1] = { id = id, n = n, gear = gear } end end
     local tier, rank = sphereTier(level), rankOf(level)
     if kind == "sphere" then
         local r, t = math.random(), tier

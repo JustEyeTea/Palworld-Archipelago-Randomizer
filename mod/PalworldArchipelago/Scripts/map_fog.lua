@@ -1,0 +1,607 @@
+-- The map screen from C++ and the fog: what C++ is told (switched on, the picture, the fog colour and picture),
+-- when the map is on screen, the explored mask, the explorer's chart and the fog picture made from them. A part of
+-- walls.lua (with map_picture.lua, which calls it each map update), loaded fresh for each copy of walls.lua.
+-- Tests: mod/test/tests/map.lua, group "the world map"; the mask reads with the map closed in walls_fresh.lua
+-- (tools/lua_harness.sh, in CI).
+local MAP_FOG = {}
+local UTIL = require("util")
+local ART = require("art")
+local CLOCK = require("clock")
+local log = UTIL.log
+local once = UTIL.onceIn("walls")
+local owner = UTIL.gameInstance
+-- Handed over by install: W (settings: dir, keepInPlace, cppOff, testFogColour, chartOff, chartBordersOff; data:
+-- beyond), the locks part's layout and lists, the icons part's active and lockedStampArt, and the picture part
+-- (target(), territories(), terr, TERR_FOG, COLOUR_FILE, stampSize, drawInto, drawWhole).
+local W, layout, lockedList, lockedIndexes, iconsActive, lockedStampArt, picture = nil, nil, nil, nil, nil, nil, nil
+local territories, terr, TERR_FOG, COLOUR_FILE, stampSize = nil, nil, nil, nil, nil
+local GAMMA, RTF_RGBA8, BLEND_OPAQUE = nil, nil, nil
+-- Files this part writes into the mod folder (the game's own art, made on the player's machine, never shipped):
+--   CHART_FILE         the explorer's chart, drawn once a session from the colour map (the chart look)
+--   FOG_FILE           the chart look's fog picture; TERR_FOG_FILE the Territories' (each look keeps its own). BMP:
+--                      the game decodes a picture on its game thread as it loads it, and a 2048 px PNG took about
+--                      200 ms there; C++ writes a BMP when the name ends in .bmp (image_basics.hpp, write_picture)
+--   MASK_FILE          the explored mask, exported for the fog composer and read here to learn its channel
+--   DEFAULT_MASK_FILE  what every player sees uncovered, exported once a session for the fog composer
+local CHART_FILE, FOG_FILE, TERR_FOG_FILE = "map-chart.png", "map-fog.bmp", "map-fog-territories.bmp"
+local MASK_FILE, DEFAULT_MASK_FILE = "fog-mask.png", "fog-default-mask.png"
+local LOG_FIRST = 3           -- openings, pictures put back, fog pictures loaded, skipped and mask reads that are
+                              -- logged; after that they are only counted (each such line says so: CAPPED)
+local CAPPED = " (the first " .. LOG_FIRST .. " are logged)"
+-- Which channel of the explored mask means explored: the mask sampled at the player and at EDGE_UV (map u and v, a
+-- point beyond the world's edge, never explored); a channel tells them apart by at least MIN_CHANNEL_GAP (of 255).
+local EDGE_UV = "0.02"
+local MIN_CHANNEL_GAP = 64
+
+-- State: what is on screen and what C++ was told. Forgotten: mapShownAt at a new world (resetMapShown), cpp.told and
+-- cpp.body when C++ is switched off (mapOff), and never the counts for the log. The chart and the fog picture, below.
+local mapScreensShown = 0           -- map screens on screen at the last update (an opening is one coming on screen)
+-- What C++ was told: body is the picture's path (forgotten by W.mapOff, so it is told again), told whether it was
+-- switched on and given the fog colour; opened and fixes count map openings and pictures Lua put back, for the log.
+local cpp = { body = nil, told = false, opened = 0, fixes = 0, maskDone = false }
+-- State: the chart and the fog picture. Forgotten: the mask reads and the mask shown at a new world
+-- (MAP_FOG.resetMaskReads); the rest never (the chart and the fog picture are files and textures kept for the
+-- session). A fog picture file left by an earlier session is never shown: until this session's is made, C++ has none
+-- and the game's own fog shows.
+--   state  none -> composing   AP_ComposeChart started (the chart look)
+--          composing -> ready  AP_ChartStatus says done
+--          none -> ready       the Territories look, as soon as its fog art exists
+--          any -> failed       the chart could not start or failed (failChart), for the rest of the session
+--   fog    idle -> composing   startFog started AP_ComposeFog
+--          composing -> idle   AP_FogStatus is no longer busy (done: the picture is loaded)
+local chart = {
+    state = "none",
+    fog = "idle",
+    spec = nil,         -- which channel of the explored mask means explored, and which way ("a-": alpha low)
+    ticks = 0,          -- chart updates counted (the clock of the mask reads)
+    exportedAt = nil,   -- the tick the explored mask was last read; nil before the first read in this world
+    want = false,       -- the map opened: read the mask at the next chance (at most every MASK_READ_GAP)
+    early = nil,        -- reads of the mask before the map opened, in this world (at most EARLY_MASK_TRIES)
+    noRefresh = false,  -- the world's map data could not be read for a refresh: in this world, read at openings only
+    tex = nil,          -- the fog picture loaded last, handed to C++
+    stampKey = nil,     -- the stamps, borders and look the last fog picture was started with
+    keptAt = nil,       -- the fog picture's place in the kept objects (W.keepInPlace)
+    loads = 0,          -- fog pictures loaded this session (the first LOG_FIRST are logged)
+    skipped = 0,        -- fog pictures made but not loaded, the locks having changed meanwhile (first LOG_FIRST logged)
+    maskInWork = nil,   -- the explored mask file's bytes the fog picture being made was started from
+    maskShown = nil,    -- the explored mask file's bytes the fog picture handed to C++ was made from; nil: none yet
+    sameMaskReads = 0,  -- mask reads that found the mask the shown picture was made from (the first LOG_FIRST logged)
+    newMaskReads = 0,   -- mask reads that found the mask changed (the first LOG_FIRST are logged)
+}
+-- The stamps and lock borders for the fog picture, made again only when the map's key changes: they test art files,
+-- which would otherwise be opened on every update while nothing changes.
+local fogParts = { key = nil, stamps = "", borders = "" }
+
+function MAP_FOG.mapShown() return mapScreensShown > 0 end
+-- A new world: its map has not been on screen yet, so its first showing is an opening.
+function MAP_FOG.resetMapShown() mapScreensShown = 0 end
+-- How many of the live map screens are on screen. A screen lasts from its first opening until Return to title, so
+-- being listed is not being open. One whose visibility cannot be read counts as on screen. Untested in game: that
+-- IsVisible reads false while the map is closed (if it reads true, an opening is seen only once per world).
+-- onScreen: one screen, by the same rule.
+local function onScreen(screen)
+    local ok, visible = pcall(function() return screen:IsVisible() end)
+    return not ok or visible == true
+end
+local function screensOnScreen(screens)
+    local n = 0
+    for _, b in ipairs(screens) do
+        if onScreen(b) then
+            n = n + 1
+        end
+    end
+    return n
+end
+MAP_FOG.onScreen = onScreen
+
+-- The map screen from C++ (APConnector's AP_MapScreen, map_screen.cpp), because the player sees Lua's swaps. It
+-- changes the screen inside the game's own Setup, before the screen draws; Lua hands it the picture and the fog's
+-- colour. Lua still puts the picture back when it finds the game's, but with C++ working it should
+-- never have to: each time it does is counted and logged (the swap the player sees).
+-- At the first opening of a session the fog's material and masks are logged, and its default mask (what every player
+-- sees uncovered) is exported to fog-default-mask.png, which startFog hands the C++ fog composer.
+-- The chart look's parchment fog colour (linear light, alpha 0.6, to see whether the colour's alpha lets the map show
+-- through), sent only with the test tools (fogColour). Untested in game: how the screen shows it.
+local CHART_FOG_COLOUR = "0.815,0.693,0.434,0.6"
+-- The fog colour C++ gives the screen until there is a fog picture: "" keeps the game's own dark fog.
+-- CHART_FOG_COLOUR only with the test tools, in the chart look with its fog on; config.txt says map_chart=0 keeps the
+-- game's fog.
+local function fogColour()
+    if W.testFogColour and not territories() and not W.chartOff then
+        return CHART_FOG_COLOUR
+    end
+    return ""
+end
+-- C++'s map screen is told through AP_MapScreen(command, value): the commands are listed in map_screen.hpp, command.
+local function tellCpp()
+    if not AP_MapScreen then return end
+    if not cpp.told then
+        cpp.told = true
+        AP_MapScreen("enable", W.cppOff and "0" or "1")
+        AP_MapScreen("fog", fogColour())
+    end
+    if picture.target() and picture.target():IsValid() then
+        local path = UTIL.objectPath(picture.target())
+        if path ~= cpp.body then
+            cpp.body = path
+            AP_MapScreen("body", path)
+        end
+    end
+end
+-- Switches the C++ map screen off where the mod's map does not belong (a seed without Area Locks, a world that is
+-- not the seed's): C++ would otherwise show the seed's picture and fog there. Told once; tellCpp switches it on again.
+function MAP_FOG.mapOff()
+    if not (AP_MapScreen and cpp.told) then
+        return
+    end
+    cpp.told, cpp.body = false, nil
+    AP_MapScreen("enable", "0")
+    log("map screen (C++): switched off, the game's own map here")
+end
+-- The fog's material and its two masks (the explored mask, a render target, and the default mask, a texture), as words
+-- for the log, and the two masks; or the reason there is no fog material.
+local function fogMasks(screen)
+    local fogMaterial = screen.MaskTextureMaterial
+    if not (fogMaterial and fogMaterial:IsValid()) then return "no fog material" end
+    local function tex(param)
+        local ok, t = pcall(function() return fogMaterial:K2_GetTextureParameterValue(FName(param)) end)
+        return ok and t and t:IsValid() and t or nil
+    end
+    local rt, def = tex("TargetTexture"), tex("DefaultMaskTexture")
+    local mask = rt and (rt:GetFullName() .. " " .. tostring(rt.SizeX) .. "x" .. tostring(rt.SizeY) .. " format "
+        .. tostring(rt.RenderTargetFormat)) or "none"
+    local info = "fog material " .. fogMaterial:GetFullName() .. "; mask " .. mask
+        .. "; default mask " .. (def and def:GetFullName() or "none")
+    return info, rt, def
+end
+-- The default mask exported to fog-default-mask.png: drawn into a render target of its size, then saved. The words
+-- for the log.
+local function exportDefaultMask(def, gameInstance)
+    local ok, err = pcall(function()
+        local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+        local w, h = def:Blueprint_GetSizeX(), def:Blueprint_GetSizeY()
+        local drt = rendering:CreateRenderTarget2D(gameInstance, w, h, RTF_RGBA8, { R = 0, G = 0, B = 0, A = 0 }, false)
+        picture.drawInto(rendering, gameInstance, drt, function(canvas)
+            picture.drawWhole(canvas, def, w, h, BLEND_OPAQUE)
+        end)
+        rendering:ExportRenderTarget(gameInstance, drt, W.dir, DEFAULT_MASK_FILE)
+        return w .. "x" .. h
+    end)
+    return ok and ("; default mask " .. tostring(err) .. " exported to " .. DEFAULT_MASK_FILE)
+        or ("; default mask export failed: " .. tostring(err))
+end
+-- At the first opening of a session: the fog's material and masks as words for the log, with the default mask exported
+-- (and, with the chart off, the explored mask too, for the log: with the chart on, its own step exports it).
+local function logFogMaterial(screen)
+    local info, rt, def = fogMasks(screen)
+    local gameInstance = owner()
+    if rt and gameInstance and (W.chartOff or not AP_ComposeFog) then
+        local ok, err = pcall(function()
+            local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+            rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE)
+        end)
+        info = info .. (ok and ("; exported to " .. MASK_FILE) or ("; export failed: " .. tostring(err)))
+    end
+    if def and gameInstance then
+        info = info .. exportDefaultMask(def, gameInstance)
+    end
+    return info
+end
+
+local CHART_SIZE = 2048
+-- Each look keeps its own fog picture: with one file, the first opening showed the other look's picture from the last
+-- session until the new one was made.
+local function fogFile() return territories() and TERR_FOG_FILE or FOG_FILE end
+-- A minute between reads of the explored mask: while the map is closed it is read again this often from the world's
+-- map data, and the fog picture made again if the mask changed, so places explored since show at the next opening; an
+-- opening reads it only if the last read is this old. Each read exports the mask on the game thread, so not every
+-- update; a new picture is also loaded on the game thread (see maskUnchanged), so only when the mask changed.
+local MASK_READ_GAP = UTIL.updates(60)
+MAP_FOG.MASK_READ_GAP = MASK_READ_GAP      -- (for the harness)
+-- Before the map first opens, the explored mask is read from the world's map data every EARLY_MASK_EVERY, at most
+-- EARLY_MASK_TRIES times (the map data may not be there yet just after a world loads).
+local EARLY_MASK_EVERY = UTIL.updates(6)
+local EARLY_MASK_TRIES = 10
+-- The chart cannot be made: the state is failed for the rest of the session, and why is logged.
+local function failChart(why)
+    chart.state = "failed"
+    log("map chart: " .. why)
+end
+local exists = UTIL.exists
+local artFile = ART.file
+-- The mask channels by their letter in a spec, for the log.
+local CHANNEL_NAMES = { r = "red", g = "green", b = "blue", a = "alpha" }
+-- A spec ("a-") in words for the log: "explored where its alpha channel is low".
+local function specInWords(spec)
+    local channel, way = spec:match("^(%a)([+-])$")
+    return "explored where its " .. tostring(CHANNEL_NAMES[channel]) .. " channel is "
+        .. (way == "+" and "high" or "low") .. " (" .. spec .. ")"
+end
+-- "explored" in the mask: the channel that differs most between the player (explored) and a corner beyond the world's
+-- edge (never), and which way. Format: image_tools.hpp, compose_fog, argument spec. nil (and why) when no channel tells
+-- them apart.
+local function maskSpec(pawn)
+    local okp, at = pcall(function() return pawn:K2_GetActorLocation() end)
+    if not (okp and at) then return nil, "no player position" end
+    local x0, x1, y0, y1 = layout.bounds.xMin, layout.bounds.xMax, layout.bounds.yMin, layout.bounds.yMax
+    local u, v = (at.Y - y0) / (y1 - y0), (x1 - at.X) / (x1 - x0)
+    local mask = W.dir .. "\\" .. MASK_FILE
+    local here, corner = AP_SamplePNG(mask, tostring(u), tostring(v)), AP_SamplePNG(mask, EDGE_UV, EDGE_UV)
+    local a, b = {}, {}
+    for n in tostring(here):gmatch("%d+") do a[#a + 1] = tonumber(n) end
+    for n in tostring(corner):gmatch("%d+") do b[#b + 1] = tonumber(n) end
+    local info = string.format("at the player (%.3f, %.3f) %s, beyond the world's edge %s", u, v, tostring(here),
+        tostring(corner))
+    if #a ~= 4 or #b ~= 4 then return nil, info end
+    local best, diff = nil, 0
+    for c = 1, 4 do if math.abs(a[c] - b[c]) > math.abs(diff) then best, diff = c, a[c] - b[c] end end
+    if math.abs(diff) < MIN_CHANNEL_GAP then return nil, info .. ": no channel tells them apart" end
+    return ("rgba"):sub(best, best) .. (diff > 0 and "+" or "-"), info
+end
+local function exportMask(screen, rendering, gameInstance)
+    local fogMaterial = screen.MaskTextureMaterial
+    if not (fogMaterial and fogMaterial:IsValid()) then return "no fog material" end
+    local rt = fogMaterial:K2_GetTextureParameterValue(FName("TargetTexture"))
+    if not (rt and rt:IsValid()) then return "no explored mask" end
+    rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE)
+    return true
+end
+-- The explored mask without the map screen (read from the screen, the first opening showed the last session's fog
+-- picture, and a second opening the game made without Setup kept it, so the new look showed about a minute in): the
+-- player's own world map data holds it (UPalWorldMapUIData:GetRenderTargetByMapName "MainMap", the render target the
+-- screen's fog shows), so it is read once the fog art is ready, before the map ever opens. nil while there is none.
+local function worldMask(pawn)
+    local ok, rt = pcall(function()
+        local util = StaticFindObject("/Script/Pal.Default__PalUtility")
+        local mapData = util and util:IsValid() and util:GetLocalWorldMapData(pawn)
+        if not (mapData and mapData:IsValid()) then return nil end
+        local r = mapData:GetRenderTargetByMapName(FName("MainMap"))
+        if r and r:IsValid() then return r end
+        r = mapData:GetCurrentRenderTarget()
+        if not (r and r:IsValid()) then return nil end
+        UTIL.took("map chart: the explored mask", "from GetCurrentRenderTarget (MainMap not found)")
+        return r
+    end)
+    return ok and rt or nil
+end
+-- The stamps for the fog picture, placed as drawStamps places them on the 4096 map. Format: image_tools.hpp,
+-- compose_fog, argument stamps.
+local function stampList(locked)
+    if iconsActive() then return "" end
+    local parts = {}
+    for _, k in ipairs(locked) do
+        local centre, name = layout.centres[k], layout.locks[k + 1]
+        if centre and name then
+            local art = lockedStampArt(name)
+            local path = art and artFile(art) or ""
+            if path ~= "" then
+                parts[#parts + 1] = table.concat({ path, centre.stampU, centre.stampV, stampSize(centre) }, "|")
+            end
+        end
+    end
+    return table.concat(parts, ";")
+end
+-- The locks on the chart, so the unexplored map shows clear boundaries: a border between neighbouring locks and a
+-- hatch over locked ones, drawn by the C++ compositor from the lock labels (an older DLL ignores them).
+-- Dashed brown ink (59,42,26 at 210, 3 px, dash 14 / gap 8 at the 2048 chart) and a single diagonal hatch
+-- (art/ap-chart-hatch.png; a plain hatch in the ink if the file is missing). Both are kept to land, since a lock's
+-- labels take in its waters (the colour map tells land from sea, as for the chart); the hatch is light, at 0.28, so
+-- the map does not look busy; and the line's edge is softened so it does not stair-step zoomed in.
+-- config.txt map_regions=0: none. Format: image_tools.hpp, compose_fog, argument borders.
+local BORDER_INK, BORDER_WIDTH, BORDER_DASH, BORDER_GAP, BORDER_HATCH = "59,42,26,210", 3, 14, 8, 0.28
+local function bordersSpec(passes)
+    if W.chartBordersOff then return "" end
+    return table.concat({ picture.labelsFile(), lockedIndexes(passes),
+        artFile("ap-chart-hatch"),
+        BORDER_INK, tostring(BORDER_WIDTH), tostring(BORDER_DASH), tostring(BORDER_GAP), tostring(BORDER_HATCH),
+        exists(W.dir .. "\\" .. COLOUR_FILE) and (W.dir .. "\\" .. COLOUR_FILE) or "", GAMMA }, "|")
+end
+local function startFog(stamps, borders, tag)
+    local def = W.dir .. "\\" .. DEFAULT_MASK_FILE
+    local art = territories() and TERR_FOG or CHART_FILE
+    local size = territories() and terr.size or CHART_SIZE                  -- (the fog art's own size: its 8-bit path)
+    -- AP_ComposeFog(fog art, mask, default mask, spec, out, size, stamps, borders): dllmain.cpp's list
+    local err = AP_ComposeFog(W.dir .. "\\" .. art, W.dir .. "\\" .. MASK_FILE, exists(def) and def or "", chart.spec,
+        W.dir .. "\\" .. fogFile(), tostring(size), stamps, borders)
+    if err == "" then
+        chart.fog, chart.stampKey = "composing", stamps .. "\n" .. borders .. (tag or "")
+        chart.maskInWork = UTIL.readFile(W.dir .. "\\" .. MASK_FILE)
+    elseif err ~= "busy" then
+        once("fogstart" .. err, "map chart: could not make the fog: " .. err)
+    end
+end
+-- Whether the explored mask just exported is the one the fog picture C++ has was made from. Then a new picture would
+-- be the same picture, and loading one is a hitch the player sees: ImportFileAsTexture2D decodes the whole fog picture
+-- (a CHART_SIZE PNG) on the game thread, in one frame. Comparing the mask file costs a read of it. A mask that cannot
+-- be read counts as changed.
+local function maskUnchanged()
+    local mask = UTIL.readFile(W.dir .. "\\" .. MASK_FILE)
+    return mask ~= nil and mask == chart.maskShown
+end
+-- A mask read (where: "with the map closed", "at an opening") and what it found, for the first LOG_FIRST of each
+-- finding: whether the mask changed, and how long the read took on the game thread.
+local function logMaskRead(where, same, ms)
+    local count = same and "sameMaskReads" or "newMaskReads"
+    chart[count] = chart[count] + 1
+    if chart[count] > LOG_FIRST then return end
+    log(string.format("map chart: the explored mask read %s in %.0f ms: %s (%d so far%s)", where, ms,
+        same and "unchanged, the fog picture is kept" or "changed, the fog picture is made again", chart[count],
+        CAPPED))
+end
+local function fogStampsAndBorders(key, passes)
+    if fogParts.key ~= key then
+        local tagged = territories()
+        fogParts = { key = key, stamps = tagged and "" or stampList(lockedList(passes)),
+                     borders = tagged and "" or bordersSpec(passes) }
+    end
+    return fogParts.stamps, fogParts.borders
+end
+-- The explorer's-chart fog: in place of the black fog, a basic map drawn like an explorer's chart, with the stamps of
+-- the locks still locked on it (art: ap-chart-*.png). All drawn on the player's machine by the C++ part from the game's
+-- own map (never shipped):
+--   1. the chart, once a session, from the saved colour map (compose_chart);
+--   2. the explored mask is exported (from the world's map data before the map first opens and every MASK_READ_GAP
+--      while it is closed; from the screen at an opening, if the last read is that old) and, if it changed, the fog
+--      picture made from it: the chart where unexplored, clear where explored, the stamps on it (compose_fog); which
+--      channel of the mask means explored, and which way round, is read once from the mask at the player and beyond
+--      the world's edge;
+--   3. the fog picture is handed to C++ (AP_MapScreen "fogpic"), which shows it in the fog image inside the screen's
+--      own Setup: from the next opening, never swapped in view. Until this session's first one, the game's own fog.
+-- config.txt map_chart=0 keeps the game's fog.
+
+-- 1. The fog art: the Territories' own (made with its overlay), or the chart, drawn once a session. True once it is
+-- ready (from the next update, when it became ready just now in Territories).
+local function stepChartArt()
+    if chart.state == "none" and territories() then                          -- (the territories' fog art)
+        if terr.done and exists(W.dir .. "\\" .. TERR_FOG) then
+            chart.state = "ready"
+            log("map territories: the fog art is ready")
+        end
+        return false
+    elseif chart.state == "none" then                                        -- the chart
+        local colour = W.dir .. "\\" .. COLOUR_FILE
+        if not exists(colour) then return false end
+        -- AP_ComposeChart(colour, paper, sea, compass, out, size, gamma): dllmain.cpp's list
+        local err = AP_ComposeChart(colour, artFile("ap-chart-paper"), artFile("ap-chart-sea"),
+            artFile("ap-chart-compass"), W.dir .. "\\" .. CHART_FILE, tostring(CHART_SIZE), GAMMA)
+        if err == "" then chart.state = "composing"
+        elseif err ~= "busy" then failChart("could not start: " .. err) end
+        return false
+    elseif chart.state == "composing" then
+        local st = AP_ChartStatus()
+        if st == "busy" then return false end
+        if st ~= "done" then
+            failChart("failed: " .. tostring(st))
+            return false
+        end
+        chart.state = "ready"
+        log("map chart: drawn (" .. CHART_SIZE .. " px)")
+    end
+    return chart.state == "ready"
+end
+-- 2. A fog picture being made: true once it is done and is to be loaded, nil while busy or after it failed, false
+-- otherwise. Only a picture made this session is loaded (see the chart's state above).
+local function finishFog()
+    if chart.fog ~= "composing" then return false end
+    local st = AP_FogStatus()
+    if st == "busy" then return nil end
+    chart.fog = "idle"
+    if st ~= "done" then
+        once("fogerr" .. tostring(st), "map chart: the fog failed: " .. tostring(st))
+        return nil
+    end
+    return true
+end
+-- The explored mask exported from the world's map data (worldMask), with the spec learnt from it the first time.
+-- Returns the spec (nil when the mask or the spec could not be read) and what the first reading found, for the log.
+local function exportWorldMask(pawn, rendering, gameInstance)
+    local rt = worldMask(pawn)
+    if not rt then return nil, "no world map data" end
+    local okE = pcall(function() rendering:ExportRenderTarget(gameInstance, rt, W.dir, MASK_FILE) end)
+    if not okE then return nil, "the export failed" end
+    if chart.spec then return chart.spec, nil end
+    local spec, info = maskSpec(pawn)
+    return spec, info .. (spec and (": " .. specInWords(spec)) or "")
+end
+-- Before the map opens: the explored mask read from the world's map data and the fog picture made.
+local function readMaskEarly(pawn, rendering, gameInstance, stamps, borders, tag)
+    chart.early = (chart.early or 0) + 1
+    local spec, info = exportWorldMask(pawn, rendering, gameInstance)
+    if spec then
+        chart.spec, chart.exportedAt = spec, chart.ticks
+        log("map chart: the explored mask read before the map opened" .. (info and (": " .. info) or ""))
+        startFog(stamps, borders, tag)
+    elseif chart.early == EARLY_MASK_TRIES then
+        log("map chart: the explored mask could not be read before the map opened (" .. tostring(info)
+            .. "); from the first opening instead")
+    end
+end
+-- While the map is closed, every MASK_READ_GAP: the explored mask read again from the world's map data and the fog
+-- picture made again if it changed, so it keeps up with the player's exploring.
+local function refreshMask(pawn, rendering, gameInstance, stamps, borders, tag)
+    local started = os.clock()
+    local spec, why = exportWorldMask(pawn, rendering, gameInstance)
+    if not spec then
+        chart.noRefresh = true
+        log("map chart: the explored mask could not be read again with the map closed (" .. tostring(why)
+            .. "); in this world it is read at map openings only")
+        return
+    end
+    chart.exportedAt = chart.ticks
+    once("fogrefresh", string.format("map chart: while the map is closed, the explored mask is read every %.0f s and"
+        .. " the fog picture made again when it changed", CLOCK.seconds(MASK_READ_GAP)))
+    local same = maskUnchanged()
+    logMaskRead("with the map closed", same, UTIL.msBetween(started))
+    if not same then
+        startFog(stamps, borders, tag)
+    end
+end
+-- At a map opening: the explored mask exported from the screen, read once to learn which channel means explored, and
+-- the fog picture made if the mask changed.
+local function readMaskOnOpening(pawn, screen, rendering, gameInstance, stamps, borders, tag)
+    local started = os.clock()
+    chart.exportedAt, chart.want = chart.ticks, false
+    local ok, res = pcall(exportMask, screen, rendering, gameInstance)
+    if not ok or res ~= true then
+        once("fogexp" .. tostring(res), "map chart: could not export the explored mask: " .. tostring(res))
+        return
+    end
+    if not chart.spec then
+        local spec, info = maskSpec(pawn)
+        -- One reading that tells nothing apart (the player at the world's edge, no position yet) does not end the
+        -- fog picture: the next export, MASK_READ_GAP later, reads again.
+        log("map chart: the explored mask " .. info .. (spec and (": " .. specInWords(spec))
+            or "; read again at a later opening"))
+        if not spec then
+            return
+        end
+        chart.spec = spec
+    end
+    local same = maskUnchanged()
+    logMaskRead("at an opening", same, UTIL.msBetween(started))
+    if not same then
+        startFog(stamps, borders, tag)
+    end
+end
+-- Whether the explored mask is due to be read again while the map is closed (refreshMask).
+local function refreshDue()
+    return mapScreensShown == 0 and not chart.noRefresh and chart.spec ~= nil and chart.exportedAt ~= nil
+        and chart.ticks - chart.exportedAt >= MASK_READ_GAP
+end
+-- What a fog picture is made from besides the mask: the stamps, the borders and the look's tag, which are what
+-- chart.stampKey keeps of the picture being made.
+local function fogInputs(key, passes)
+    local stamps, borders = fogStampsAndBorders(key, passes)
+    local tag = territories() and ("#territories " .. tostring(terr.done)) or ""   -- (made again with the overlay)
+    return stamps, borders, tag
+end
+-- A new fog picture when the mask read (before the map opens, at an opening, or every MASK_READ_GAP while it is
+-- closed) found it changed, or when the stamps, the lock borders or the look changed (a pass: the same mask).
+local function remakeFog(pawn, screens, passes, key, rendering, gameInstance)
+    local stamps, borders, tag = fogInputs(key, passes)
+    if not chart.exportedAt and not chart.want and (chart.early or 0) < EARLY_MASK_TRIES
+       and UTIL.isDue(chart.ticks, EARLY_MASK_EVERY) then
+        readMaskEarly(pawn, rendering, gameInstance, stamps, borders, tag)
+    elseif chart.want and screens[#screens]
+           and (not chart.exportedAt or chart.ticks - chart.exportedAt >= MASK_READ_GAP) then
+        readMaskOnOpening(pawn, screens[#screens], rendering, gameInstance, stamps, borders, tag)
+    elseif refreshDue() then
+        refreshMask(pawn, rendering, gameInstance, stamps, borders, tag)
+    elseif chart.spec and chart.stampKey and stamps .. "\n" .. borders .. tag ~= chart.stampKey then
+        startFog(stamps, borders, tag)
+    end
+end
+-- A fog picture just made whose stamps, borders or look changed while it was made (at a world load, the passes and
+-- the visited locks arrive one after another): it is not loaded, as loading is the hitch, and the next one is started
+-- at once with what is true now. True when it was skipped.
+local function skipOutdatedFog(passes, key)
+    local stamps, borders, tag = fogInputs(key, passes)
+    if stamps .. "\n" .. borders .. tag == chart.stampKey then return false end
+    chart.skipped = chart.skipped + 1
+    if chart.skipped <= LOG_FIRST then
+        log("map chart: a fog picture not loaded, what it shows changed while it was made; made again ("
+            .. chart.skipped .. " this session" .. CAPPED .. ")")
+    end
+    startFog(stamps, borders, tag)
+    return true
+end
+-- 3. The fog picture loaded and handed to C++, which shows it from the next opening.
+local function loadFogPicture(rendering, gameInstance)
+    local started = os.clock()
+    local tex = rendering:ImportFileAsTexture2D(gameInstance, W.dir .. "\\" .. fogFile())
+    local ms = UTIL.msBetween(started)
+    if not (tex and tex:IsValid()) then
+        once("fogload", "map chart: could not load " .. fogFile())
+        return
+    end
+    chart.keptAt = W.keepInPlace(chart.keptAt, tex)          -- (only the newest fog picture is shown)
+    chart.tex, chart.maskShown = tex, chart.maskInWork
+    AP_MapScreen("fogpic", UTIL.objectPath(tex))
+    chart.loads = chart.loads + 1
+    if chart.loads <= LOG_FIRST then
+        log(string.format("map chart: the fog picture is ready (%d this session%s, loaded in %.0f ms; shown from"
+            .. " the next opening)", chart.loads, CAPPED, ms))
+    end
+end
+-- Each map update: the fog art, then the fog picture (finished, made again, loaded) step by step.
+local function chartTick(pawn, screens, opening, passes, key)
+    if W.chartOff or not (AP_ComposeChart and AP_ComposeFog and AP_SamplePNG and AP_MapScreen) then return end
+    chart.ticks = chart.ticks + 1
+    if opening then chart.want = true end                                    -- read the mask on this opening
+    if #screens == 0 then chart.want = false end                             -- (closed before it was read)
+    local gameInstance = owner()
+    if not gameInstance then return end
+    local rendering = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary")
+    if not stepChartArt() then return end
+    local load = finishFog()
+    if load == nil then return end
+    if chart.fog == "idle" and not load then
+        remakeFog(pawn, screens, passes, key, rendering, gameInstance)
+    end
+    if load and not skipOutdatedFog(passes, key) then
+        loadFogPicture(rendering, gameInstance)
+    end
+end
+-- A new world: its explored mask is read again before its map opens; what the last world's reads found says nothing
+-- of this one. C++ forgets the last world's fog picture with its screen, so the first read makes one even if the mask
+-- is the same. (chart.spec, which channel of the mask means explored, holds for every world and is kept.)
+function MAP_FOG.resetMaskReads()
+    chart.exportedAt, chart.early, chart.want, chart.noRefresh = nil, nil, false, false
+    chart.maskShown = nil
+end
+
+-- Each map update: the chart and the fog picture stepped, C++ told the picture and switched on, and at an opening
+-- C++'s status logged and the fog probed (once).
+function MAP_FOG.step(pawn, screens, opening, passes, key)
+    -- The chart is drawn in the background from the start; the mask is read while the map is open.
+    local okt, errt = pcall(chartTick, pawn, screens, opening, passes, key)
+    if not okt then once("charterr" .. tostring(errt), "map chart error: " .. tostring(errt)) end
+    -- C++ is switched on from the start, not once the picture is ready: the map can open before the picture is, and
+    -- switched on late, C++ logged "OFF; Setup ran 0x" though its hook saw Setup run.
+    local okc0, errc0 = pcall(tellCpp)
+    if not okc0 then once("cpperr", "map screen (C++): " .. tostring(errc0)) end
+    if AP_MapScreen and opening then
+        cpp.opened = cpp.opened + 1
+        if cpp.opened <= LOG_FIRST then
+            log("map screen (C++): " .. tostring(AP_MapScreen("status", "")) .. "; Lua put the picture back "
+                .. cpp.fixes .. "x (opening " .. cpp.opened .. CAPPED .. ")")
+        end
+        if not cpp.maskDone then
+            cpp.maskDone = true
+            local ok, info = pcall(logFogMaterial, screens[#screens])
+            log("map fog: " .. (ok and tostring(info) or ("could not read the fog material: " .. tostring(info))))
+        end
+    end
+end
+-- At the start of each map update: whether the map was on screen at the last update; it counts as not, until
+-- noteShown has looked again.
+function MAP_FOG.forgetShown()
+    local was = mapScreensShown > 0
+    mapScreensShown = 0
+    return was
+end
+-- How many of this update's live main-map screens are on screen, kept for the next update and for W.mapShown.
+function MAP_FOG.noteShown(screens)
+    mapScreensShown = screensOnScreen(screens)
+    return mapScreensShown
+end
+-- Lua found the game's own picture on a screen and put ours back: counted, and the first three logged.
+function MAP_FOG.notePictureFixed()
+    cpp.fixes = cpp.fixes + 1
+    if cpp.fixes <= LOG_FIRST then
+        log("map: Lua put the picture back (" .. cpp.fixes .. "x" .. CAPPED .. "; C++ had not set it)")
+    end
+end
+
+-- Hands over what this part reads (see the top of the file).
+function MAP_FOG.install(env)
+    W, picture, iconsActive, lockedStampArt = env.W, env.picture, env.icons.active, env.icons.lockedStampArt
+    local locks = env.locks
+    layout, lockedList, lockedIndexes = locks.layout, locks.lockedList, locks.lockedIndexes
+    territories, terr, TERR_FOG = picture.territories, picture.terr, picture.TERR_FOG
+    COLOUR_FILE, stampSize = picture.COLOUR_FILE, picture.stampSize
+    GAMMA, RTF_RGBA8, BLEND_OPAQUE = picture.GAMMA, picture.RTF_RGBA8, picture.BLEND_OPAQUE
+end
+
+MAP_FOG.tellCpp = tellCpp
+return MAP_FOG

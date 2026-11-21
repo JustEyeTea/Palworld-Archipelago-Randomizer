@@ -1,0 +1,2648 @@
+{
+ "alphas": [
+  {
+   "character": "BOSS_Horus_Water",
+   "level": 66,
+   "piece": "Levels 60-69",
+   "row": 0
+  },
+  {
+   "character": "BOSS_GrimGirl",
+   "level": 65,
+   "piece": "Levels 60-69",
+   "row": 1
+  },
+  {
+   "character": "BOSS_HerculesBeetle_Ground",
+   "level": 64,
+   "piece": "Levels 60-69",
+   "row": 2
+  },
+  {
+   "character": "BOSS_GoldenHorse",
+   "level": 63,
+   "piece": "Levels 49-59 (2)",
+   "row": 3
+  },
+  {
+   "character": "BOSS_MysteryMask",
+   "level": 60,
+   "piece": "Levels 49-59",
+   "row": 4
+  },
+  {
+   "character": "BOSS_WhiteTiger_Ground",
+   "level": 62,
+   "piece": "Levels 60-69",
+   "row": 5
+  },
+  {
+   "character": "BOSS_NightBlueHorse",
+   "level": 63,
+   "piece": "Levels 49-59 (2)",
+   "row": 6
+  },
+  {
+   "character": "BOSS_RaijinDaughter_Water",
+   "level": 60,
+   "piece": "Levels 49-59",
+   "row": 7
+  },
+  {
+   "character": "BOSS_AmaterasuWolf_Dark",
+   "level": 65,
+   "piece": "Levels 60-69",
+   "row": 8
+  },
+  {
+   "character": "BOSS_BlueThunderHorse",
+   "level": 66,
+   "piece": "Levels 60-69",
+   "row": 9
+  },
+  {
+   "character": "BOSS_WhiteDeer",
+   "level": 65,
+   "piece": "Levels 60-69",
+   "row": 10
+  },
+  {
+   "character": "BOSS_BadCatgirl",
+   "level": 60,
+   "piece": "Levels 49-59",
+   "row": 11
+  },
+  {
+   "character": "BOSS_WhiteShieldDragon",
+   "level": 62,
+   "piece": "Levels 49-59",
+   "row": 12
+  },
+  {
+   "character": "BOSS_FengyunDeeper_Electric",
+   "level": 60,
+   "piece": "Levels 49-59",
+   "row": 13
+  },
+  {
+   "character": "BOSS_Werewolf_Ice",
+   "level": 66,
+   "piece": "Levels 60-69",
+   "row": 14
+  },
+  {
+   "character": "BOSS_GrassGolem",
+   "level": 75,
+   "piece": "Levels 70-80",
+   "row": 15
+  },
+  {
+   "character": "BOSS_WhiteDeer_Dark",
+   "level": 79,
+   "piece": "Levels 70-80",
+   "row": 16
+  },
+  {
+   "character": "BOSS_IceNarwhal_Fire",
+   "level": 74,
+   "piece": "Levels 70-80",
+   "row": 17
+  },
+  {
+   "character": "BOSS_MushroomLady",
+   "level": 78,
+   "piece": "Levels 70-80",
+   "row": 18
+  },
+  {
+   "character": "BOSS_VolcanoDragon_Ice",
+   "level": 78,
+   "piece": "Levels 70-80",
+   "row": 19
+  },
+  {
+   "character": "BOSS_KabukiMan",
+   "level": 78,
+   "piece": "Levels 70-80",
+   "row": 20
+  },
+  {
+   "character": "BOSS_DomeArmorDragon",
+   "level": 79,
+   "piece": "Levels 70-80",
+   "row": 21
+  },
+  {
+   "character": "BOSS_FlowerDinosaur_Electric",
+   "level": 47,
+   "piece": "Levels 35-40",
+   "row": 22
+  },
+  {
+   "character": "BOSS_Suzaku",
+   "level": 45,
+   "piece": "Levels 35-40",
+   "row": 23
+  },
+  {
+   "character": "BOSS_DarkScorpion",
+   "level": 44,
+   "piece": "Levels 35-40",
+   "row": 24
+  },
+  {
+   "character": "BOSS_CubeTurtle",
+   "level": 55,
+   "piece": "Levels 35-40",
+   "row": 25
+  },
+  {
+   "character": "BOSS_SaintCentaur",
+   "level": 60,
+   "piece": "Levels 35-40",
+   "row": 26
+  },
+  {
+   "character": "BOSS_VolcanoDragon",
+   "level": 70,
+   "piece": "Levels 60-69 (3)",
+   "row": 27
+  },
+  {
+   "character": "BOSS_RockBeast",
+   "level": 50,
+   "piece": "Levels 41-48 (3)",
+   "row": 28
+  },
+  {
+   "character": "BOSS_CactusDoll",
+   "level": 40,
+   "piece": "Levels 35-40 (4)",
+   "row": 29
+  },
+  {
+   "character": "BOSS_ScorpionMan_Electric",
+   "level": 70,
+   "piece": "Levels 60-69 (5)",
+   "row": 30
+  },
+  {
+   "character": "BOSS_GrassGolem_Dark",
+   "level": 70,
+   "piece": "Levels 60-69 (4)",
+   "row": 31
+  },
+  {
+   "character": "BOSS_GrassGolem",
+   "level": 55,
+   "piece": "Levels 49-59 (5)",
+   "row": 32
+  },
+  {
+   "character": "BOSS_KingAlpaca_Ice",
+   "level": 46,
+   "piece": "Levels 35-40 (3)",
+   "row": 33
+  },
+  {
+   "character": "BOSS_IceNarwhal",
+   "level": 55,
+   "piece": "Open sea",
+   "row": 34
+  },
+  {
+   "character": "BOSS_IceHorse",
+   "level": 60,
+   "piece": "Levels 41-48 (2)",
+   "row": 35
+  },
+  {
+   "character": "BOSS_LilyQueen",
+   "level": 58,
+   "piece": "Levels 49-59 (7)",
+   "row": 36
+  },
+  {
+   "character": "BOSS_DarkScorpion_Ground",
+   "level": 55,
+   "piece": "Levels 41-48",
+   "row": 37
+  },
+  {
+   "character": "BOSS_LilyQueen_Dark",
+   "level": 58,
+   "piece": "Levels 49-59 (7)",
+   "row": 38
+  },
+  {
+   "character": "BOSS_FoxExorcist",
+   "level": 68,
+   "piece": "Levels 60-69 (2)",
+   "row": 39
+  },
+  {
+   "character": "BOSS_GhostDragon",
+   "level": 69,
+   "piece": "Levels 60-69 (2)",
+   "row": 40
+  },
+  {
+   "character": "BOSS_JetDragon",
+   "level": 70,
+   "piece": "Levels 60-69 (2)",
+   "row": 41
+  },
+  {
+   "character": "BOSS_ThunderFluffyBird",
+   "level": 67,
+   "piece": "Levels 60-69 (2)",
+   "row": 42
+  },
+  {
+   "character": "BOSS_ElecLizard",
+   "level": 66,
+   "piece": "Levels 60-69 (2)",
+   "row": 43
+  },
+  {
+   "character": "BOSS_LotusDragon",
+   "level": 69,
+   "piece": "Levels 60-69 (2)",
+   "row": 44
+  },
+  {
+   "character": "BOSS_ElecSnail",
+   "level": 65,
+   "piece": "Levels 60-69 (2)",
+   "row": 45
+  },
+  {
+   "character": "BOSS_Anubis",
+   "level": 55,
+   "piece": "Levels 1-16 (2)",
+   "row": 46
+  },
+  {
+   "character": "BOSS_GrassMammoth",
+   "level": 38,
+   "piece": "Levels 1-16",
+   "row": 47
+  },
+  {
+   "character": "BOSS_WeaselDragon",
+   "level": 11,
+   "piece": "Levels 1-16",
+   "row": 48
+  },
+  {
+   "character": "BOSS_FengyunDeeper",
+   "level": 25,
+   "piece": "Levels 17-28",
+   "row": 49
+  },
+  {
+   "character": "BOSS_Kirin",
+   "level": 31,
+   "piece": "Levels 1-16",
+   "row": 50
+  },
+  {
+   "character": "BOSS_ThunderBird",
+   "level": 37,
+   "piece": "Levels 29-34 (2)",
+   "row": 51
+  },
+  {
+   "character": "BOSS_BlueDragon",
+   "level": 40,
+   "piece": "Levels 17-28",
+   "row": 52
+  },
+  {
+   "character": "BOSS_NaughtyCat",
+   "level": 17,
+   "piece": "Levels 1-16",
+   "row": 53
+  },
+  {
+   "character": "BOSS_KingAlpaca",
+   "level": 23,
+   "piece": "Levels 1-16",
+   "row": 54
+  },
+  {
+   "character": "BOSS_SakuraSaurus",
+   "level": 23,
+   "piece": "Levels 1-16",
+   "row": 55
+  },
+  {
+   "character": "BOSS_Umihebi",
+   "level": 55,
+   "piece": "Levels 49-59 (6)",
+   "row": 56
+  },
+  {
+   "character": "BOSS_FairyDragon",
+   "level": 30,
+   "piece": "Levels 17-28 (3)",
+   "row": 57
+  },
+  {
+   "character": "Boss_LazyCatFish",
+   "level": 14,
+   "piece": "Levels 1-16 (2)",
+   "row": 58
+  },
+  {
+   "character": "BOSS_HawkBird",
+   "level": 18,
+   "piece": "Levels 1-16 (2)",
+   "row": 59
+  },
+  {
+   "character": "BOSS_PurpleSpider",
+   "level": 35,
+   "piece": "Levels 17-28",
+   "row": 60
+  },
+  {
+   "character": "BOSS_PlantSlime",
+   "level": 11,
+   "piece": "Levels 1-16",
+   "row": 61
+  },
+  {
+   "character": "BOSS_MopKing",
+   "level": 11,
+   "piece": "Levels 1-16",
+   "row": 62
+  },
+  {
+   "character": "BOSS_GrassPanda_Electric",
+   "level": 31,
+   "piece": "Levels 1-16",
+   "row": 63
+  },
+  {
+   "character": "BOSS_Yeti_Grass",
+   "level": 38,
+   "piece": "Levels 1-16",
+   "row": 64
+  },
+  {
+   "character": "BOSS_QueenBee",
+   "level": 39,
+   "piece": "Levels 29-34 (2)",
+   "row": 65
+  },
+  {
+   "character": "BOSS_WingGolem",
+   "level": 55,
+   "piece": "Levels 29-34",
+   "row": 66
+  },
+  {
+   "character": "BOSS_VolcanicMonster",
+   "level": 50,
+   "piece": "Levels 29-34",
+   "row": 67
+  },
+  {
+   "character": "BOSS_KingBahamut",
+   "level": 52,
+   "piece": "Levels 35-40 (2)",
+   "row": 68
+  },
+  {
+   "character": "BOSS_BlackMetalDragon",
+   "level": 55,
+   "piece": "Levels 35-40 (2)",
+   "row": 69
+  },
+  {
+   "character": "BOSS_ElecPanda",
+   "level": 30,
+   "piece": "Levels 17-28 (4)",
+   "row": 70
+  },
+  {
+   "character": "BOSS_IceHorse_Dark",
+   "level": 65,
+   "piece": "Levels 49-59 (4)",
+   "row": 71
+  },
+  {
+   "character": "BOSS_PoseidonOrca",
+   "level": 60,
+   "piece": "Levels 49-59 (9)",
+   "row": 105
+  },
+  {
+   "character": "BOSS_GrassRabbitMan",
+   "level": 35,
+   "piece": "Levels 49-59 (6)",
+   "row": 106
+  },
+  {
+   "character": "BOSS_CaptainPenguin",
+   "level": 15,
+   "piece": "Levels 1-16",
+   "row": 107
+  },
+  {
+   "character": "BOSS_BerryGoat_Dark",
+   "level": 23,
+   "piece": "Levels 1-16",
+   "row": 108
+  },
+  {
+   "character": "BOSS_GhostRabbit",
+   "level": 60,
+   "piece": "Levels 49-59",
+   "row": 109
+  },
+  {
+   "character": "BOSS_BlackPuppy",
+   "level": 60,
+   "piece": "Levels 49-59 (2)",
+   "row": 110
+  },
+  {
+   "character": "BOSS_FoxMage",
+   "level": 28,
+   "piece": "Levels 17-28 (3)",
+   "row": 111
+  },
+  {
+   "character": "Boss_IceFox",
+   "level": 15,
+   "piece": "Levels 1-16",
+   "row": 112
+  },
+  {
+   "character": "BOSS_Mutant",
+   "level": 35,
+   "piece": "Levels 29-34 (2)",
+   "row": 113
+  },
+  {
+   "character": "BOSS_WhiteMoth",
+   "level": 40,
+   "piece": "Levels 29-34 (2)",
+   "row": 114
+  },
+  {
+   "character": "BOSS_VioletFairy",
+   "level": 27,
+   "piece": "Levels 17-28 (3)",
+   "row": 115
+  },
+  {
+   "character": "BOSS_MoonChild",
+   "level": 66,
+   "piece": "Levels 60-69 (2)",
+   "row": 116
+  },
+  {
+   "character": "BOSS_Ronin",
+   "level": 25,
+   "piece": "Levels 17-28",
+   "row": 117
+  },
+  {
+   "character": "BOSS_CubeTurtle_Neutral",
+   "level": 60,
+   "piece": "Levels 60-69",
+   "row": 118
+  },
+  {
+   "character": "BOSS_Manticore",
+   "level": 30,
+   "piece": "Levels 1-16 (2)",
+   "row": 119
+  },
+  {
+   "character": "BOSS_FlameBuffalo",
+   "level": 15,
+   "piece": "Levels 1-16",
+   "row": 120
+  },
+  {
+   "character": "BOSS_BlueberryFairy",
+   "level": 63,
+   "piece": "Levels 60-69",
+   "row": 121
+  },
+  {
+   "character": "BOSS_Kitsunebi_Ice",
+   "level": 15,
+   "piece": "Levels 1-16 (2)",
+   "row": 122
+  }
+ ],
+ "borders": [
+  [
+   "Levels 1-16",
+   "Levels 1-16 (2)"
+  ],
+  [
+   "Levels 1-16",
+   "Levels 17-28"
+  ],
+  [
+   "Levels 1-16",
+   "Levels 17-28 (2)"
+  ],
+  [
+   "Levels 1-16",
+   "Levels 17-28 (3)"
+  ],
+  [
+   "Levels 1-16",
+   "Levels 17-28 (4)"
+  ],
+  [
+   "Levels 1-16",
+   "Levels 29-34 (2)"
+  ],
+  [
+   "Levels 1-16",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 1-16",
+   "Levels 49-59 (6)"
+  ],
+  [
+   "Levels 1-16",
+   "Open sea"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 17-28"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 17-28 (3)"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 29-34"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 29-34 (3)"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 29-34 (4)"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 35-40 (2)"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 35-40 (3)"
+  ],
+  [
+   "Levels 1-16 (2)",
+   "Levels 41-48"
+  ],
+  [
+   "Levels 1-16 (3)",
+   "Open sea"
+  ],
+  [
+   "Levels 17-28",
+   "Levels 29-34"
+  ],
+  [
+   "Levels 17-28",
+   "Levels 35-40 (5)"
+  ],
+  [
+   "Levels 17-28",
+   "Levels 49-59"
+  ],
+  [
+   "Levels 17-28",
+   "Open sea"
+  ],
+  [
+   "Levels 17-28 (2)",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 17-28 (2)",
+   "Levels 41-48 (3)"
+  ],
+  [
+   "Levels 17-28 (2)",
+   "Levels 41-48 (4)"
+  ],
+  [
+   "Levels 17-28 (2)",
+   "Levels 49-59 (4)"
+  ],
+  [
+   "Levels 17-28 (2)",
+   "Open sea"
+  ],
+  [
+   "Levels 17-28 (3)",
+   "Levels 29-34 (2)"
+  ],
+  [
+   "Levels 17-28 (3)",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 17-28 (4)",
+   "Open sea"
+  ],
+  [
+   "Levels 17-28 (5)",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 17-28 (5)",
+   "Open sea"
+  ],
+  [
+   "Levels 29-34",
+   "Levels 35-40 (2)"
+  ],
+  [
+   "Levels 29-34",
+   "Open sea"
+  ],
+  [
+   "Levels 29-34 (2)",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 29-34 (2)",
+   "Levels 49-59 (6)"
+  ],
+  [
+   "Levels 29-34 (3)",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 29-34 (3)",
+   "Levels 35-40 (3)"
+  ],
+  [
+   "Levels 29-34 (3)",
+   "Levels 41-48 (2)"
+  ],
+  [
+   "Levels 29-34 (4)",
+   "Levels 35-40"
+  ],
+  [
+   "Levels 35-40",
+   "Levels 41-48 (2)"
+  ],
+  [
+   "Levels 35-40",
+   "Levels 49-59 (3)"
+  ],
+  [
+   "Levels 35-40",
+   "Levels 49-59 (4)"
+  ],
+  [
+   "Levels 35-40",
+   "Levels 49-59 (6)"
+  ],
+  [
+   "Levels 35-40",
+   "Levels 49-59 (9)"
+  ],
+  [
+   "Levels 35-40",
+   "Open sea"
+  ],
+  [
+   "Levels 35-40 (2)",
+   "Levels 41-48"
+  ],
+  [
+   "Levels 35-40 (2)",
+   "Open sea"
+  ],
+  [
+   "Levels 35-40 (3)",
+   "Levels 41-48"
+  ],
+  [
+   "Levels 35-40 (3)",
+   "Levels 41-48 (2)"
+  ],
+  [
+   "Levels 35-40 (3)",
+   "Open sea"
+  ],
+  [
+   "Levels 35-40 (4)",
+   "Open sea"
+  ],
+  [
+   "Levels 35-40 (5)",
+   "Open sea"
+  ],
+  [
+   "Levels 41-48",
+   "Levels 49-59 (7)"
+  ],
+  [
+   "Levels 41-48",
+   "Open sea"
+  ],
+  [
+   "Levels 41-48 (2)",
+   "Levels 49-59 (3)"
+  ],
+  [
+   "Levels 41-48 (2)",
+   "Open sea"
+  ],
+  [
+   "Levels 41-48 (3)",
+   "Levels 49-59 (4)"
+  ],
+  [
+   "Levels 41-48 (3)",
+   "Open sea"
+  ],
+  [
+   "Levels 41-48 (4)",
+   "Open sea"
+  ],
+  [
+   "Levels 49-59",
+   "Levels 60-69"
+  ],
+  [
+   "Levels 49-59",
+   "Levels 60-69 (2)"
+  ],
+  [
+   "Levels 49-59",
+   "Levels 60-69 (8)"
+  ],
+  [
+   "Levels 49-59",
+   "Open sea"
+  ],
+  [
+   "Levels 49-59 (2)",
+   "Levels 60-69"
+  ],
+  [
+   "Levels 49-59 (2)",
+   "Levels 60-69 (2)"
+  ],
+  [
+   "Levels 49-59 (2)",
+   "Open sea"
+  ],
+  [
+   "Levels 49-59 (3)",
+   "Open sea"
+  ],
+  [
+   "Levels 49-59 (4)",
+   "Open sea"
+  ],
+  [
+   "Levels 49-59 (5)",
+   "Open sea"
+  ],
+  [
+   "Levels 49-59 (8)",
+   "Open sea"
+  ],
+  [
+   "Levels 49-59 (9)",
+   "Open sea"
+  ],
+  [
+   "Levels 60-69",
+   "Levels 60-69 (2)"
+  ],
+  [
+   "Levels 60-69",
+   "Open sea"
+  ],
+  [
+   "Levels 60-69 (2)",
+   "Levels 60-69 (8)"
+  ],
+  [
+   "Levels 60-69 (2)",
+   "Open sea"
+  ],
+  [
+   "Levels 60-69 (3)",
+   "Open sea"
+  ],
+  [
+   "Levels 60-69 (4)",
+   "Open sea"
+  ],
+  [
+   "Levels 60-69 (5)",
+   "Open sea"
+  ],
+  [
+   "Levels 60-69 (6)",
+   "Open sea"
+  ],
+  [
+   "Levels 60-69 (7)",
+   "Open sea"
+  ],
+  [
+   "Levels 70-80",
+   "Open sea"
+  ]
+ ],
+ "fast_travel": {
+  "BOSS_KingWhale": "Levels 29-34 (4)",
+  "Boss_Forest": "Levels 17-28 (3)",
+  "FTPoint1": "Levels 29-34",
+  "FTPoint100": "Levels 29-34 (2)",
+  "FTPoint101": "Levels 17-28 (2)",
+  "FTPoint102": "Levels 17-28 (2)",
+  "FTPoint103": "Levels 35-40",
+  "FTPoint104": "Levels 35-40",
+  "FTPoint105": "Levels 35-40",
+  "FTPoint106": "Levels 35-40",
+  "FTPoint107": "Levels 35-40",
+  "FTPoint108": "Levels 35-40",
+  "FTPoint109": "Levels 17-28",
+  "FTPoint11": "Levels 29-34 (2)",
+  "FTPoint110": "Levels 35-40 (2)",
+  "FTPoint111": "Levels 29-34",
+  "FTPoint112": "Levels 17-28",
+  "FTPoint113": "Levels 35-40",
+  "FTPoint114": "Levels 35-40 (3)",
+  "FTPoint115": "Levels 35-40 (3)",
+  "FTPoint116": "Levels 41-48",
+  "FTPoint117": "Levels 49-59",
+  "FTPoint118": "Levels 49-59",
+  "FTPoint119": "Levels 49-59",
+  "FTPoint12": "Levels 35-40",
+  "FTPoint120": "Levels 60-69",
+  "FTPoint121": "Levels 60-69",
+  "FTPoint122": "Levels 60-69",
+  "FTPoint123": "Levels 60-69",
+  "FTPoint124": "Levels 60-69",
+  "FTPoint125": "Levels 60-69",
+  "FTPoint126": "Levels 60-69",
+  "FTPoint127": "Levels 60-69",
+  "FTPoint128": "Levels 60-69",
+  "FTPoint129": "Levels 60-69",
+  "FTPoint13": "Levels 17-28 (2)",
+  "FTPoint14": "Levels 35-40",
+  "FTPoint15": "Levels 35-40",
+  "FTPoint16": "Levels 35-40",
+  "FTPoint17": "Levels 29-34 (3)",
+  "FTPoint18": "Levels 41-48 (2)",
+  "FTPoint20": "Levels 41-48 (2)",
+  "FTPoint21": "Levels 1-16",
+  "FTPoint22": "Levels 1-16",
+  "FTPoint23": "Levels 1-16",
+  "FTPoint24": "Levels 1-16",
+  "FTPoint25": "Levels 17-28",
+  "FTPoint26": "Levels 17-28",
+  "FTPoint27": "Levels 1-16",
+  "FTPoint28": "Levels 1-16",
+  "FTPoint29": "Levels 17-28",
+  "FTPoint3": "Levels 29-34",
+  "FTPoint30": "Levels 17-28",
+  "FTPoint31": "Levels 17-28 (3)",
+  "FTPoint32": "Levels 17-28 (3)",
+  "FTPoint33": "Levels 17-28 (3)",
+  "FTPoint34": "Levels 17-28 (3)",
+  "FTPoint35": "Levels 29-34 (2)",
+  "FTPoint36": "Levels 29-34 (2)",
+  "FTPoint37": "Levels 29-34 (2)",
+  "FTPoint38": "Levels 49-59 (6)",
+  "FTPoint39": "Levels 29-34 (2)",
+  "FTPoint4": "Levels 17-28",
+  "FTPoint40": "Levels 17-28 (3)",
+  "FTPoint41": "Levels 17-28 (3)",
+  "FTPoint42": "Levels 1-16",
+  "FTPoint43": "Levels 17-28",
+  "FTPoint44": "Levels 1-16 (2)",
+  "FTPoint45": "Levels 1-16",
+  "FTPoint48": "Levels 35-40 (3)",
+  "FTPoint49": "Levels 1-16 (2)",
+  "FTPoint5": "Levels 17-28",
+  "FTPoint50": "Levels 1-16 (2)",
+  "FTPoint51": "Levels 1-16 (2)",
+  "FTPoint52": "Levels 1-16",
+  "FTPoint53": "Levels 1-16",
+  "FTPoint54": "Levels 1-16",
+  "FTPoint55": "Levels 1-16",
+  "FTPoint56": "Levels 1-16",
+  "FTPoint57": "Levels 1-16",
+  "FTPoint58": "Levels 1-16",
+  "FTPoint59": "Levels 1-16 (2)",
+  "FTPoint6": "Levels 29-34",
+  "FTPoint60": "Levels 1-16",
+  "FTPoint61": "Levels 1-16",
+  "FTPoint62": "Levels 1-16",
+  "FTPoint63": "Levels 17-28 (2)",
+  "FTPoint64": "Levels 41-48",
+  "FTPoint65": "Levels 41-48",
+  "FTPoint67": "Levels 49-59 (7)",
+  "FTPoint68": "Levels 49-59 (7)",
+  "FTPoint69": "Levels 41-48",
+  "FTPoint7": "Levels 29-34",
+  "FTPoint70": "Levels 49-59 (7)",
+  "FTPoint71": "Levels 49-59",
+  "FTPoint72": "Levels 49-59",
+  "FTPoint73": "Levels 49-59 (2)",
+  "FTPoint74": "Levels 60-69",
+  "FTPoint75": "Levels 60-69",
+  "FTPoint76": "Levels 60-69",
+  "FTPoint78": "Levels 60-69",
+  "FTPoint79": "Levels 60-69",
+  "FTPoint8": "Levels 29-34",
+  "FTPoint80": "Levels 60-69",
+  "FTPoint81": "Levels 49-59",
+  "FTPoint83": "Levels 60-69",
+  "FTPoint84": "Levels 1-16",
+  "FTPoint85": "Levels 41-48 (4)",
+  "FTPoint86": "Levels 49-59 (9)",
+  "FTPoint87": "Levels 1-16 (3)",
+  "FTPoint88": "Levels 35-40 (2)",
+  "FTPoint89": "Levels 1-16",
+  "FTPoint9": "Levels 35-40",
+  "FTPoint90": "Levels 35-40 (5)",
+  "FTPoint91": "Levels 1-16 (2)",
+  "FTPoint92": "Levels 1-16 (2)",
+  "FTPoint93": "Levels 17-28",
+  "FTPoint94": "Levels 17-28",
+  "FTPoint95": "Levels 17-28",
+  "FTPoint96": "Levels 1-16",
+  "FTPoint97": "Levels 49-59 (6)",
+  "FTPoint98": "Levels 49-59 (6)",
+  "FTPoint99": "Levels 17-28 (3)",
+  "FootOfWorldTree": "Levels 70-80",
+  "New_SmallIsland01": "Levels 49-59 (5)",
+  "New_SmallIsland02": "Levels 41-48 (3)",
+  "New_SmallIsland03": "Levels 35-40 (4)",
+  "New_SmallIsland04": "Levels 60-69 (3)",
+  "New_SmallIsland05": "Levels 60-69 (4)",
+  "New_SmallIsland06": "Levels 60-69 (5)",
+  "New_SmallIsland07": "Levels 49-59 (8)",
+  "SkyIsland_A": "Levels 60-69 (2)",
+  "SkyIsland_B": "Levels 60-69 (2)",
+  "SkyIsland_BOSS": "Levels 60-69 (2)",
+  "SkyIsland_C": "Levels 60-69 (2)",
+  "SkyIsland_D": "Levels 60-69 (2)",
+  "SkyIsland_E": "Levels 60-69 (2)",
+  "WatchTower_1": "Levels 1-16",
+  "WatchTower_10": "Levels 1-16",
+  "WatchTower_11": "Levels 1-16 (2)",
+  "WatchTower_12": "Levels 49-59 (7)",
+  "WatchTower_13": "Levels 29-34",
+  "WatchTower_15": "Levels 29-34",
+  "WatchTower_17": "Levels 60-69",
+  "WatchTower_18": "Levels 49-59",
+  "WatchTower_19": "Levels 60-69",
+  "WatchTower_2": "Levels 1-16",
+  "WatchTower_20": "Levels 60-69",
+  "WatchTower_21": "Levels 60-69",
+  "WatchTower_22": "Levels 60-69 (2)",
+  "WatchTower_3": "Levels 17-28 (3)",
+  "WatchTower_4": "Levels 35-40",
+  "WatchTower_5": "Levels 35-40",
+  "WatchTower_6": "Levels 29-34 (2)",
+  "WatchTower_7": "Levels 35-40",
+  "WatchTower_8": "Levels 41-48 (2)",
+  "WatchTower_9": "Levels 17-28",
+  "WatchTower_WorldTree_1": "Levels 70-80",
+  "WatchTower_WorldTree_2": "Levels 70-80",
+  "WorldTree_A": "Levels 70-80",
+  "WorldTree_B": "Levels 70-80",
+  "WorldTree_C_1": "Levels 70-80",
+  "WorldTree_C_2": "Levels 70-80",
+  "WorldTree_D": "Levels 70-80",
+  "WorldTree_E": "Levels 70-80",
+  "WorldTree_I": "Levels 70-80",
+  "WorldTree_L": "Levels 70-80",
+  "WorldTree_LastBoss": "Levels 70-80",
+  "WorldTree_M": "Levels 70-80",
+  "WorldTree_MiddleBoss_1": "Levels 70-80",
+  "WorldTree_MiddleBoss_2": "Levels 70-80",
+  "WorldTree_MiddleBoss_3": "Levels 70-80",
+  "WorldTree_N": "Levels 70-80",
+  "WorldTree_lab": "Levels 70-80"
+ },
+ "flying": [
+  "Levels 1-16 (2)",
+  "Levels 29-34 (3)",
+  "Levels 60-69 (2)"
+ ],
+ "paldeck": {
+  "001": {
+   "Levels 1-16": 1
+  },
+  "002": {
+   "Levels 1-16": 1,
+   "Levels 1-16 (2)": 1
+  },
+  "003": {
+   "Levels 1-16": 1
+  },
+  "004": {
+   "Levels 1-16": 1,
+   "Levels 1-16 (2)": 4
+  },
+  "005": {
+   "Levels 1-16": 10
+  },
+  "005B": {
+   "Levels 29-34": 32
+  },
+  "006": {
+   "Levels 1-16": 1
+  },
+  "007": {
+   "Levels 1-16": 2,
+   "Levels 1-16 (2)": 2
+  },
+  "007B": {
+   "Levels 17-28 (2)": 26,
+   "Levels 35-40": 26
+  },
+  "008": {
+   "Levels 1-16": 1,
+   "Levels 1-16 (2)": 1
+  },
+  "009": {
+   "Levels 1-16": 4,
+   "Levels 41-48": 47
+  },
+  "009B": {
+   "Levels 49-59": 61,
+   "Levels 60-69": 61
+  },
+  "010": {
+   "Levels 1-16": 1,
+   "Levels 1-16 (2)": 10,
+   "Levels 35-40 (5)": 32,
+   "Levels 41-48 (4)": 40
+  },
+  "011": {
+   "Levels 1-16": 2,
+   "Levels 1-16 (2)": 2
+  },
+  "012": {
+   "Levels 1-16": 2
+  },
+  "013": {
+   "Levels 1-16": 2
+  },
+  "014": {
+   "Levels 1-16": 3
+  },
+  "015": {
+   "Levels 1-16": 4
+  },
+  "015B": {
+   "Levels 1-16 (3)": 10,
+   "Levels 17-28": 20
+  },
+  "016": {
+   "Levels 1-16": 4,
+   "Levels 1-16 (2)": 18,
+   "Levels 17-28": 13
+  },
+  "017": {
+   "Levels 1-16": 2,
+   "Levels 1-16 (2)": 2,
+   "Levels 1-16 (3)": 10,
+   "Levels 35-40": 35,
+   "Levels 35-40 (3)": 35
+  },
+  "017B": {},
+  "018": {
+   "Levels 1-16 (3)": 22,
+   "Levels 17-28 (4)": 20,
+   "Levels 35-40": 39,
+   "Levels 35-40 (3)": 39
+  },
+  "018B": {},
+  "019": {
+   "Levels 1-16": 4,
+   "Levels 1-16 (2)": 18,
+   "Levels 17-28": 18
+  },
+  "020": {
+   "Levels 1-16": 7
+  },
+  "021": {
+   "Levels 70-80": 80
+  },
+  "021B": {},
+  "022": {
+   "Levels 1-16": 4
+  },
+  "023": {
+   "Levels 1-16": 4,
+   "Levels 1-16 (2)": 4
+  },
+  "023B": {
+   "Levels 1-16": 10
+  },
+  "024": {
+   "Levels 1-16": 5,
+   "Levels 1-16 (2)": 4
+  },
+  "025": {
+   "Levels 1-16": 4,
+   "Levels 1-16 (2)": 4,
+   "Levels 17-28": 18,
+   "Levels 29-34": 30,
+   "Levels 49-59 (6)": 10
+  },
+  "026": {
+   "Levels 1-16": 4,
+   "Levels 1-16 (2)": 4,
+   "Levels 49-59 (6)": 10
+  },
+  "027": {},
+  "027B": {},
+  "028": {
+   "Levels 1-16": 5
+  },
+  "029": {
+   "Levels 1-16": 5
+  },
+  "029B": {
+   "Levels 29-34 (3)": 30
+  },
+  "030": {
+   "Levels 35-40": 34,
+   "Levels 49-59": 56,
+   "Levels 60-69": 60
+  },
+  "030B": {
+   "Levels 17-28 (2)": 24,
+   "Levels 35-40": 24
+  },
+  "031": {
+   "Levels 1-16 (2)": 28,
+   "Levels 35-40": 31
+  },
+  "032": {
+   "Levels 1-16": 9,
+   "Levels 70-80": 80
+  },
+  "032B": {
+   "Levels 17-28 (4)": 20,
+   "Levels 70-80": 80
+  },
+  "033": {
+   "Levels 1-16": 10,
+   "Levels 1-16 (2)": 11
+  },
+  "034": {
+   "Levels 1-16": 14,
+   "Levels 1-16 (2)": 20,
+   "Levels 17-28 (3)": 20
+  },
+  "034B": {
+   "Levels 49-59 (2)": 52,
+   "Levels 60-69": 56
+  },
+  "035": {
+   "Levels 17-28": 18,
+   "Levels 29-34 (3)": 30
+  },
+  "036": {
+   "Levels 17-28": 25,
+   "Levels 29-34 (3)": 37
+  },
+  "037": {
+   "Levels 1-16": 10,
+   "Levels 29-34": 34,
+   "Levels 35-40": 30,
+   "Levels 35-40 (2)": 36
+  },
+  "037B": {
+   "Levels 29-34": 40,
+   "Levels 35-40 (2)": 42,
+   "Levels 41-48": 46
+  },
+  "038": {
+   "Levels 1-16": 9,
+   "Levels 1-16 (2)": 18,
+   "Levels 17-28": 18
+  },
+  "038B": {
+   "Levels 29-34 (3)": 36,
+   "Levels 35-40": 32,
+   "Levels 35-40 (3)": 32
+  },
+  "039": {
+   "Levels 1-16": 9
+  },
+  "039B": {
+   "Levels 49-59 (8)": 55
+  },
+  "040": {
+   "Levels 1-16": 9
+  },
+  "041": {
+   "Levels 17-28": 35,
+   "Levels 70-80": 80
+  },
+  "041B": {
+   "Levels 49-59 (9)": 50,
+   "Levels 70-80": 80
+  },
+  "042": {
+   "Levels 1-16": 10
+  },
+  "043": {
+   "Levels 1-16": 9,
+   "Levels 1-16 (2)": 10
+  },
+  "043B": {
+   "Levels 17-28": 20
+  },
+  "044": {
+   "Levels 1-16": 1,
+   "Levels 1-16 (2)": 1,
+   "Levels 17-28": 18,
+   "Levels 17-28 (3)": 22
+  },
+  "044B": {
+   "Levels 17-28": 18,
+   "Levels 17-28 (3)": 28
+  },
+  "045": {
+   "Levels 1-16 (3)": 10,
+   "Levels 49-59": 50
+  },
+  "046": {
+   "Levels 35-40 (2)": 30,
+   "Levels 49-59": 50,
+   "Levels 60-69": 56
+  },
+  "047": {
+   "Levels 1-16": 9,
+   "Levels 60-69 (2)": 64
+  },
+  "048": {
+   "Levels 1-16": 10,
+   "Levels 49-59": 50,
+   "Levels 60-69": 56
+  },
+  "048B": {
+   "Levels 60-69 (2)": 65
+  },
+  "049": {
+   "Levels 1-16 (2)": 11,
+   "Levels 17-28": 16,
+   "Levels 17-28 (3)": 16
+  },
+  "050": {
+   "Levels 1-16": 11,
+   "Levels 70-80": 71
+  },
+  "051": {
+   "Levels 1-16": 12,
+   "Levels 1-16 (2)": 12,
+   "Levels 17-28": 12
+  },
+  "052": {
+   "Levels 1-16": 12
+  },
+  "053": {
+   "Levels 1-16 (2)": 30,
+   "Levels 17-28 (2)": 25,
+   "Levels 17-28 (3)": 20,
+   "Levels 35-40": 25,
+   "Levels 41-48": 46
+  },
+  "054": {
+   "Levels 1-16 (2)": 20,
+   "Levels 17-28": 20,
+   "Levels 70-80": 80
+  },
+  "054B": {
+   "Levels 70-80": 75
+  },
+  "055": {
+   "Levels 1-16 (2)": 14,
+   "Levels 17-28": 22,
+   "Levels 17-28 (3)": 20
+  },
+  "055B": {
+   "Levels 29-34": 34,
+   "Levels 35-40 (2)": 36
+  },
+  "056": {
+   "Levels 1-16": 14,
+   "Levels 1-16 (2)": 15,
+   "Levels 17-28": 14,
+   "Levels 17-28 (3)": 23,
+   "Levels 29-34 (2)": 34,
+   "Levels 49-59 (6)": 34
+  },
+  "056B": {
+   "Levels 35-40": 40,
+   "Levels 35-40 (3)": 40,
+   "Levels 41-48 (2)": 52,
+   "Levels 49-59 (3)": 54,
+   "Levels 60-69": 64
+  },
+  "057": {
+   "Levels 1-16": 14,
+   "Levels 1-16 (2)": 15,
+   "Levels 17-28": 14,
+   "Levels 17-28 (2)": 28,
+   "Levels 35-40": 28,
+   "Levels 49-59": 56,
+   "Levels 49-59 (7)": 54
+  },
+  "058": {
+   "Levels 17-28": 20,
+   "Levels 17-28 (3)": 20
+  },
+  "059": {
+   "Levels 17-28": 15,
+   "Levels 17-28 (3)": 15,
+   "Levels 60-69 (2)": 64
+  },
+  "060": {
+   "Levels 17-28": 16,
+   "Levels 17-28 (3)": 16
+  },
+  "061": {
+   "Levels 17-28": 16,
+   "Levels 17-28 (3)": 16
+  },
+  "062": {
+   "Levels 17-28": 18,
+   "Levels 60-69 (2)": 64
+  },
+  "063": {
+   "Levels 17-28": 25,
+   "Levels 17-28 (3)": 25,
+   "Levels 17-28 (4)": 20,
+   "Levels 70-80": 80
+  },
+  "063B": {
+   "Levels 29-34 (2)": 33,
+   "Levels 49-59 (7)": 53,
+   "Levels 70-80": 80
+  },
+  "064": {
+   "Levels 17-28": 20,
+   "Levels 29-34": 30,
+   "Levels 49-59": 57,
+   "Levels 60-69": 58
+  },
+  "064B": {
+   "Levels 17-28": 23,
+   "Levels 29-34 (2)": 30,
+   "Levels 35-40": 36,
+   "Levels 35-40 (3)": 36,
+   "Levels 41-48 (2)": 42,
+   "Levels 60-69": 65
+  },
+  "065": {
+   "Levels 60-69": 63
+  },
+  "066": {
+   "Levels 17-28 (4)": 20,
+   "Levels 49-59 (7)": 55
+  },
+  "067": {
+   "Levels 29-34 (2)": 28
+  },
+  "068": {
+   "Levels 29-34 (2)": 34
+  },
+  "069": {
+   "Levels 1-16 (2)": 34,
+   "Levels 17-28 (2)": 30,
+   "Levels 35-40": 30
+  },
+  "070": {
+   "Levels 17-28": 25,
+   "Levels 17-28 (3)": 25,
+   "Levels 29-34 (2)": 32,
+   "Levels 41-48": 46,
+   "Levels 49-59 (6)": 32
+  },
+  "071": {
+   "Levels 29-34 (2)": 32
+  },
+  "072": {
+   "Levels 35-40": 33
+  },
+  "072B": {
+   "Levels 49-59 (8)": 55
+  },
+  "073": {
+   "Levels 17-28": 21,
+   "Levels 17-28 (2)": 28,
+   "Levels 29-34": 30,
+   "Levels 35-40": 28
+  },
+  "073B": {
+   "Levels 17-28": 28,
+   "Levels 29-34": 34
+  },
+  "074": {
+   "Levels 29-34 (2)": 30,
+   "Levels 70-80": 80
+  },
+  "074B": {
+   "Levels 35-40": 35,
+   "Levels 70-80": 80
+  },
+  "075": {
+   "Levels 1-16": 12,
+   "Levels 17-28 (2)": 24,
+   "Levels 17-28 (3)": 20,
+   "Levels 29-34 (2)": 30,
+   "Levels 35-40": 24
+  },
+  "075B": {
+   "Levels 35-40": 31,
+   "Levels 49-59": 52,
+   "Levels 60-69": 61
+  },
+  "076": {
+   "Levels 17-28 (3)": 30,
+   "Levels 29-34 (2)": 30
+  },
+  "076B": {
+   "Levels 35-40": 32
+  },
+  "077": {
+   "Levels 17-28 (3)": 22
+  },
+  "078": {
+   "Levels 17-28": 23,
+   "Levels 29-34": 30,
+   "Levels 49-59 (6)": 32
+  },
+  "078B": {
+   "Levels 41-48": 46,
+   "Levels 49-59 (7)": 51
+  },
+  "079": {
+   "Levels 17-28": 25,
+   "Levels 17-28 (3)": 25,
+   "Levels 29-34 (2)": 32,
+   "Levels 35-40": 32,
+   "Levels 41-48 (2)": 43,
+   "Levels 49-59 (6)": 32
+  },
+  "079B": {},
+  "080": {
+   "Levels 17-28": 25,
+   "Levels 17-28 (3)": 24,
+   "Levels 29-34 (2)": 34,
+   "Levels 49-59": 62,
+   "Levels 49-59 (6)": 34,
+   "Levels 60-69": 62,
+   "Levels 70-80": 80
+  },
+  "080B": {
+   "Levels 41-48": 47,
+   "Levels 70-80": 80
+  },
+  "081": {
+   "Levels 17-28": 24,
+   "Levels 17-28 (4)": 24,
+   "Levels 70-80": 80
+  },
+  "081B": {
+   "Levels 70-80": 75
+  },
+  "082": {
+   "Levels 17-28": 25,
+   "Levels 17-28 (4)": 25,
+   "Levels 35-40": 36,
+   "Levels 41-48 (2)": 46
+  },
+  "083": {
+   "Levels 49-59 (4)": 45,
+   "Levels 70-80": 80
+  },
+  "083B": {
+   "Levels 49-59": 57,
+   "Levels 70-80": 80
+  },
+  "084": {
+   "Levels 1-16": 25,
+   "Levels 35-40": 32
+  },
+  "084B": {
+   "Levels 35-40": 34
+  },
+  "085": {
+   "Levels 17-28": 25,
+   "Levels 17-28 (2)": 30,
+   "Levels 29-34": 30,
+   "Levels 29-34 (3)": 30,
+   "Levels 35-40": 30,
+   "Levels 35-40 (2)": 36,
+   "Levels 35-40 (3)": 32,
+   "Levels 41-48": 47,
+   "Levels 41-48 (2)": 49,
+   "Levels 49-59 (3)": 53,
+   "Levels 49-59 (4)": 50,
+   "Levels 49-59 (7)": 51
+  },
+  "085B": {
+   "Levels 41-48": 47,
+   "Levels 49-59": 50,
+   "Levels 49-59 (2)": 53,
+   "Levels 49-59 (7)": 51,
+   "Levels 60-69": 56
+  },
+  "086": {
+   "Levels 1-16 (3)": 10,
+   "Levels 29-34 (3)": 32
+  },
+  "087": {
+   "Levels 1-16": 26,
+   "Levels 1-16 (2)": 26,
+   "Levels 17-28": 26,
+   "Levels 35-40": 36,
+   "Levels 35-40 (3)": 36,
+   "Levels 70-80": 80
+  },
+  "087B": {
+   "Levels 35-40": 36,
+   "Levels 35-40 (3)": 37,
+   "Levels 70-80": 80
+  },
+  "088": {
+   "Levels 1-16": 1,
+   "Levels 35-40 (5)": 32
+  },
+  "088B": {},
+  "089": {
+   "Levels 17-28 (3)": 28,
+   "Levels 49-59 (7)": 55
+  },
+  "089B": {
+   "Levels 70-80": 71
+  },
+  "090": {
+   "Levels 17-28 (3)": 28,
+   "Levels 29-34 (2)": 28,
+   "Levels 60-69 (2)": 67
+  },
+  "091": {
+   "Levels 29-34": 30,
+   "Levels 35-40 (2)": 36
+  },
+  "091B": {
+   "Levels 35-40 (2)": 37
+  },
+  "092": {
+   "Levels 1-16 (2)": 30,
+   "Levels 35-40": 32
+  },
+  "092B": {
+   "Levels 49-59": 50,
+   "Levels 60-69 (2)": 65
+  },
+  "093": {
+   "Levels 29-34": 30,
+   "Levels 35-40 (2)": 35,
+   "Levels 70-80": 80
+  },
+  "093B": {
+   "Levels 17-28": 34,
+   "Levels 29-34": 35,
+   "Levels 35-40 (2)": 35,
+   "Levels 70-80": 80
+  },
+  "094": {
+   "Levels 1-16": 40,
+   "Levels 17-28": 30,
+   "Levels 17-28 (3)": 40,
+   "Levels 29-34 (2)": 30,
+   "Levels 41-48": 47,
+   "Levels 49-59": 60,
+   "Levels 49-59 (7)": 61,
+   "Levels 60-69": 60,
+   "Levels 70-80": 80
+  },
+  "094B": {
+   "Levels 1-16 (2)": 48,
+   "Levels 17-28": 48,
+   "Levels 29-34 (2)": 48,
+   "Levels 35-40 (2)": 48,
+   "Levels 41-48": 48,
+   "Levels 49-59": 63,
+   "Levels 49-59 (6)": 48,
+   "Levels 49-59 (7)": 63,
+   "Levels 60-69": 63,
+   "Levels 70-80": 80
+  },
+  "095": {
+   "Levels 29-34 (2)": 30,
+   "Levels 29-34 (3)": 35,
+   "Levels 35-40": 34,
+   "Levels 35-40 (3)": 35
+  },
+  "096": {
+   "Levels 29-34 (2)": 30,
+   "Levels 35-40": 34,
+   "Levels 70-80": 80
+  },
+  "096B": {
+   "Levels 70-80": 75
+  },
+  "097": {
+   "Levels 35-40 (2)": 30,
+   "Levels 49-59": 50,
+   "Levels 60-69": 56
+  },
+  "097B": {},
+  "098": {
+   "Levels 35-40": 31,
+   "Levels 35-40 (3)": 31,
+   "Levels 49-59 (2)": 52,
+   "Levels 60-69": 56
+  },
+  "098B": {
+   "Levels 35-40": 35,
+   "Levels 35-40 (3)": 36,
+   "Levels 70-80": 75
+  },
+  "099": {
+   "Levels 35-40": 31
+  },
+  "099B": {
+   "Levels 49-59 (4)": 48
+  },
+  "100": {
+   "Levels 35-40": 31,
+   "Levels 35-40 (4)": 32
+  },
+  "100B": {
+   "Levels 35-40": 33
+  },
+  "101": {
+   "Levels 29-34 (2)": 32,
+   "Levels 35-40 (3)": 36,
+   "Levels 70-80": 80
+  },
+  "102": {
+   "Levels 17-28 (3)": 32,
+   "Levels 29-34 (2)": 32,
+   "Levels 70-80": 80
+  },
+  "102B": {
+   "Levels 70-80": 70
+  },
+  "103": {
+   "Levels 35-40": 32,
+   "Levels 35-40 (3)": 32,
+   "Levels 70-80": 80
+  },
+  "103B": {
+   "Levels 49-59 (7)": 53,
+   "Levels 70-80": 80
+  },
+  "104": {
+   "Levels 29-34": 32,
+   "Levels 35-40 (2)": 34,
+   "Levels 60-69": 65,
+   "Levels 70-80": 80
+  },
+  "105": {
+   "Levels 29-34": 32,
+   "Levels 60-69 (3)": 65,
+   "Levels 70-80": 80
+  },
+  "105B": {},
+  "106": {
+   "Levels 35-40": 34,
+   "Levels 35-40 (5)": 32,
+   "Levels 41-48 (4)": 40
+  },
+  "107": {
+   "Levels 1-16 (2)": 33,
+   "Levels 35-40": 33,
+   "Levels 35-40 (4)": 35
+  },
+  "108": {
+   "Levels 1-16": 33,
+   "Levels 17-28": 34,
+   "Levels 17-28 (3)": 34,
+   "Levels 49-59 (6)": 48,
+   "Levels 70-80": 80
+  },
+  "108B": {
+   "Levels 49-59 (6)": 51,
+   "Levels 70-80": 80
+  },
+  "109": {
+   "Levels 1-16 (2)": 32,
+   "Levels 17-28": 20,
+   "Levels 17-28 (3)": 20,
+   "Levels 29-34": 34,
+   "Levels 35-40 (2)": 36
+  },
+  "109B": {
+   "Levels 17-28": 25,
+   "Levels 29-34": 40,
+   "Levels 35-40 (2)": 42,
+   "Levels 41-48": 48
+  },
+  "110": {
+   "Levels 1-16": 33,
+   "Levels 1-16 (2)": 33,
+   "Levels 35-40": 34,
+   "Levels 41-48 (4)": 40,
+   "Levels 70-80": 80
+  },
+  "111": {
+   "Levels 29-34 (2)": 34,
+   "Levels 35-40 (2)": 35
+  },
+  "111B": {
+   "Levels 49-59": 61,
+   "Levels 60-69": 61
+  },
+  "112": {
+   "Levels 29-34": 35,
+   "Levels 60-69": 65,
+   "Levels 70-80": 80
+  },
+  "112B": {
+   "Levels 17-28": 35,
+   "Levels 29-34": 38,
+   "Levels 35-40 (2)": 40,
+   "Levels 60-69": 65,
+   "Levels 70-80": 80
+  },
+  "113": {
+   "Levels 29-34 (2)": 34,
+   "Levels 70-80": 80
+  },
+  "113B": {
+   "Levels 49-59 (2)": 53,
+   "Levels 60-69": 57
+  },
+  "114": {
+   "Levels 60-69 (2)": 65
+  },
+  "115": {
+   "Levels 35-40 (2)": 35,
+   "Levels 70-80": 75
+  },
+  "116": {
+   "Levels 35-40 (3)": 36
+  },
+  "116B": {
+   "Levels 70-80": 75
+  },
+  "117": {
+   "Levels 35-40": 40,
+   "Levels 35-40 (3)": 40,
+   "Levels 41-48 (2)": 52,
+   "Levels 49-59 (3)": 54
+  },
+  "118": {
+   "Levels 41-48": 47
+  },
+  "118B": {
+   "Levels 41-48": 47,
+   "Levels 60-69": 63
+  },
+  "119": {
+   "Levels 41-48 (2)": 45
+  },
+  "120": {
+   "Levels 35-40": 39,
+   "Levels 70-80": 80
+  },
+  "121": {
+   "Levels 70-80": 80
+  },
+  "121B": {
+   "Levels 60-69": 66,
+   "Levels 70-80": 80
+  },
+  "122": {
+   "Levels 70-80": 80
+  },
+  "122B": {
+   "Levels 60-69 (2)": 68,
+   "Levels 70-80": 80
+  },
+  "123": {
+   "Levels 35-40": 31,
+   "Levels 41-48": 47
+  },
+  "124": {
+   "Levels 35-40": 40,
+   "Levels 35-40 (3)": 40,
+   "Levels 41-48 (2)": 52,
+   "Levels 49-59 (3)": 54,
+   "Levels 60-69 (2)": 70,
+   "Levels 70-80": 80
+  },
+  "124B": {
+   "Levels 35-40 (3)": 45,
+   "Levels 49-59 (7)": 53,
+   "Levels 70-80": 80
+  },
+  "125": {
+   "Levels 49-59 (7)": 55
+  },
+  "126": {
+   "Levels 41-48": 46
+  },
+  "127": {
+   "Levels 49-59 (7)": 53
+  },
+  "128": {
+   "Levels 1-16 (2)": 30,
+   "Levels 60-69 (2)": 65
+  },
+  "128B": {
+   "Levels 41-48 (3)": 40
+  },
+  "129": {
+   "Levels 29-34": 46
+  },
+  "129B": {
+   "Levels 49-59 (3)": 48,
+   "Levels 60-69": 66
+  },
+  "130": {
+   "Levels 49-59 (2)": 53,
+   "Levels 60-69": 57,
+   "Levels 70-80": 80
+  },
+  "130B": {
+   "Levels 70-80": 74
+  },
+  "131": {
+   "Levels 41-48 (3)": 42
+  },
+  "131B": {
+   "Levels 60-69 (2)": 68
+  },
+  "132": {
+   "Levels 41-48 (2)": 44
+  },
+  "132B": {
+   "Levels 60-69": 62
+  },
+  "133": {
+   "Levels 29-34 (2)": 32
+  },
+  "134": {
+   "Levels 41-48 (2)": 45,
+   "Levels 49-59 (3)": 48,
+   "Levels 70-80": 80
+  },
+  "134B": {
+   "Levels 49-59 (7)": 53,
+   "Levels 70-80": 80
+  },
+  "135": {
+   "Levels 35-40 (2)": 45,
+   "Levels 41-48": 46,
+   "Levels 49-59 (7)": 51,
+   "Levels 60-69": 64
+  },
+  "136": {
+   "Levels 49-59 (4)": 45
+  },
+  "137": {
+   "Levels 41-48 (3)": 46,
+   "Levels 70-80": 80
+  },
+  "137B": {},
+  "138": {
+   "Levels 35-40": 46,
+   "Levels 70-80": 73
+  },
+  "138B": {
+   "Levels 70-80": 75
+  },
+  "139": {
+   "Levels 60-69 (5)": 68,
+   "Levels 70-80": 80
+  },
+  "140": {
+   "Levels 35-40": 37,
+   "Levels 60-69 (5)": 65,
+   "Levels 70-80": 80
+  },
+  "141": {
+   "Levels 41-48": 48
+  },
+  "141B": {
+   "Levels 60-69 (5)": 65
+  },
+  "142": {
+   "Levels 35-40": 48,
+   "Levels 70-80": 80
+  },
+  "142B": {
+   "Levels 70-80": 76
+  },
+  "143": {
+   "Levels 49-59": 56
+  },
+  "144": {
+   "Levels 1-16": 10,
+   "Levels 1-16 (2)": 12,
+   "Levels 17-28": 10,
+   "Levels 17-28 (2)": 25,
+   "Levels 17-28 (3)": 18,
+   "Levels 29-34": 30,
+   "Levels 29-34 (2)": 30,
+   "Levels 29-34 (3)": 34,
+   "Levels 35-40": 25,
+   "Levels 35-40 (2)": 35,
+   "Levels 35-40 (3)": 32,
+   "Levels 41-48": 46,
+   "Levels 41-48 (2)": 45,
+   "Levels 49-59": 50,
+   "Levels 49-59 (2)": 50,
+   "Levels 49-59 (3)": 47,
+   "Levels 49-59 (6)": 30,
+   "Levels 49-59 (7)": 51,
+   "Levels 60-69": 56,
+   "Levels 60-69 (2)": 65,
+   "Levels 70-80": 70
+  },
+  "145": {},
+  "146": {},
+  "147": {
+   "Levels 49-59": 61,
+   "Levels 49-59 (2)": 52,
+   "Levels 60-69": 61
+  },
+  "148": {
+   "Levels 60-69": 65
+  },
+  "148B": {
+   "Levels 49-59 (5)": 50
+  },
+  "149": {
+   "Levels 49-59": 50,
+   "Levels 49-59 (2)": 50,
+   "Levels 60-69": 56
+  },
+  "149B": {
+   "Levels 60-69 (4)": 62
+  },
+  "150": {
+   "Levels 49-59": 51,
+   "Levels 49-59 (2)": 52,
+   "Levels 60-69": 57
+  },
+  "151": {
+   "Levels 49-59 (9)": 50,
+   "Levels 70-80": 80
+  },
+  "151B": {
+   "Levels 70-80": 71
+  },
+  "152": {
+   "Levels 49-59 (7)": 52
+  },
+  "153": {
+   "Levels 49-59": 56,
+   "Levels 60-69": 60,
+   "Levels 70-80": 80
+  },
+  "154": {
+   "Levels 49-59 (2)": 53,
+   "Levels 60-69": 61
+  },
+  "155": {
+   "Levels 49-59 (7)": 53
+  },
+  "156": {
+   "Levels 49-59 (7)": 53
+  },
+  "157": {
+   "Levels 49-59": 54,
+   "Levels 49-59 (2)": 55,
+   "Levels 60-69": 58,
+   "Levels 70-80": 80
+  },
+  "157B": {},
+  "158": {
+   "Levels 70-80": 80
+  },
+  "159": {
+   "Levels 49-59 (4)": 55,
+   "Levels 70-80": 71
+  },
+  "159B": {
+   "Levels 60-69 (3)": 65,
+   "Levels 70-80": 71
+  },
+  "160": {
+   "Levels 70-80": 80
+  },
+  "161": {
+   "Levels 60-69": 63,
+   "Levels 70-80": 80
+  },
+  "162": {
+   "Levels 60-69 (2)": 64
+  },
+  "163": {
+   "Levels 60-69 (2)": 64
+  },
+  "163B": {
+   "Levels 70-80": 74
+  },
+  "164": {
+   "Levels 60-69 (2)": 64
+  },
+  "165": {
+   "Levels 60-69 (2)": 65
+  },
+  "166": {
+   "Levels 60-69 (2)": 65
+  },
+  "167": {
+   "Levels 60-69 (2)": 65
+  },
+  "168": {
+   "Levels 60-69 (2)": 65
+  },
+  "169": {
+   "Levels 60-69 (2)": 66
+  },
+  "169B": {
+   "Levels 70-80": 76
+  },
+  "170": {
+   "Levels 60-69 (2)": 65
+  },
+  "171": {
+   "Levels 70-80": 80
+  },
+  "171B": {
+   "Levels 70-80": 75
+  },
+  "172": {
+   "Levels 60-69 (2)": 66
+  },
+  "173": {
+   "Levels 60-69 (2)": 66
+  },
+  "174": {
+   "Levels 70-80": 75
+  },
+  "175": {
+   "Levels 70-80": 80
+  },
+  "176": {
+   "Levels 1-16": 55,
+   "Levels 1-16 (3)": 55,
+   "Levels 29-34": 55,
+   "Levels 35-40": 55,
+   "Levels 35-40 (2)": 55,
+   "Levels 35-40 (4)": 55,
+   "Levels 41-48 (2)": 55,
+   "Levels 41-48 (3)": 55,
+   "Levels 49-59 (5)": 55,
+   "Levels 49-59 (6)": 55,
+   "Levels 49-59 (7)": 55,
+   "Levels 49-59 (8)": 55,
+   "Levels 49-59 (9)": 55,
+   "Levels 60-69": 55,
+   "Levels 60-69 (2)": 55,
+   "Levels 60-69 (3)": 55,
+   "Levels 60-69 (4)": 55,
+   "Levels 60-69 (5)": 55,
+   "Levels 70-80": 72
+  },
+  "177": {
+   "Levels 70-80": 74
+  },
+  "178": {
+   "Levels 70-80": 75
+  },
+  "179": {
+   "Levels 70-80": 75
+  },
+  "180": {
+   "Levels 70-80": 75
+  },
+  "181": {
+   "Levels 70-80": 76
+  },
+  "182": {
+   "Levels 70-80": 76
+  },
+  "183": {
+   "Levels 70-80": 80
+  },
+  "184": {},
+  "185": {
+   "Levels 70-80": 70
+  },
+  "186": {
+   "Levels 70-80": 75
+  },
+  "186B": {
+   "Levels 70-80": 75
+  },
+  "187": {
+   "Levels 70-80": 74
+  },
+  "188": {
+   "Levels 70-80": 76
+  },
+  "188B": {
+   "Levels 60-69": 65,
+   "Levels 60-69 (2)": 67,
+   "Levels 70-80": 76
+  },
+  "189": {
+   "Levels 49-59 (4)": 50,
+   "Levels 70-80": 80
+  },
+  "190": {
+   "Levels 70-80": 76
+  },
+  "191": {
+   "Levels 70-80": 75
+  },
+  "192": {
+   "Levels 70-80": 76
+  },
+  "193": {},
+  "194": {},
+  "195": {},
+  "195B": {},
+  "196": {},
+  "197": {},
+  "198": {},
+  "199": {},
+  "200": {},
+  "200B": {},
+  "201": {},
+  "202": {},
+  "203": {},
+  "204": {}
+ },
+ "piece_stats": {
+  "Levels 1-16": {
+   "alphas": [
+    11,
+    11,
+    11,
+    15,
+    15,
+    15,
+    17,
+    23,
+    23,
+    23,
+    31,
+    31,
+    38,
+    38
+   ],
+   "effigies": 20,
+   "fast_travel": 24,
+   "levels": 11.3125,
+   "spawners": 1114
+  },
+  "Levels 1-16 (2)": {
+   "alphas": [
+    14,
+    15,
+    18,
+    30,
+    55
+   ],
+   "effigies": 5,
+   "fast_travel": 8,
+   "levels": 13.583333333333334,
+   "spawners": 558
+  },
+  "Levels 1-16 (3)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 16.7,
+   "spawners": 8
+  },
+  "Levels 17-28": {
+   "alphas": [
+    25,
+    25,
+    35,
+    40
+   ],
+   "effigies": 32,
+   "fast_travel": 13,
+   "levels": 23.833333333333332,
+   "spawners": 477
+  },
+  "Levels 17-28 (2)": {
+   "alphas": [],
+   "effigies": 5,
+   "fast_travel": 4,
+   "levels": 28.444444444444443,
+   "spawners": 75
+  },
+  "Levels 17-28 (3)": {
+   "alphas": [
+    27,
+    28,
+    30
+   ],
+   "effigies": 17,
+   "fast_travel": 9,
+   "levels": 23.0,
+   "spawners": 415
+  },
+  "Levels 17-28 (4)": {
+   "alphas": [
+    30
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 22.916666666666668,
+   "spawners": 12
+  },
+  "Levels 29-34": {
+   "alphas": [
+    50,
+    55
+   ],
+   "effigies": 25,
+   "fast_travel": 8,
+   "levels": 35.0,
+   "spawners": 249
+  },
+  "Levels 29-34 (2)": {
+   "alphas": [
+    35,
+    37,
+    39,
+    40
+   ],
+   "effigies": 17,
+   "fast_travel": 7,
+   "levels": 33.642857142857146,
+   "spawners": 224
+  },
+  "Levels 29-34 (3)": {
+   "alphas": [],
+   "effigies": 6,
+   "fast_travel": 1,
+   "levels": 34.785714285714285,
+   "spawners": 49
+  },
+  "Levels 29-34 (4)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": null,
+   "spawners": 0
+  },
+  "Levels 35-40": {
+   "alphas": [
+    44,
+    45,
+    47,
+    55,
+    60
+   ],
+   "effigies": 55,
+   "fast_travel": 15,
+   "levels": 35.60526315789474,
+   "spawners": 874
+  },
+  "Levels 35-40 (2)": {
+   "alphas": [
+    52,
+    55
+   ],
+   "effigies": 5,
+   "fast_travel": 2,
+   "levels": 39.5,
+   "spawners": 85
+  },
+  "Levels 35-40 (3)": {
+   "alphas": [
+    46
+   ],
+   "effigies": 8,
+   "fast_travel": 3,
+   "levels": 40.5,
+   "spawners": 103
+  },
+  "Levels 35-40 (4)": {
+   "alphas": [
+    40
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 35.75,
+   "spawners": 14
+  },
+  "Levels 35-40 (5)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 35.0,
+   "spawners": 7
+  },
+  "Levels 41-48": {
+   "alphas": [
+    55
+   ],
+   "effigies": 26,
+   "fast_travel": 4,
+   "levels": 47.611111111111114,
+   "spawners": 218
+  },
+  "Levels 41-48 (2)": {
+   "alphas": [
+    60
+   ],
+   "effigies": 10,
+   "fast_travel": 3,
+   "levels": 49.8125,
+   "spawners": 52
+  },
+  "Levels 41-48 (3)": {
+   "alphas": [
+    50
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 44.666666666666664,
+   "spawners": 17
+  },
+  "Levels 41-48 (4)": {
+   "alphas": [],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 45.0,
+   "spawners": 7
+  },
+  "Levels 49-59": {
+   "alphas": [
+    60,
+    60,
+    60,
+    60,
+    60,
+    62
+   ],
+   "effigies": 15,
+   "fast_travel": 7,
+   "levels": 57.3,
+   "spawners": 512
+  },
+  "Levels 49-59 (2)": {
+   "alphas": [
+    60,
+    63,
+    63
+   ],
+   "effigies": 2,
+   "fast_travel": 1,
+   "levels": 53.5,
+   "spawners": 138
+  },
+  "Levels 49-59 (3)": {
+   "alphas": [],
+   "effigies": 5,
+   "fast_travel": 0,
+   "levels": 53.214285714285715,
+   "spawners": 21
+  },
+  "Levels 49-59 (4)": {
+   "alphas": [
+    65
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": 51.083333333333336,
+   "spawners": 11
+  },
+  "Levels 49-59 (5)": {
+   "alphas": [
+    55
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 52.0,
+   "spawners": 14
+  },
+  "Levels 49-59 (6)": {
+   "alphas": [
+    35,
+    55
+   ],
+   "effigies": 5,
+   "fast_travel": 3,
+   "levels": 37.083333333333336,
+   "spawners": 45
+  },
+  "Levels 49-59 (7)": {
+   "alphas": [
+    58,
+    58
+   ],
+   "effigies": 20,
+   "fast_travel": 4,
+   "levels": 54.25,
+   "spawners": 167
+  },
+  "Levels 49-59 (8)": {
+   "alphas": [],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 57.5,
+   "spawners": 27
+  },
+  "Levels 49-59 (9)": {
+   "alphas": [
+    60
+   ],
+   "effigies": 0,
+   "fast_travel": 1,
+   "levels": 55.0,
+   "spawners": 8
+  },
+  "Levels 60-69": {
+   "alphas": [
+    60,
+    62,
+    63,
+    64,
+    65,
+    65,
+    65,
+    66,
+    66,
+    66
+   ],
+   "effigies": 29,
+   "fast_travel": 21,
+   "levels": 62.4,
+   "spawners": 996
+  },
+  "Levels 60-69 (2)": {
+   "alphas": [
+    65,
+    66,
+    66,
+    67,
+    68,
+    69,
+    69,
+    70
+   ],
+   "effigies": 46,
+   "fast_travel": 7,
+   "levels": 66.125,
+   "spawners": 336
+  },
+  "Levels 60-69 (3)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 66.5,
+   "spawners": 37
+  },
+  "Levels 60-69 (4)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 63.0,
+   "spawners": 9
+  },
+  "Levels 60-69 (5)": {
+   "alphas": [
+    70
+   ],
+   "effigies": 1,
+   "fast_travel": 1,
+   "levels": 67.375,
+   "spawners": 36
+  },
+  "Levels 70-80": {
+   "alphas": [
+    74,
+    75,
+    78,
+    78,
+    78,
+    79,
+    79
+   ],
+   "effigies": 47,
+   "fast_travel": 18,
+   "levels": 76.57142857142857,
+   "spawners": 418
+  },
+  "Open sea": {
+   "alphas": [
+    55
+   ],
+   "effigies": 0,
+   "fast_travel": 0,
+   "levels": null,
+   "spawners": 0
+  }
+ },
+ "pieces": {
+  "Levels 1-16": "Levels 1-16",
+  "Levels 1-16 (2)": "Levels 1-16",
+  "Levels 1-16 (3)": "Levels 1-16",
+  "Levels 17-28": "Levels 17-28",
+  "Levels 17-28 (2)": "Levels 17-28",
+  "Levels 17-28 (3)": "Levels 17-28",
+  "Levels 17-28 (4)": "Levels 17-28",
+  "Levels 17-28 (5)": "Levels 17-28",
+  "Levels 29-34": "Levels 29-34",
+  "Levels 29-34 (2)": "Levels 29-34",
+  "Levels 29-34 (3)": "Levels 29-34",
+  "Levels 29-34 (4)": "Levels 29-34",
+  "Levels 35-40": "Levels 35-40",
+  "Levels 35-40 (2)": "Levels 35-40",
+  "Levels 35-40 (3)": "Levels 35-40",
+  "Levels 35-40 (4)": "Levels 35-40",
+  "Levels 35-40 (5)": "Levels 35-40",
+  "Levels 41-48": "Levels 41-48",
+  "Levels 41-48 (2)": "Levels 41-48",
+  "Levels 41-48 (3)": "Levels 41-48",
+  "Levels 41-48 (4)": "Levels 41-48",
+  "Levels 49-59": "Levels 49-59",
+  "Levels 49-59 (2)": "Levels 49-59",
+  "Levels 49-59 (3)": "Levels 49-59",
+  "Levels 49-59 (4)": "Levels 49-59",
+  "Levels 49-59 (5)": "Levels 49-59",
+  "Levels 49-59 (6)": "Levels 49-59",
+  "Levels 49-59 (7)": "Levels 49-59",
+  "Levels 49-59 (8)": "Levels 49-59",
+  "Levels 49-59 (9)": "Levels 49-59",
+  "Levels 60-69": "Levels 60-69",
+  "Levels 60-69 (2)": "Levels 60-69",
+  "Levels 60-69 (3)": "Levels 60-69",
+  "Levels 60-69 (4)": "Levels 60-69",
+  "Levels 60-69 (5)": "Levels 60-69",
+  "Levels 60-69 (6)": "Levels 60-69",
+  "Levels 60-69 (7)": "Levels 60-69",
+  "Levels 60-69 (8)": "Levels 60-69",
+  "Levels 70-80": "Levels 70-80",
+  "Open sea": "Open sea"
+ },
+ "start": "Levels 1-16",
+ "towers": {
+  "Desert": "Levels 35-40",
+  "Feybreak": "Levels 60-69",
+  "Forest": "Levels 17-28 (3)",
+  "King Whale": "Levels 29-34 (4)",
+  "Sakurajima": "Levels 49-59 (7)",
+  "Sky Islands": "Levels 60-69 (2)",
+  "Snow": "Levels 41-48 (2)",
+  "Volcano (Electric)": "Levels 29-34",
+  "Windswept (Grass)": "Levels 1-16",
+  "World Tree": "Levels 70-80"
+ }
+}

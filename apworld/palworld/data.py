@@ -1,136 +1,270 @@
 """Item and location tables for the Palworld APWorld, built from game_data. IDs are stable: each kind has its own
 block, and an id is a row's position in its game_data table (the Paldeck in its own order). tools/gen_apworld_data.py
 keeps the rows of the last game_data.py where they were and appends new ones, so a game update adds ids at the end of
-each block and never moves one; test/test_ids.py holds the 1.0.5 ids to it."""
+each block and never moves one; test/test_ids.py holds every id to test/frozen_ids.tsv."""
+from collections import Counter
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .game_data import (ALPHA_KEYS, ALPHAS, AREA_LIST, AREAS, BORDERS, FAST_TRAVEL, MOUNTS, PALDECK, PIECES,
-                        REGION_MODE, START_AREA, TECHS, TOWERS)
+from .game_data import (ALPHA_KEYS, AREA_MODE, BORDERS, LEVEL_MODE, PALDECK, PIECE_LEVELS, PIECES, REGION_LIST,
+                        START_REGION)
+from .game_data import ALPHAS as ALPHA_ROWS
+from .game_data import FAST_TRAVEL as FAST_TRAVEL_ROWS
+from .game_data import MOUNTS as MOUNT_ROWS
+from .game_data import TECHS as TECH_ROWS
+from .game_data import TOWERS as TOWER_ROWS
 
+# Every id is BASE plus an offset in its kind's block (docs/architecture.md, "Ids never move"):
+#   items:      +0 Region Passes, +900 Progressive Sphere, +901 Progressive Level Pass, +940 Palpagos Relic,
+#               +950 filler (+958 Palworld Crate; up to +969 kept for filler), +970 traps, +1000 techs,
+#               +7000 Area Passes
+#   locations:  +1000 tech shop slots, +2000 captures, +3000 alphas, +4000 fast-travel points,
+#               +5000 levels (+5000 + the level), +6000 towers
+# Items and locations are separate id spaces, so a tech item and its shop slot may share an offset.
 BASE = 0x50A1_0000
 
 # --- techs -----------------------------------------------------------------------------------------------------
+class Tech(NamedTuple):
+    """One card of the game's Technology tree (a row of game_data.TECHS)."""
+    id: str                        # the game's tech id ("Workbench")
+    name: str                      # the name the Technology menu shows ("Primitive Workbench")
+    level: int                     # the level row it sits in
+    cost: int                      # tech points (Ancient Technology Points for an ancient tech)
+    ancient: bool                  # in the Ancient Technology column
+    prereq: Optional[str]          # a tech that must be unlocked first
+    tower: Optional[str]           # a tower whose boss must be beaten first
+    research: Optional[str]        # Lab research that must be done first
+
+
+TECHS = [Tech(*row) for row in TECH_ROWS]
 STARTER_LEVEL = 1                                  # level-1 techs stay vanilla: never shop slots, never items
-SHOP_TECHS = [t for t in TECHS if t[2] > STARTER_LEVEL]
-TECH_BY_ID = {t[0]: t for t in TECHS}
-SPHERE_TECHS = sorted((t for t in TECHS if t[0].startswith('Special_PalSphere_Grade_')), key=lambda t: t[0])
-BREEDING_TECH = 'BreedFarm'
-LAB_TECH = 'Lab'
-# What crafting each sphere needs besides the sphere tech (DT_ItemRecipeDataTable): Mega, Giga and Hyper take Copper
-# Ingots (Primitive Furnace), Ultra Iron Ingots (Improved Furnace), Legendary Refined Ingots (Electric Furnace), and
-# Ultimate Refined Ingots and Plastic, made from Crude Oil.
+# The game's highest player level. Its copies: the Check Level Cap's range (options.py) and the level counts in the
+# options' player text, which test_options.py checks against the code.
+MAX_LEVEL = 80
+SHOP_TECHS = [t for t in TECHS if t.level > STARTER_LEVEL]
+TECH_BY_ID = {t.id: t for t in TECHS}
+SPHERE_TECHS = sorted((t for t in TECHS if t.id.startswith("Special_PalSphere_Grade_")), key=lambda t: t.id)
+BREEDING_TECH = "BreedFarm"                        # Breeding Farm
+LAB_TECH = "Lab"                                   # Pal Labor Research Lab
+# What crafting each sphere needs besides the sphere tech (DT_ItemRecipeDataTable), as the techs that make it: the
+# furnace for its ingots, and for the Ultimate Sphere also Plasteel and the Crude Oil it is made from. The Pal Sphere
+# has no row: it needs nothing more, and the logic gives it no recipe gate.
 SPHERE_NEEDS = {
-    'Special_PalSphere_Grade_02': ('Product_Ingot_Grade_01_Copper',),
-    'Special_PalSphere_Grade_03': ('Product_Ingot_Grade_01_Copper',),
-    'Special_PalSphere_Grade_04': ('Product_Ingot_Grade_01_Copper',),
-    'Special_PalSphere_Grade_05': ('Product_Ingot_Grade_02_Iron',),
-    'Special_PalSphere_Grade_06': ('Product_Ingot_Grade_03_Steal',),
-    'Special_PalSphere_Grade_07': ('Product_Ingot_Grade_03_Steal', 'Plastic', 'OilPump'),
+    "Special_PalSphere_Grade_02": ("Product_Ingot_Grade_01_Copper",),      # Mega Sphere: Primitive Furnace
+    "Special_PalSphere_Grade_03": ("Product_Ingot_Grade_01_Copper",),      # Giga Sphere: Primitive Furnace
+    "Special_PalSphere_Grade_04": ("Product_Ingot_Grade_01_Copper",),      # Hyper Sphere: Primitive Furnace
+    "Special_PalSphere_Grade_05": ("Product_Ingot_Grade_02_Iron",),        # Ultra Sphere: Improved Furnace
+    "Special_PalSphere_Grade_06": ("Product_Ingot_Grade_03_Steal",),       # Legendary Sphere: Electric Furnace
+    "Special_PalSphere_Grade_07": ("Product_Ingot_Grade_03_Steal",         # Ultimate Sphere: Electric Furnace,
+                                   "Plastic", "OilPump"),                  # Plasteel, Crude Oil Extractor
 }
+
+
+class Mount(NamedTuple):
+    """A Pal that carries the player, by its saddle tech (a value of game_data.MOUNTS)."""
+    kind: str                      # "fly" or "swim"
+    entry: str                     # the Paldeck entry of the Pal the saddle is for
+
+
+MOUNTS = {tech: Mount(*row) for tech, row in MOUNT_ROWS.items()}
 # Mounts that cross the open sea (flying or swimming) and those that fly (the only way up to the Sky Islands): saddle
 # tech -> the Pal it is for.
-SEA_MOUNTS = {tech: entry for tech, (kind, entry) in MOUNTS.items() if kind in ('fly', 'swim')}
-FLYING_MOUNTS = {tech: entry for tech, (kind, entry) in MOUNTS.items() if kind == 'fly'}
+SEA_MOUNTS = {tech: mount.entry for tech, mount in MOUNTS.items() if mount.kind in ("fly", "swim")}
+FLYING_MOUNTS = {tech: mount.entry for tech, mount in MOUNTS.items() if mount.kind == "fly"}
 # Techs another tech, a lab research, a capture or a journey depends on: these are progression items.
-PREREQ_TECHS = ({t[5] for t in TECHS if t[5]} | {BREEDING_TECH, LAB_TECH} | {t[0] for t in SPHERE_TECHS}
+PREREQ_TECHS = ({t.prereq for t in TECHS if t.prereq} | {BREEDING_TECH, LAB_TECH} | {t.id for t in SPHERE_TECHS}
                 | {n for needs in SPHERE_NEEDS.values() for n in needs} | set(SEA_MOUNTS))
 # Décor: furniture, flag, faux-foliage and statue sets, signs, the tombstone and lights. With tech_checks no_decor these
 # are normal research (no check, no item). Chosen by hand from the build categories; décor-looking techs that do
 # something (work-speed boosters such as the Silo or Stump, fridges, flea markets, the pylon) are not in it. None of
 # these is another tech's prerequisite.
 DECOR_TECHS = frozenset(
-    ['Torch', 'WallTorch', 'Lamp', 'CeilingLamp', 'LargeLamp', 'LargeCeilingLamp', 'Signboard', 'WallSignboard',
-     'Headstone', 'TableCircular', 'TableDresser01_Stone', 'JetDragonStatue', 'IceHorseStatue', 'FurnitureSet_Japanese',
-     'HunterFlagSet', 'BelieverFlagSet', 'FireCultFlagSet', 'PoliceFlagSet', 'ScientistFlagSet', 'NinjaFlagSet',
-     'DarkIslandFlagSet', 'SkyIslandFlagSet']
-    + [f'FurnitureTree_{c}' for c in ('Green', 'Red', 'Yellow', 'Cherry', 'Tropical', 'Snow', 'Desert', 'Bamboo')]
-    + [f'FurnitureSet_{n}' for n in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                                      24, 25, 26, 27, 28, 29, 30, 31, 32)])
+    ["Torch",                      # Mounted Torch
+     "WallTorch",                  # Wall Torch
+     "Lamp",                       # Lamp
+     "CeilingLamp",                # Ceiling Lamp
+     "LargeLamp",                  # Large Mounted Lamp
+     "LargeCeilingLamp",           # Large Ceiling Lamp
+     "Signboard",                  # Sign
+     "WallSignboard",              # WallSignBoard
+     "Headstone",                  # Tombstone
+     "TableCircular",              # Tidy Table Set
+     "TableDresser01_Stone",       # Antique Dresser
+     "JetDragonStatue",            # Jetragon Statue
+     "IceHorseStatue",             # Frostallion Statue
+     "FurnitureSet_Japanese",      # Japanese-Style Furniture Set
+     "HunterFlagSet",              # Rayne Syndicate Flag Set
+     "BelieverFlagSet",            # Free Pal Alliance Flag Set
+     "FireCultFlagSet",            # Brothers of the Eternal Pyre Flag Set
+     "PoliceFlagSet",              # PIDF Flag Set
+     "ScientistFlagSet",           # PAL Genetic Research Unit Flag Set
+     "NinjaFlagSet",               # Moonflower Flag Set
+     "DarkIslandFlagSet",          # Feybreak Flag Set
+     "SkyIslandFlagSet"]           # Azure Covenant Flag Set
+    # The eight Faux ... Greenery, Foliage, Cherry Blossoms and Bamboo Sets
+    + [f"FurnitureTree_{c}" for c in ("Green", "Red", "Yellow", "Cherry", "Tropical", "Snow", "Desert", "Bamboo")]
+    # The 32 numbered sets, Wooden Living Room Furniture Set (1) to Antique High Quality Furniture Set (32)
+    + [f"FurnitureSet_{n}" for n in range(1, 33)])
 
 
 def tech_item(tech_id: str) -> str:
-    return f"Tech: {TECH_BY_ID[tech_id][1]}"
+    """The item that unlocks a tech: "Tech: Primitive Workbench"."""
+    return f"Tech: {TECH_BY_ID[tech_id].name}"
 
 
 # A tech-tree slot's place as the Technology menu shows it: its level's row, and its position in that row (the
 # Ancient Technology column numbered separately). The menu lists a row's cards in the game table's order, which
-# TECHS keeps (all 588 rows in the same order for 1.0.5; checked against levels 7-9 in game, 2026-11-05).
+# TECHS keeps (all 588 rows in the same order; checked against levels 7-9 in game).
 def _tech_slots():
     seen, out = {}, {}
     for t in TECHS:
-        row = (t[2], t[4])
+        row = (t.level, t.ancient)
         seen[row] = seen.get(row, 0) + 1
-        out[t[0]] = seen[row]
+        out[t.id] = seen[row]
     return out
 
 
 TECH_SLOT = _tech_slots()
 
 
-def shop_location(tech) -> str:
-    """Named by where the slot is, not the vanilla tech that sat there (2026-11-05 run: other players' clients said
-    "Shop: Stone Defensive Wall" for a slot that sends something else)."""
-    return f"{'Ancient ' if tech[4] else ''}Tech Level {tech[2]} Slot {TECH_SLOT[tech[0]]}"
+def shop_location(tech: Tech) -> str:
+    """A shop slot's location name: "Tech Level 12 Slot 3". Named by where the slot is, not by the vanilla tech that
+    sat there, since the slot may send anything (a name like "Shop: Stone Defensive Wall" misled other players)."""
+    prefix = "Ancient " if tech.ancient else ""
+    return f"{prefix}Tech Level {tech.level} Slot {TECH_SLOT[tech.id]}"
 
 
 # --- Pals ------------------------------------------------------------------------------------------------------
+class PalSource(NamedTuple):
+    """One way to get a Pal: caught (or fished) in a piece of the map at a level, or bred from two parents."""
+    kind: str                      # "wild", "alpha", "dungeon", "fishing" or "breed"
+    piece: Optional[str]           # the piece it is caught in (None for "breed" and "fishing")
+    level: Optional[int]           # the level it is caught at (None for "breed")
+    parents: Tuple[str, ...] = ()  # the parents' Paldeck entries ("breed" only)
+
+
+class PaldeckEntry(NamedTuple):
+    """A Pal of the Paldeck (a value of game_data.PALDECK)."""
+    name: str
+    sources: Tuple[PalSource, ...]
+
+
+CAUGHT_KINDS = ("wild", "alpha", "dungeon")     # the sources the logic counts as a catch (not fishing or raids)
+
+
+def pal_sources(rows) -> Tuple[PalSource, ...]:
+    """game_data's source rows as named records: ("breed", (parent, parent)), or (kind, piece, level)."""
+    return tuple(PalSource("breed", None, None, row[1]) if row[0] == "breed" else PalSource(*row) for row in rows)
+
+
+PALDECK_ENTRIES = {entry: PaldeckEntry(name, pal_sources(rows)) for entry, (name, rows) in PALDECK.items()}
 # Entries with at least one source the logic understands get a capture check, named after the Pal.
 # Directly: caught in the wild, as an alpha or in a dungeon. By breeding: a unique combo whose parents are both
 # directly catchable (Bellanoir's only combo needs Bellanoir Libero, which only raids give, so it stays out).
-DIRECT = {e for e, (_, srcs) in PALDECK.items() if any(s[0] in ('wild', 'alpha', 'dungeon') for s in srcs)}
-BREEDABLE = {e for e, (_, srcs) in PALDECK.items()
-             if any(s[0] == 'breed' and all(p in DIRECT for p in s[1]) for s in srcs)}
-CATCHABLE = {e: v for e, v in PALDECK.items() if e in DIRECT | BREEDABLE}
-_names = [v[0] for v in CATCHABLE.values()]
-CAPTURE_NAMES = {e: f"Capture: {v[0]}" + (f" ({e})" if _names.count(v[0]) > 1 else '') for e, v in CATCHABLE.items()}
+DIRECT = {e for e, pal in PALDECK_ENTRIES.items() if any(s.kind in CAUGHT_KINDS for s in pal.sources)}
+BREEDABLE = {e for e, pal in PALDECK_ENTRIES.items()
+             if any(s.kind == "breed" and all(p in DIRECT for p in s.parents) for s in pal.sources)}
+CATCHABLE = {e: pal for e, pal in PALDECK_ENTRIES.items() if e in DIRECT | BREEDABLE}
+_pal_names = [pal.name for pal in CATCHABLE.values()]
+CAPTURE_NAMES = {e: f"Capture: {pal.name}" + (f" ({e})" if _pal_names.count(pal.name) > 1 else "")
+                 for e, pal in CATCHABLE.items()}
 
-# --- areas -----------------------------------------------------------------------------------------------------
-PASS_AREAS = [a for a in AREA_LIST if a != START_AREA]
+
+# --- alphas, fast-travel points and towers ---------------------------------------------------------------------
+class Alpha(NamedTuple):
+    """A field alpha (a row of game_data.ALPHAS)."""
+    name: str                      # its location name, "Alpha: Dualith (Desiccated Dunes)"
+    entry: str                     # its Paldeck entry
+    level: int
+    piece: str                     # the piece it stands in
+
+
+class FastTravelPoint(NamedTuple):
+    """A fast-travel point (a row of game_data.FAST_TRAVEL)."""
+    name: str                      # its location name, "Fast Travel: Astral Mountains 1"
+    point_id: str                  # the game's FastTravelPointID
+    piece: str
+
+
+class Tower(NamedTuple):
+    """A tower (a row of game_data.TOWERS)."""
+    name: str                      # "Forest Tower"
+    piece: str
+
+
+ALPHAS = [Alpha(*row) for row in ALPHA_ROWS]
+FAST_TRAVEL_POINTS = [FastTravelPoint(*row) for row in FAST_TRAVEL_ROWS]
+TOWERS = [Tower(*row) for row in TOWER_ROWS]
+
+# --- regions and areas -----------------------------------------------------------------------------------------
+# Players see two sizes of locked map part (the Lock Size option): 15 *regions*, each opened by a Region Pass, and the
+# game's 75 named *areas*, each opened by an Area Pass. A region is a group of areas. Code that serves both sizes
+# alike calls the seed's kind a *lock* (docs/architecture.md, Words).
+# Pass ids count from the list's second row (the start has no pass), so they hold only while the start stays first:
+# checked at the end of this file.
+PASS_REGIONS = [r for r in REGION_LIST if r != START_REGION]
 SEA = "Open sea"
 
 
-def area_pass(area: str) -> str:
-    return f"Area Pass: {area}"
-
-
-# The per-region set (area_size: regions): each named region of the game its own, with a Region Pass.
-REGION_PASS_AREAS = [r for r in REGION_MODE['AREA_LIST'] if r != REGION_MODE['START']]
-
-
 def region_pass(region: str) -> str:
+    """The pass item for one of the 15 regions."""
     return f"Region Pass: {region}"
 
 
-TOWER_EVENTS = {name: f"{name} Defeated" for name, _ in TOWERS}
-LEVELS = list(range(2, 81))
+# The 75 areas (Lock Size: areas): each named area of the game on its own, with an Area Pass. Their ids count from
+# the second row too, as PASS_REGIONS' do.
+PASS_AREAS = [a for a in AREA_MODE["AREA_LIST"] if a != AREA_MODE["START"]]
+
+
+def area_pass(area: str) -> str:
+    """The pass item for one of the 75 areas."""
+    return f"Area Pass: {area}"
+
+
+# Level Progression (Lock Size: levels): tiers of wild Pal level, opened in order by copies of one item, the tier after
+# the start by the first copy and so on.
+LEVEL_PASS = "Progressive Level Pass"
+PASS_TIERS = [t for t in LEVEL_MODE["TIER_LIST"] if t != LEVEL_MODE["START"]]
+
+
+TOWER_EVENTS = {tower.name: f"{tower.name} Defeated" for tower in TOWERS}
+CHECK_LEVELS = list(range(STARTER_LEVEL + 1, MAX_LEVEL + 1))     # the player levels that can be checks
 
 # --- filler ----------------------------------------------------------------------------------------------------
-FILLER = ["Tech Points +2", "Ancient Tech Points +1", "Wood Bundle", "Stone Bundle", "Paldium Bundle",
-          "Ingot Bundle", "Sphere Bundle", "Food Bundle"]
+# The two kinds of plain filler, each turned on by its own option (Tech Point Items, Material Bundles). Append only:
+# FILLER's order is each item's id.
+TECH_POINT_ITEMS = ["Tech Points +2", "Ancient Tech Points +1"]
+BUNDLES = ["Wood Bundle", "Stone Bundle", "Paldium Bundle", "Ingot Bundle", "Sphere Bundle", "Food Bundle"]
+FILLER = TECH_POINT_ITEMS + BUNDLES
 # Traps (Trap Chance): received items that do something mildly bad in game. None can make the player faint.
+# Append only: the order is each trap's id.
 TRAPS = ["Slow Trap", "Hunger Trap", "Teleport Trap", "Fool Trap"]
+TRAP_WEIGHT_OPTION = {"Slow Trap": "slow_trap_weight", "Hunger Trap": "hunger_trap_weight",   # trap -> its option
+                      "Teleport Trap": "teleport_trap_weight", "Fool Trap": "fool_trap_weight"}
 PROGRESSIVE_SPHERE = "Progressive Sphere"
-# The default filler (the user, 2026-11-05): a crate that turns into a Sphere, Food, Common, Rare or Jackpot Supply
-# crate when it arrives (the Crate Chances options), opened in game for contents scaled to the player's level then.
+# The default filler: a crate that turns into a Sphere, Food, Common, Rare or Jackpot Supply crate when it arrives
+# (the Crate Chances options), opened in game for contents scaled to the player's level then.
 CRATE = "Palworld Crate"
 RELIC = "Palpagos Relic"                           # the Relic Hunt goal's item
 
 
 class ItemDef(NamedTuple):
+    """An item of this world, with its id."""
     name: str
     id: int
-    kind: str                      # "pass", "tech", "progressive", "relic", "filler", "trap"
+    kind: str                      # "pass", "level_pass", "tech", "progressive", "relic", "filler", "trap"
 
 
 def _items() -> List[ItemDef]:
-    out = [ItemDef(area_pass(a), BASE + i, "pass") for i, a in enumerate(PASS_AREAS)]
-    out += [ItemDef(tech_item(t[0]), BASE + 1000 + i, "tech") for i, t in enumerate(TECHS) if t[2] > STARTER_LEVEL]
+    """Every item, with the id of its block and row (see BASE above)."""
+    out = [ItemDef(region_pass(r), BASE + i, "pass") for i, r in enumerate(PASS_REGIONS)]
+    out += [ItemDef(tech_item(t.id), BASE + 1000 + i, "tech") for i, t in enumerate(TECHS) if t.level > STARTER_LEVEL]
     out.append(ItemDef(PROGRESSIVE_SPHERE, BASE + 900, "progressive"))
+    out.append(ItemDef(LEVEL_PASS, BASE + 901, "level_pass"))
     out.append(ItemDef(RELIC, BASE + 940, "relic"))
     out += [ItemDef(n, BASE + 950 + i, "filler") for i, n in enumerate(FILLER)]
     out.append(ItemDef(CRATE, BASE + 958, "filler"))
     out += [ItemDef(n, BASE + 970 + i, "trap") for i, n in enumerate(TRAPS)]      # 959-969 stay free for filler
-    out += [ItemDef(region_pass(r), BASE + 7000 + i, "pass") for i, r in enumerate(REGION_PASS_AREAS)]
+    out += [ItemDef(area_pass(a), BASE + 7000 + i, "pass") for i, a in enumerate(PASS_AREAS)]
     return out
 
 
@@ -138,26 +272,34 @@ ITEMS = _items()
 ITEM_NAME_TO_ID: Dict[str, int] = {i.name: i.id for i in ITEMS}
 
 
+# The kinds of check. Code that treats them differently names every kind and raises ValueError for any other:
+# checks.py's loc_level and wanted, __init__.py's check_rule, and _mode_location_piece below.
+CHECK_KINDS = ("shop", "capture", "alpha", "fast_travel", "level", "tower")
+
+
 class LocationDef(NamedTuple):
+    """A location of this world, with its id."""
     name: str
     id: int
-    kind: str                      # "shop", "capture", "alpha", "fast_travel", "level", "tower"
-    area: Optional[str]            # the area it sits in (None: anywhere, gated by level only)
-    key: object                    # tech id, Paldeck entry, level number, fast-travel id, tower name
+    kind: str                      # one of CHECK_KINDS
+    piece: Optional[str]           # the piece it sits in, Lock Size: regions (None: anywhere, gated by level only)
+    key: object                    # tech id, Paldeck entry, fast-travel point id, level number or tower name
+    level: Optional[int] = None    # an alpha's level (a level check's level is its key)
 
 
 def _locations() -> List[LocationDef]:
-    out = [LocationDef(shop_location(t), BASE + 1000 + i, "shop", None, t[0])
-           for i, t in enumerate(TECHS) if t[2] > STARTER_LEVEL]
+    """Every location, with the id of its block and row (see BASE above)."""
+    out = [LocationDef(shop_location(t), BASE + 1000 + i, "shop", None, t.id)
+           for i, t in enumerate(TECHS) if t.level > STARTER_LEVEL]
     out += [LocationDef(CAPTURE_NAMES[e], BASE + 2000 + i, "capture", None, e)
             for i, e in enumerate(PALDECK) if e in CATCHABLE]
-    out += [LocationDef(name, BASE + 3000 + i, "alpha", area, (entry, level))
-            for i, (name, entry, level, area) in enumerate(ALPHAS)]
-    out += [LocationDef(name, BASE + 4000 + i, "fast_travel", area, fid)
-            for i, (name, fid, area) in enumerate(FAST_TRAVEL)]
-    out += [LocationDef(f"Level {n}", BASE + 5000 + n, "level", None, n) for n in LEVELS]
-    out += [LocationDef(f"Beat the {name}", BASE + 6000 + i, "tower", area, name)
-            for i, (name, area) in enumerate(TOWERS)]
+    out += [LocationDef(alpha.name, BASE + 3000 + i, "alpha", alpha.piece, alpha.entry, alpha.level)
+            for i, alpha in enumerate(ALPHAS)]
+    out += [LocationDef(point.name, BASE + 4000 + i, "fast_travel", point.piece, point.point_id)
+            for i, point in enumerate(FAST_TRAVEL_POINTS)]
+    out += [LocationDef(f"Level {n}", BASE + 5000 + n, "level", None, n) for n in CHECK_LEVELS]
+    out += [LocationDef(f"Beat the {tower.name}", BASE + 6000 + i, "tower", tower.piece, tower.name)
+            for i, tower in enumerate(TOWERS)]
     return out
 
 
@@ -165,61 +307,109 @@ LOCATIONS = _locations()
 LOCATION_NAME_TO_ID: Dict[str, int] = {l.name: l.id for l in LOCATIONS}
 # Alphas the game records under the same keys as a lower-level one (one spawner id placed twice, as Dualith's in the
 # Desiccated Dunes and the World Tree): beating either records both, so only the lower one is ever a check.
-SHARED_ALPHAS = frozenset(name for name, _, level, _ in ALPHAS
-                          if any(ALPHA_KEYS[other] == ALPHA_KEYS[name] and (lv, other) < (level, name)
-                                 for other, _, lv, _ in ALPHAS))
-
+SHARED_ALPHAS = frozenset(alpha.name for alpha in ALPHAS
+                          if any(ALPHA_KEYS[other.name] == ALPHA_KEYS[alpha.name]
+                                 and (other.level, other.name) < (alpha.level, alpha.name) for other in ALPHAS))
 
 
 class Layout(NamedTuple):
-    """One way of cutting the map into lockable parts (the area_size option): what the logic reads about the map."""
-    start: str                     # the area or region a game starts in (no pass)
-    passes: Dict[str, str]         # area or region -> its pass item
-    pieces: Dict[str, str]         # piece (the logic's region) -> its area or region; "Open sea" needs no pass
+    """One way of cutting the map into lockable parts (the Lock Size option): what the logic reads about the map."""
+    start: str                     # the lock a game starts in (no pass)
+    passes: Dict[str, str]         # lock -> its pass item
+    pieces: Dict[str, str]         # piece (an Archipelago Region in the logic) -> its lock; "Open sea" needs no pass
     borders: List[Tuple[str, str]]
-    levels: Dict[str, float]       # piece or area -> typical Pal level
-    sources: Dict[str, tuple]      # Paldeck entry -> its sources (as in PALDECK)
+    piece_levels: Dict[str, float]  # piece -> typical Pal level (pieces with no Pals of their own have none)
+    sources: Dict[str, Tuple[PalSource, ...]]  # Paldeck entry -> its sources
     location_piece: Dict[str, Optional[str]]   # location name -> the piece it sits in (None: anywhere)
     towers: Dict[str, str]         # tower name -> its piece
-    sky: frozenset                 # areas or regions up in the sky: a flying mount to get there
+    flying: frozenset              # pieces up high or walled in from below: a flying mount to get there
     world_tree: str                # the World Tree's piece
+    pass_counts: Dict[str, int]    # lock -> how many of its pass item it needs (1, or a tier's place in order)
+    in_order: bool                 # its locks open in order, by copies of one item (Level Progression)
 
 
-def _regions_location_piece() -> Dict[str, Optional[str]]:
+def _mode_location_piece(mode: dict) -> Dict[str, Optional[str]]:
+    """For the 75 areas or the level tiers (AREA_MODE, LEVEL_MODE): each location's piece (alphas, fast-travel points
+    and towers sit in one; the rest anywhere)."""
     out = {}
     for loc in LOCATIONS:
-        if loc.kind == "alpha": out[loc.name] = REGION_MODE['ALPHAS'][loc.name]
-        elif loc.kind == "fast_travel": out[loc.name] = REGION_MODE['FAST_TRAVEL'][loc.key]
-        elif loc.kind == "tower": out[loc.name] = REGION_MODE['TOWERS'][loc.key]
-        else: out[loc.name] = None
+        if loc.kind == "alpha":
+            out[loc.name] = mode["ALPHAS"][loc.name]
+        elif loc.kind == "fast_travel":
+            out[loc.name] = mode["FAST_TRAVEL"][loc.key]
+        elif loc.kind == "tower":
+            out[loc.name] = mode["TOWERS"][loc.key]
+        elif loc.kind in ("shop", "capture", "level"):
+            out[loc.name] = None
+        else:
+            raise ValueError(loc.kind)
     return out
 
 
+def _pieces_of(pieces: Dict[str, str], locks) -> frozenset:
+    """The pieces of these locks."""
+    return frozenset(piece for piece, lock in pieces.items() if lock in locks)
+
+
+# Keyed by the Lock Size option's values: "regions" (the 15), "areas" (the 75) and "levels" (Level Progression).
 LAYOUTS = {
-    "areas": Layout(START_AREA, {a: area_pass(a) for a in PASS_AREAS}, PIECES, BORDERS, AREAS,
-                    {e: v[1] for e, v in PALDECK.items()}, {l.name: l.area for l in LOCATIONS}, dict(TOWERS),
-                    frozenset({"Sky Islands"}), "World Tree"),
-    "regions": Layout(REGION_MODE['START'], {r: region_pass(r) for r in REGION_PASS_AREAS}, REGION_MODE['PIECES'],
-                      REGION_MODE['BORDERS'], REGION_MODE['AREAS'], REGION_MODE['SOURCES'], _regions_location_piece(),
-                      REGION_MODE['TOWERS'], frozenset(REGION_MODE['SKY']), REGION_MODE['WORLD_TREE']),
+    "regions": Layout(start=START_REGION, passes={r: region_pass(r) for r in PASS_REGIONS}, pieces=PIECES,
+                      borders=BORDERS, piece_levels=PIECE_LEVELS,
+                      sources={e: pal.sources for e, pal in PALDECK_ENTRIES.items()},
+                      location_piece={l.name: l.piece for l in LOCATIONS},
+                      towers={tower.name: tower.piece for tower in TOWERS},
+                      flying=_pieces_of(PIECES, {"Sky Islands"}), world_tree="World Tree",
+                      pass_counts={r: 1 for r in PASS_REGIONS}, in_order=False),
+    "areas": Layout(start=AREA_MODE["START"], passes={a: area_pass(a) for a in PASS_AREAS},
+                    pieces=AREA_MODE["PIECES"], borders=AREA_MODE["BORDERS"], piece_levels=AREA_MODE["PIECE_LEVELS"],
+                    sources={e: pal_sources(rows) for e, rows in AREA_MODE["SOURCES"].items()},
+                    location_piece=_mode_location_piece(AREA_MODE), towers=AREA_MODE["TOWERS"],
+                    flying=_pieces_of(AREA_MODE["PIECES"], set(AREA_MODE["SKY"])),
+                    world_tree=AREA_MODE["WORLD_TREE"], pass_counts={a: 1 for a in PASS_AREAS}, in_order=False),
+    "levels": Layout(start=LEVEL_MODE["START"], passes={t: LEVEL_PASS for t in PASS_TIERS},
+                     pieces=LEVEL_MODE["PIECES"], borders=LEVEL_MODE["BORDERS"],
+                     piece_levels=LEVEL_MODE["PIECE_LEVELS"],
+                     sources={e: pal_sources(rows) for e, rows in LEVEL_MODE["SOURCES"].items()},
+                     location_piece=_mode_location_piece(LEVEL_MODE), towers=LEVEL_MODE["TOWERS"],
+                     flying=frozenset(LEVEL_MODE["FLYING"]), world_tree=LEVEL_MODE["WORLD_TREE"],
+                     pass_counts={t: place for place, t in enumerate(PASS_TIERS, 1)}, in_order=True),
 }
 
-assert len(ITEM_NAME_TO_ID) == len(ITEMS), "duplicate item names"
-assert len({i.id for i in ITEMS}) == len(ITEMS), "duplicate item ids"
-assert len(LOCATION_NAME_TO_ID) == len(LOCATIONS), "duplicate location names"
-assert DECOR_TECHS <= {t[0] for t in SHOP_TECHS} and not DECOR_TECHS & PREREQ_TECHS, "décor techs must be plain shop techs"
-assert PREREQ_TECHS <= set(TECH_BY_ID), "progression techs must be techs"
+
+# --- checks made when the world loads: each names the rows that break it ------------------------------------------
+def _repeated(values) -> List:
+    """The values that occur more than once, sorted."""
+    return sorted(value for value, count in Counter(values).items() if count > 1)
+
+
+assert not _repeated(i.name for i in ITEMS), f"item names used twice: {_repeated(i.name for i in ITEMS)}"
+assert not _repeated(i.id for i in ITEMS), f"item ids used twice: {_repeated(i.id for i in ITEMS)}"
+assert not _repeated(l.name for l in LOCATIONS), f"location names used twice: {_repeated(l.name for l in LOCATIONS)}"
+assert not _repeated(l.id for l in LOCATIONS), f"location ids used twice: {_repeated(l.id for l in LOCATIONS)}"
+_decor_not_shop = sorted(DECOR_TECHS - {t.id for t in SHOP_TECHS})
+assert not _decor_not_shop, f"décor techs that are not shop techs: {_decor_not_shop}"
+_decor_needed = sorted(DECOR_TECHS & PREREQ_TECHS)
+assert not _decor_needed, f"décor techs that progression needs (they must be plain shop techs): {_decor_needed}"
+_unknown_prereqs = sorted(PREREQ_TECHS - set(TECH_BY_ID))
+assert not _unknown_prereqs, f"progression techs that are not in game_data.TECHS: {_unknown_prereqs}"
+_unknown_kinds = sorted({l.kind for l in LOCATIONS} - set(CHECK_KINDS))
+assert not _unknown_kinds, f"location kinds missing from CHECK_KINDS: {_unknown_kinds}"
+assert sorted(TRAP_WEIGHT_OPTION) == sorted(TRAPS), "every trap needs its weight option in TRAP_WEIGHT_OPTION"
+assert REGION_LIST[0] == START_REGION and AREA_MODE["AREA_LIST"][0] == AREA_MODE["START"], \
+    "pass ids count from the second row: the start must stay the first row of REGION_LIST and AREA_MODE's AREA_LIST"
+assert LEVEL_MODE["TIER_LIST"][0] == LEVEL_MODE["START"], "the levels' pass counts start from the second tier"
 
 
 # --- groups (for hints, start_inventory and the like) -----------------------------------------------------------
 ITEM_GROUPS = {
-    "Area Passes": {i.name for i in ITEMS if i.kind == "pass" and i.name.startswith("Area Pass")},
-    "Region Passes": {i.name for i in ITEMS if i.kind == "pass" and i.name.startswith("Region Pass")},
+    "Area Passes": {area_pass(a) for a in PASS_AREAS},
+    "Region Passes": {region_pass(r) for r in PASS_REGIONS},
+    "Level Passes": {LEVEL_PASS},
     "Techs": {i.name for i in ITEMS if i.kind == "tech"},
-    "Spheres": {tech_item(t[0]) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
-    "Bundles": {n for n in FILLER if n.endswith(" Bundle")},
+    "Spheres": {tech_item(t.id) for t in SPHERE_TECHS} | {PROGRESSIVE_SPHERE},
+    "Bundles": set(BUNDLES),
     "Crates": {CRATE},
-    "Tech Points": {"Tech Points +2", "Ancient Tech Points +1"},
+    "Tech Points": set(TECH_POINT_ITEMS),
     "Traps": set(TRAPS),
 }
 LOCATION_GROUPS = {
@@ -231,7 +421,7 @@ LOCATION_GROUPS = {
     "Levels": {l.name for l in LOCATIONS if l.kind == "level"},
     "Towers": {l.name for l in LOCATIONS if l.kind == "tower"},
 }
-for _area in AREA_LIST:                            # "Windswept Island" and so on: the checks in that area
-    _names = {l.name for l in LOCATIONS if l.area and PIECES.get(l.area) == _area}
-    if _names:
-        LOCATION_GROUPS[_area] = _names
+for _region in REGION_LIST:                        # "Windswept Island" and so on: the checks in that region
+    _group_names = {l.name for l in LOCATIONS if l.piece and PIECES.get(l.piece) == _region}
+    if _group_names:
+        LOCATION_GROUPS[_region] = _group_names

@@ -1,15 +1,16 @@
-"""Territory distance fields for the world map overlay (made by the Art & Assets lane for the mod, 2026-11-08). Our own
-data, made from the mod's area label map (no game pixels). One 4096x4096 RGB PNG per layout:
-  R  area label, identical to the label map (0 = open sea)
-  G  the area on the other side of the nearest border (for sea pixels: the nearest territory)
+"""Territory distance fields for the world map overlay, which the C++ part draws the Territories map from. Our own
+data, made from the mod's lock label map (no game pixels). One 4096x4096 RGB PNG per layout:
+  R  lock label, identical to the label map (0 = open sea)
+  G  the lock on the other side of the nearest border (for sea pixels: the nearest territory)
   B  Euclidean distance to that border, in 1/8 px at 4096, clamped at 255 (= 31.875 px); smoothed (Gaussian sigma 1.3)
      so the contours are curves, not the label map's 1 px stairs. The border lies between pixel centres, so the
      pixels touching it on either side read about 0.5-0.9 px (B 4-7).
 The border is where the 3x3 neighbourhood holds more than one label. A pixel's nearest border pixel e gives G: if e is
 on this pixel's own side, G = the label across from e; otherwise G = e's label.
 Standalone: needs only numpy, scipy and Pillow.
-Usage: map_fields.py LABELS.png OUT.png   (area_labels.png -> area_field.png,
-                                            area_labels_regions.png -> area_field_regions.png; keep them in step)
+Usage: map_fields.py LABELS.png OUT.png   (region_labels.png -> region_field.png,
+                                            area_labels.png -> area_field.png; keep them in step)
+Tests: none of its own; the Lua harness's map tests (tests/map.lua) read region_field.png.
 """
 import sys
 import numpy as np
@@ -35,6 +36,7 @@ def field(lab):
 
 
 def field_png(lab):
+    """The field of a label map as the RGB picture the mod ships (R label, G neighbour, B distance)."""
     d, nb = field(lab)
     b = np.clip(np.round(d * STEPS), 0, 255).astype(np.uint8)
     return Image.fromarray(np.dstack([lab, nb, b]), "RGB")

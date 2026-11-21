@@ -15,13 +15,13 @@ python3 card_bg.py ../png/ap-progression-card-bg.png
 for n in ap-progression ap-useful ap-filler ap-area-pass; do
   rsvg-convert -w 256 -h 256 ../svg/$n.svg -o ../png/$n.png
 done
-rsvg-convert -w 1280 -h 640 -b "#17324D" ../svg/social-preview.svg -o ../png/social-preview.png
+# png/social-preview.png and the other release images come from the Art & Assets lane (art/README.txt), so they
+# are not rendered here; svg/social-preview.svg stays as the earlier plain-logo master.
 for b in banner-light banner-dark; do
   rsvg-convert -w 1280 -h 320 ../svg/$b.svg -o ../png/$b.png
 done
-python3 -c "from PIL import Image; Image.open('../png/social-preview.png').convert('RGB').save('../png/social-preview.png')"
 
-# tag every export explicitly as sRGB (8-bit; RGBA except the opaque social preview)
+# tag every export explicitly as sRGB (8-bit; RGBA except the opaque release images)
 python3 - <<'PY'
 import glob
 from PIL import Image, ImageCms

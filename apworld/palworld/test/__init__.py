@@ -1,3 +1,5 @@
+"""The base class for this world's tests: Archipelago's WorldTestBase, with a helper to collect some copies of an
+item."""
 from test.bases import WorldTestBase
 
 
