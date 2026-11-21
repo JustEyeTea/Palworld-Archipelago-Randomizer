@@ -165,9 +165,10 @@ local function tellSpot()
 end
 
 -- Each walls update, after the pieces: WALK_PER_TICK posts looked at (at most SPAWNS_PER_TICK raised), and the
--- player's spot told to the looks. Nothing without the pak's post or a cut without posts.
+-- player's spot told to the looks. Nothing without the pak's post, a cut without posts, or before the spawning library
+-- is found (MESH_ACTORS.ready: the glows may not have looked for it yet).
 function WALL_POSTS.update(passes, pawn)
-    if not (layout.posts and #layout.posts > 0) or not postAssets() then return end
+    if not (layout.posts and #layout.posts > 0) or not postAssets() or not MESH_ACTORS.ready() then return end
     local openingNow = {}
     for _, s in ipairs(pieces.opening()) do
         if s.index then openingNow[s.index] = true end

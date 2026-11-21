@@ -23,6 +23,16 @@ local function standIn()
     return { IsValid = function() return true end, K2_GetActorLocation = function() return pawnAt end }
 end
 
+-- A fresh walls copy whose posts get a mesh_actors.lua of their own that no glow has readied: in the game the posts'
+-- first spawn can come before any glow looks for the spawning library.
+local function freshWallsAlone()
+    local kept = package.loaded["mesh_actors"]
+    package.loaded["mesh_actors"] = nil
+    local W = h.freshWalls()
+    package.loaded["mesh_actors"] = kept
+    return W
+end
+
 -- Runs a fresh walls copy n updates with these passes, the game's clock moving step seconds each.
 local function runWalls(W, n, passes, step)
     local pawn = standIn()
@@ -69,7 +79,7 @@ end
 -- With the pak's post: posts up at the walls' joints, dressed and sized; returns the walls copy and its data.
 local function postsGoUp()
     game.logicMod, game.cornerPosts = true, true
-    local W = h.freshWalls()
+    local W = freshWallsAlone()
     W.setSkin("paws")
     runWalls(W, 80, {})
     local data = dofile(MOD .. "/Scripts/region_walls.lua")
