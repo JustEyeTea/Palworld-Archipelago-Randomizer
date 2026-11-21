@@ -19,6 +19,14 @@ local SPAWNS_PER_TICK = 30    -- posts raised an update at most, as the walls' P
 -- M_APWallPost's parameters the mod sets (logicmod/make_wall_post.py's list; change both): the rest keep the
 -- material's own defaults (its layer, CellSize, Brightness, the glow's radius, strength and colour).
 local BACK, FADE_START, FADE_END, PLAYER_POS = "Back", "FadeStart", "FadeEnd", "PlayerPos"
+-- The posts' report (report): after a world's FIRST_REPORT_WALK-th full walk (about 18 s for the 75 areas: the walls
+-- are up by then), then every REPORT_EVERY_WALKS walks (about 45 s), at most REPORTS_LOGGED a session: enough to tell
+-- a post never raised from one raised but not seen.
+local FIRST_REPORT_WALK = 4
+local REPORT_EVERY_WALKS = 10
+local REPORTS_LOGGED = 12
+local DRAWN_WITHIN_S = 0.5    -- WasRecentlyRendered's tolerance: drawn in the last half second counts as drawn
+local CM_PER_M = 100
 
 -- Handed over by install: W (radius, fade, keepInPlace), the cut's layout, walls.lua's pieces (raised, opening),
 -- WALL_SKINS (backOf, glowSpot, modAsset, MID_FLAGS) and walls.lua's sizes (HEIGHT_CM, MID_Z_CM, HIDE_MARGIN).
@@ -30,6 +38,8 @@ local upAt = {}               -- post index -> its actor's address, to tell it i
 local wears = {}              -- post index -> the colour (hex) it wears
 local hidden = {}             -- post index -> true while hidden by distance
 local walkAt = 0              -- the post the walk looks at next (wraps round)
+local walks = 0               -- full walks over the posts in this world (reset), for the report's schedule
+local reports = 0             -- reports logged this session
 -- State: what the posts are made of. Forgotten: looks and their spot told at a world change (reset: a dead material
 -- called crashed the game, as wall_skins.lua says); assets never once found, or once found missing (the pak is
 -- mounted at start-up or not at all).
@@ -57,15 +67,16 @@ local function postAssets()
 end
 
 -- The post look in colour `hex` in this world: an M_APWallPost instance with that Back and the walls' fade, made on
--- first use and kept; nil when it can't be made.
+-- first use and kept; or nil and why not.
 local function lookIn(hex)
     if looks[hex] then return looks[hex] end
     local gameInstance = UTIL.gameInstance()
     local library = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary")
-    if not (gameInstance and UTIL.isValid(library)) then return nil end
+    if not gameInstance then return nil, "no game instance to own its look" end
+    if not UTIL.isValid(library) then return nil, "no KismetMaterialLibrary to make its look" end
     local look = library:CreateDynamicMaterialInstance(gameInstance, assets.material, FName("None"),
         WALL_SKINS.MID_FLAGS)
-    if not UTIL.isValid(look) then return nil end
+    if not UTIL.isValid(look) then return nil, "CreateDynamicMaterialInstance gave no look" end
     look:SetVectorParameterValue(FName(BACK), UTIL.linear(hex))
     look:SetScalarParameterValue(FName(FADE_START), W.fade[1])
     look:SetScalarParameterValue(FName(FADE_END), W.fade[2])
@@ -87,8 +98,12 @@ end
 -- Raises post k in colour hex: the pak's post, turned by its yaw, its base at the walls' foot, as tall as they are.
 -- True when it went up.
 local function raise(k, hex, pawn)
-    local post, look = layout.posts[k], lookIn(hex)
-    if not look then return false end
+    local post = layout.posts[k]
+    local look, lookWhy = lookIn(hex)
+    if not look then
+        UTIL.onceErr("wall posts look", lookWhy, "wall posts: could not raise post " .. k .. ": " .. tostring(lookWhy))
+        return false
+    end
     local yaw = math.rad(post.yaw)
     local t = { Rotation = { X = 0, Y = 0, Z = math.sin(yaw / 2), W = math.cos(yaw / 2) },
                 Translation = { X = post.x, Y = post.y, Z = sizes.MID_Z_CM - sizes.HEIGHT_CM / 2 },
@@ -124,8 +139,11 @@ end
 
 -- Puts post k (up) in the look of colour hex: a recolour, or a new look after the last world's looks were let go.
 local function redress(k, hex)
-    local look = lookIn(hex)
-    if not look then return end
+    local look, lookWhy = lookIn(hex)
+    if not look then
+        UTIL.onceErr("wall posts look", lookWhy, "wall posts: could not dress post " .. k .. ": " .. tostring(lookWhy))
+        return
+    end
     local ok, err = pcall(function() up[k].StaticMeshComponent:SetMaterial(0, look) end)
     if ok then
         wears[k] = hex
@@ -164,11 +182,82 @@ local function tellSpot()
     end
 end
 
+-- The post nearest (px, py) and how far it is in metres; nil without a position.
+local function nearestPost(px, py)
+    if not px then return nil end
+    local best, bestD2 = nil, math.huge
+    for k, post in ipairs(layout.posts) do
+        local d2 = (post.x - px) ^ 2 + (post.y - py) ^ 2
+        if d2 < bestD2 then best, bestD2 = k, d2 end
+    end
+    return best, math.sqrt(bestD2) / CM_PER_M
+end
+
+-- A call's result made into text for the report, or "?" when the call fails or gives nothing.
+local function asText(fn)
+    local ok, text = pcall(fn)
+    return (ok and text ~= nil) and tostring(text) or "?"
+end
+
+-- What the game says of post k's actor: where it stands, its scale, its mesh's size, its material, whether it is
+-- hidden and whether the engine drew it lately.
+local function actorFacts(k)
+    local actor = up[k]
+    local function xyz(v) return string.format("%.0f, %.0f, %.0f", v.X, v.Y, v.Z) end
+    local at = asText(function() return xyz(actor:K2_GetActorLocation()) end)
+    local scale = asText(function() return xyz(actor:GetActorScale3D()) end)
+    local size = asText(function()
+        local box = assets.mesh:GetBoundingBox()
+        return xyz({ X = box.Max.X - box.Min.X, Y = box.Max.Y - box.Min.Y, Z = box.Max.Z - box.Min.Z })
+    end)
+    local material = asText(function() return UTIL.objectPath(actor.StaticMeshComponent:GetMaterial(0)) end)
+    local drawn = asText(function() return actor:WasRecentlyRendered(DRAWN_WITHIN_S) and "yes" or "no" end)
+    return string.format("up in %s, at (%s) cm, scale (%s), mesh (%s) cm, material %s, hidden %s, drawn lately %s",
+        tostring(wears[k]), at, scale, size, material, hidden[k] and "yes" or "no", drawn)
+end
+
+-- Logs the posts' report: how many are up and hidden by distance, and the nearest post as the game has it.
+local function report(ctx)
+    if reports >= REPORTS_LOGGED then return end
+    reports = reports + 1
+    local upN, hiddenN = 0, 0
+    for k in pairs(up) do
+        upN = upN + 1
+        if hidden[k] then hiddenN = hiddenN + 1 end
+    end
+    local k, metres = nearestPost(ctx.px, ctx.py)
+    local nearest = "no player position"
+    if k then
+        local state = up[k] and actorFacts(k)
+            or ("not up (" .. (wanted(layout.posts[k], ctx.opening) and "wanted" or "not wanted") .. ")")
+        nearest = string.format("the nearest, post %d, %.0f m away: %s", k, metres, state)
+    end
+    log(string.format("wall posts: %d of %d up, %d hidden by distance; %s (report %d; the first %d are logged)",
+        upN, #layout.posts, hiddenN, nearest, reports, REPORTS_LOGGED))
+end
+
+-- One update's share of the walk: WALK_PER_TICK posts looked at; the report after each full walk that is due.
+local function walk(ctx)
+    local n = #layout.posts
+    for _ = 1, math.min(WALK_PER_TICK, n) do
+        walkAt = walkAt % n + 1
+        ctx.spawns = ctx.spawns - lookAt(walkAt, ctx)
+        if walkAt == n then
+            walks = walks + 1
+            if UTIL.isDue(walks, REPORT_EVERY_WALKS, FIRST_REPORT_WALK) then report(ctx) end
+        end
+    end
+end
+
 -- Each walls update, after the pieces: WALK_PER_TICK posts looked at (at most SPAWNS_PER_TICK raised), and the
 -- player's spot told to the looks. Nothing without the pak's post, a cut without posts, or before the spawning library
 -- is found (MESH_ACTORS.ready: the glows may not have looked for it yet).
 function WALL_POSTS.update(passes, pawn)
-    if not (layout.posts and #layout.posts > 0) or not postAssets() or not MESH_ACTORS.ready() then return end
+    if not (layout.posts and #layout.posts > 0) or not postAssets() then return end
+    if not MESH_ACTORS.ready() then
+        UTIL.once("wall posts wait", "wall posts: waiting for GameplayStatics and the StaticMeshActor class")
+        return
+    end
     local openingNow = {}
     for _, s in ipairs(pieces.opening()) do
         if s.index then openingNow[s.index] = true end
@@ -176,11 +265,7 @@ function WALL_POSTS.update(passes, pawn)
     local okL, loc = pcall(function() return pawn:K2_GetActorLocation() end)
     local ctx = { passes = passes or {}, pawn = pawn, opening = openingNow, spawns = SPAWNS_PER_TICK,
                   px = okL and loc and loc.X or nil, py = okL and loc and loc.Y or nil }
-    local n = #layout.posts
-    for _ = 1, math.min(WALK_PER_TICK, n) do
-        walkAt = walkAt % n + 1
-        ctx.spawns = ctx.spawns - lookAt(walkAt, ctx)
-    end
+    walk(ctx)
     tellSpot()
 end
 
@@ -193,7 +278,7 @@ function WALL_POSTS.reset()
             up[k], upAt[k], wears[k], hidden[k] = nil, nil, nil, nil
         end
     end
-    looks, spotTold = {}, nil
+    looks, spotTold, walks = {}, nil, 0
     for k in pairs(up) do wears[k] = nil end      -- (their looks are let go: each is put in a new one when looked at)
 end
 

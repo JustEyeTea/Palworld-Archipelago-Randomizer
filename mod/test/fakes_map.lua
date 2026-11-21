@@ -165,8 +165,12 @@ local function GlowActor(t)
                               SetStaticMesh = function(_, mesh) a.mesh = mesh end,
                               SetMaterial = function(_, _, m) a.material = m end,
                               SetCollisionEnabled = function(_, c) a.collision = c end,
-                              SetCastShadow = function(_, on) a.shadow = on end }
+                              SetCastShadow = function(_, on) a.shadow = on end,
+                              GetMaterial = function() return a.material end }
     function a:SetActorEnableCollision(on) self.actorCollision = on end
+    function a:K2_GetActorLocation() return self.at end
+    function a:GetActorScale3D() return self.scale end
+    function a:WasRecentlyRendered() return not self.hidden end
     function a:SetActorScale3D(sc) self.scale = sc end
     function a:K2_SetActorRotation(r)
         self.rotation = r

@@ -81,7 +81,11 @@ local function postsGoUp()
     game.logicMod, game.cornerPosts = true, true
     local W = freshWallsAlone()
     W.setSkin("paws")
+    local mark = logMark()
     runWalls(W, 80, {})
+    expect(loggedSince(mark, "wall posts: ") and loggedSince(mark, " up, ")
+           and loggedSince(mark, "hidden by distance; the nearest, post ") and loggedSince(mark, "drawn lately"),
+           "the posts' report after the 4th full walk: how many are up, and the nearest as the game has it")
     local data = dofile(MOD .. "/Scripts/region_walls.lua")
     local spots, posts = {}, postActors()
     for _, post in ipairs(data.posts) do spots[post.x .. "," .. post.y] = post end
