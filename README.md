@@ -8,7 +8,8 @@ items to other players, and the map opens region by region as passes arrive. Cat
 bosses, unlocking fast-travel points and levelling up send items too.
 
 **Made with AI.** Most of the code, tools, documentation and art were written by Claude, an AI model made by
-Anthropic, at JustEyeTea's direction; JustEyeTea playtests every build and makes the design calls.
+Anthropic, at JustEyeTea's direction; JustEyeTea is reviewing the code by hand, playtests every build and
+makes the design calls.
 
 Unofficial fan project: not affiliated with or endorsed by Pocketpair, Inc. or the Archipelago project.
 

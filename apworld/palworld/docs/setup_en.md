@@ -6,7 +6,8 @@ server. It is new and still being playtested, so some parts are not tested in ga
 of this guide, under [Not tested in game yet](#not-tested-in-game-yet).
 
 Most of the code, tools, documentation and art were written by Claude, an AI model made by Anthropic, at JustEyeTea's
-direction; JustEyeTea playtests every build and makes the design calls.
+direction; JustEyeTea is reviewing the code by hand, playtests every build and
+makes the design calls.
 
 ## 1. Before you start
 

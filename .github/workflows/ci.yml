@@ -323,7 +323,8 @@ jobs:
           them), then delete this paragraph. CI can't build it: it is built by hand in the Palworld Modding Kit on
           Windows (logicmod/README.md, "The wall material and the glows").
 
-          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction.
+          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction;
+          JustEyeTea is reviewing the code by hand, playtests every build and makes the design calls.
           Unofficial fan project; not affiliated with Pocketpair or the Archipelago project.
           EOF
       - name: Draft release

@@ -212,4 +212,5 @@ faints before one is sent: with 2, every third faint is sent. Chat says when a f
 left. The count is kept with the seed's save, so quitting doesn't reset it. Deaths other players send you never count.
 
 Most of the code, tools, documentation and art were written by Claude, an AI model made by Anthropic, at JustEyeTea's
-direction; JustEyeTea playtests every build and makes the design calls.
+direction; JustEyeTea is reviewing the code by hand, playtests every build and
+makes the design calls.
