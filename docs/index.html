@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Palworld Archipelago Randomizer</title>
+<meta name="description" content="An Archipelago multiworld randomizer for Palworld: the Technology tree becomes a
+  shop and the map opens region by region as passes arrive. An unofficial fan project.">
+<meta name="theme-color" content="#eef5f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1e2c" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Palworld Archipelago Randomizer">
+<meta property="og:title" content="Palworld Archipelago Randomizer">
+<meta property="og:description" content="An Archipelago multiworld randomizer for Palworld: the Technology tree
+  becomes a shop and the map opens region by region as passes arrive.">
+<meta property="og:url" content="https://justeyetea.github.io/Palworld-Archipelago-Randomizer/">
+<meta property="og:image" content="https://justeyetea.github.io/Palworld-Archipelago-Randomizer/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Palworld Archipelago Randomizer logo over a fan of pass tickets">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="site.css">
+<style>
+  /* Only this page's layout; the shared look is in site.css. */
+  .steps { padding-left: 1.4rem; margin: 0; }
+  .steps li { margin: 0 0 .6rem; }
+  .steps li::marker { font-family: "Lilita One", system-ui, sans-serif; color: var(--accent); }
+  .install-diagram { margin: 0; }
+  .install-diagram img { display: block; width: 100%; height: auto; }
+  .install-diagram figcaption { color: var(--muted); font-size: .92rem; margin-top: .5rem; }
+  .links { list-style: none; padding: 0; margin: 0; display: grid; gap: .4rem;
+           grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+  .links a { font-weight: 600; }
+  .links span { display: block; color: var(--muted); font-size: .92rem; }
+  .actions-row { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 1.5rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <picture class="page-art logo">
+      <source srcset="logo-dark.svg" media="(prefers-color-scheme: dark)">
+      <img src="logo-light.svg" alt="" width="760" height="200">
+    </picture>
+    <h1>Palworld Archipelago Randomizer</h1>
+    <p>Archipelago links games from different players into one shared randomizer: the items you find can belong to
+      someone else's game, and theirs to yours. In Palworld, the Technology tree becomes a shop whose cards send
+      items to the other players, and the map opens region by region as passes arrive. It is for Palworld 1.0.5
+      on Steam for Windows, with single-player worlds, and it is new and being playtested.</p>
+    <p class="notice">No release yet: the first is coming soon.</p>
+    <div class="actions-row">
+      <a class="button" href="options/">Make your YAML</a>
+      <a class="button" href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases">Releases</a>
+    </div>
+  </header>
+
+  <section class="panel" aria-labelledby="steps-heading">
+    <h2 id="steps-heading">Play in four steps</h2>
+    <ol class="steps">
+      <li>Download the mod and <code>palworld.apworld</code> from
+        <a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases">Releases</a>.</li>
+      <li>Install UE4SS and the mod with the
+        <a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/blob/main/apworld/palworld/docs/setup_en.md">setup
+        guide</a>.</li>
+      <li>Make your player YAML on the <a href="options/">options page</a>.</li>
+      <li>The host generates the multiworld with the Archipelago Launcher and <code>palworld.apworld</code>
+        (<a href="https://archipelago.gg">archipelago.gg</a> can't generate Palworld itself), and can host it by
+        uploading the result to archipelago.gg. Then connect from the Archipelago menu on Palworld's title screen,
+        with your player name as the Slot.</li>
+    </ol>
+  </section>
+
+  <section class="panel" aria-labelledby="install-heading">
+    <h2 id="install-heading">What goes where</h2>
+    <figure class="install-diagram">
+      <picture>
+        <source srcset="install-diagram-dark.svg" media="(prefers-color-scheme: dark)">
+        <img src="install-diagram-light.svg" width="1600" height="900" loading="lazy"
+             alt="Your PC runs Palworld 1.0.5 with UE4SS, the PalworldArchipelago Lua mod, the APConnector C++ mod
+                  and the optional PalworldArchipelagoArt.pak, from the mod's files on Releases. You make your
+                  player YAML on the options page; the host generates the multiworld with Archipelago and
+                  palworld.apworld from everyone's YAMLs, and hosts it on an Archipelago server. You connect to
+                  that server from the title screen, and items and checks pass between you and the other players'
+                  games.">
+      </picture>
+      <figcaption>Where each part goes (<a href="install-diagram-light.svg">open it full size</a>). The setup
+        guide has every detail.</figcaption>
+    </figure>
+  </section>
+
+  <section class="panel" aria-labelledby="links-heading">
+    <h2 id="links-heading">Links</h2>
+    <ul class="links">
+      <li><a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/releases">Releases</a>
+        <span>The mod and palworld.apworld</span></li>
+      <li><a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/blob/main/apworld/palworld/docs/setup_en.md">Setup
+        guide</a> <span>Installing and connecting</span></li>
+      <li><a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/blob/main/apworld/palworld/docs/en_Palworld.md">How
+        it plays</a> <span>Shop, passes, goals and checks</span></li>
+      <li><a href="options/">Options page</a> <span>Make your player YAML</span></li>
+      <li><a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer">Source code</a>
+        <span>On GitHub</span></li>
+      <li><a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer/issues">Issues</a>
+        <span>Report a problem or ask a question</span></li>
+      <li><a href="https://archipelago.gg">archipelago.gg</a> <span>The Archipelago project</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p id="site-version"></p>
+    <p>Most of the code, tools, documentation and art were written by Claude, an AI model made by Anthropic, at
+      JustEyeTea's direction; JustEyeTea playtests every build and makes the design calls.</p>
+    <p>An unofficial fan project, not affiliated with or endorsed by Pocketpair, Inc. or the Archipelago project.
+      Palworld is a trademark of Pocketpair, Inc.</p>
+  </footer>
+</main>
+<script>
+  // The version comes from the options page's data (written from the APWorld by tools/gen_options_page.py), so the
+  // site has no copy of its own to forget. Without it the line stays empty.
+  fetch('options/options.json')
+    .then(function (response) { return response.ok ? response.json() : null; })
+    .then(function (data) {
+      if (data) document.getElementById('site-version').textContent = 'Version ' + data.world_version + '.';
+    })
+    .catch(function () { /* offline or opened from disk: no version line */ });
+</script>
+</body>
+</html>

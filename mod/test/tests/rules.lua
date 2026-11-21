@@ -1,5 +1,6 @@
 -- Rules read from the mod's source, and checks over the whole run: only the game thread runs Lua, every
--- config.txt key is kept, slot data is read only by listed keys the APWorld sends, every LoadAsset path is full.
+-- config.txt key is kept and shown in config.example.txt, slot data is read only by listed keys the APWorld sends,
+-- every LoadAsset path is full.
 
 group("Lua runs only on the game thread", function()
     -- A LoopAsync or key-bind callback runs on another thread over the same Lua state, so it only reads a flag and
@@ -103,6 +104,30 @@ group("every config.txt key the mod reads is kept when the title menu rewrites t
     expect(next(listed) ~= nil and #missing == 0,
            "every config.txt key the mod reads is kept when the title menu rewrites the file: "
            .. table.concat(missing, ", "))
+end)
+
+group("every config.txt key is shown in config.example.txt", function()
+    -- A player learns the settings from config.example.txt, so each key the title menu keeps (CONFIG_KEYS) has a
+    -- line there that starts with it, as a setting or a comment: "key=" or "# key=".
+    local function readFile(path)
+        local fh = io.open(path)
+        local text = fh and fh:read("a") or ""
+        if fh then
+            fh:close()
+        end
+        return text
+    end
+    local example = "\n" .. readFile(MOD .. "/config.example.txt")
+    local listed = readFile(MOD .. "/Scripts/config.lua"):match("local CONFIG_KEYS = (%b{})") or ""
+    local missing, count = {}, 0
+    for key in listed:gmatch('"([%w_]+)"') do
+        count = count + 1
+        if not example:find("\n#?%s*" .. key .. "=") then
+            missing[#missing + 1] = key
+        end
+    end
+    expect(count > 0 and #missing == 0,
+           "every CONFIG_KEYS key has a line in config.example.txt: missing " .. table.concat(missing, ", "))
 end)
 
 group("slot data", function()

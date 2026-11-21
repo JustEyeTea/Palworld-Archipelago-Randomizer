@@ -4,25 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Palworld Archipelago Options</title>
-<meta name="description" content="Pick your Palworld Archipelago options and download a player YAML for Archipelago.">
-<link rel="icon" href="data:,">
+<title>Options · Palworld Archipelago Randomizer</title>
+<meta name="description" content="Pick your Palworld Archipelago Randomizer options and download your player YAML.">
+<meta name="theme-color" content="#eef5f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1e2c" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Palworld Archipelago Randomizer">
+<meta property="og:title" content="Options · Palworld Archipelago Randomizer">
+<meta property="og:description" content="Pick your options, or start from a preset, and download your player YAML.">
+<meta property="og:url" content="https://justeyetea.github.io/Palworld-Archipelago-Randomizer/options/">
+<meta property="og:image" content="https://justeyetea.github.io/Palworld-Archipelago-Randomizer/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Palworld Archipelago Randomizer logo over a fan of pass tickets">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../site.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
   <header>
+    <a class="back-link" href="../">← Palworld Archipelago Randomizer</a>
     <picture class="page-art">
       <source srcset="options-header-dark.svg" media="(prefers-color-scheme: dark)">
-      <img src="options-header-light.svg" alt="Palworld Archipelago" width="1200" height="260">
+      <img src="options-header-light.svg" alt="" width="1200" height="260">
     </picture>
     <h1>Palworld Archipelago options</h1>
-    <p>Pick your options, or start from a preset, then download your player YAML. Give the file to whoever is
-      generating the multiworld (it goes in Archipelago's <code>Players</code> folder). The host also needs the
-      Palworld APWorld installed, at the version named at the bottom of this page or newer, as an
-      <code>.apworld</code> built with the project's <code>tools/build_apworld.py</code> (or Archipelago's
-      "Build APWorlds"). Archipelago reads a plain zip of the APWorld folder as version 0.0.0 and refuses these
-      files.</p>
+    <p>A YAML is your settings file for one game in the multiworld: your player name and how your Palworld game
+      plays. Pick your options here, or start from a preset, and download it.</p>
+    <p>Then send the file to whoever generates the multiworld. They also need <code>palworld.apworld</code> from the
+      same release as your mod. Your player name here is the Slot you type in the mod's Archipelago menu on the
+      title screen.</p>
   </header>
 
   <noscript><p class="error">This page needs JavaScript to build your YAML.</p></noscript>
@@ -42,11 +55,18 @@
       </div>
       <div class="field">
         <label for="preset">Preset</label>
-        <select id="preset" aria-describedby="preset-help preset-status speed-boost-warning"></select>
-        <p id="preset-help" class="help">A preset fills in the options below; you can change any of them after.</p>
+        <select id="preset"
+                aria-describedby="preset-description preset-help preset-status speed-boost-warning"></select>
+        <p id="preset-description" class="help preset-description"></p>
+        <p id="preset-help" class="help">A preset fills in the options below; you can change any of them after.
+          Sync presets are for a multiworld everyone plays at the same time, in one sitting: they turn on Speed
+          Boost, which changes your world's settings. Async presets are for one each player plays at their own pace
+          over days, at the game's normal speed.</p>
         <p id="preset-status" class="status" aria-live="polite"></p>
         <p id="speed-boost-warning" class="warning" aria-live="polite"></p>
       </div>
+      <!-- A second Download button, so a player happy with a preset needn't scroll past every option. -->
+      <button class="top-download" type="submit">Download YAML</button>
     </section>
 
     <div id="groups"></div>
@@ -63,8 +83,9 @@
 
   <footer>
     <p>This page was written by Claude (Opus 5.5), an AI model made by Anthropic, at JustEyeTea's direction, as is
-      most of the Palworld Archipelago project's code.</p>
-    <p><a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer">Palworld Archipelago on GitHub</a>
+      most of the Palworld Archipelago Randomizer's code.</p>
+    <p><a href="../">Palworld Archipelago Randomizer</a> ·
+      <a href="https://github.com/JustEyeTea/Palworld-Archipelago-Randomizer">Source on GitHub</a>
       <span id="built-from"></span></p>
     <p>An unofficial fan project, not affiliated with or endorsed by Pocketpair, Inc. or the Archipelago project.
       Palworld is a trademark of Pocketpair, Inc.</p>

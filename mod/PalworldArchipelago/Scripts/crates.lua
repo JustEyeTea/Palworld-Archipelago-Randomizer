@@ -9,7 +9,7 @@
 --   Jackpot  stat fruits, Remedies and Elixirs, gear up to two tiers above, a big stack of high spheres
 -- Everything a crate holds goes to the mailbox; gear and accessories are marked `gear`, for the mailbox's gear list
 -- (mailbox.lua: the hidden chest can't hold their per-item data).
--- Item ids from the 1.0.5 item table. Untested in game: opening a crate and the items it gives.
+-- Item ids from the 1.0.5 item table.
 -- Tests: mod/test/tests/crates_run_style.lua; groups "Palworld Crates", "the crate window"
 --   (tools/lua_harness.sh, in CI).
 local C = { list = {} }

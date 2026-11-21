@@ -62,8 +62,8 @@ end
 -- DamageReactionComponent_ProcessDeath_ToServer_ToSelfPlayer does not faint the player at all (seen in game).
 -- So, in order, each tried until one works, and the one that worked kept for the session (death.route):
 --   1. "poison": lethal slip damage through the player's own damage component (SlipDamage, EPalDeadType Poison 5,
---      shield ignored and cleared), an ordinary death to the game, so its Death Penalty should apply. Untested in
---      game: whether it faints the player and the Death Penalty applies.
+--      shield ignored and cleared), an ordinary death to the game, so its Death Penalty applies. Seen in game: it
+--      faints the player and drops the Death Penalty bag, so the routes below are only fallbacks.
 --   2. "penalty drop": the Death Penalty manager's own DropDeathPenaltyChest(player) (the bag on the ground), then the
 --      self-kill; skipped when the world's Death Penalty is None (the drop might not check it itself). Untested in
 --      game: whether the bag is dropped.

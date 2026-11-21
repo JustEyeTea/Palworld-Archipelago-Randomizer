@@ -1,11 +1,13 @@
-# The performance probe (test builds)
+# The performance probe
 
-The 2026-11-03 playtest (v0.11.x: about 818 wall pieces up, the mailbox and menus in use, connected) felt like an FPS
-drop. Nothing had been measured. This probe measures it, and its hotkeys switch suspects off and on in one session so
-old and new can be compared. It changes nothing in the game: it times, counts and logs. Every millisecond figure in the
-code comments is an estimate from the UE4SS source and the game's files until this probe measures it in game.
+The performance probe (`Scripts/perf.lua`) measures where the mod's time goes and what the frame rate is, so a
+playtest can tell the mod's own work from the walls and the game. Its hotkeys switch suspects off and on in one
+session, so each can be compared with and without. It changes nothing in the game: it times, counts and logs. It ships
+with the mod and does nothing until `config.txt` turns it on. A millisecond figure in a code comment is an estimate
+from the UE4SS source and the game's files until this probe measures it in game.
 
-Written by Claude (an AI model made by Anthropic) at JustEyeTea's direction, like most of this project.
+This file is the one description of the probe's log lines; `perf.lua` points here. Written by Claude (an AI model
+made by Anthropic) at JustEyeTea's direction, like most of this project.
 
 ## Turning it on
 
@@ -50,14 +52,15 @@ still meaningful, and the worst is exact to about 1 ms.
 
 ## One-off lines
 
-- `probe perf-1 start|world cvars ...`: distance-field, shadow and physics settings (0 means the setting does not exist).
+- `probe perf-1 start|world cvars ...`: distance-field, shadow and physics settings (0 means the setting does not
+  exist).
 - `getters world=1 pc=ok ps=ok pawn=ok same_pc=1 same_ps=1`: once per world, whether the game's own
-  `PalUtility:GetLocalPlayerController/State` agree with the mod's lookups. If they do, a later build can drop two
-  object walks per update.
+  `PalUtility:GetLocalPlayerController/State` agree with the mod's lookups. If they do, the mod could drop two object
+  walks per update.
 - `fa poll=N PalCaptureCount=num/key ...`: each record array's size and replication key, for the first 10 polls and
-  whenever one moves. If the key moves on a capture and a fast-travel unlock, a later build can skip unchanged arrays.
+  whenever one moves. If the key moves on a capture and a fast-travel unlock, the mod could skip unchanged arrays.
 - `notify <Class> first fire` and every 30 s `notify check <Class>=set/findall/fired ... ok|MISMATCH` (test_tools):
-  whether NotifyOnNewObject sees the menus the mod looks for every update. If it does, a later build can keep a set
+  whether NotifyOnNewObject sees the menus the mod looks for every update. If it does, the mod could keep a set
   instead of walking the object array for them. The check walks one class per update (five updates a round), so no
   single frame carries five walks.
 - `cards: reading back the name|unlocked name|category|icon|click state works|does not work`: whether the card change
@@ -68,8 +71,8 @@ still meaningful, and the worst is exact to about 1 ms.
 
 ## Hotkeys (test_tools=1)
 
-Ctrl with the number-row keys 6 to 0 (not the numpad): `test_tools=1` also binds the traps' test keys to Ctrl+F5 to Ctrl+F11
-and the Pal gifts' to Ctrl+1 to Ctrl+5.
+Ctrl with the number-row keys 6 to 0 (not the numpad). The other keys `test_tools=1` binds (traps, Pal gifts and
+the other probes) are listed in the header of `Scripts/test_tools.lua`.
 
 Wait for the `ab` line after each press before the next one. A press inside the 13 s logs `ab ... interrupted`.
 
@@ -79,17 +82,20 @@ Wait for the `ab` line after each press before the next one. A press inside the 
 | Ctrl+7 | Walls, cycling `full -> hidden -> nocoll -> none -> full`: four presses go round once (three reach `none`, the fourth is back to `full`). `hidden`: every raised piece hidden, collision kept (tests drawing). `nocoll`: shown, collision off (tests physics, if that takes the bodies out of the physics scene: untested). `none`: every raised piece removed at once. Back to `full`: raised again by the normal path, about 8 s, then `walls full again: N raised`. While not `full`, no piece is raised or lowered and nobody is sent home: do not cross a border until `walls full again`. |
 | Ctrl+8 | Pause / resume the whole update, its controller walk included (Archipelago events wait in the connector). |
 | Ctrl+9 | Hook bypass on / off: the check hooks (H1, H2, H4, H6, H7) answer nothing, so the shop's cards act as vanilla. Hover and open menus, but do not click a card: the confirm box shows the game's own text then. Research requests (H5) are still rewritten, so nothing unlocks for real, and a confirm during the bypass buys nothing (logged as ignored; no points taken, no check sent). Measures only the Lua share of hook cost: UE4SS's per-Blueprint-call overhead stays (only `perf_no_bp_hooks=1` removes it). |
-| Ctrl+0 | Old load on / off: after each update, replays the lookups and work 6dd356e did and this build does not (results thrown away, cards labelled again with the same text). The difference is what this build saved. An approximate replay of the cost, not the old code. |
+| Ctrl+0 | Old load on / off: after each update, replays the lookups and work the mod did every update before they were shared (`PERF.replayUnsharedLookups`; results thrown away, cards labelled again with the same text). The difference is what sharing them saves. An approximate replay of the cost, not the old code. |
 
-Each switch logs `ab <what> <from>-><to>: before fps=.. ft=.. lua=.. | after fps=.. ft=.. lua=.. (10s/10s, settle 3s, raised=N)`
-by itself: the 10 s before the press, then 10 s after a 3 s settle.
+Each switch logs a line by itself: the 10 s before the press, then 10 s after a 3 s settle:
+
+```
+ab <what> <from>-><to>: before fps=.. ft=.. lua=.. | after fps=.. ft=.. lua=.. (10s/10s, settle 3s, raised=N)
+```
 
 ## Reading the results
 
 | If the log shows | Then |
 |---|---|
 | Pause gives a big `fps` gain and `lua` is several ms | The mod's update is a main cause; the sections and `top` say which part. |
-| Old load on costs much more FPS than off | The removed walks were a cause; this build's changes help. |
+| Old load on costs much more FPS than off | The lookups now shared were a cause; sharing them helps. |
 | `hidden` much faster than `full` | Drawing the walls (fill). Fix: stream pieces by distance or hide far ones. |
 | `nocoll` much faster than `full`, `hidden` about equal | Wall physics. Fix: stream pieces by distance. |
 | `none` much faster than `hidden` and `nocoll` | Distance fields or both together; compare with shadow quality Low. Physics is still a suspect too: whether turning collision off takes the bodies out of the physics scene is untested, so `nocoll` about equal to `full` does not clear it. |
@@ -97,24 +103,3 @@ by itself: the 10 s before the press, then 10 s after a 3 s settle.
 | `n=cards` relabelled far above the visible cards | Old cards linger, or the read-back fails (see the `cards:` lines). |
 | `h` much larger than `dt` only on some windows | A burst; compare with `e7`. |
 | `perf_no_bp_hooks=1` at the same spot is 3% or more faster | Plan zero Lua Blueprint hooks (C++). Under 2%: drop it. |
-
-## What this build changed to save time (same behaviour)
-
-Each is an estimate until the probe measures it; Ctrl+0 replays the old load to compare.
-
-- The save file is written only when its text changed (was every 2.1 s).
-- One controller lookup per update, shared by the menu, the mailbox and the walls, and one player-state lookup the
-  first time something asks (were up to four walks for the same player).
-- In a world, the title menu is looked for every 10th update only (every update before; it is never there). If one is
-  ever found in a world, it is logged and looked for every update again.
-- Shop cards are labelled again only when their tech or label changed or the card no longer shows the mod's label
-  (read back), plus every card every 3 s.
-- Mailbox chest view: each slot's item id read once; the refill only visits slots that can be empty; the chest widget
-  is not looked for while the HUD says the window is open.
-- The every-7th-update work is split over two updates; the tech list is compared only when its length or the mod's
-  techs changed (and every 30 s); fast-travel flags read once, not twice.
-- Walls: a share of the pieces checked each update (all every 4 s) instead of all 818; a running count; directions
-  worked out once. The map's usual case returns before any lookup; the game instance is kept.
-- The tech menu's check hooks return early where the answer is already known.
-- The `area_locks` option is read once per connection.
-- An error repeating every update is logged once per kind, not once per address.

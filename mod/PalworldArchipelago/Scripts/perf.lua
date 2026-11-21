@@ -147,24 +147,8 @@ local function between(a, b)
 end
 
 ------------------------------------------------------------------------------------------------------------------------
--- The 30s line, field by field (ms unless noted; "a/m" is the average / the worst):
---   win    seconds the window covered, by os.clock / by os.time (they should agree; if not, os.clock is not wall time)
---   fps    frames in the window / seconds (from the engine's frame counter); ft = 1000 / fps
---   dt     the engine's frame time sampled as each update starts (a frame without the mod's work in it), a/m
---   h      the worst frame time 1 and 2 frames after an update (the frame that carried the update is one of them)
---   upd    updates in the window (about 100 expected; fewer means the 300 ms loop is being starved)
---   lua    the whole update on the game thread (its controller walk included), a/m;  gc = KB of Lua garbage per update
---   then each part of the update, a/m, averaged over the updates where it ran: ctx (the controller walk that starts
---   each update), poll (Archipelago events), menu, mail,
---   cards (the shop labels), scan (other mods' techs), walls, map, e7 (the work every 7th update) with rec (records),
---   techs (the tech list) and save (the save file) inside it, and legacy (the replayed per-update lookups, Ctrl+0)
---   FAO / FFO   FindAllOf / FindFirstOf calls / total ms; top = the TOP_LOOKUPS costliest classes as
---          class:calls x avg ms : avg hits
---   probe  the probe's own object walks (the notify check, test_tools) as calls / total ms; not in FAO or top
---   hk     how often each hook's callback ran (H1-H11, as numbered in HOOKS)
---   n      counters: cards relabelled/skipped, sweep and refill slots looked at, record entries read, techs read,
---          save files written
---   st     world (1 in a world), walls raised/mode, mail (1 with the mailbox chest open), legacy, pause, bypass
+-- The 30s line, field by field: mod/PERF-PROBE.md, "The 30-second line" (the one description; change it with the
+-- line). Its sections are SECTIONS, its top lists TOP_LOOKUPS classes, and hk counts the hooks as numbered in HOOKS.
 
 -- The win, fps, dt, h, upd, lua and gc columns.
 local function frameColumns(w, label, secs)

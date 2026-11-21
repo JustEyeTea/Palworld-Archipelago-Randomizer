@@ -125,13 +125,21 @@ def tower_text() -> str:
                      for i, (boss, level) in enumerate(zip(TOWER_BOSSES, levels)))
 
 
-def cap_text() -> str:
-    """How the automatic Check Level Cap is worked out, as the player text says it."""
+def cap_facts() -> list:
+    """How the automatic Check Level Cap is worked out, one goal at a time, as the game page lists it."""
     from ..levels import PALDECK_MARGIN, RELIC_LEVEL, TOWER_LEVELS, TOWER_MARGIN
     first, second = sorted(TOWER_LEVELS.values())[:2]
-    return (f"{TOWER_MARGIN} levels past the last tower boss you need ({first + TOWER_MARGIN} for one tower, "
-            f"{second + TOWER_MARGIN} for two), {PALDECK_MARGIN} levels past the level by which you can register "
-            f"enough Pals, {RELIC_LEVEL} for a Relic Hunt")
+    return [f"{TOWER_MARGIN} levels past the last tower boss you need ({first + TOWER_MARGIN} for one tower, "
+            f"{second + TOWER_MARGIN} for two)",
+            f"{PALDECK_MARGIN} levels past the level by which you can register enough Pals",
+            f"Relic Hunt: {RELIC_LEVEL}"]
+
+
+def cap_text() -> str:
+    """How the automatic Check Level Cap is worked out, as the option's text says it in one sentence."""
+    from ..levels import RELIC_LEVEL
+    towers, paldeck, _ = cap_facts()
+    return f"{towers}, {paldeck}, {RELIC_LEVEL} for a Relic Hunt"
 
 
 def one_line(text: str) -> str:
@@ -168,8 +176,8 @@ class TestPlayerTextMatchesTheCode(unittest.TestCase):
         from ..levels import LEVELS_BELOW_PIECE, TECH_POINTS_PER_LEVEL
         page = pathlib.Path(__file__).resolve().parent.parent / "docs" / "en_Palworld.md"
         text = one_line(page.read_text(encoding="utf-8"))
-        for fragment in (tower_text(), cap_text(), f"no more than {LEVELS_BELOW_PIECE} levels below its Pals",
-                         f"({TECH_POINTS_PER_LEVEL} points a level"):
+        for fragment in (tower_text(), *cap_facts(), f"no more than {LEVELS_BELOW_PIECE} levels below its Pals",
+                         f"{TECH_POINTS_PER_LEVEL} points a level"):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, text)
 

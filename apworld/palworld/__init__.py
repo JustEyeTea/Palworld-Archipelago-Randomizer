@@ -1,5 +1,5 @@
-"""Palworld for Archipelago: the Technology tree (levels 2+) is a shop of checks, every tech is an item, regions open
-with Region Passes, and captures, alphas, fast-travel points, levels and towers are further checks."""
+"""Palworld Archipelago Randomizer: the Technology tree (levels 2+) is a shop of checks, every tech is an item,
+regions open with Region Passes, and captures, alphas, fast-travel points, levels and towers are further checks."""
 import logging
 import math
 from typing import Any, Callable, Dict, List, NamedTuple, Optional

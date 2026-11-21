@@ -9,9 +9,8 @@
 -- They fire as they arrive, never staggered, and wait while the player is fainted, the world is loading or the mailbox
 -- is open.
 -- Firing waits for the connection; a Slow Trap or Fool Trap already running ends on time without it (TRAPS.tick).
--- UNTESTED IN GAME: what each trap does to the player (only Teleport's K2_TeleportTo and the notices are seen working
--- in game). Every trap logs what it read and what came back, and a trap that fails says "<name> fizzled." in chat and
--- is never retried.
+-- Every trap logs what it read and what came back, and a trap that fails says "<name> fizzled." in chat and is never
+-- retried. Untested in game: a Slow Trap while riding (marked where the mount is slowed).
 -- Tests: mod/test/tests/traps.lua; group "traps" (tools/lua_harness.sh, in CI).
 local TRAPS = {}
 local CLOCK = require("clock")
@@ -124,7 +123,7 @@ TRAP_KINDS["Slow Trap"] = {
         end
         s.untilTick, s.pawn = c.tick + WAIT.slow, addr(c.pawn)
         local parts = { slowComponent(s, c.pawn:GetPalCharacterMovementComponent(), "player") }
-        -- Riding: the mount has its own movement component, so it is slowed too (whether that holds is untested).
+        -- Riding: the mount has its own movement component, so it is slowed too. Untested in game: that it is.
         local ridden = mount(c)
         if ridden then
             local ok, found = pcall(function()

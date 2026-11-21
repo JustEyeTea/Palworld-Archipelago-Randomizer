@@ -10,8 +10,8 @@
 -- in each world. The world's own value is kept in the mod's save the first time, and the speed is always that value
 -- times the YAML's multiplier, so it never compounds within a seed. A new seed takes whatever the world holds then as
 -- its own: a world an earlier seed sped up and nobody set back is multiplied again, and the warning names those values,
--- so it says they are the world's values before this seed. Writing the struct's fields in place is untested in game:
--- each change is read back and logged. The game's own SetOptionWorldSettings is NOT called from Lua: its parameter, the
+-- so it says they are the world's values before this seed. The struct's fields are written in place, and each change
+-- is read back and logged. The game's own SetOptionWorldSettings is NOT called from Lua: its parameter, the
 -- whole FPalOptionWorldSettings, is 0x210 bytes, more than UE4SS Lua's 0x200-byte call buffer, which it would overrun
 -- and crash the game. If the in-place write doesn't take, the log says so and the C++ mod is the route (ReflectedCall
 -- gives each call a block of its own size). The world keeps the faster speeds in its own save; World Settings sets

@@ -2,9 +2,9 @@
 glow round check objects and the item-arrival burst round the player (the Lua mod's glow_*.lua files).
 
 How it runs: headless on the PC, with the kit's editor closed, right after make_wall_material.py and before the cook
-(logicmod/README.md, "The wall material", step 1). Both write to the same folder, and the Primary Asset Label that
-make_wall_material.py makes takes everything in it (label_assets_in_my_directory), so this script makes no label and
-no ModActor of its own. Run order between the two does not matter; both must run before packaging:
+(logicmod/README.md, "The wall material and the glows", step 1). Both write to the same folder, and the Primary Asset
+Label that make_wall_material.py makes takes everything in it (label_assets_in_my_directory), so this script makes no
+label and no ModActor of its own. Run order between the two does not matter; both must run before packaging:
     UnrealEditor-Cmd.exe <kit>\\Pal.uproject -run=pythonscript -script="<repo>\\logicmod\\make_wall_material.py"
     UnrealEditor-Cmd.exe <kit>\\Pal.uproject -run=pythonscript -script="<repo>\\logicmod\\make_glow_assets.py"
 It can also be run inside the editor (Tools > Execute Python Script...). Its Output Log lines start with

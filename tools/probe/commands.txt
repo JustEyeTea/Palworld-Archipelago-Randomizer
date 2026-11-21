@@ -1,0 +1,23 @@
+# The server probe's commands that make <refs>/tables/, the table and actor dumps the generators read. Copy the lines
+# below the comments into ue4ss/Mods/APProbe/inbox.txt on the dedicated server, as they are (one command per line;
+# the probe logs these comment lines as unknown commands and skips them). Each writes ue4ss/Mods/APProbe/out/<name>.tsv:
+# a dumptable line DT_<table>.tsv, a dumpactors line actors_<class>.tsv. Copy out/ to <refs>/tables/ afterwards.
+# The columns are the ones the dumps in use hold, so a new dump matches them; tools/README.md says which tool reads
+# which file.
+# dumptable makes the out folder; dumpactors does not, so the dumptable lines come first.
+dumptable /Game/Pal/DataTable/Spawner/DT_PalWildSpawner.DT_PalWildSpawner SpawnerName SpawnerType Weight OnlyTime OnlyWeather Pal_1 NPC_1 LvMin_1 LvMax_1 Pal_2 NPC_2 LvMin_2 LvMax_2 Pal_3 NPC_3 LvMin_3 LvMax_3
+dumptable /Game/Pal/DataTable/Spawner/DT_PalSpawnerPlacement.DT_PalSpawnerPlacement InstanceName SpawnerName SpawnerType PlacementType Location StaticRadius WorldName LayerNames
+dumptable /Game/Pal/DataTable/Character/DT_PalMonsterParameter.DT_PalMonsterParameter IsPal Tribe BPClass ZukanIndex ZukanIndexSuffix Rarity ElementType1 ElementType2 IsBoss IsTowerBoss IsRaidBoss CombiRank IgnoreCombi
+dumptable /Game/Pal/DataTable/UI/DT_BossSpawnerLoactionData.DT_BossSpawnerLoactionData SpawnerID CharacterID Location Level
+dumptable /Game/Pal/DataTable/Dungeon/DT_DungeonEnemySpawnDataTable.DT_DungeonEnemySpawnDataTable SpawnAreaId RankType WeightInSpawnAreaAndRank SpawnerName
+dumptable /Game/Pal/DataTable/Fishing/DT_PalFishingSpotPalSpawnerDataTable.DT_PalFishingSpotPalSpawnerDataTable PalName LevelMin LevelMax
+dumptable /Game/Pal/DataTable/Character/DT_PalCombiUnique.DT_PalCombiUnique ParentTribeA ParentGenderA ParentTribeB ParentGenderB ChildCharacterID
+dumptable /Game/Pal/DataTable/Technology/DT_TechnologyRecipeUnlock.DT_TechnologyRecipeUnlock Name IconName RequireDefeatTowerBoss RequireTechnology RequireResearchId IsBossTechnology LevelCap Tier Cost UnlockBuildObjects UnlockItemRecipes
+dumptable /Game/Pal/DataTable/Text/DT_TechnologyNameText.DT_TechnologyNameText TextData
+dumptable /Game/Pal/DataTable/Text/DT_ItemNameText.DT_ItemNameText TextData
+dumptable /Game/Pal/DataTable/Text/DT_MapObjectNameText.DT_MapObjectNameText TextData
+dumptable /Game/Pal/DataTable/Text/DT_PalNameText.DT_PalNameText TextData
+dumpactors PalLevelObjectUnlockableFastTravelPoint FastTravelPointID
+dumpactors PalBossTower BossType bIsStandaloneBossTower
+dumpactors PalLevelObjectRelic RelicType
+dumpactors PalDungeonPointMarker SpawnAreaIds

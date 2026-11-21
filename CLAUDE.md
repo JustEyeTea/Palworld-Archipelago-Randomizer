@@ -15,8 +15,10 @@ Before writing code:
 
 Before committing:
 
-- Run the tests the style guide names (`tools/ap_tests.sh`, `tools/lua_harness.sh`, and `tools/test_options_page.py`
-  after an options or version change) and judge each by its exit code.
+- Run the tests the style guide names (`tools/ap_tests.sh`, `tools/lua_harness.sh`, `tools/cpp_tests.sh`, and
+  `tools/test_options_page.py` after an options or version change) and judge each by its exit code.
+- Regenerate `Scripts/ap_data.lua` (`tools/gen_lua_data.py`) after changing `apworld/palworld/data.py`, and any other
+  generated file from its generator (docs/architecture.md, "Generated files"), never by hand.
 - Read the diff with only the file open. Fix anything that needs the conversation to make sense.
 - A `readability:` commit changes no behaviour, and the style guide says how to prove it.
 - Ids never move, and Pocketpair's data stays out of the repository.

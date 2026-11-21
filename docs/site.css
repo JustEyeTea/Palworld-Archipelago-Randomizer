@@ -1,0 +1,109 @@
+/* The house style every page of this site shares (sea teal, navy, sand, the four island colours): colours for light
+   and dark (following prefers-color-scheme), the page column, header art, headings, panels, buttons and the footer.
+   A page's own layout goes in its own stylesheet, loaded after this one (the options page: options/style.css).
+   Headings use Lilita One (SIL OFL 1.1, licence beside the font in options/), with a system fallback. */
+@font-face {
+  font-family: "Lilita One";
+  src: url("options/LilitaOne-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+/* --focus and --input-border keep at least 3:1 against --panel and --bg (WCAG's contrast for controls). */
+:root {
+  --bg: #eef5f6;
+  --panel: #ffffff;
+  --text: #17324d;
+  --muted: #4f6475;
+  --border: #cfe0e3;
+  --input-border: #6a8292;
+  --focus: #17324d;
+  --accent: #1e6e75;
+  --accent-hover: #185c62;
+  --accent-text: #ffffff;
+  --error: #b42318;
+  --code-bg: #e4eff1;
+  --sand: #ecbe6e;
+  --coral: #ef6a5b; --leaf: #4db06a; --sky: #3a97da; --violet: #8b6fd6;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1e2c;
+    --panel: #17283a;
+    --text: #f2f5f8;
+    --muted: #a3b1c0;
+    --border: #2f4a60;
+    --input-border: #6d8ba3;
+    --focus: var(--sand);
+    --accent: #7fd3cf;
+    --accent-hover: #9fe0dc;
+    --accent-text: #0e2236;
+    --error: #ff8a80;
+    --code-bg: #1e3348;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
+img, svg { max-width: 100%; }
+
+/* header art: a <picture> with the light and dark lockups, then the page's own h1 */
+.page-art { display: block; margin: 0 0 1rem; }
+.page-art img { display: block; width: 100%; height: auto; }
+/* the plain logo lockup (the landing and 404 pages) is taller for its width than the options page's banner */
+.page-art.logo img { max-width: 26rem; }
+.back-link { display: inline-block; margin: 0 0 .75rem; font-weight: 600; }
+
+h1, h2 { font-family: "Lilita One", system-ui, sans-serif; font-weight: 400; letter-spacing: .01em; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; color: var(--accent); }
+h2 { font-size: 1.35rem; margin: 0 0 .75rem; }
+a { color: var(--accent); }
+code { background: var(--code-bg); padding: 0 .25em; border-radius: 4px; overflow-wrap: anywhere; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.panel {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1rem 1.2rem;
+  margin: 0 0 1rem;
+  min-width: 0;  /* lets a fieldset shrink to a phone's width */
+  overflow: hidden;
+}
+/* a thin four-colour band along the bottom of each panel (the top edge can hold a fieldset legend) */
+.panel::before {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0; height: 5px;
+  background: linear-gradient(90deg, var(--coral) 0 25%, var(--leaf) 25% 50%, var(--sky) 50% 75%, var(--violet) 75%);
+}
+.panel > :last-child { margin-bottom: 0; }
+
+/* a short line that stands out from the text around it, with a sand edge */
+.notice { border-left: 4px solid var(--sand); padding: .35rem .75rem; margin: 0 0 1rem; font-weight: 600; }
+
+button, .button {
+  display: inline-block;
+  font: 1.15rem "Lilita One", system-ui, sans-serif;
+  letter-spacing: .02em;
+  text-decoration: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 0;
+  border-radius: 999px;
+  padding: .6rem 1.6rem;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(14, 34, 54, .35);
+}
+button:hover, .button:hover { background: var(--accent-hover); }
+button:active, .button:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(14, 34, 54, .35); }
+
+footer { color: var(--muted); font-size: .9rem; margin-top: 2rem; border-top: 1px solid var(--border); }
+footer p { margin: .75rem 0 0; }

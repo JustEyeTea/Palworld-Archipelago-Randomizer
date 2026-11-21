@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks that dllmain.cpp's header lists exactly the AP_* functions it registers, and that every AP_* name the Lua
-# mod uses is registered, apart from the game-side names below. Run by CI ("The C++ part's function list"); by hand:
+# mod uses is registered, apart from the game-side names below. Run by tools/cpp_tests.sh (in CI and by hand), or alone:
 #   cppmod/APConnector/test/check_lua_api.sh
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
