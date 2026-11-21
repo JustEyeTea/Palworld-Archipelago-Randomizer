@@ -4,8 +4,6 @@
 --   Ctrl+F2              move faster: x1, x3, x6 (the game's named walk-speed multiplier)
 --   Ctrl+F3              the next wall skin (wall_skins.lua)
 --   Ctrl+Shift+F3        the walls drawn only where each is the nearest wall, or back (wall_skins.lua)
---   Ctrl+Shift+F4        the corner posts' next try: as made, in the engine's grid material, or that and 10 m tall
---                        from the player's feet (wall_posts.lua)
 --   Ctrl+F4              HUD probe: the HUD layout logged, a spinning icon and a sample goal banner for 6 s
 --   Ctrl+F5 .. Ctrl+F8   a Slow, Hunger, Teleport or Fool Trap now (through the trap queue's gates, without its pacing)
 --   Ctrl+F9              Exhaustion probe: stamina to 0 (SetSP), only while on the ground
@@ -543,11 +541,6 @@ local function bindToolKeys()
         log("--- walls: the nearest wall only " .. (on and "on" or "off") .. " (at the next update)")
     end, "[test] nearest wall")
     log("test tools on: Ctrl+Shift+F3 the nearest wall only (on M_APWallNearest), or back")
-    UTIL.bindKey(Key.F4, { ModifierKey.CONTROL, ModifierKey.SHIFT }, function()
-        local name = require("walls").nextPostTry()
-        log("--- wall posts: try " .. name .. " (the posts go up again in it; a report follows in about 18 s)")
-    end, "[test] corner posts try")
-    log("test tools on: Ctrl+Shift+F4 the corner posts' next try (post, grid, short)")
     UTIL.bindKey(Key.F4, CTRL, function()
         log("--- HUD probe")
         local ok, err = pcall(hudProbeStart)

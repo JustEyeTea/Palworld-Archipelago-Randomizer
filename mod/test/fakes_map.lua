@@ -140,7 +140,6 @@ local function WallActor(t)
     end
     function a:SetActorEnableCollision(on) self.collision = on end
     function a:SetActorHiddenInGame(on) self.hidden = on end
-    function a:WasRecentlyRendered() return not self.hidden end
     function a:K2_SetActorLocation()
         error("K2_SetActorLocation: its FHitResult out-parameter crashed UE4SS")
     end
@@ -156,7 +155,6 @@ end
 staticMeshActorClass = { IsValid = function() return true end, name = "StaticMeshActor" }
 glowActors = {}                                            -- the glow pieces standing: piece actor -> true
 glowSpawned = 0                                            -- glow pieces spawned
-GAME_CULL_CM = 5000         -- the cull distance the game gives a StaticMeshActor spawned from Lua (seen in game: 50 m)
 local FIRST_GLOW_ADDRESS = 0x900000
 local function GlowActor(t)
     glowSpawned = glowSpawned + 1
@@ -167,23 +165,8 @@ local function GlowActor(t)
                               SetStaticMesh = function(_, mesh) a.mesh = mesh end,
                               SetMaterial = function(_, _, m) a.material = m end,
                               SetCollisionEnabled = function(_, c) a.collision = c end,
-                              SetCastShadow = function(_, on) a.shadow = on end,
-                              GetMaterial = function() return a.material end,
-                              LDMaxDrawDistance = 0, CachedMaxDrawDistance = GAME_CULL_CM }
-    -- The engine's SetCullDistance as remembered (unchecked against its source; the game's posts report shows what it
-    -- does): the cached distance follows only while it agrees with the old one, or is 0, or the new one is shorter.
-    function a.StaticMeshComponent:SetCullDistance(d)
-        if d < 0 or d == self.LDMaxDrawDistance then return end
-        local old = self.LDMaxDrawDistance
-        self.LDMaxDrawDistance = d
-        if self.CachedMaxDrawDistance == 0 or d < self.CachedMaxDrawDistance or old == self.CachedMaxDrawDistance then
-            self.CachedMaxDrawDistance = d
-        end
-    end
+                              SetCastShadow = function(_, on) a.shadow = on end }
     function a:SetActorEnableCollision(on) self.actorCollision = on end
-    function a:K2_GetActorLocation() return self.at end
-    function a:GetActorScale3D() return self.scale end
-    function a:WasRecentlyRendered() return not self.hidden end
     function a:SetActorScale3D(sc) self.scale = sc end
     function a:K2_SetActorRotation(r)
         self.rotation = r

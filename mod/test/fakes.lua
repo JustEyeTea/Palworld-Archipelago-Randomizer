@@ -36,8 +36,6 @@ local GAME_START = {
     logicMod = false,          -- the mod's LogicMod paks are loaded (its assets and window classes exist)
     regionWalls = true,        -- with logicMod: the PalworldArchipelagoArt pak has the region walls (false: one
                                -- built before them, without T_APWallRegion_* and T_APWallSealed)
-    cornerPosts = false,       -- with logicMod: the pak has the corner post (SM_APWallPost, M_APWallPost); the one
-                               -- installed now was built before it
     composeFails = false,      -- the map picture's compositor fails every job, as when its file is locked
     palEditOk = true,          -- the game's PalEditableTextBox class exists
     umgEditOk = true,          -- UMG's EditableTextBox class exists
@@ -527,14 +525,12 @@ LoadAsset = function(path)
     if pkg:find("^/Game/Mods/PalworldArchipelagoArt/") then return end
     loaded[pkg] = true
 end
--- Whether a mounted LogicMod pak holds the package at pkg: every one but the region walls of a pak built before them
--- (game.regionWalls) and the corner post of a pak built before it (game.cornerPosts).
+-- Whether a mounted LogicMod pak holds the package at pkg: every one but the region walls of a pak built before them.
 local function inLogicMod(pkg)
     if not (game.logicMod and pkg:find("^/Game/Mods/")) then return false end
     local name = pkg:match("([^/]+)$")
     local regionWall = name:find("^T_APWallRegion_") or name == "T_APWallSealed"
-    local cornerPost = name == "SM_APWallPost" or name == "M_APWallPost"
-    return (game.regionWalls or not regionWall) and (game.cornerPosts or not cornerPost)
+    return game.regionWalls or not regionWall
 end
 assetRegistryHelpers = { IsValid = function() return true end }
 function assetRegistryHelpers.GetAsset(_, data)
@@ -644,7 +640,6 @@ StaticFindObject = function(path)
     end
     if path:find("DataTableFunctionLibrary") then return dataTableLib end
     if path:find("GameplayStatics") then return gameplay end
-    if path:find("^/Engine/EngineMaterials/") then return Texture(path) end      -- the engine's own, always there
     if path:find("WidgetBlueprintLibrary") then return wbl end
     -- The text boxes (palEditOk / umgEditOk false: the class is not there, as the fallback test needs).
     if path == "/Script/Pal.PalEditableTextBox" then

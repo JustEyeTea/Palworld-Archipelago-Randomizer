@@ -1,8 +1,7 @@
 -- Area locks: the game's own blocking wall (BP_PalBlockingVolume, the red grid by the World Tree gate) stretched into
 -- pieces along every border between locked parts of the map; a piece stays up while either part it separates is locked.
 -- This file keeps the pieces (raising, hiding, opening, forgetting) and is the table main.lua sees (W). Its parts:
--- locks.lua (the cut of the map, what is open), wall_skins.lua (the looks), wall_posts.lua (the corner posts),
--- map_picture, map_icons, map_fog (the map).
+-- locks.lua (the cut of the map, what is open), wall_skins.lua (the looks), map_picture, map_icons, map_fog (the map).
 -- Tests: mod/test/tests/walls.lua, mod/test/tests/map.lua; groups "area locks", "the world map"
 --   (tools/lua_harness.sh, in CI).
 -- W, the table main.lua sees. Its fields:
@@ -11,12 +10,12 @@
 --     again through setVisited and setFlown for a new seed), and beyond (slot data, through setBeyond); each part sets
 --     its own defaults at install. The harness sets them on its copies directly
 --   called by main.lua and its other modules: install, setVisited, setFlown, corridors, update, updateMap, reset,
---     setLayout, setBeyond, setSkin, cycleSkin, toggleNearest, nextPostTry, perfMode, count, lockedNear,
---     distanceToLock, lockedAround, lockAt, passName, passNeeded, regionOf,
+--     setLayout, setBeyond, setSkin, cycleSkin, toggleNearest, perfMode, count, lockedNear, distanceToLock,
+--     lockedAround, lockAt, passName, passNeeded, regionOf,
 --     slugOf, mapShown, mapOff, oldSweep;
---     read: layout (the cut's name), start, home, SKINS
+--     read: layout (the cut's name), start, home, SKINS, SPAWN_ALWAYS (glow_pieces.lua)
 --   for the harness only: segDist, stampSize, worldAt, lockedStampArt, MASK_READ_GAP, linearOf, modAsset, pieceSkin,
---     REGION_COLOURS, flyUpList, postCount
+--     REGION_COLOURS, flyUpList
 local W = {}
 W.layout = "regions"
 -- walls.lua is made of parts, one topic each. Each keeps state for this copy of walls.lua: the game loads walls.lua
@@ -59,7 +58,6 @@ local WALL_SKINS = freshPart("wall_skins")
 local MAP_PICTURE = freshPart("map_picture")
 local MAP_ICONS = freshPart("map_icons")
 local MAP_FOG = freshPart("map_fog")
-local WALL_POSTS = freshPart("wall_posts")
 local layout, isOpen = LOCKS.layout, LOCKS.isOpen
 -- The cut's flying corridors (*_walls.lua: near and far mouths, lock), numbered as the save's flown set.
 function W.corridors()
@@ -81,7 +79,8 @@ local once = UTIL.onceIn("walls")
 local WALL = "/Game/Pal/Blueprint/System/Volume/BP_PalBlockingVolume.BP_PalBlockingVolume_C"
 local WALL_CLASS = "BP_PalBlockingVolume_C"     -- the same class by the short name FindAllOf takes
 -- Sizes of one wall piece, all in centimetres (the game's unit).
-local SPAWN_ALWAYS = require("mesh_actors").SPAWN_ALWAYS     -- a piece goes up wherever it stands
+local SPAWN_ALWAYS = 1        -- ESpawnActorCollisionHandlingMethod::AlwaysSpawn: a piece goes up wherever it stands
+W.SPAWN_ALWAYS = SPAWN_ALWAYS   -- (glow_pieces.lua spawns its pieces with it too)
 local MIN_SCALE = 0.01        -- the height scale a shrinking piece ends at (never 0)
 local CUBE_CM = 100           -- the blocking cube's side at scale 1: a piece's scale is its size / CUBE_CM
 local HEIGHT_CM = 300000      -- 3 km tall: from 1 km below sea level to 2 km above
@@ -103,9 +102,9 @@ local raised = {}             -- piece index -> wall actor
 local raisedAt = {}           -- piece index -> its actor's address, to tell it is still there without calling it
 local hiddenAt = {}           -- piece index -> true while hidden by distance
 local nRaised = 0             -- how many raised holds (counted as it changes: W.count ran every update)
--- The pieces opening, each { index (its piece), actor, scaleX, scaleY, startedAt (game s), addr = its address,
--- dissolving, material (its dissolving one), collisionOff (it no longer blocks), steps (updates stepped) }.
--- Forgotten: a piece when it is destroyed, those of a world that is gone at W.reset, all at a change of cut.
+-- The pieces opening, each { actor, scaleX, scaleY, startedAt (game s), addr = its address, dissolving, material (its
+-- dissolving one), collisionOff (it no longer blocks), steps (updates stepped) }. Forgotten: a piece when it is
+-- destroyed, those of a world that is gone at W.reset, all at a change of cut.
 local opening = {}
 -- State: what main.lua handed W.update last (new pieces are dressed for those passes; the glow follows that pawn).
 -- Replaced every update; the pawn is forgotten at W.reset.
@@ -183,7 +182,6 @@ function W.reset()
     WALL_SKINS.dropCaches()
     MAP_FOG.resetMapShown()
     MAP_FOG.resetMaskReads()
-    WALL_POSTS.reset()
     local live = liveWallAddresses()
     for i in pairs(raised) do
         if not live[raisedAt[i]] then
@@ -332,7 +330,7 @@ local function startOpening(i, pawn)
         UTIL.took("walls: an opening piece's start", "0 s (the game's clock could not be read)")
         now = 0
     end
-    opening[#opening + 1] = { index = i, actor = actor, scaleX = layout.walls[i].length / CUBE_CM,
+    opening[#opening + 1] = { actor = actor, scaleX = layout.walls[i].length / CUBE_CM,
                               scaleY = layout.thickness / CUBE_CM, startedAt = now, addr = addr,
                               dissolving = m and true or nil, material = m and material or nil, collisionOff = nil,
                               steps = 0 }
@@ -473,7 +471,6 @@ function W.update(enabled, passes, pawn)
     updateStep("skin", WALL_SKINS.skinTick)
     updateStep("recolour", WALL_SKINS.recolour, passes)
     stepOpeningAndGlow()
-    updateStep("corner posts", WALL_POSTS.update, passes, pawn)
     if catchUp and budget == PER_TICK then
         catchUp = nil
         P.wallsCaughtUp(nRaised)
@@ -484,7 +481,6 @@ end
 -- none (every raised piece removed at once, none opening), full (as normal; the update raises what is missing).
 -- While the state is not full, main.lua neither raises nor lowers pieces nor sends anyone home.
 function W.perfMode(mode)
-    WALL_POSTS.perfMode(mode)
     if mode == "none" then
         for _, actor in pairs(raised) do
             if actor:IsValid() then pcall(function() actor:K2_DestroyActor() end) end
@@ -562,7 +558,6 @@ function W.setLayout(name)
     for _, actor in pairs(raised) do pcall(function() if actor:IsValid() then actor:K2_DestroyActor() end end) end
     destroyOpening()
     forgetAll()
-    WALL_POSTS.takeAllDown()
     catchUp = catchUp and { started = false, order = nil }        -- (the order is made again for the new cut)
     LOCKS.useLayoutData(name)
     W.start, W.home = layout.start, layout.map.home
@@ -588,10 +583,6 @@ WALL_SKINS.install({ W = W, locks = LOCKS, pieces = pieces, DISSOLVE_S = DISSOLV
 W.SKINS, W.setSkin, W.cycleSkin = WALL_SKINS.SKINS, WALL_SKINS.setSkin, WALL_SKINS.cycleSkin
 W.toggleNearest = WALL_SKINS.toggleNearest
 W.linearOf, W.modAsset, W.pieceSkin = WALL_SKINS.linearOf, WALL_SKINS.modAsset, WALL_SKINS.pieceSkin  -- (the harness)
-WALL_POSTS.install({ W = W, locks = LOCKS, pieces = pieces, skins = WALL_SKINS,
-                     sizes = { HEIGHT_CM = HEIGHT_CM, MID_Z_CM = MID_Z_CM, HIDE_MARGIN = HIDE_MARGIN } })
-W.nextPostTry = WALL_POSTS.nextTry
-W.postCount = WALL_POSTS.count                                                                  -- (for the harness)
 MAP_ICONS.install({ W = W, locks = LOCKS })
 MAP_PICTURE.install({ W = W, locks = LOCKS, icons = MAP_ICONS, fog = MAP_FOG })
 MAP_FOG.install({ W = W, locks = LOCKS, icons = MAP_ICONS, picture = MAP_PICTURE })
