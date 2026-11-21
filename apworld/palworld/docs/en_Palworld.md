@@ -1,65 +1,112 @@
 # Palworld
 
 Palworld's Technology tree (levels 2 and up) becomes a shop: each card shows what buying it sends to the multiworld,
-and every tech is an item that arrives from Archipelago. The map is locked: its 15 regions open with Region Passes
-(or, with Lock Size: areas, the game's 75 named areas open with Area Passes; or, with Lock Size: levels, Level
-Progression's 8 tiers of wild Pal level open in order, one Progressive Level Pass each). Captures, alphas, fast-travel
-points, levels and towers are further checks.
+and every tech is an item that arrives from Archipelago. The map is locked, and opens as passes arrive. Captures,
+alphas, fast-travel points, levels and towers are further checks.
 
-With Level Progression the walls follow where wild Pals of each level live, not the game's named places: levels 1-16
-(the start, Windswept Island among it), 17-28, 29-34, 35-40, 41-48, 49-59, 60-69 and 70-80 (the World Tree). A tier
-can lie in several places, and its wall says how many passes it takes. Three places need a flying mount besides their
-passes: the Sky Islands; a levels 29-34 valley in the Astral Mountains that higher tiers surround, reached by flying
-up a walled corridor; and the low Isles of Silence, levels 1-16 but ringed by the 17-28 tier, reached by a walled
-corridor from the start (the Nitewing Saddle is a level 15 tech, and Nitewing live near the start). A corridor only
-gets you through: the Pals and statues in it count for the tier around it.
+To install the mod and connect, see the setup guide. Some parts are not tested in game yet: the setup guide's
+"Not tested in game yet" section is the one list of them.
 
-![Level Progression's tiers, each in its colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/level-map.png)
+## Presets
 
-![The 15 regions, each in its pass ticket's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/region-map.png)
-
-![With Lock Size: areas, the 75 areas, each in its region's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/area-map.png)
-
-## Goals
-
-![The four goals: Towers (the default), Relic Hunt, Paldeck and World Tree](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/goals.png)
-
-- **Towers** (default): beat a number of tower bosses. Any towers count, but the logic plans for the first ones in the
-  game's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).
-- **Relic Hunt**: collect Palpagos Relics, shuffled across the whole multiworld.
-- **Paldeck**: register a number of different Pals (catch or hatch them).
-- **World Tree**: beat the boss at the top of the World Tree, the end of the game. Untested in game so far.
-
-## How many checks
-
-![What sends a check: shop slots, captures, alphas, towers, fast-travel points and levels](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/checks.png)
-
-Checks stop at a level that fits the goal (the Check Level Cap, automatic by default): 8 levels past the last tower
-boss you need (18 for one tower, 28 for two), 5 levels past the level by which you can register enough Pals, 30 for a Relic Hunt, or no limit for the
-World Tree. Shop slots for techs above it stay normal research. Ready-made presets (approximate check counts; a typical Archipelago
-game has about 180):
+Ready-made sets of options, on the options page and in the Launcher's template. The check counts are approximate
+(with Lock Size: regions; areas comes within a few). A typical Archipelago game has about 180.
 
 | Preset | Goal | Checks |
 |---|---|---|
 | Short Sync | 1 tower, level checks every 5 (5, 10, 15), no fast-travel checks | ~180 |
 | Sync | 1 tower | ~240 |
 | Long Sync | 2 towers | ~390 |
+| Nomad Sync | 2 towers, Run Style: Nomad | ~390 |
 | Relic Hunt Sync | 15 of 20 relics, checks up to level 25 | ~355 |
 | Paldeck Sync | 60 Pals | ~250 |
 | Async | 3 towers | ~585 |
 | Full Game Async | World Tree | ~1,150 |
+| No preset (the defaults) | 2 towers | ~390 |
+
+Every Sync preset turns on Speed Boost (below). Nomad Sync is Long Sync with Run Style: Nomad, which changes what
+a tech gives you, not which checks there are, so its count is the same. The defaults are Long Sync without Speed
+Boost.
+
+## The map
+
+With Area Locks on (the default), the map beyond the start is locked. Lock Size sets how it is cut:
+
+- **Regions** (the default): 15 regions, each opened by its Region Pass. You start in Windswept Island and its two
+  nearby isles.
+- **Areas**: the game's 75 named areas, each opened by its Area Pass. You start in the Windswept Island area alone.
+- **Levels** (Level Progression): 8 tiers of wild Pal level. The first tier is open from the start, and each of the
+  7 Progressive Level Passes opens the next one, in order.
+
+![The 15 regions, each in its pass ticket's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/region-map.png)
+
+![With Lock Size: areas, the 75 areas, each in its region's colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/area-map.png)
+
+A locked part is walled off, and the world map shows it greyed under its colour, with a locked stamp. A part that
+has opened is lightly tinted, with an open stamp until you go there. A part beyond your goal is dark grey. The open
+sea is always free.
+
+### Level Progression
+
+With Lock Size: levels, the walls follow where wild Pals of each level live, not the game's named places. The tiers
+are levels 1-16 (the start, Windswept Island among it), 17-28, 29-34, 35-40, 41-48, 49-59, 60-69 and 70-80 (the World
+Tree). A tier can lie in several places.
+
+Three places need a flying mount besides their passes:
+
+- the Sky Islands;
+- a levels 29-34 valley in the Astral Mountains that higher tiers surround, reached by flying up a walled corridor;
+- the low Isles of Silence, levels 1-16 but ringed by the 17-28 tier, reached by a walled corridor from the start
+  (the Nitewing Saddle is a level 15 tech, and Nitewing live near the start).
+
+A wing icon on the map marks where each corridor starts, until you have flown through it. A corridor only gets you
+through: the Pals and statues in it count for the tier around it.
+
+![Level Progression's tiers, each in its colour](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/level-map.png)
+
+## Goals
+
+![The four goals: Towers (the default), Relic Hunt, Paldeck and World Tree](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/goals.png)
+
+- **Towers** (the default): beat a number of tower bosses. Any towers count, but the logic plans for the first ones in
+  the game's order: Zoe (level 10), Lily (20), Axel (30), Marcus (40), Victor (50), Saya (55), Bjorn (60), Auri (68).
+- **Relic Hunt**: collect Palpagos Relics, shuffled across the whole multiworld.
+- **Paldeck**: register a number of different Pals (catch or hatch them).
+- **World Tree**: beat the boss at the top of the World Tree, the end of the game.
+
+## How many checks
+
+![What sends a check: shop slots, captures, alphas, towers, fast-travel points and levels](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/checks.png)
+
+### What sends a check
+
+- **Shop slots**: buying a tech card in the Technology tree. By default the décor techs (furniture, flag and foliage
+  sets, statues, signs and lights) stay normal research, bought with tech points as usual; the Tech Checks option can
+  make them checks too.
+- **Captures**: the first capture of each Pal that can be caught.
+- **Alphas**: beating each field alpha.
+- **Towers**: beating each tower boss.
+- **Fast-travel points**: unlocking each one.
+- **Levels**: reaching player levels (every level, every 5, every 10, or none).
+
+### The Check Level Cap
+
+Checks stop at a level that fits the goal (the Check Level Cap, automatic by default):
+
+- Towers: 8 levels past the last tower boss you need (18 for one tower, 28 for two).
+- Paldeck: 5 levels past the level by which you can register enough Pals.
+- Relic Hunt: 30.
+- World Tree: no limit.
+
+Shop slots for techs above the cap stay normal research.
+
+### Parts beyond the goal
 
 With Area Locks on, a short goal keeps a small map: regions whose Pals are all above the cap have no pass and no
 checks, and their walls stay up (Regions Beyond the Goal: locked, the default). A two-tower game has passes for the
 regions up to level 28 only. Regions Beyond the Goal can instead open them from the start (still with no checks in
-them), or keep a pass for every region as before. With Lock Size: areas, the same goes for areas. With Lock Size:
-levels, a tier the goal needs keeps every tier below it, since each pass opens the next one.
-
-Shop slots cost their usual tech points. Long goals ask for more points than levelling gives: Technical Manuals from
-dungeons, treasure chests and the Bounty shop make up the rest.
-
-Alpha checks are untested in game so far: if beating an alpha sends nothing, turn Alpha Checks off for your next
-game.
+them), or keep a pass for every region. With Lock Size: areas, the same goes for areas. With Lock Size: levels, a tier
+the goal needs keeps every tier below it, since each pass opens the next one.
 
 ## What the logic expects
 
@@ -76,10 +123,16 @@ one: a flying mount for the Sky Islands, and a swimming or flying one when the g
 With Gear Logic on, the logic also asks for spheres good enough for each Pal's level (and the furnace their recipe
 needs), every tech's prerequisites, the Lab, breeding, and a mount for the open sea.
 
-Tech slots cost their usual tech points, which the logic doesn't count. So only the slots levelling pays for in time
-(6 points a level, the cheapest first as they open; Ancient slots within the Ancient points of the towers you beat before
-the goal) can hold anyone's progression or useful items; the rest hold filler and traps. Fast-travel points and
-Technical Manuals give the spare points for those.
+**Progressive Spheres** (off by default): the sphere techs arrive in order (Pal Sphere, then Mega, Giga and so on)
+instead of separately.
+
+**Tech points.** Shop slots cost their usual tech points, which the logic doesn't count. So only the slots levelling
+pays for in time can hold anyone's progression or useful items: 6 points a level, the cheapest first as they open,
+and Ancient slots within the Ancient points of the towers you beat before the goal. The rest hold filler and traps.
+Long goals ask for more points than levelling gives: fast-travel points and Technical Manuals (from dungeons,
+treasure chests and the Bounty shop) make up the rest.
+
+## Filler items and the mailbox
 
 Filler items are Palworld Crates by default: each is a Sphere, Food, Common, Rare or Jackpot crate (the Crate Chance
 options), opened when you like from the mailbox or the Inventory page, with contents for your level then. The Material
@@ -87,15 +140,13 @@ Bundles option adds Wood, Stone, Paldium, Ingot, Sphere and Food bundles, and th
 Points +2 and Ancient Tech Points +1. Turn the Palworld Crates option off for no crates: the other filler takes their
 place (tech points when both of those options are off).
 
-By default the décor techs (furniture, flag and foliage sets, statues, signs and lights) stay normal research, bought
-with tech points as usual; the Tech Checks option can make them checks too.
-
 Items you receive (material bundles, what a crate holds, a Nomad tech's gifts) wait in your Archipelago Mailbox until
 you take them, so nothing lands in your bag mid-fight. Open it from the Esc menu's Archipelago Mailbox button, or from
-the one at the right of your name on the Inventory page (new, not yet tried in game); it has no size limit. Gear and
-accessories don't show in the mailbox's chest, which can't hold them: they go into your bag when you open the mailbox.
+the one at the right of your name on the Inventory page; it has no size limit. Gear and accessories show in the
+mailbox too: any you leave there go to your bag when you close it, and chat says when the game puts a piece straight
+onto you.
 
-![Items you receive wait in the Archipelago Mailbox until you take them; crate contents too, and gear goes into your bag when you open the mailbox](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/mailbox.png)
+![Items you receive wait in the Archipelago Mailbox until you take them](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/mailbox.png)
 
 ## Run Style
 
@@ -143,20 +194,23 @@ Off by default. Trap Chance replaces that share of the filler items (crates, mat
 traps, picked by the trap weights. None of them can make you faint:
 
 - **Slow Trap**: half walking speed for a minute.
-- **Hunger Trap**: your stomach loses half a full meter of satiety, but never drops below a quarter (so it never starts starving damage).
-- **Teleport Trap**: back to the starting region. It waits while you are in a dungeon.
+- **Hunger Trap**: your stomach loses half a full meter of satiety, but never drops below a quarter (so it never
+  starts starving damage).
+- **Teleport Trap**: back to the starting region (or area, or first tier). It waits while you are in a dungeon.
 - **Fool Trap**: an alarming notice, then "just kidding" a few seconds later. Nothing happens.
 
 Traps go off as they arrive, and wait while you are fainted, while the world is loading and while the mailbox is
-open. A Slow Trap shows a snail icon with its time left at the top of the screen. A chat line names each trap and
-who sent it. If a trap can't do its job, chat says "<trap> fizzled" and nothing else happens.
+open. At most 10 wait at a time: past that the oldest are skipped, and chat says how many. A Slow Trap shows a snail
+icon with its time left at the top of the screen. A chat line names each trap and who sent it. If a trap can't do its
+job, chat says "<trap> fizzled" and nothing else happens.
 
 ## Death Link
 
 With Death Link on, fainting sends a death to everyone linked, and a death from them faints you like any other
-faint: you drop what your world's Death Penalty setting says. Death Link Amnesty forgives that many of your own faints before one is sent: with 2, every third faint is
-sent. Chat says when a faint is forgiven and how many are left. The count is kept with the seed's save, so quitting
-doesn't reset it. Deaths other players send you never count. Amnesty is untested in game so far.
+faint: you drop what your world's Death Penalty setting says. Death Link Amnesty forgives that many of your own
+faints before one is sent: with 2, every third faint is sent. Chat says when a faint is forgiven and how many are
+left. The count is kept with the seed's save, so quitting doesn't reset it. Deaths other players send you never count.
 
-Most of this world's code, tools and documentation were written by Claude, an AI model made by Anthropic, at
-JustEyeTea's direction.
+Most of the code, tools, documentation and art were written by Claude, an AI model made by Anthropic, at JustEyeTea's
+direction; JustEyeTea is reviewing the code by hand, playtests every build and
+makes the design calls.

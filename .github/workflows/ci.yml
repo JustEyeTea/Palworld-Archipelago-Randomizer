@@ -1,11 +1,11 @@
 # On pull requests, pushes to main or to a build/<name> branch, version tags and manual runs (Actions > CI > Run
 # workflow; a push to any other branch runs nothing): the APWorld against the Archipelago version it targets
 # (Archipelago's own test suites and test generations), and the mod's C++ part built on Windows, packaged with the Lua
-# mod as an artifact. The
-# Windows build (about 25 minutes) runs only when the C++ part or this file changed since the branch's last good one
-# (the changes job); tags, main and manual runs always build.
-# A version tag (v0.14.0, matching the mod's VERSION) also makes a DRAFT release with the mod zip, palworld.apworld and
+# mod as an artifact. The Windows build (about 25 minutes) runs only when the C++ part or this file changed since the
+# branch's last good one (the changes job); tags, main and manual runs always build.
+# A version tag (v1.2.0 for a mod VERSION of 1.2.0) also makes a DRAFT release with the mod zip, palworld.apworld and
 # their checksums; a person reads it, attaches the art pak built in the Modding Kit, and publishes it.
+# docs/architecture.md, "CI", describes each job.
 name: CI
 
 on:
@@ -108,6 +108,18 @@ jobs:
           matrix=${{ matrix.archipelago }}
           [ "$minimum" = "$matrix" ] \
             || { echo "::error::archipelago.json's minimum_ap_version is $minimum; the matrix has $matrix"; exit 1; }
+      # One version number per release: the APWorld's world_version is the mod's VERSION without its -dev.N suffix
+      # (1.2.0-dev.4 -> 1.2.0). The release job also checks that a tag matches VERSION exactly.
+      - name: The APWorld's world_version matches the mod's VERSION
+        run: |
+          cd palworld-archipelago
+          world=$(python -c 'import json, sys; print(json.load(open(sys.argv[1]))["world_version"])' \
+                    apworld/palworld/archipelago.json)
+          mod=$(sed -n 's/^local VERSION = "\(.*\)"/\1/p' mod/PalworldArchipelago/Scripts/main.lua)
+          release=${mod%-dev.*}
+          [ -n "$mod" ] || { echo "::error::no 'local VERSION = \"...\"' line in main.lua"; exit 1; }
+          [ "$world" = "$release" ] || { echo "::error::apworld/palworld/archipelago.json's world_version is $world," \
+            "but main.lua's VERSION is $mod: set world_version to $release (VERSION without -dev.N)"; exit 1; }
       - name: The APWorld parses on Python 3.11, the oldest that Archipelago ${{ matrix.archipelago }} runs on
         run: python -m compileall -q palworld-archipelago/apworld/palworld
       - uses: actions/setup-python@v7
@@ -128,32 +140,10 @@ jobs:
             || { echo "::error::ap_data.lua is stale: run tools/gen_lua_data.py"; exit 1; }
           sudo apt-get install -y -qq lua5.4 > /dev/null
           tools/lua_harness.sh
-      - name: The C++ part's image helper
-        run: |
-          cd palworld-archipelago/cppmod/APConnector
-          # The map pictures' files, as cppmod/APConnector/CMakeLists.txt lists them; change both.
-          g++ -std=c++17 -O1 -pthread -Isrc -Ithird_party/stb test/image_test.cpp src/lua_text.cpp \
-            src/image_basics.cpp src/image_jobs.cpp src/image_grey_map.cpp src/image_chart.cpp src/image_land_sea.cpp \
-            src/image_fog.cpp src/image_territories.cpp -o "$RUNNER_TEMP/image_test"
-          "$RUNNER_TEMP/image_test"
-      - name: The C++ part's Pal-gift logic (the half that needs no Unreal headers)
-        run: |
-          cd palworld-archipelago/cppmod/APConnector
-          g++ -std=c++17 -O1 -Isrc test/pal_gift_test.cpp src/pal_gift_logic.cpp src/lua_text.cpp \
-            -o "$RUNNER_TEMP/pal_gift_test"
-          "$RUNNER_TEMP/pal_gift_test"
-      - name: The C++ part's text arguments (how the connector reads the text Lua sends)
-        run: |
-          cd palworld-archipelago/cppmod/APConnector
-          g++ -std=c++17 -O1 -Isrc test/lua_text_test.cpp src/lua_text.cpp -o "$RUNNER_TEMP/lua_text_test"
-          "$RUNNER_TEMP/lua_text_test"
-      - name: The C++ part's event lines (the text the connector hands Lua for each thing the server sent)
-        run: |
-          cd palworld-archipelago/cppmod/APConnector
-          g++ -std=c++17 -O1 -Isrc test/event_lines_test.cpp src/event_lines.cpp -o "$RUNNER_TEMP/event_lines_test"
-          "$RUNNER_TEMP/event_lines_test"
-      - name: The C++ part's function list (dllmain.cpp's header, its registrations and the Lua mod's calls agree)
-        run: palworld-archipelago/cppmod/APConnector/test/check_lua_api.sh
+      # The image helper, the Pal-gift logic, the text arguments, the event lines and the function list
+      # (check_lua_api.sh): the parts that need no Unreal, built with g++ on Linux.
+      - name: The C++ part's Linux tests (tools/cpp_tests.sh)
+        run: palworld-archipelago/tools/cpp_tests.sh
       - name: Archipelago's test suites
         run: AP_DIR="$GITHUB_WORKSPACE/archipelago" palworld-archipelago/tools/ap_tests.sh
       - name: Test generations
@@ -317,20 +307,24 @@ jobs:
           minimum=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["minimum_ap_version"])' \
                       apworld/palworld/archipelago.json)
           cat > notes.md <<EOF
-          Palworld Archipelago $GITHUB_REF_NAME (draft: edit these notes before publishing).
+          Palworld Archipelago Randomizer $GITHUB_REF_NAME (draft: edit these notes before publishing).
 
           - \`PalworldArchipelago-$GITHUB_REF_NAME.zip\`: the mod. Its \`ue4ss\` folder goes over
             \`Pal/Binaries/Win64/ue4ss\`.
-          - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago $minimum or newer).
-          - \`PalworldArchipelagoArt.pak\` (optional): the walls' own material. It goes in
+          - \`palworld.apworld\`: for whoever generates the multiworld (Archipelago $minimum or newer). Use the
+            \`palworld.apworld\` from this same release: the mod and the APWorld are made to match.
+          - \`PalworldArchipelagoArt.pak\` (optional): the walls' own material and the glows. It goes in
             \`Pal/Content/Paks/LogicMods\`.
           - Setup: [setup guide]($guide).
+          - Options: [the options page](https://justeyetea.github.io/Palworld-Archipelago-Randomizer/options/)
+            explains every setting and makes a YAML.
 
           Before publishing: attach \`PalworldArchipelagoArt.pak\` (and its \`.ucas\` and \`.utoc\` if the build made
           them), then delete this paragraph. CI can't build it: it is built by hand in the Palworld Modding Kit on
-          Windows (logicmod/README.md, "The wall material").
+          Windows (logicmod/README.md, "The wall material and the glows").
 
-          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction.
+          The code and art were written by Claude (Opus 5.5), an AI model by Anthropic, at JustEyeTea's direction;
+          JustEyeTea is reviewing the code by hand, playtests every build and makes the design calls.
           Unofficial fan project; not affiliated with Pocketpair or the Archipelago project.
           EOF
       - name: Draft release
@@ -338,4 +332,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag \
-            --title "Palworld Archipelago $GITHUB_REF_NAME" --notes-file notes.md
+            --title "Palworld Archipelago Randomizer $GITHUB_REF_NAME" --notes-file notes.md

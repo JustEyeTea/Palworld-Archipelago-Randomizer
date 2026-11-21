@@ -2,7 +2,7 @@
 where a received tech also hands over its product. Gear comes one of each; stackables come as a stack.
 Techs that only unlock buildings have no entry: a building can't be handed over. Reads the private table dumps.
     python3 tools/gen_tech_gifts.py <tables dir> <all-tables dir>
-Tests: none of its own; the Lua harness loads its file with the mod (sync.lua), and tests/crates_run_style.lua
+Tests: none of its own; the Lua harness loads its file with the mod (run_style.lua), and tests/crates_run_style.lua
 tests Nomad with it.
 """
 import pathlib

@@ -60,8 +60,8 @@ class CheckLevel(Range):
     """The highest player level that holds checks. Shop slots for techs above it stay normal research, and captures,
     alphas, fast-travel points, levels and towers above it are not checks, so the number of checks fits the goal.
     0 (auto) sets it from the goal: 8 levels past the last tower boss you need (18 for one tower, 28 for two), 5 levels
-    past the level by which you can
-    register enough Pals, 30 for a Relic Hunt, and no limit for the World Tree. Otherwise it must be at least 2."""
+    past the level by which you can register enough Pals, 30 for a Relic Hunt, and no limit for the World Tree.
+    Otherwise it must be at least 2."""
     display_name = "Check Level Cap"
     range_start = 0
     range_end = MAX_LEVEL
@@ -70,8 +70,8 @@ class CheckLevel(Range):
 
 class AreaLocks(DefaultOnToggle):
     """The map beyond the starting zone is locked, and each locked part opens when its pass item arrives (Lock Size
-    sets how big the parts are). Until then a locked part is walled off (a wall in its region's colour at its border)
-    and shown grey on the map; the open sea is always free."""
+    sets how big the parts are). Until then a locked part is walled off (a wall in its region's colour at its border),
+    and the map tints each region by its state, with a stamp on the locked ones. The open sea is always free."""
     display_name = "Area Locks"
 
 
@@ -83,9 +83,10 @@ class LockSize(Choice):
     Island area alone, where the first tower stands: a cramped start, and many small unlocks.
     Levels: Level Progression. The walls follow where wild Pals of each level live, in 8 tiers (levels 1-16, 17-28,
     29-34, 35-40, 41-48, 49-59, 60-69 and 70-80), not the game's named places. Each Progressive Level Pass opens the
-    next tier, 7 in all. The start is the levels 1-16 land, Windswept Island among it. The Sky Islands and one high
-    Astral Mountains valley of levels 29-34 need a flying mount: the valley sits inside higher tiers, so a corridor
-    with walls on both sides leads up to it from the coast."""
+    next tier, 7 in all. The start is the levels 1-16 land, Windswept Island among it. Three places also need a flying
+    mount: the Sky Islands, a high Astral Mountains valley of levels 29-34 that higher tiers surround, and the low
+    Isles of Silence, levels 1-16 but ringed by the 17-28 tier. A corridor with walls on both sides leads up to the
+    valley from the coast, and another to the Isles of Silence from the start."""
     display_name = "Lock Size"
     option_regions = 0
     option_areas = 1
@@ -186,8 +187,10 @@ class TechPointItems(Toggle):
 
 
 class TechChecks(Choice):
-    """Which technologies are checks. All: every tech from level 2 up (583). No décor: furniture, flag and foliage
-    sets, statues, signs and lights (62 techs) are normal research instead, with no check and no item (521)."""
+    """Which technologies are checks.
+    All: every tech from level 2 up (583).
+    No Decor: furniture, flag and foliage sets, statues, signs and lights (62 techs) are normal research instead,
+    with no check and no item (521)."""
     display_name = "Tech Checks"
     option_all = 0
     option_no_decor = 1
@@ -392,4 +395,19 @@ options_presets = {
     "Paldeck Sync": {"goal": "paldeck", "paldeck_count": 60, "speed_boost": True},
     "Async": {"goal": "towers", "tower_count": 3},
     "Full Game Async": {"goal": "world_tree"},
+}
+
+# One line for each preset, shown under the options page's preset picker ("Defaults" is the page's name for no
+# preset). Sync games are played by everyone at once, in one sitting; async ones at each player's own pace.
+# tools/gen_options_page.py stops if a preset has no line here.
+preset_descriptions = {
+    "Defaults": "The world's own defaults: beat two tower bosses, at your world's normal speed.",
+    "Short Sync": "The shortest sync game: one tower boss, level checks every 5 levels and no fast-travel checks.",
+    "Sync": "A sync game of a few hours: beat the first tower boss.",
+    "Long Sync": "A longer sync game: beat two tower bosses.",
+    "Nomad Sync": "Long Sync where each tech you receive also hands you what it makes, so you need less of a base.",
+    "Relic Hunt Sync": "Collect 15 of 20 Palpagos Relics, shuffled across the whole multiworld; checks up to level 25.",
+    "Paldeck Sync": "Register 60 different Pals in your Paldeck.",
+    "Async": "A game played over days at your own pace: beat three tower bosses, at your world's normal speed.",
+    "Full Game Async": "The whole game, played over days or weeks: beat the boss at the top of the World Tree.",
 }

@@ -1,6 +1,7 @@
 """Writes docs/options/options.json, the data behind the options page (docs/options/index.html), from the APWorld's
-options as Archipelago itself sees them: the world's options dataclass, option groups and presets, after
-Archipelago's WebWorld has added its own groups. Run it with the Archipelago venv's python:
+options as Archipelago itself sees them: the world's options dataclass, option groups and presets (with options.py's
+preset_descriptions), after Archipelago's WebWorld has added its own groups, plus which options depend on another
+(DEPENDS_ON below). Run it with the Archipelago venv's python:
     AP_DIR=<your Archipelago folder> <its venv's python> tools/gen_options_page.py
     ... tools/gen_options_page.py --check     (exit 1 if options.json is out of date, writing nothing)
 Tests: tools/test_options_page.py checks options.json is current and that the page's YAMLs match Archipelago's.
@@ -18,6 +19,33 @@ from apworld_loader import ap_dir, stand_in_worlds
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "options" / "options.json"
 AP = ap_dir()
+
+# Options that only matter while another option has certain values, so the page can mark them as not in use. The
+# YAML still carries them (the page writes every option, as Archipelago's template does). Each entry is
+# option key: (the option it depends on, "in" or "not in", the values that make it apply); a choice's values are its
+# names as the YAML writes them ("towers", "true"), a range's are numbers. describe_dependency checks each against
+# the world, so a renamed option or choice stops the script instead of leaving a stale rule.
+DEPENDS_ON = {
+    "tower_count": ("goal", "in", ["towers"]),
+    "paldeck_count": ("goal", "in", ["paldeck"]),
+    "relic_count": ("goal", "in", ["relic_hunt"]),
+    "relics_needed": ("goal", "in", ["relic_hunt"]),
+    "boost_exp_rate": ("speed_boost", "in", ["true"]),
+    "boost_work_speed": ("speed_boost", "in", ["true"]),
+    "boost_gather_rate": ("speed_boost", "in", ["true"]),
+    "lock_size": ("area_locks", "in", ["true"]),
+    "beyond_goal": ("area_locks", "in", ["true"]),
+    "crate_sphere_weight": ("palworld_crates", "in", ["true"]),
+    "crate_food_weight": ("palworld_crates", "in", ["true"]),
+    "crate_common_weight": ("palworld_crates", "in", ["true"]),
+    "crate_rare_weight": ("palworld_crates", "in", ["true"]),
+    "crate_jackpot_weight": ("palworld_crates", "in", ["true"]),
+    "slow_trap_weight": ("trap_chance", "not in", [0]),
+    "hunger_trap_weight": ("trap_chance", "not in", [0]),
+    "teleport_trap_weight": ("trap_chance", "not in", [0]),
+    "fool_trap_weight": ("trap_chance", "not in", [0]),
+    "death_link_amnesty": ("death_link", "in", ["true"]),
+}
 
 
 _world = None
@@ -66,6 +94,34 @@ def refused_values(key, option):
     starter_level = importlib.import_module("worlds.palworld.data").STARTER_LEVEL
     return {"values": list(range(1, starter_level + 1)),
             "problem": f"Enter 0 for auto, or a number from {starter_level + 1} to {option.range_end}."}
+
+
+def describe_dependency(key, options):
+    """The page's depends_on entry for one option ({"key", "test", "values"}), or None when it always applies. Stops
+    with an error when DEPENDS_ON names an option or value the world doesn't have."""
+    if key not in DEPENDS_ON:
+        return None
+    on_key, test, values = DEPENDS_ON[key]
+    assert on_key in options, f"DEPENDS_ON[{key!r}] names {on_key!r}, which is not an option"
+    assert test in ("in", "not in"), f"DEPENDS_ON[{key!r}]: the test must be 'in' or 'not in', not {test!r}"
+    governing = options[on_key]
+    if getattr(governing, "options", None):
+        allowed = set(governing.name_lookup.values())
+    else:
+        allowed = set(range(governing.range_start, governing.range_end + 1))
+    unknown = [value for value in values if value not in allowed]
+    assert not unknown, f"DEPENDS_ON[{key!r}]: {on_key} has no value {unknown}"
+    return {"key": on_key, "test": test, "values": values}
+
+
+def preset_descriptions(world):
+    """The one-line description of each preset that the page shows under its picker, keyed as options.json's
+    presets are ('' for the defaults). Stops with an error when options.py's preset_descriptions misses one."""
+    lines = importlib.import_module("worlds.palworld.options").preset_descriptions
+    wanted = ["Defaults"] + list(world.web.options_presets)
+    missing = [name for name in wanted if name not in lines]
+    assert not missing, f"options.py's preset_descriptions has no line for {missing}"
+    return {("" if name == "Defaults" else name): lines[name] for name in wanted}
 
 
 def describe(key, option):
@@ -120,9 +176,17 @@ def build():
     import Options
     from Utils import __version__
     collapsed = {group.name: group.start_collapsed for group in world.web.option_groups}
+    all_options = world.options_dataclass.type_hints
+    unknown = [key for key in DEPENDS_ON if key not in all_options]
+    assert not unknown, f"DEPENDS_ON names {unknown}, which are not options"
     groups = [{"name": name, "start_collapsed": collapsed.get(name, False),
                "options": [describe(key, option) for key, option in options.items()]}
               for name, options in Options.get_option_groups(world).items()]
+    for group in groups:
+        for entry in group["options"]:
+            dependency = describe_dependency(entry["key"], all_options)
+            if dependency:
+                entry["depends_on"] = dependency
     # The template's opening comments (what the file is, how weights work, what the name may hold) are plain text up
     # to the name line, so the page can copy them instead of keeping its own version.
     template = (AP / "data" / "options.yaml").read_text(encoding="utf-8")
@@ -140,6 +204,7 @@ def build():
         "descriptions": descriptions,
         "groups": groups,
         "presets": world.web.options_presets,
+        "preset_descriptions": preset_descriptions(world),
     }
 
 

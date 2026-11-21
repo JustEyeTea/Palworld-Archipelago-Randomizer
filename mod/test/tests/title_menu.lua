@@ -256,14 +256,14 @@ group("the title menu's Archipelago menu", function()
     expect(btn(R.go).Test_Content.text == "Connect to archipelago.gg:40000 as Other" and #pushed == pushedBefore,
            "typed in the menu: no text window")
     edit(R.server).focus = true
-    typeInto(R.server, "72.60.29.30:38281")
+    typeInto(R.server, "203.0.113.7:38281")
     run(1)
-    expect(typed(R.server) == "72.60.29.30:38281"
-           and btn(R.go).Test_Content.text == "Connect to 72.60.29.30:38281 as Other",
+    expect(typed(R.server) == "203.0.113.7:38281"
+           and btn(R.go).Test_Content.text == "Connect to 203.0.113.7:38281 as Other",
            "host:port typed in the Server box counts at once, and is left as typed while the box has the keyboard")
     edit(R.server).focus = false
     run(1)
-    expect(typed(R.server) == "72.60.29.30" and typed(R.port) == "38281", "left, the port moves to its own box")
+    expect(typed(R.server) == "203.0.113.7" and typed(R.port) == "38281", "left, the port moves to its own box")
     typeInto(R.server, "archipelago.gg")
     typeInto(R.port, "40000")
     run(1)
@@ -316,7 +316,7 @@ group("the title menu's Archipelago menu", function()
     -- Back closes without connecting; reopened, the menu starts from the connection, and its last row disconnects.
     click(openBtn)
     run(1)
-    typeInto(R.server, "72.60.29.30")
+    typeInto(R.server, "203.0.113.7")
     run(1)
     local cb = #connects
     local backAt = logMark()

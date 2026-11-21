@@ -5,20 +5,51 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting. The mod writes everything it does to `UE4SS.log` (in `Pal/Binaries/Win64/ue4ss/`); lines
-        from it are the most useful thing you can add. Please remove server passwords before pasting.
+        Thanks for reporting. The mod writes everything it does to `UE4SS.log` (in `Pal\Binaries\Win64\ue4ss\`, or
+        `Mods\NativeMods\UE4SS\` with the Workshop's UE4SS); lines from it are the most useful thing you can add.
+        Please remove your password from anything you paste.
   - type: input
     id: mod-version
     attributes:
       label: Mod version
-      description: The first "[PalworldAP]" line of UE4SS.log names it (for example 0.13.5).
+      description: The line "[PalworldAP] loaded <version>" near the top of UE4SS.log names it.
+      placeholder: "[PalworldAP] loaded 0.15.0"
     validations:
       required: true
   - type: input
     id: apworld-version
     attributes:
       label: APWorld and Archipelago versions
-      placeholder: "palworld.apworld 0.4.0, Archipelago 0.6.8"
+      description: The palworld.apworld the game was generated with, and the Archipelago version, if you know them.
+      placeholder: "palworld.apworld 0.15.0, Archipelago 0.6.8"
+  - type: dropdown
+    id: lock-size
+    attributes:
+      label: Lock Size
+      description: The Lock Size option in your YAML.
+      options:
+        - regions (the default)
+        - areas
+        - levels (Level Progression)
+        - Area Locks off
+        - Not sure
+  - type: dropdown
+    id: how-you-play
+    attributes:
+      label: How you play
+      description: Only single player is supported. Co-op (friends joining your world) and dedicated servers are not.
+      options:
+        - Single player, Steam on Windows
+        - Something else (say what under "Anything else")
+  - type: dropdown
+    id: art-pak
+    attributes:
+      label: Art pak installed?
+      description: PalworldArchipelagoArt.pak in Pal\Content\Paks\LogicMods.
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
   - type: textarea
     id: what
     attributes:
@@ -34,10 +65,20 @@ body:
     id: log
     attributes:
       label: UE4SS.log
-      description: The "[PalworldAP]" lines around the problem, or attach the whole file.
+      description: >-
+        The "[PalworldAP]" and "[APConnector]" lines around the problem, or attach the whole file. Remove your
+        password first.
+      render: text
+  - type: textarea
+    id: config
+    attributes:
+      label: Your config.txt changes
+      description: >-
+        Any lines of ue4ss\Mods\PalworldArchipelago\config.txt you changed from the default (wall_skin, glow,
+        hint_key, ...). Leave out the password line.
       render: text
   - type: textarea
     id: extra
     attributes:
       label: Anything else
-      description: Other mods installed, single player or a dedicated server, screenshots.
+      description: Other mods installed, the seed or room link, screenshots.

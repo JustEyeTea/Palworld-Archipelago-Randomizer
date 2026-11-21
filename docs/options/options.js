@@ -83,6 +83,12 @@
     }
     var error = element('p', { 'class': 'error', id: id + '-error', 'aria-live': 'polite' });
     describedBy.push(error.id);
+    // Says when the option applies, while the options it depends on leave it unused (see showWhetherInUse).
+    var dependsNote = null;
+    if (option.depends_on) {
+      dependsNote = element('p', { 'class': 'depends-note', id: id + '-depends' });
+      describedBy.push(dependsNote.id);
+    }
 
     if (isToggle(option)) {
       field.classList.add('toggle');
@@ -108,8 +114,9 @@
       var note = element('p', { 'class': 'help range-note', id: id + '-range' }, range);
       describedBy.unshift(note.id);
       var row = element('div', { 'class': 'range' });
-      // The slider is a quicker way to set the same number; the number box is the labelled control.
-      var slider = element('input', { type: 'range', min: option.min, max: option.max, step: 1,
+      // The slider is a quicker way to set the same number with a mouse or a finger; the number box is the labelled
+      // control and takes the arrow keys, so the slider is left out of the tab order (one stop per option).
+      var slider = element('input', { type: 'range', min: option.min, max: option.max, step: 1, tabindex: '-1',
                                       'aria-label': option.name + ' (slider)', id: id + '-slider' });
       var number = element('input', { type: 'number', id: id, min: option.min, max: option.max, step: 1,
                                       inputmode: 'numeric', 'aria-describedby': describedBy.join(' ') });
@@ -123,6 +130,7 @@
       field.appendChild(row);
       field.appendChild(note);
     }
+    if (dependsNote) field.appendChild(dependsNote);
     if (help) field.appendChild(help);
     field.appendChild(error);
     return field;
@@ -134,7 +142,10 @@
       var controls = group.options.filter(hasControl);
       var others = group.options.filter(function (option) { return !hasControl(option); });
       var section = element('fieldset', { 'class': 'panel' });
-      section.appendChild(element('legend', {}, group.name));
+      // The group's name is a heading as well as the legend, so screen reader users can jump between groups.
+      var legend = element('legend', {});
+      legend.appendChild(element('h2', {}, group.name));
+      section.appendChild(legend);
       controls.forEach(function (option) { section.appendChild(optionField(option)); });
       if (others.length) {
         // Item and location lists take names from the game's item and location lists; there are too many to
@@ -149,7 +160,7 @@
         var list = element('dl', { 'class': 'file-options' });
         others.forEach(function (option) {
           list.appendChild(element('dt', {}, option.name + ' (' + option.key + ')'));
-          list.appendChild(fillHelp(element('dd', {}), option.help));
+          list.appendChild(fillHelp(element('dd', {}), option.help || ''));
         });
         details.appendChild(list);
         section.appendChild(details);
@@ -169,11 +180,17 @@
 
   function control(key) { return document.getElementById('option-' + key); }
 
-  // Shows a field's problem (or none). The error text is a live region, so it is only rewritten when it changes:
-  // otherwise screen readers could announce it again on every keystroke anywhere in the form.
+  // Sets an element's text only when it changes. Live regions (errors, the preset status, the Speed Boost warning)
+  // go through here: rewriting one with the same text could make screen readers announce it again on every
+  // keystroke anywhere in the form.
+  function setText(id, text) {
+    var node = document.getElementById(id);
+    if (node.textContent !== text) node.textContent = text;
+  }
+
+  // Shows a field's problem (or none) in its live error text.
   function showProblem(input, errorId, problem) {
-    var error = document.getElementById(errorId);
-    if (error.textContent !== problem) error.textContent = problem;
+    setText(errorId, problem);
     var invalid = problem ? 'true' : 'false';
     if (input.getAttribute('aria-invalid') !== invalid) input.setAttribute('aria-invalid', invalid);
   }
@@ -217,16 +234,53 @@
     return first;
   }
 
+  // The option (from options.json) with this key.
+  function findOption(key) {
+    return allOptions(data).filter(function (option) { return option.key === key; })[0];
+  }
+
+  // A value as the page shows it: a toggle's "true" as on, a choice by its label, a number as it is.
+  function valueLabel(option, value) {
+    if (isToggle(option)) return value === 'true' ? 'on' : 'off';
+    if (isChoice(option)) return choiceLabel(value);
+    return String(value);
+  }
+
+  // "Used only when Goal is Towers." for an option with a depends_on rule (from tools/gen_options_page.py).
+  function dependsText(option) {
+    var rule = option.depends_on;
+    var on = findOption(rule.key);
+    var named = rule.values.map(function (value) { return valueLabel(on, value); }).join(' or ');
+    return 'Used only when ' + on.name + ' is ' + (rule.test === 'not in' ? 'not ' : '') + named + '.';
+  }
+
+  // Whether the form's values make an option with a depends_on rule apply.
+  function inUse(option, values) {
+    var rule = option.depends_on;
+    var listed = rule.values.some(function (value) { return value === values[rule.key]; });
+    return rule.test === 'not in' ? !listed : listed;
+  }
+
+  // Greys out each option the others leave unused and says when it applies. Its value stays in the YAML as it is.
+  function showWhetherInUse(values) {
+    allOptions(data).filter(function (option) { return option.depends_on; }).forEach(function (option) {
+      var used = inUse(option, values);
+      document.querySelector('.field[data-key="' + option.key + '"]').classList.toggle('not-in-use', !used);
+      setText('option-' + option.key + '-depends', used ? '' : dependsText(option));
+    });
+  }
+
   function changed() {
     var values = readValues();
     var preset = presetSelect.value;
     var matches = sameValues(data, values, presetValues(data, preset));
-    document.getElementById('preset-status').textContent = matches ? '' :
-      'Changed from ' + (preset || 'the defaults') + '.';
+    setText('preset-description', data.preset_descriptions[preset] || '');
+    setText('preset-status', matches ? '' : 'Changed from ' + (preset || 'the defaults') + '.');
     // Speed Boost changes the player's own world settings (they stay in the world's save), so say so wherever it's on.
-    document.getElementById('speed-boost-warning').textContent = values.speed_boost !== 'true' ? '' :
+    setText('speed-boost-warning', values.speed_boost !== 'true' ? '' :
       'Speed Boost is on: the mod will change your world\'s EXP rate, work speed and gathering in World Settings, ' +
-      'and your world keeps them after the game. You can turn it off under Run Style.';
+      'and your world keeps them after the game. You can turn it off under Run Style.');
+    showWhetherInUse(values);
     // Range problems show as they're typed; the name's only once a download has been tried (see check).
     var problems = false;
     allOptions(data).filter(isRange).forEach(function (option) {
@@ -242,7 +296,7 @@
     event.preventDefault();
     var values = readValues();
     var problem = check(values);
-    document.getElementById('form-error').textContent = problem ? 'Fix the fields marked above first.' : '';
+    setText('form-error', problem ? 'Fix the fields marked above first.' : '');
     if (problem) { problem.focus(); return; }
     var text = buildYaml(data, values, nameInput.value, presetSelect.value);
     var blob = new Blob([text], { type: 'application/yaml' });

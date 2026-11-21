@@ -1,6 +1,7 @@
-"""Tests the options page (docs/options). Run with the Archipelago venv's python, under the lock the AP test scripts
-share, since it installs the APWorld in Archipelago's custom_worlds for the generations:
-    flock /tmp/claude-1000/ap-tests.lock env AP_DIR=<your Archipelago folder> QUICKJS_PYTHON=<python with quickjs> \\
+"""Tests the options page (docs/options). Run with the Archipelago venv's python. It installs the APWorld in
+Archipelago's custom_worlds for the generations, so where several test runs share one Archipelago folder, run it under
+a lock they all take (any file will do, as long as each run names the same one):
+    flock "${TMPDIR:-/tmp}/ap-tests.lock" env AP_DIR=<your Archipelago folder> QUICKJS_PYTHON=<python with quickjs> \\
         <its venv's python> tools/test_options_page.py
 It checks that
   1. docs/options/options.json is what tools/gen_options_page.py writes now (like ap_data.lua's check);

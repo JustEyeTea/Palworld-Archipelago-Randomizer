@@ -3,7 +3,6 @@
 -- until it arrives), in the order the effects started. A timed effect (a Slow Trap) has its time left under it (m:ss);
 -- an untimed tile (a trap that acts at once, or one waiting) has nothing under it. Hosted on the
 -- HUD layout's canvas like the hint pop-up (WIDGETS.hudCanvas; seen working in game), never taking a click.
--- Untested in game: the icon row and its timers.
 -- Tests: mod/test/tests/locks_hud.lua; group "debuff icons, the hint plate and the goal banner"
 --   (tools/lua_harness.sh, in CI).
 local DEBUFFS = {}
@@ -228,7 +227,7 @@ end
 -- The world step saw a new pawn, or none: the world may have gone (the title), or the pawn read nil for a moment in
 -- the same world (a faint). The row is taken down while its HUD is still there, else forgotten without touching it;
 -- DEBUFFS.tick builds it again on the HUD of the world the player is in. The effects themselves are kept: traps.lua
--- ends them. Untested in game: Return to title while a Slow Trap's icon is up.
+-- ends them.
 function DEBUFFS.forget()
     if shown and WIDGETS.hudLive(shown.hud) then
         hide()

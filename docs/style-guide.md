@@ -8,22 +8,25 @@ guide says more, it wins. How the parts fit together is in [the architecture gui
 Most of this code is written by Claude, an AI model made by Anthropic, at JustEyeTea's direction. These rules exist so
 that its maintainer, and anyone else, can follow every file without having written it.
 
-Some files break these rules today. Each is fixed when the code tour reaches it; until then, new code follows the
+Some files break these rules today. Each is fixed when the file is next worked on; until then, new code follows the
 rules and old code is not made worse.
 
 ## Naming
 
 - **Say what it is in words a player would recognize.** Use `tower_level`, not `tl`. Use game terms (Area Pass,
-  Paldeck, alpha, fast-travel point) the way the game and this project's docs use them. A *region* is one of the 15
-  large locked parts, an *area* one of the game's 75 named places, and a *lock* either one, in code that serves both
-  sizes alike; the full list is under [Words](architecture.md#words).
+  Paldeck, alpha, fast-travel point) the way the game and this project's docs use them. There are three lock sizes:
+  a *region* is one of the 15 large locked parts, an *area* one of the game's 75 named places, and a *tier* one of
+  Level Progression's bands of Pal levels. A *lock* is any one of them, in code that serves every size alike; the
+  full list is under [Words](architecture.md#words).
 - **Read fields by name, never by position.** Write `tech.level`, not `tech[2]`. Give a row of data a `NamedTuple`
   (Python) or a table with named keys (Lua).
 - **Define in-house words once.** Words this project made up, such as *piece* (the smallest part of the map the logic
   knows) or *sphere tier*, are defined in a comment where they are first used.
 - **One word per thing, and one thing per word.** A thing keeps one name in every file (`opening`, not also
   `sinking`). A name is not used for a second thing in the same file. A name says what the value is now, not what
-  it once was. Code that ships to players is never called `probe`, `test`, `old` or `tmp`.
+  it once was. Code that ships to players is never called `probe`, `test`, `old` or `tmp`. The exception is the
+  opt-in diagnostics, which ship but do nothing unless config.txt turns them on: `test_tools.lua` (`test_tools=1`)
+  and the performance probe, `perf.lua` (`perf_log=1`).
 - **Single letters** are only for a short loop's index or a coordinate (`x`, `y`, `u`, `v`).
 - **Constants** are `UPPER_SNAKE_CASE`, with a comment giving the unit and the reason:
   `FREE_LEVEL = 5  # levels anyone reaches in the starting zone`. A constant is written once and imported; it is
@@ -53,7 +56,12 @@ or a new file, look here and use the block. Never write a second copy. A block i
 
 - **A log line, a log-once, a guarded call, an object's address:** `log`, `once` (`onceIn(owner)` for a module's
   own keys), `onceErr`, `safe`, `addr` in `util.lua`. A failure that can repeat every update goes through
-  `onceErr`. Which branch of a fallback ran: `took`.
+  `onceErr`. Which branch of a fallback ran: `took`. A module whose lines carry a tag of their own takes
+  `UTIL.logger(tag)` (`UTIL.logger("perf")` logs `[PalworldAP] [perf] ...`). A call on the game's own fields or
+  functions, whose failure means the game is not as the mod expects: `UTIL.attempt(what, fn, ...)`.
+- **A file the mod writes:** `UTIL.replaceFile(path, text)` in `util.lua` writes a `.tmp` file and moves it into
+  place, so a crash never leaves half a file; it returns the step that failed and why. Reading one back:
+  `UTIL.readFile(path)`, `UTIL.exists(path)`.
 - **A texture or other object the game must not free while the mod uses it:** `keepAlive(obj)`, or
   `keepInPlace(index, obj)` for a picture made again and again, in `util.lua`.
 - **A wait:** `updates(seconds)` from `util.lua`, as a named entry in the file's `WAIT` table (the core files share
@@ -76,11 +84,22 @@ or a new file, look here and use the block. Never write a second copy. A block i
 - **Which world the player is in, and forgetting the last one:** the world step in `world.lua`. `WORLD.note()` runs
   near the start of every update; `WORLD.key()`, `WORLD.age()` and `WORLD.settled()` answer for every file. A file
   that keeps anything from one world registers the function that forgets it with `WORLD.onChange(forget)`, in
-  `main.lua`'s start-up list. New code keeps no world key of its own (`mailbox.lua` and `menu.lua` still notice a
-  world change themselves).
+  `main.lua`'s start-up list. New code keeps no world key of its own (`mailbox.lua` still notices a world change
+  itself, through `BAG.worldKey()` in `bag.lua`).
 - **A key bind:** `UTIL.bindKey` in `util.lua` (see Lua, below).
 - **A widget on the HUD:** `WIDGETS.hudCanvas()`, `hudBox`, `pinToCanvas` and `textLine` in `widgets.lua`. A file
   that keeps one keeps its HUD layout's address and asks `WIDGETS.hudLive(address)` before any call to it.
+- **A click on a button the mod adds:** `CLICKS.claim(button, owner, action)` in `clicks.lua` (or `claimSoon`, to run
+  it at the next game tick), and `CLICKS.run(owner)` in the owner's update; `CLICKS.release` and `releaseAll` when
+  the buttons go. The click hook only notes the click: work done inside it can remove the very button being clicked.
+- **One of the mod's own images:** `ART.texture(name)` in `art.lua` (loaded once a session and kept alive),
+  `ART.file(name)` for its path, `ART.box(outer, name, w, h)` for a sized image widget. A missing file gives nil or
+  `""`, and the caller draws without it.
+- **The player's bag:** `bag.lua`: `BAG.give(id, count, isGear)`, `BAG.nameOf(id)` (the item's name in the player's
+  language), `BAG.maxStack(id)`, `BAG.held(id)`.
+- **A game name a menu file depends on** (a class path, a widget field, an event), and the menu files' waits, sizes
+  and click owners: `menu_names.lua`, which every menu file takes as `NAMES`. After a Palworld update, check its
+  `GAME` table first.
 - **A hook callback:** wrapped by `guardedHook(name, cb)` from `util.lua`, so no core update runs inside it and an
   error is logged once under the hook's name.
 - **A hook on a Blueprint class:** `hookWhenLoaded(path, fn, tag)` in `util.lua`, called every update until it
@@ -150,9 +169,10 @@ that state. These rules keep the mod's code on the game thread. The harness chec
 ## Tests and commits
 
 - **Run the tests before committing:** `tools/ap_tests.sh` for the APWorld, `tools/lua_harness.sh` for the Lua mod,
-  and `tools/test_options_page.py` after any change to the options or the APWorld's version (it checks
-  `docs/options/options.json` is current and that every preset makes a beatable seed). CI builds and tests the C++.
-  Judge a run by its exit code, not by reading its output.
+  `tools/cpp_tests.sh` for the C++ parts that need no Unreal, and `tools/test_options_page.py` after any change to
+  the options or the APWorld's version (it checks `docs/options/options.json` is current and that every preset makes
+  a beatable seed). CI runs all four and builds the C++ mod on Windows. Judge a run by its exit code, not by reading
+  its output.
 - **Ids never move** (see [Ids never move](architecture.md#ids-never-move)). `test/test_ids.py` enforces it.
 - **A change that only makes code clearer** starts its commit message with `readability:` and changes no behaviour.
   The tests prove it; for the APWorld, the same seed must also give the same spoiler log before and after, up to its

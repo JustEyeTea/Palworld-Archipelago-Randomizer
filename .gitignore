@@ -4,3 +4,18 @@ cppmod/RE-UE4SS/
 cppmod/deps/
 build/
 luac.out
+.claude/
+.venv/
+dist/
+*.apworld
+
+# Files the mod writes into its own folder while playing: a player's settings, saves and server password, and map
+# pictures made from the game's own world map (Pocketpair art, which must never be committed).
+mod/PalworldArchipelago/config.txt
+mod/PalworldArchipelago/save-*.txt
+mod/PalworldArchipelago/worlds.txt
+mod/PalworldArchipelago/research.txt
+mod/PalworldArchipelago/client_uuid.txt
+mod/PalworldArchipelago/map-*.png
+mod/PalworldArchipelago/map-*.bmp
+mod/PalworldArchipelago/fog-*.png

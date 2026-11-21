@@ -11,9 +11,9 @@ servers=
 # nothing. To move a seed to another world, delete the world= line from its save-<seed>-<slot>.txt in this folder.
 # The key that buys a hint for the pass of the wall you are at (a letter or a key name such as F6).
 hint_key=H
-# The Archipelago Mailbox (Esc menu > Archipelago Mailbox; also a new button at the right of your name on the
-# Inventory page, not yet tried in game): received items wait there until you take them. Gear and accessories from
-# Palworld Crates go straight into your bag.
+# The Archipelago Mailbox (Esc menu > Archipelago Mailbox, or the button at the right of your name on the Inventory
+# page): received items wait there until you take them. Gear and accessories wait there too, and show in the mailbox
+# when it opens; any you leave there go to your bag when you close it.
 # Optional key that opens the mailbox (empty: only the menu buttons).
 mailbox_key=
 # Slots of the hidden chest the game's chest window shows the mailbox in (54 to 2000; set before it is first made).
@@ -24,35 +24,38 @@ mailbox_view=
 # time per update, lookups, hooks; how to read it: mod/PERF-PROBE.md in the repository). Off (empty) for normal play:
 # a playtest that measures adds perf_log=1 to its own config.txt.
 perf_log=
-# test_tools=1: the probe's A/B hotkeys (Ctrl+6 mark, Ctrl+7 walls, Ctrl+8 pause, Ctrl+9 hook bypass, Ctrl+0 old
-# load), Ctrl+F3 wall skins, Ctrl+F4 HUD probe (hint icon and goal banner for 6 s) and the probes that need the game
-# to answer. For playtests only.
+# test_tools=1: cheats and probes for testing only, never for a real game. Ctrl+F1 a big chunk of EXP, Ctrl+F2 faster
+# walking, Ctrl+F3 the next wall skin (Ctrl+Shift+F3 only the nearest walls), Ctrl+F4 HUD probe (a spinning icon and a
+# sample goal banner for 6 s), Ctrl+F5 to Ctrl+F8 a Slow, Hunger, Teleport or Fool Trap now, Ctrl+F9 to Ctrl+F11
+# stamina, nightfall and status probes, Ctrl+Shift+F5 to Ctrl+Shift+F9 a Pal given by each route, Ctrl+Shift+F10
+# unlocks the nearest fast-travel point. With perf_log=1 as well, the performance probe's hotkeys (Ctrl+6 mark,
+# Ctrl+7 walls, Ctrl+8 pause, Ctrl+9 hook bypass, Ctrl+0 old load). The full list: Scripts/test_tools.lua.
 test_tools=
 # The area walls' look, one of four: regions, paws, area or red. Empty (or regions) is each region's own wall over the
 # colour of the locked region or area behind it (its region's pass ticket colour), and a bunker grille on those beyond
 # the seed's goal, with a PalworldArchipelagoArt pak that has the region walls. With an older pak, that has none, the
 # walls wear paws instead: cream paws over that colour (slate grey beyond the goal). Without the pak, area: a wall
 # with see-through paw-shaped holes in that colour. red is the game's own red grid. Any other name is logged and the
-# default worn instead. With test_tools=1, Ctrl+F3 cycles the four. wall_tiling=U,V (the material's own is 5,3) and
-# wall_scroll=U,V (0,0) change the pattern's size and drift.
+# default worn instead. With test_tools=1, Ctrl+F3 cycles the four. wall_tiling=U,V (area skin only; the material's
+# own is 5,3) changes the pattern's size, and wall_scroll=U,V (0,0) its drift.
 wall_skin=
 wall_tiling=
 wall_scroll=
 # Every wall goes up when the world loads; only those within wall_radius metres of you are drawn (75; 0 draws them
-# all, as before 0.14). With the
-# PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are fully there, and where they are gone.
+# all, which costs frame rate). With the PalworldArchipelagoArt pak, wall_fade=near,far (15,25) is where they are
+# fully there, and where they are gone.
 wall_radius=
 wall_fade=
 # glow=0: no glows. Empty: with the PalworldArchipelagoArt pak, a halo, a soft light and a tall pillar of light mark
 # the fast-travel statues near you that are still checks in your slot, and a burst of light round you marks each new
-# item (its colour says progression, useful or filler; traps look like filler). Untested in game.
+# item (its colour says progression, useful or filler; traps look like filler).
 glow=
 # perf_no_bp_hooks=1: a restart test only. The mod's Blueprint hooks are not registered for that session (the shop's
 # labels and clicks, the menu buttons and the LogicMod's rows stop working) to measure what having them costs.
 perf_no_bp_hooks=
-# map_cpp=0: the mod's C++ part leaves the world map screen alone, and the map picture is set from Lua as in earlier
-# builds (the game's own map may show for a moment first). Empty: C++ sets the picture and the fog inside the game's own
-# set-up of the screen, so it never shows the game's version first. Test builds tint the fog parchment (a probe).
+# map_cpp=0: the mod's C++ part leaves the world map screen alone, and the map picture is set from Lua (the game's
+# own map may show for a moment first). Empty: C++ sets the picture and the fog inside the game's own set-up of the
+# screen, so it never shows the game's version first. With test_tools=1 the chart's parchment fog is tinted (a probe).
 map_cpp=
 # map_chart=0: keep the game's dark fog over unexplored parts of the world map. Empty: they are drawn as an explorer's
 # chart (made on your PC from the game's map, with the locked stamps on it), from the map's next opening.
@@ -62,7 +65,7 @@ map_chart=
 map_icons=
 # map_regions=0: no borders and no hatch over locked regions or areas on the explorer's chart. Empty: they are drawn.
 map_regions=
-# map_style=chart: the world map as the explorer's chart with greyed locked regions or areas (dev.17-31). Empty:
+# map_style=chart: the world map as the explorer's chart with greyed locked regions or areas. Empty:
 # "Territories", every region or area tinted by its state (locked, open, visited, sealed) over the game's own map, with
 # the walls glowing.
 map_style=

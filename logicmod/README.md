@@ -1,30 +1,17 @@
-# PalworldArchipelagoUI (LogicMod)
+# The LogicMod paks
 
-An optional Blueprint pak that gives the Archipelago Mailbox its own window:
-- one row per item; pick a row to take that item into your bag;
-- Take all and Close buttons;
-- mouse, keyboard and controller all work.
+Two Unreal paks hold what the Lua mod cannot make itself. Both are built in the community Palworld Modding Kit
+(Unreal Engine 5.1) on Windows; a Linux machine can't build them, as the kit needs Windows tools. The Lua mod works
+without either.
 
-Without it, the Lua mod shows the mailbox in the game's own chest window, which works on its own. The pak holds only
-layout. All logic stays in the Lua mod (`Scripts/mailbox.lua`), so the pak rarely needs rebuilding.
-
-It is built in the community Palworld Modding Kit (Unreal Engine 5.1) on Windows. A Linux machine can't build it: the
-kit needs Windows tools.
-
-## What the Lua mod expects (keep these names exactly)
-
-| Asset (`/Game/Mods/PalworldArchipelagoUI/`) | Parent | Widgets (each ticked **Is Variable**) | Graph |
+| Pak | Holds | Without it | Releases |
 |---|---|---|---|
-| `ModActor` | Actor | none | none |
-| `WBP_APButton` | User Widget | `Btn` (Button), `Icon` (Image), `Label` (Text) | custom event `AP_Clicked`, called from Btn's On Clicked |
-| `WBP_APMailbox` | PalUserWidgetOverlayUI | `Title`, `Summary` (Text), `List` (Scroll Box), `TakeAll`, `Close` (WBP_APButton) | none |
+| `PalworldArchipelagoArt.pak` (the Art pak) | `M_APWall`, the walls' own material, with its textures (each region's wall, the cream paws, the sealed wall, the dissolve pattern); the glows' meshes, textures and `M_APGlow` material | the walls wear the region or area colours on the game's wall material, and there are no glows | attached to every release, by hand |
+| `PalworldArchipelagoUI.pak` (the UI pak) | the Archipelago Mailbox's own window | the mailbox opens in the game's own chest window, which works on its own | not released yet |
 
-The pak file must be named `PalworldArchipelagoUI.pak`, the same as the folder.
-
-How the Lua mod uses it:
-- It opens the window through the game's HUD and fills `List` with WBP_APButton rows.
-- It hooks `WBP_APButton_C:AP_Clicked` to learn which row or button was pressed.
-- If a name above is missing, UE4SS.log says `mailbox: the LogicMod window has no widget named ...`.
+Both go in `Pal\Content\Paks\LogicMods\` in the game's folder. This file: the one-time setup of the kit (Part 1),
+then [the Art pak](#the-wall-material-and-the-glows-palworldarchipelagoartpak), then
+[the UI pak](#the-mailbox-window-palworldarchipelagouipak).
 
 ## Part 1: one-time PC setup (about 1 to 2 hours, mostly downloads)
 
@@ -56,16 +43,133 @@ How the Lua mod uses it:
 
 Steps 1, 2 and 4 need your sign-ins.
 
-## Part 2: make the assets (a minute)
-
-In the kit's editor, choose **Tools > Execute Python Script...** and pick `logicmod\make_assets.py` from this repo.
-
-Or run it with the editor closed, from a Command Prompt:
+Each pak's assets are made by a Python script from this repository. Run one inside the kit's editor with
+**Tools > Execute Python Script...**, or with the editor closed, from a Command Prompt:
 
 ```
 "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
-  -run=pythonscript -script="<repo>\logicmod\make_assets.py"
+  -run=pythonscript -script="<repo>\logicmod\<script>.py"
 ```
+
+## The wall material and the glows (PalworldArchipelagoArt.pak)
+
+The Art pak holds `M_APWall`, for multicoloured walls (the game's wall material shows one colour per wall piece; this
+one shows a full-colour picture), and the glows' meshes, textures and `M_APGlow` material (the check glow round
+fast-travel statues still to check, and the burst round the player when an item arrives). It needs only Part 1's
+setup.
+
+```mermaid
+flowchart LR
+  PY["make_wall_material.py<br/>(walls/ap-wall-paws-layer.png,<br/>art/walls/*.png)"] -->|"the editor runs it"| WA
+  GY["make_glow_assets.py<br/>(art/glow/*.fbx, *.png)"] -->|"the editor runs it"| GA
+  WA["M_APWall, M_APWallNearest, T_APWallPaws,<br/>T_APWallRegion_*, T_APWallSealed,<br/>T_APWallDissolve, ModActor"]
+  GA["SM_APGlow*, T_APGlow*, M_APGlow"]
+  WA --> DIR["Content/Mods/PalworldArchipelagoArt,<br/>chunk 2"]
+  GA --> DIR
+  DIR -->|"package: Use Pak File, Generate Chunks,<br/>shaders kept in the pak"| PK["pakchunk2-Windows.pak"]
+  PK -->|"renamed"| ART["PalworldArchipelagoArt.pak<br/>in Pal/Content/Paks/LogicMods"]
+  ART -->|"attached by hand"| REL["each release"]
+```
+
+1. Run both scripts, one after the other, as above: `make_wall_material.py`, then `make_glow_assets.py`.
+   - `make_wall_material.py` builds `M_APWall`; `M_APWallNearest` (an experiment: if it fails, the Output Log says so
+     and the pak goes without it); the textures `T_APWallPaws`, `T_APWallRegion_<region>_<version>`, `T_APWallSealed`
+     and `T_APWallDissolve`; `ModActor`; and the chunk label (chunk 2), which takes everything in the folder.
+   - `make_glow_assets.py` imports the six glow meshes and six textures from `logicmod\art\glow\` and builds
+     `M_APGlow`; a file missing there is skipped with a log line.
+
+   Nothing is by hand. Every Output Log line starts with `[PalworldArchipelagoArt]`; check for `LogPython: Error`.
+2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and `M_APGlow` and look for a compile error
+   at the bottom.
+3. Package:
+   1. In `Config\DefaultGame.ini` under `[/Script/UnrealEd.ProjectPackagingSettings]`, set
+      `bShareMaterialShaderCode=False` (and `bSharedMaterialNativeLibraries=False`), so the materials' compiled
+      shaders go in their own pak, not in a shared shader library in chunk 0, which is never installed. (Without them
+      the pak comes out at about 33 KB, too small to hold the shaders.)
+   2. Open **Edit > Project Settings > Packaging** and turn on **Use Pak File** and **Generate Chunks**.
+   3. Choose **Platforms > Windows > Package Project** and pick an output folder (`<out>` below).
+   4. In `<out>\Windows\Pal\Content\Paks\`, take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc` if there), rename
+      them to `PalworldArchipelagoArt.pak` (and `.ucas` / `.utoc`), and copy them to `Pal\Content\Paks\LogicMods\`.
+      Make the `LogicMods` folder if it isn't there. The empty `ModActor` makes BPModLoader's log say whether the
+      game loaded the pak.
+4. In game, the walls wear the default `regions` skin. UE4SS.log says `wall skin region:<region>-<version>:<colour>:
+   material made on M_APWall`. A pak built before the region walls makes it say `wall skin regions: the
+   PalworldArchipelagoArt pak has no region walls (or is not there); paws instead`, and the walls wear the cream paws
+   (`wall skin paws:<colour>: material made on M_APWall`). Without the pak it also says `wall skin paws: needs the
+   PalworldArchipelagoArt pak` and the walls wear the area colours instead.
+   For the glows it says `glow: the pak's glow meshes, textures and M_APGlow found`, or without them
+   `glow: off for this session: the PalworldArchipelagoArt pak has no ...`.
+5. For a release: attach the same files to the draft release CI made from the version tag, before publishing it
+   (the drafted notes remind you; the setup guide sends players there for the pak).
+
+### M_APWall's parameters
+
+The full list, with what each does, is at the top of `make_wall_material.py`.
+
+Set by the Lua mod (`wall_skins.lua`):
+- `Pattern`: the layer over the colour: a region's wall in the default `regions` skin, the cream paws in the `paws`
+  skin.
+- `Back` and `BackAlpha`: a colour under the pattern. Both skins put the region's colour at 0.34, and the regions skin
+  a dark red-grey at 0.55 under the bunker grille of a lock beyond the goal.
+- `Brightness`.
+- `FadeStart` and `FadeEnd`: where the wall starts to fade from the camera and where it is gone (1500 and 2500 cm;
+  `wall_fade` in config.txt changes them).
+- `ScrollU` and `ScrollV`: only when `wall_scroll` is set in config.txt.
+- `OffsetU`, `OffsetV` and `MirrorU`: with the 75 areas, so sister areas of one region differ.
+- `DissolveStart` and `DissolveTime`: an unlock; the wall dissolves by the game's clock.
+- `PlayerPos`: the player's position, each update (300 ms), for the glow and ripples near the player.
+
+Left at the material's defaults (the mod never sets them): `CellSize` (cm per tile, 300), `Tint`, `Opacity`,
+`NightDim` (a multiplier on the brightness for dimming the walls at night, 1), `ReactRadius`, `ReactStrength`,
+`RippleSize`, `RippleSpeed`, `ReactColor` and `EdgeColor`.
+
+The script also cooks, with mips, `walls\ap-wall-paws-layer.png` (in the Lua mod's folder) into the pak as
+`T_APWallPaws`, and every region wall in `logicmod\art\walls` (see its README.txt): each of the 15 regions in four
+versions as `T_APWallRegion_<region>_<version>` (the region's name in lower case, words joined by `_`, such as
+`T_APWallRegion_bamboo_groves_0`), the bunker grille as `T_APWallSealed`, and the dissolve's embers pattern as
+`T_APWallDissolve`. The 15 regions wear version 0; with Lock Size: areas each area wears the version
+`Scripts\wall_region_variants.lua` gives it. The Lua mod has no copy of the region walls, so a pak built before them
+gives the paws. The script reads the PNGs from this repository, so run it from a full checkout. The pattern is laid
+on the wall in world space, so it keeps its size on every piece and recedes in perspective.
+
+### M_APGlow's parameters
+
+What the Lua mod sets on `M_APGlow` (`glow_pieces.lua`; the full list is at the top of `make_glow_assets.py`): `Tex`
+(a colour picture) or `Mask` (a light mask), `Tint`, `Brightness`, `EdgePower` (soft edges), `Spin` (turns a second,
+the halo), `StartTime`, `Life`, `FadeDelay` and `FadePower` (a fade by the game's clock, as `M_APWall`'s dissolve),
+`GrowXY`, `GrowZ` and `GrowTime` (the burst's shock ring and column grow in the material, smooth between the mod's
+300 ms updates), and `NearFadeStart`/`NearFadeEnd` (the pillar hides up close). The glows are on by default;
+`glow=0` in the mod's `config.txt` turns them off. The glows are untested in game.
+
+## The mailbox window (PalworldArchipelagoUI.pak)
+
+An optional Blueprint pak that gives the Archipelago Mailbox its own window:
+- one row per item; pick a row to take that item into your bag;
+- Take all and Close buttons;
+- mouse, keyboard and controller all work.
+
+The pak holds only layout. All logic stays in the Lua mod (`Scripts/mailbox.lua`, and `Scripts/mailbox_window.lua`,
+which fills the window and answers its buttons), so the pak rarely needs rebuilding.
+
+### What the Lua mod expects (keep these names exactly)
+
+| Asset (`/Game/Mods/PalworldArchipelagoUI/`) | Parent | Widgets (each ticked **Is Variable**) | Graph |
+|---|---|---|---|
+| `ModActor` | Actor | none | none |
+| `WBP_APButton` | User Widget | `Btn` (Button), `Icon` (Image), `Label` (Text) | custom event `AP_Clicked`, called from Btn's On Clicked |
+| `WBP_APMailbox` | PalUserWidgetOverlayUI | `Title`, `Summary` (Text), `List` (Scroll Box), `TakeAll`, `Close` (WBP_APButton) | none |
+
+The pak file must be named `PalworldArchipelagoUI.pak`, the same as the folder.
+
+How the Lua mod uses it:
+- It opens the window through the game's HUD and fills `List` with WBP_APButton rows.
+- It hooks `WBP_APButton_C:AP_Clicked` to learn which row or button was pressed.
+- If a name above is missing, UE4SS.log says `mailbox: the LogicMod window has no widget named ...`.
+
+### Part 2: make the assets (a minute)
+
+Run `logicmod\make_assets.py` from this repository, as under Part 1 (Tools > Execute Python Script..., or the
+Command Prompt line with `make_assets.py`).
 
 What it does:
 - It makes the folder `Content/Mods/PalworldArchipelagoUI`, the three Blueprints and the chunk label (chunk 1, always
@@ -73,7 +177,7 @@ What it does:
 - It ticks the window's **Is Enable Cancel Action**, so Esc or a controller's B closes it.
 - The Output Log lists each step with a `[PalworldArchipelagoUI]` prefix.
 
-## Part 3: by hand in the editor (about 15 minutes)
+### Part 3: by hand in the editor (about 15 minutes)
 
 Unreal's Python can't lay out widgets or add graph nodes, so these steps are manual. After renaming a widget, tick
 **Is Variable** at the top of its Details panel. Text widgets start with it off.
@@ -112,12 +216,11 @@ Unreal's Python can't lay out widgets or add graph nodes, so these steps are man
 6. In **Class Defaults**, check that **Is Enable Cancel Action** is ticked. Part 2 sets it; tick it if not.
 7. **Compile**, then **Save**.
 
-## Part 4: package and install
+### Part 4: package and install
 
 1. Open **Edit > Project Settings > Packaging** and turn on **Use Pak File** and **Generate Chunks**.
-2. Choose **Platforms > Windows > Package Project** and pick an output folder, for example
-   `C:\AI\CLAUDE\palworld-logicmod\out`.
-3. In `out\Windows\Pal\Content\Paks\`, take `pakchunk1-Windows.pak`. If `pakchunk1-Windows.ucas` and `.utoc` sit
+2. Choose **Platforms > Windows > Package Project** and pick an output folder (`<out>` below).
+3. In `<out>\Windows\Pal\Content\Paks\`, take `pakchunk1-Windows.pak`. If `pakchunk1-Windows.ucas` and `.utoc` sit
    beside it, take those too.
 4. Rename them to `PalworldArchipelagoUI.pak` (and `.ucas` / `.utoc`).
 5. Copy them to
@@ -129,89 +232,8 @@ Unreal's Python can't lay out widgets or add graph nodes, so these steps are man
 
 To go back to the chest window without removing the pak, set `mailbox_view=chest` in the mod's `config.txt`.
 
-## Later, only if needed
+## Test keys
 
-- **Giving Pals:** no Lua route works. Two crash the game (drop and pick up, and the character manager: UE4SS
-  can't pass a Pal's save parameter struct from Lua); the captured cage makes a Pal handle but never a Pal in the
-  world, so nothing can be captured. The C++ connector has a try at it: `AP_GivePal`
-  (cppmod/APConnector/src/pal_gift.cpp) builds the save data and calls `CreateIndividual` with the party's own
-  callback bound, or imports the Pal into the Palbox, in heap memory of the right size. **It is untested in game**;
-  `test_tools=1` gives one hotkey per route (Ctrl+1 to Ctrl+5, see `Scripts/test_tools.lua`). Like the game's own
-  create, it works only where the game has authority: single player or a listen-server host, not a client of a
-  dedicated server. A Blueprint function here remains the fallback if every route fails: it can build the save
-  parameter itself and call `CreateIndividual` with a real callback.
-- **Wall look:** done as its own pak; see "The wall material" below.
-
-## The wall material and the glows (PalworldArchipelagoArt.pak)
-
-A second, separate pak. It holds `M_APWall`, for multicoloured area walls (the game's wall material shows one colour
-per wall piece; this one shows a full-colour picture), and the glows' meshes, textures and `M_APGlow` material (the
-check glow round fast-travel statues still to check, and the burst round the player when an item arrives). It is
-independent of the mailbox window: it needs only Part 1's setup, not Parts 2 and 3.
-
-```mermaid
-flowchart LR
-  PY["make_wall_material.py<br/>(and walls/ap-wall-paws-layer.png, art/walls/*.png)"] -->|"the editor runs it"| AS["M_APWall, M_APWallNearest, T_APWallPaws, T_APWallRegion_*, T_APWallSealed, T_APWallDissolve, ModActor<br/>in Content/Mods/PalworldArchipelagoArt, chunk 2"]
-  GY["make_glow_assets.py<br/>(and art/glow/*.fbx, *.png)"] -->|"the editor runs it"| AS
-  AS -->|"package: Use Pak File, Generate Chunks,<br/>shaders kept in the pak"| PK["pakchunk2-Windows.pak"]
-  PK -->|"renamed"| ART["PalworldArchipelagoArt.pak<br/>in Pal/Content/Paks/LogicMods"]
-  ART -->|"attached by hand"| REL["each release"]
-```
-
-1. Run both scripts, one after the other, the same way as Part 2 (Tools > Execute Python Script..., or with the
-   editor closed, from a Command Prompt):
-
-   ```
-   "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
-     -run=pythonscript -script="<repo>\logicmod\make_wall_material.py"
-   "C:\Program Files\Epic Games\UE_5.1\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" C:\PMK\Pal.uproject ^
-     -run=pythonscript -script="<repo>\logicmod\make_glow_assets.py"
-   ```
-
-   `make_wall_material.py` builds `M_APWall`, `M_APWallNearest` (an experiment: if it fails, the Output Log says
-   so and the pak goes without it), `ModActor` and the chunk label (chunk 2), which takes everything in the folder. `make_glow_assets.py` imports the six glow meshes and six textures from `logicmod\art\glow\` and
-   builds `M_APGlow`; a file missing there is skipped with a log line. Nothing is by hand. Every Output Log line
-   starts with `[PalworldArchipelagoArt]`; check for `LogPython: Error`.
-2. Optional check: open `Content/Mods/PalworldArchipelagoArt/M_APWall` and `M_APGlow` and look for a compile error
-   at the bottom.
-3. Package as in Part 4 (Use Pak File and Generate Chunks on), and also, in `Config\DefaultGame.ini` under
-   `[/Script/UnrealEd.ProjectPackagingSettings]`, `bShareMaterialShaderCode=False` (and
-   `bSharedMaterialNativeLibraries=False`), so the material's compiled shaders go in its own pak, not in a shared
-   shader library in chunk 0, which is never installed. (Without them the pak comes out at about 33 KB, too small
-   to hold the shaders.) The script also makes an empty `ModActor`, so BPModLoader's log says whether the game loaded
-   the pak. Take `pakchunk2-Windows.pak` (and `.ucas` / `.utoc` if there), rename to `PalworldArchipelagoArt.pak`
-   (and `.ucas` / `.utoc`), and copy to `Pal\Content\Paks\LogicMods\`.
-4. In game, the walls wear the default `regions` skin. UE4SS.log says `wall skin region:<region>-<version>:<colour>:
-   material made on M_APWall`. A pak built before the region walls makes it say `wall skin regions: the
-   PalworldArchipelagoArt pak has no region walls (or is not there); paws instead`, and the walls wear the cream paws
-   (`wall skin paws:<colour>: material made on M_APWall`). Without the pak it also says `wall skin paws: needs the
-   PalworldArchipelagoArt pak` and the walls wear the area colours instead.
-   For the glows it says `glow: the pak's glow meshes, textures and M_APGlow found`, or without them
-   `glow: off for this session: the PalworldArchipelagoArt pak has no ...`.
-5. For a release: attach the same files to the draft release CI made from the version tag, before publishing it
-   (the drafted notes remind you; the setup guide sends players there for the pak).
-
-What the Lua mod sets on `M_APWall`: `Pattern` (a region's wall in the default `regions` skin, the cream-paw layer in the
-`paws` skin), and optionally `Back`/`BackAlpha` (a colour under the pattern; both skins put the region's colour at
-0.34, and the regions skin a dark red-grey at 0.55 under the bunker grille of a lock beyond the goal), `CellSize` (cm
-per tile, 300), `ScrollU`/`ScrollV`, `Tint`, `Brightness`, `Opacity`, `FadeStart`/`FadeEnd` (1500 / 2500 cm),
-`OffsetU`/`OffsetV`/`MirrorU` (each of the 75 Areas a variant of its Region's look), and `DissolveStart`/`DissolveTime`
-(an unlock: the wall dissolves by the game's clock). It also glows and ripples near the player, whose position the mod
-sets as `PlayerPos` each update (300 ms) (`ReactRadius`, `ReactStrength`, `RippleSize`, `RippleSpeed`, `ReactColor`).
-The material also has `NightDim`, a multiplier on the brightness for dimming the walls at night; the mod does not
-set it, so it stays 1.
-The script also cooks, with mips, `walls\ap-wall-paws-layer.png` (in the Lua mod's folder) into the pak as
-`T_APWallPaws`, and every region wall in `logicmod\art\walls` (see its README.txt): each of the 15 regions in four
-versions as `T_APWallRegion_<region>_<version>` (the region's name in lower case, words joined by `_`, such as
-`T_APWallRegion_bamboo_groves_0`), and the bunker grille as `T_APWallSealed`. The 15 regions wear version 0; with Lock
-Size: areas each area wears the version `Scripts\wall_region_variants.lua` gives it. The Lua mod has no copy of the
-region walls, so a pak built before them gives the paws. It reads the PNGs from this repo, so run it from a full
-checkout. The pattern is laid on the wall in world space, so it keeps its size on every
-piece and recedes in perspective.
-
-What the Lua mod sets on `M_APGlow` (`glow_pieces.lua`; the full list is at the top of `make_glow_assets.py`): `Tex`
-(a colour picture) or `Mask` (a light mask), `Tint`, `Brightness`, `EdgePower` (soft edges), `Spin` (turns a second,
-the halo), `StartTime`, `Life`, `FadeDelay` and `FadePower` (a fade by the game's clock, as `M_APWall`'s dissolve),
-`GrowXY`, `GrowZ` and `GrowTime` (the burst's shock ring and column grow in the material, smooth between the mod's
-300 ms updates), and `NearFadeStart`/`NearFadeEnd` (the pillar hides up close). The glows are on by default;
-`glow=0` in the mod's `config.txt` turns them off. The glows are untested in game.
+`test_tools=1` in the mod's `config.txt` turns on the test tools; their keys (among them one per Pal-gift route of
+the C++ connector) are listed in the header of `mod/PalworldArchipelago/Scripts/test_tools.lua`. Why Pals are given
+from C++ and not from a pak or Lua is under the APConnector in [the architecture guide](../docs/architecture.md).

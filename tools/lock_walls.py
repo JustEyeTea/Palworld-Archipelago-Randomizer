@@ -7,8 +7,9 @@ tools/lock_groups.py) and their walls, from the game's own map. Every spot of th
 For Level Progression the land is first labelled as the 15 regions', then relabelled by tier (tools/level_tiers.py).
 A lock is reached through its borders: from open sea, the starting lock, or a neighbouring lock already reached
 (the APWorld's logic follows the same borders, saved with the grid).
-Land and water come from the game's world map image (exported in game, see mod/.../mapexport.lua): water is the
-smooth teal joined to the open ocean; everything else inside the map is land.
+Land and water come from the game's world map image (<refs>/map/WorldMap-2000.webp: the mod's map-colour-1.png,
+saved the first time the world map opens, scaled down; tools/README.md, "The map picture"): water is the smooth teal
+joined to the open ocean; everything else inside the map is land.
 Writes the walls for the mod (pieces along every border; a piece stays up until both its locks are open), and a
 private grid other tools look locks up in (tools/lock_model.py).
     <AP venv python> tools/lock_walls.py <refs dir> <region_walls.lua> <grid .npz (private)> <overlay .png (private)>
