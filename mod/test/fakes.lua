@@ -12,6 +12,7 @@
 -- an error, read or set, so a mistyped switch fails at its line.
 local GAME_START = {
     titleOpen = false,         -- the title screen's menu is up (FindAllOf lists it)
+    level = "PL_MainWorld5",   -- the level loaded (GameplayStatics' GetCurrentLevelName): "PL_Title" at the title
     mapOpen = false,           -- the world map's screen is built (FindAllOf lists it)
     treeOpen = false,          -- the World Tree's map screen is built beside it
     staleBody = false,         -- a map screen of the last world, not yet collected (a screen, or false)

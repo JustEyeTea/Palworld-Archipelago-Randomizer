@@ -9,6 +9,11 @@ group("the title menu's Archipelago menu", function()
     -- the saved servers show under Server while it has the keyboard; the banner brightens under the pointer. Without
     -- a text box class, rows that open the text window (tested at the end).
     local WINDOW_OK = GAME_PATH.windowOk                       -- the text window's OK
+    -- The title screen as the game has it: a live controller that answers K2_GetPawn with an object (a log said "a
+    -- title menu was found with the player's pawn in a world"), on the level PL_Title. The menu is made all the same.
+    newController()
+    inWorld(true)
+    game.level = "PL_Title"
     game.titleOpen = true
     -- A title menu whose buttons could not be made must not get a new banner every update (once it got 1,042).
     local realCreate = wbl.Create
@@ -383,6 +388,7 @@ group("the title menu's Archipelago menu", function()
         expect(#menuChildren > rowsBefore and logged("Archipelago menu added to the title menu"),
                "then made again once it can be")
     end
+    game.level = "PL_MainWorld5"     -- (a world's level, for the two tests in a world)
     do   -- one test of "in a world": a pawn the lookup answers with, even one not valid, counts
         local notValid = Widget({ IsValid = function() return false end })
         game.titleOpen = false                                       -- (no title menu up: it is only looked for)
@@ -408,6 +414,7 @@ group("the title menu's Archipelago menu", function()
            .. (lookups.WBP_TitleMenu_C or 0) - looksBefore)
     inWorld(false)
     noController()
+    game.level = "PL_Title"
     game.titleOpen = false
     run(1)
     -- In a world the title menu is gone; a game title button made later at a freed address of ours is not ours.
@@ -621,4 +628,6 @@ group("the title menu's Archipelago menu", function()
         expect(label and writes == 0 and goText and goText:find("onnect", 1, true),
                "an unchanged label is not written again: " .. writes .. " write(s) in 5 updates")
     end
+    game.level = "PL_MainWorld5"
+    inWorld(false)
 end)

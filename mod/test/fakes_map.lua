@@ -198,7 +198,8 @@ local FRAME_SECONDS = 0.016                                -- the engine's frame
 gameplay = { IsValid = function() return true end,
              GetWorldDeltaSeconds = function() return FRAME_SECONDS end,
              GetTimeSeconds = function() return gameSeconds end,
-             SpawnObject = function() return Widget() end }
+             SpawnObject = function() return Widget() end,
+             GetCurrentLevelName = function() return { ToString = function() return game.level end } end }
 -- A piece spawned and finished stands: a glow piece among glowActors, a wall among wallsUp.
 function gameplay.FinishSpawningActor(_, a)
     if a.glow then

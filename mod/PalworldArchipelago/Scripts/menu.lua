@@ -6,6 +6,7 @@
 --   (tools/lua_harness.sh, in CI).
 local M = {}
 local CLICKS = require("clicks")
+local PLAYER = require("player")
 local UTIL = require("util")
 local NAMES = require("menu_names")
 local SURVEY = require("menu_survey")
@@ -33,10 +34,11 @@ local hookCallbacks = {}      -- hook path -> its callback (the hover, unhover a
 ------------------------------------------------------------------------------------------------------------------------
 -- The update, and what main.lua calls.
 
--- In a world: a live controller whose pawn lookup answered. The one test of it: the title menu's lookup and the
--- in-world buttons both use it.
+-- In a world: a live controller whose pawn lookup answered, on a level that is not the title screen's (the title
+-- screen's controller answers the pawn lookup too, so the pawn alone can't tell). The one test of it: the title menu's
+-- lookup and the in-world buttons both use it.
 local function playerInWorld(ctx)
-    return ctx.pc ~= nil and ctx.hasPawn == true
+    return ctx.pc ~= nil and ctx.hasPawn == true and ctx.level ~= PLAYER.TITLE_LEVEL
 end
 
 -- The hooks, registered once their classes load (UTIL.hookWhenLoaded retries while they load: an OK hook that failed
@@ -53,7 +55,8 @@ local function registerHooks(inWorld)
 end
 
 -- Called from the mod's update loop (game thread). ctx: this update's player (main.lua): ctx.pc, the first live
--- controller; ctx.hasPawn, whether its K2_GetPawn answered with an object; ctx.pawn, that pawn when it is valid.
+-- controller; ctx.hasPawn, whether its K2_GetPawn answered with an object; ctx.level, the level it is in; ctx.pawn,
+-- that pawn when it is valid.
 function M.update(ctx)
     CLICKS.run(CRATE_OWNER)
     local inWorld = playerInWorld(ctx)
