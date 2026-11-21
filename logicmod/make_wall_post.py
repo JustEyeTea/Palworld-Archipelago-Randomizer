@@ -18,7 +18,7 @@ A file missing from logicmod/art/walls/ is skipped with a log line; the Lua mod 
 
 M_APWallPost: unlit and masked, so it writes depth and the see-through walls sort cleanly against it (a translucent
 post would be sorted per object with them, not per pixel); one-sided (the post is closed). Parameters the Lua mod
-sets on its dynamic instances (wall_posts.lua's PARAMETERS is a copy of this list: change both):
+sets on its dynamic instances (wall_posts.lua's BACK, FADE_START, FADE_END and PLAYER_POS name them: change both):
   Pattern (texture)     the layer (T_APWallPostPaws); its alpha is how much of it covers Back
   CellSize              centimetres per tile up the post, as the walls' (300), so its rows line up with theirs
   Back (colour)         the colour under the layer: the lock's wall colour, solid
@@ -49,6 +49,9 @@ MATERIAL, MESH, TILE = "M_APWallPost", "SM_APWallPost", "T_APWallPostPaws"
 TILE_FILE, MESH_FILE = "ap-wall-post-paws-layer.png", "SM_APWallPost.fbx"
 GLOW_SHARE = 0.75 * 0.5         # the walls' glow (0.75 of its ring-free part) at half: a faint lightening, the note's
 MASK_CLIP = 0.5                 # the dithered fade: a pixel shows where the dither's value passes this
+DITHER_CLASS = "/Script/Engine.MaterialExpressionDitherTemporalAA"
+NOISE_TEXTURE = "/Engine/EngineMaterials/Good64x64TilingNoiseHighFreq"   # the engine's own: no art of ours
+NOISE_TILE_PX = 64.0            # the noise tile's size in screen pixels: one texel a pixel
 BRIGHTNESS, CELL_CM = 1.1, 300.0
 FADE_START_CM, FADE_END_CM = 1500.0, 2500.0
 REACT_RADIUS_CM, REACT_STRENGTH = 600.0, 0.8
@@ -180,9 +183,58 @@ def post_fade(mat, wpos):
     link(share, "", clamped, "")
     fade = node(mat, unreal.MaterialExpressionOneMinus, 750, 850)
     link(clamped, "", fade, "")
-    dither = node(mat, unreal.MaterialExpressionDitherTemporalAA, 900, 850)
-    link(fade, "", dither, "AlphaThreshold")
-    return dither
+    return dithered(mat, fade)
+
+
+def engine_dither(mat, fade):
+    """The engine's DitherTemporalAA node over the fade, or None: UE 5.1's Python has no unreal.<name> for its class,
+    so it is loaded by path, which may fail too."""
+    try:
+        cls = getattr(unreal, "MaterialExpressionDitherTemporalAA", None) or unreal.load_class(None, DITHER_CLASS)
+        if not cls:
+            return None
+        dither = node(mat, cls, 900, 850)
+        link(fade, "", dither, "AlphaThreshold")
+        return dither
+    except Exception as e:  # noqa: BLE001 - the noise dither below takes over, and the log says so
+        log(f"{MATERIAL}: no DitherTemporalAA node ({e})")
+        return None
+
+
+def noise_dither(mat, fade):
+    """A dither made of exposed nodes: fade + 0.5 - a tiling noise picked by the screen pixel (NOISE_TEXTURE, one tile
+    every NOISE_TILE_PX). Past the 0.5 clip a pixel shows while the fade is above its noise, so the post thins out
+    over the fade instead of popping. None when the noise texture is missing."""
+    noise_tex = unreal.load_asset(NOISE_TEXTURE)
+    if not noise_tex:
+        return None
+    pixel = node(mat, unreal.MaterialExpressionScreenPosition, 600, 1000)
+    tiles = node(mat, unreal.MaterialExpressionDivide, 750, 1000, const_b=NOISE_TILE_PX)
+    link(pixel, "PixelPosition", tiles, "A")
+    noise = node(mat, unreal.MaterialExpressionTextureSample, 900, 1000, texture=noise_tex)
+    link(tiles, "", noise, "UVs")
+    lifted = node(mat, unreal.MaterialExpressionAdd, 900, 850, const_b=MASK_CLIP)
+    link(fade, "", lifted, "A")
+    out = node(mat, unreal.MaterialExpressionSubtract, 1050, 900)
+    link(lifted, "", out, "A")
+    link(noise, "R", out, "B")
+    return out
+
+
+def dithered(mat, fade):
+    """The fade made into the opacity mask: the engine's dither, else the noise dither, else the fade alone (a hard
+    cut at the fade's middle); the log says which."""
+    for way, make in (("DitherTemporalAA", engine_dither), ("a screen noise dither", noise_dither)):
+        try:
+            out = make(mat, fade)
+        except Exception as e:  # noqa: BLE001 - the next way takes over, and the log says so
+            log(f"{MATERIAL}: {way} could not be made ({e})")
+            out = None
+        if out:
+            log(f"{MATERIAL}: the fade is dithered with {way}")
+            return out
+    log(f"{MATERIAL}: the fade is a hard cut at its middle (no dither could be made)")
+    return fade
 
 
 def post_material(tile):
