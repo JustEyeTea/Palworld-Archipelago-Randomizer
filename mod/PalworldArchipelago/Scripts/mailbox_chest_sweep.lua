@@ -19,8 +19,8 @@ end
 
 -- While the chest window is open (every update): deposits go back to the bag, and items received meanwhile go in.
 -- Deposits are refused first by the game's own rule for what a container accepts (FPalItemPermission: a list of item
--- types and ids; ours names one id no item has). Untested in game: whether a deposit still gets through (the log says
--- so when one does). Whatever does is found by comparing the chest with what the mailbox put in (view.inChest), and
+-- types and ids; ours names one id no item has). Seen in game: a deposit ends back in the bag. One that gets through
+-- the rule anyway (the log says so) is found by comparing the chest with what the mailbox put in (view.inChest), and
 -- goes back by the game's own move to the bag (keeps gear's data and food's freshness); if that does nothing within
 -- GAME_MOVE_WAIT, plain items are taken out and given to the bag directly, and gear is left with a note.
 --
