@@ -45,8 +45,9 @@ No release yet: the first is coming soon.
   alt="A locked region's wall in the region's own look and colour, meeting the grille of a wall beyond the goal,
   with the hint pop-up for its pass" width="800">
 
-The wall above wears one of the walls' looks. By default, with the art pak, each region's walls show the region's
-own design over its colour.
+The walls above wear their default look, which needs the art pak: each region's own design over its colour, and a
+grille where a lock lies beyond the goal. Without the pak, walls wear the game's own wall material in the region's
+colour.
 
 ## Help and bug reports
 
