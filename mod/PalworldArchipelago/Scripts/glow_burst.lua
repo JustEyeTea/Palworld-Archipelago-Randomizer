@@ -92,8 +92,7 @@ local function feetOf(pawn)
 end
 
 -- The shock ring: full size at once, made small at the start and grown by M_APGlow (GrowXY, GrowTime), so its growth
--- is smooth between the mod's updates; it fades as it grows. Untested in game: the growth and fades in M_APGlow, and
--- how they line up with the twinkles Lua moves.
+-- is smooth between the mod's updates; it fades as it grows, in step with the twinkles Lua moves (seen in game).
 local function spawnShock(pawn, feet, tint, now)
     local look = GLOW_PIECES.look("burst shock", { mask = "shock", tint = tint, brightness = SHOCK_GLOW,
         startTime = now, life = SHOCK_GROW_S, fadePower = SHOCK_FADE_POWER,

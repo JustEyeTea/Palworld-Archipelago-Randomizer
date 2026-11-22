@@ -139,7 +139,7 @@ What the Lua mod sets on `M_APGlow` (`glow_pieces.lua`; the full list is at the 
 the halo), `StartTime`, `Life`, `FadeDelay` and `FadePower` (a fade by the game's clock, as `M_APWall`'s dissolve),
 `GrowXY`, `GrowZ` and `GrowTime` (the burst's shock ring and column grow in the material, smooth between the mod's
 300 ms updates), and `NearFadeStart`/`NearFadeEnd` (the pillar hides up close). The glows are on by default;
-`glow=0` in the mod's `config.txt` turns them off. The glows are untested in game.
+`glow=0` in the mod's `config.txt` turns them off.
 
 ## The mailbox window (PalworldArchipelagoUI.pak)
 

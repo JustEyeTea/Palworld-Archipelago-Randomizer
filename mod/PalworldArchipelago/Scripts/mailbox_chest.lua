@@ -224,8 +224,8 @@ local function harden(chest, pawn)
     end)
 end
 
--- Deposits refused on the chest, once a world: the permission is set on its container and slots, and untested in game
--- is only whether the game keeps it between opens (a deposit that gets through is returned by the sweep all the same).
+-- Deposits refused on the chest, once a world: the permission is set on its container and slots. Should the game drop
+-- it between opens, a deposit that gets through is returned by the sweep all the same.
 local function refuseDeposits(chest)
     local address = UTIL.addr(chest)
     if address and address == lockedChest then return end

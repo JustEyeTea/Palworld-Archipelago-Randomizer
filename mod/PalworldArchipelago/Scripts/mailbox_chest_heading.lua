@@ -27,7 +27,7 @@ local HEADING_ROW_LEVELS = 3         -- how far above the heading the row it sit
 
 -- The mailbox emblem (art/ap-mailbox-emblem-64.png) beside the heading, once a view, only where the heading sits in a
 -- horizontal box within HEADING_ROW_LEVELS above it (it sits in a SizeBox; the row is further up); the chain of
--- parents is logged either way. Untested in game: whether the emblem shows beside the heading.
+-- parents is logged either way. Seen in game: the emblem shows beside the heading.
 local function addEmblemOnce(view, heading)
     if view.emblem then return end
     view.emblem = true
