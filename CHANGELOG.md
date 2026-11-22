@@ -10,7 +10,7 @@ direction.
 
 ## Unreleased (0.15.0)
 
-Changes since v0.14.0, as a player sees them.
+Changes since v0.14.0 (a build that was never published; see below), as a player sees them.
 
 ### Level Progression
 
@@ -89,7 +89,8 @@ Changes since v0.14.0, as a player sees them.
 ## v0.14.0 (not published)
 
 The tag `v0.14.0` (mod 0.14.0, APWorld 0.8.0, for Archipelago 0.6.8 and Palworld 1.0.5) made a draft release, which
-was never published. Its draft held the mod zip (`PalworldArchipelago-v0.14.0.zip`, whose `ue4ss` folder goes over
+was never published. Both were then removed, so 0.15.0 is the first published release; the tag was on commit
+`6be6376`. Its draft held the mod zip (`PalworldArchipelago-v0.14.0.zip`, whose `ue4ss` folder goes over
 `Pal/Binaries/Win64/ue4ss`), `palworld.apworld` and their checksums, with the setup guide.
 
 What it was: Palworld's Technology tree from level 2 up as an Archipelago shop, whose cards show what each purchase

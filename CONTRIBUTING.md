@@ -27,9 +27,13 @@ Modding Kit ([logicmod/README.md](logicmod/README.md)).
 
 ## Branches
 
-- Work on a feature branch made from `next`, and open its pull request into `next`. CI runs on every pull request.
+- Work on a feature branch made from `next` (make `next` from `main` if it isn't there), and open its pull request
+  into `next`. CI runs on every pull request.
 - `next` goes into `main` through a pull request once a playtest has passed; releases are tagged on `main`
   ([Releases](docs/architecture.md#releases)).
+- `main` is protected: a change reaches it only through a pull request whose CI checks pass (What changed,
+  APWorld on Archipelago 0.6.8 and C++ mod (Windows); a skipped job counts as passed), merged as a merge commit.
+  Nobody, admins included, can push to it directly, force-push it or delete it.
 - For a Windows DLL to playtest without a pull request, push the branch as `build/<name>`
   (`git push origin <branch>:build/<name>`) and download the `PalworldArchipelago-mod-<commit>` artifact from its CI
   run ([CI](docs/architecture.md#ci)).
