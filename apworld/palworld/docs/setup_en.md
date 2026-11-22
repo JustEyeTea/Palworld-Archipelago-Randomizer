@@ -35,7 +35,7 @@ Steam Deck and Proton are not tested. Each player in the multiworld plays their 
 
 ## 2. Install
 
-![Where the files go: UE4SS installed by hand or from the Steam Workshop (never both), the mod folders, the optional art pak and the APWorld](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/install-tree.png)
+![Where the files go: UE4SS installed by hand or from the Steam Workshop (never both), the mod folders, the Keybinds line in mods.txt, the optional art pak and the APWorld](https://raw.githubusercontent.com/JustEyeTea/Palworld-Archipelago-Randomizer/main/art/docs/install-tree.png)
 
 1. Find the game's folder: in Steam, right-click Palworld > Manage > Browse local files. It is usually
    `C:\Program Files (x86)\Steam\steamapps\common\Palworld`. The paths below start there.
