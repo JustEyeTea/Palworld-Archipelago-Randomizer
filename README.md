@@ -41,7 +41,9 @@ No release yet: the first is coming soon.
 
 <img src="art/readme/feature-shop.png" alt="The Technology tree becomes an Archipelago shop" width="800">
 <img src="art/readme/feature-passes.png" alt="Regions open with Region Passes" width="800">
-<img src="art/readme/feature-walls.png" alt="A locked region's wall in the region's colour, with the hint pop-up for its pass" width="800">
+<img src="art/readme/feature-walls.png"
+  alt="A locked region's wall in the region's own look and colour, meeting the grille of a wall beyond the goal,
+  with the hint pop-up for its pass" width="800">
 
 The wall above wears one of the walls' looks. By default, with the art pak, each region's walls show the region's
 own design over its colour.
